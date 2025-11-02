@@ -1,0 +1,5 @@
+{
+  "name": "Copy of YouTube Content Assistant",
+  "description": "An application that uses Gemini's video understanding capabilities to help YouTube creators generate compelling titles, descriptions, and tags for their videos. Users can upload a video, capture a keyframe, and let AI generate optimized metadata.",
+  "requestFramePermissions": []
+}

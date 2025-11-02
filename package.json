@@ -1,0 +1,32 @@
+{
+  "name": "ai-video-writer",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "author": {
+    "name": "jaschiang",
+    "url": "https://www.linkedin.com/in/jascty/"
+  },
+  "scripts": {
+    "dev": "vite",
+    "server": "node server.js",
+    "dev:all": "concurrently \"npm run dev\" \"npm run server\"",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@google/genai": "^1.26.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^8.2.2",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
