@@ -4,7 +4,9 @@
 
 將 YouTube 影片自動轉換為 SEO 強化的文章和中繼資料，利用先進的 Gemini 2.5 Flash AI 模型，為內容創作者節省大量時間。
 
-**Created by [@jaschiang](https://www.linkedin.com/in/jascty/)**
+本專案主要由 Claude Code 協助生成，UI 調整由 Codex 協助
+
+**Created by [Jas Chiang](https://www.facebook.com/jaschiang/) | [LinkedIn](https://www.linkedin.com/in/jascty) | [X](https://x.com/jaschiang)**
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
