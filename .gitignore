@@ -29,3 +29,11 @@ temp_videos/
 *.sw?
 /.gemini-clipboard
 /public/images
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Claude Code local settings
+.claude/*.local.json
