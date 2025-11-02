@@ -2,7 +2,7 @@
 
 > 基於 Google Gemini AI 的智慧 YouTube 影片內容轉換工具
 
-將 YouTube 影片自動轉換為 SEO 強化的文章和中繼資料，利用先進的 Gemini 2.5 Flash AI 模型，為內容創作者節省大量時間。
+將 YouTube 影片自動轉換為 SEO 強化的文章和中繼資料，利用 Gemini 2.5 Flash 的「傳送 YouTube 網址」能力，為內容創作者節省大量時間。
 
 本專案主要由 Claude Code 協助生成，UI 調整由 Codex 協助
 
