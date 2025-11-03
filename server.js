@@ -14,7 +14,10 @@ dotenv.config({ path: '.env.local' });
 
 const execAsync = promisify(exec);
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
+
+// 檔案保留天數設定（預設 7 天）
+const FILE_RETENTION_DAYS = parseInt(process.env.FILE_RETENTION_DAYS || '7', 10);
 
 // 驗證 API Key
 if (!process.env.GEMINI_API_KEY) {
@@ -43,6 +46,15 @@ if (!fs.existsSync(IMAGES_DIR)) {
 // 靜態檔案服務 - 提供截圖存取
 app.use('/images', express.static(IMAGES_DIR));
 
+// 前端執行期設定：由後端輸出 config.js，避免在建置期烘入敏感或會變動的設定
+app.get('/app-config.js', (_req, res) => {
+  const cfg = {
+    YOUTUBE_CLIENT_ID: process.env.YOUTUBE_CLIENT_ID || null,
+    YOUTUBE_SCOPES: 'https://www.googleapis.com/auth/youtube',
+  };
+  res.type('application/javascript').send(`window.__APP_CONFIG__ = ${JSON.stringify(cfg)};`);
+});
+
 // ==================== 安全性驗證函數 ====================
 
 /**
@@ -57,6 +69,26 @@ function isValidVideoId(videoId) {
   }
   // YouTube Video ID 固定為 11 個字元
   return /^[a-zA-Z0-9_-]{11}$/.test(videoId);
+}
+
+// =============== Files API helpers ===============
+/**
+ * 使用 Files API 以 displayName 尋找檔案（支援分頁）。
+ * 回傳第一個符合 displayName 的檔案（可為任何 state）。
+ */
+async function findFileByDisplayName(ai, displayName) {
+  try {
+    const iterable = await ai.files.list({ config: { pageSize: 50 } });
+    for await (const file of iterable) {
+      if (file?.displayName === displayName) {
+        return file;
+      }
+    }
+    return null;
+  } catch (err) {
+    console.error('[FilesAPI] list error:', err?.message || err);
+    throw err;
+  }
 }
 
 // ==================== API 端點 ====================
@@ -225,6 +257,8 @@ app.post('/api/analyze-video-url', async (req, res) => {
   }
 });
 
+// （Moved to bottom）
+
 /**
  * 上傳影片到 Gemini 並生成 metadata（用於非公開影片）
  * POST /api/analyze-video
@@ -247,11 +281,7 @@ app.post('/api/analyze-video', async (req, res) => {
 
     // 先檢查檔案是否已存在於 Files API
     console.log('[Analyze] 步驟 1/4: 檢查 Files API 中是否已有此檔案...');
-    const filesList = await ai.files.list();
-    const files = filesList.pageInternal || [];
-    const existingFile = files.find(file =>
-      file.displayName === videoId && file.state === 'ACTIVE'
-    );
+    const existingFile = await findFileByDisplayName(ai, videoId);
 
     let uploadedFile;
     let reusedFile = false;
@@ -296,9 +326,7 @@ app.post('/api/analyze-video', async (req, res) => {
     }
 
     // 等待檔案處理完成（變成 ACTIVE 狀態）
-    // 如果是重複使用的檔案，已經是 ACTIVE，不需要等待
-    if (!reusedFile) {
-      if (uploadedFile.state === 'PROCESSING') {
+    if (uploadedFile.state === 'PROCESSING') {
         console.log('[Analyze] ⏳ Gemini 正在處理影片,等待處理完成...');
 
         let attempts = 0;
@@ -339,9 +367,6 @@ app.post('/api/analyze-video', async (req, res) => {
       } else {
         throw new Error(`Unexpected file state: ${uploadedFile.state}`);
       }
-    } else {
-      console.log('[Analyze] ✅ 使用已存在的 ACTIVE 檔案，無需等待');
-    }
 
     // 生成提示詞
     console.log('[Analyze] 步驟 4/4: 正在生成 SEO 強化內容...');
@@ -693,11 +718,7 @@ app.post('/api/generate-article', async (req, res) => {
 
     // 先檢查檔案是否已存在於 Files API
     console.log('[Article] 步驟 2/5: 檢查 Files API 中是否已有此檔案...');
-    const filesList = await ai.files.list();
-    const files = filesList.pageInternal || [];
-    const existingFile = files.find(file =>
-      file.displayName === videoId && file.state === 'ACTIVE'
-    );
+    const existingFile = await findFileByDisplayName(ai, videoId);
 
     let uploadedFile;
     let reusedFile = false;
@@ -731,9 +752,8 @@ app.post('/api/generate-article', async (req, res) => {
       console.log(`[Article] File State: ${uploadedFile.state}`);
     }
 
-    // 等待檔案處理完成（如果是新上傳的）
-    if (!reusedFile) {
-      if (uploadedFile.state === 'PROCESSING') {
+    // 等待檔案處理完成（新上傳或重用中的 PROCESSING 檔案）
+    if (uploadedFile.state === 'PROCESSING') {
         console.log('[Article] ⏳ Gemini 正在處理影片,等待處理完成...');
         let attempts = 0;
         const maxAttempts = 60;
@@ -767,9 +787,6 @@ app.post('/api/generate-article', async (req, res) => {
       } else {
         throw new Error(`Unexpected file state: ${uploadedFile.state}`);
       }
-    } else {
-      console.log('[Article] ✅ 使用已存在的 ACTIVE 檔案，無需等待');
-    }
 
     // 生成文章提示詞
     console.log(reusedFile ? '[Article] 步驟 3/5: 正在生成文章內容與截圖時間點...' : '[Article] 步驟 4/5: 正在生成文章內容與截圖時間點...');
@@ -1171,29 +1188,7 @@ app.get('/api/check-file/:videoId', async (req, res) => {
 
     // 列出所有檔案，尋找符合 displayName 的檔案
     console.log(`[Check File] Calling ai.files.list()...`);
-    const filesList = await ai.files.list();
-    console.log(`[Check File] Response received`);
-
-    // SDK 回傳的結構使用 pageInternal 而非 files
-    const files = filesList.pageInternal || [];
-    console.log(`[Check File] Total files in Gemini: ${files.length}`);
-
-    // 如果有檔案，印出所有檔案的詳細資訊
-    if (files.length > 0) {
-      files.forEach((file, index) => {
-        console.log(`[Check File] File ${index + 1}:`);
-        console.log(`  - Name: ${file.name}`);
-        console.log(`  - DisplayName: ${file.displayName}`);
-        console.log(`  - State: ${file.state}`);
-        console.log(`  - URI: ${file.uri}`);
-        console.log(`  - CreateTime: ${file.createTime}`);
-      });
-    } else {
-      console.log(`[Check File] ⚠️  No files found in the list`);
-    }
-
-    // 尋找 displayName 匹配 videoId 的檔案
-    const matchingFile = files.find(file => file.displayName === videoId);
+    const matchingFile = await findFileByDisplayName(ai, videoId);
 
     if (matchingFile) {
       console.log(`[Check File] ✅ Found file: ${matchingFile.name}, State: ${matchingFile.state}`);
@@ -1267,7 +1262,113 @@ app.delete('/api/cleanup/:videoId', (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`Make sure yt-dlp is installed: https://github.com/yt-dlp/yt-dlp#installation`);
+// 服務前端靜態檔案（Vite build 輸出的 dist）
+app.use(express.static(path.join(process.cwd(), 'dist')));
+
+// 單頁應用程式路由 fallback（最後註冊，避免吃掉 /api/*）
+app.get('*', (_req, res) => {
+  const indexPath = path.join(process.cwd(), 'dist', 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).send('Build not found. Please run the build process.');
+  }
+});
+
+// ==================== 啟動時清理過期檔案 ====================
+
+/**
+ * 清理指定目錄中超過保留天數的檔案
+ * @param {string} directory - 要清理的目錄路徑
+ * @param {number} retentionDays - 保留天數
+ * @returns {Promise<{deletedCount: number, deletedSize: number}>}
+ */
+async function cleanupOldFiles(directory, retentionDays) {
+  if (!fs.existsSync(directory)) {
+    return { deletedCount: 0, deletedSize: 0 };
+  }
+
+  const now = Date.now();
+  const retentionMs = retentionDays * 24 * 60 * 60 * 1000; // 轉換為毫秒
+  let deletedCount = 0;
+  let deletedSize = 0;
+
+  try {
+    const files = fs.readdirSync(directory);
+
+    for (const file of files) {
+      const filePath = path.join(directory, file);
+
+      try {
+        const stats = fs.statSync(filePath);
+
+        // 只處理檔案，跳過目錄
+        if (!stats.isFile()) {
+          continue;
+        }
+
+        // 計算檔案年齡
+        const fileAge = now - stats.mtime.getTime();
+
+        // 如果檔案超過保留天數，則刪除
+        if (fileAge > retentionMs) {
+          const fileSize = stats.size;
+          fs.unlinkSync(filePath);
+          deletedCount++;
+          deletedSize += fileSize;
+
+          const ageInDays = Math.floor(fileAge / (24 * 60 * 60 * 1000));
+          console.log(`  🗑️  已刪除: ${file} (${(fileSize / (1024 * 1024)).toFixed(2)} MB, ${ageInDays} 天前)`);
+        }
+      } catch (err) {
+        console.error(`  ⚠️  無法處理檔案 ${file}:`, err.message);
+      }
+    }
+  } catch (err) {
+    console.error(`[Cleanup] 讀取目錄失敗 ${directory}:`, err.message);
+  }
+
+  return { deletedCount, deletedSize };
+}
+
+/**
+ * 啟動時執行清理任務
+ */
+async function startupCleanup() {
+  console.log('\n========== 🧹 啟動清理檢查 ==========');
+  console.log(`[Cleanup] 檔案保留天數: ${FILE_RETENTION_DAYS} 天`);
+
+  // 清理暫存影片
+  console.log('[Cleanup] 檢查 temp_videos 目錄...');
+  const tempResult = await cleanupOldFiles(DOWNLOAD_DIR, FILE_RETENTION_DAYS);
+
+  // 清理截圖
+  console.log('[Cleanup] 檢查 public/images 目錄...');
+  const imagesResult = await cleanupOldFiles(IMAGES_DIR, FILE_RETENTION_DAYS);
+
+  // 統計總計
+  const totalDeleted = tempResult.deletedCount + imagesResult.deletedCount;
+  const totalSize = (tempResult.deletedSize + imagesResult.deletedSize) / (1024 * 1024);
+
+  if (totalDeleted > 0) {
+    console.log(`[Cleanup] ✅ 清理完成: 刪除 ${totalDeleted} 個檔案，釋放 ${totalSize.toFixed(2)} MB 空間`);
+  } else {
+    console.log('[Cleanup] ✅ 無需清理，所有檔案都在保留期限內');
+  }
+  console.log('========== 清理檢查完成 ==========\n');
+}
+
+// 啟動伺服器前先執行清理
+startupCleanup().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Make sure yt-dlp is installed: https://github.com/yt-dlp/yt-dlp#installation`);
+  });
+}).catch((err) => {
+  console.error('❌ Cleanup failed:', err);
+  // 即使清理失敗也要啟動伺服器
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Make sure yt-dlp is installed: https://github.com/yt-dlp/yt-dlp#installation`);
+  });
 });
