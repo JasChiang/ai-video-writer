@@ -28,7 +28,14 @@ if (!process.env.GEMINI_API_KEY) {
 
 console.log('✅ Gemini API Key loaded successfully');
 
-app.use(cors());
+// CORS 配置 - 只允許指定的前端網址
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
+  optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // 確保下載目錄存在

@@ -1,6 +1,7 @@
 import type { GeneratedContentType } from '../types';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+// 從環境變數獲取 API 基址，如果沒有設定則使用預設值
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 // 進度回調函數類型
 export type ProgressCallback = (step: string) => void;
