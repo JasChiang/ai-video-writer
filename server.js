@@ -71,6 +71,51 @@ function isValidVideoId(videoId) {
   return /^[a-zA-Z0-9_-]{11}$/.test(videoId);
 }
 
+// ==================== 截圖工具函數 ====================
+
+/**
+ * 將時間字串（mm:ss）轉換為秒數
+ * @param {string} timeStr - 時間字串（格式：mm:ss）
+ * @returns {number} - 秒數
+ */
+function timeToSeconds(timeStr) {
+  const [minutes, seconds] = timeStr.split(':').map(Number);
+  return minutes * 60 + seconds;
+}
+
+/**
+ * 將秒數轉換為時間字串（mm:ss）
+ * @param {number} seconds - 秒數
+ * @returns {string} - 時間字串（格式：mm:ss）
+ */
+function secondsToTime(seconds) {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+/**
+ * 使用 FFmpeg 截取影片畫面
+ * @param {string} videoPath - 影片檔案路徑
+ * @param {number} timeInSeconds - 截圖時間點（秒）
+ * @param {string} outputPath - 輸出檔案路徑
+ * @param {number} quality - 截圖品質（2-31，數字越小品質越高），預設 2（最高品質）
+ * @returns {Promise<void>}
+ */
+async function captureScreenshot(videoPath, timeInSeconds, outputPath, quality = 2) {
+  // 限制品質範圍在 2-31 之間
+  const validQuality = Math.max(2, Math.min(31, quality));
+
+  // FFmpeg 截圖命令
+  // -ss: 指定時間點
+  // -i: 輸入檔案
+  // -vframes 1: 只截取一幀
+  // -q:v: JPEG 品質（2=最高品質，31=最低品質）
+  // -y: 覆蓋已存在的檔案
+  const command = `ffmpeg -ss ${timeInSeconds} -i "${videoPath}" -vframes 1 -q:v ${validQuality} "${outputPath}" -y`;
+  await execAsync(command);
+}
+
 // =============== Files API helpers ===============
 /**
  * 使用 Files API 以 displayName 尋找檔案（支援分頁）。
@@ -96,10 +141,10 @@ async function findFileByDisplayName(ai, displayName) {
 /**
  * 下載 YouTube 影片
  * POST /api/download-video
- * Body: { videoId: string, accessToken: string }
+ * Body: { videoId: string, accessToken: string, quality?: number }
  */
 app.post('/api/download-video', async (req, res) => {
-  const { videoId, accessToken } = req.body;
+  const { videoId, accessToken, quality = 2 } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
@@ -128,13 +173,27 @@ app.post('/api/download-video', async (req, res) => {
     // 使用 yt-dlp 下載未列出影片
     // 不使用 cookies，依賴 yt-dlp 的內建機制
 
+    // 根據截圖品質決定影片解析度
+    // quality=2（高畫質截圖）→ 下載 1080p 影片（至少 720p）
+    // quality=20（壓縮截圖）→ 下載 720p 影片（至少 480p）
+    let formatSelector;
+    if (quality <= 10) {
+      // 高品質：優先選擇 720p-1080p，再嘗試 ≥720p，最後選最佳
+      formatSelector = '"best[height>=720][height<=1080][ext=mp4]/best[height>=720][ext=mp4]/best[height>=720]/best[ext=mp4]/best"';
+      console.log(`[Download] 截圖品質: ${quality}（高畫質）→ 目標影片解析度: 720p-1080p`);
+    } else {
+      // 壓縮：優先選擇 480p-720p，再嘗試 ≥480p，最後選最佳
+      formatSelector = '"best[height>=480][height<=720][ext=mp4]/best[height>=480][ext=mp4]/best[height>=480]/best[ext=mp4]/best"';
+      console.log(`[Download] 截圖品質: ${quality}（壓縮）→ 目標影片解析度: 480p-720p`);
+    }
+
     // 建構命令（使用陣列避免換行問題）
     const commandParts = [
       'yt-dlp',
       // 使用 android player client（適合未列出影片，不需要 cookies）
       '--extractor-args', '"youtube:player_client=android"',
-      // 使用更寬鬆的格式選擇，優先選擇 mp4
-      '-f', '"best[height<=720][ext=mp4]/best[height<=720]/best"',
+      // 根據品質選擇格式
+      '-f', formatSelector,
       // 如果已經是 mp4 就不要重新編碼
       '--remux-video', 'mp4',
       '-o', `"${outputPath}"`,
@@ -503,10 +562,10 @@ app.post('/api/reanalyze-with-existing-file', async (req, res) => {
 /**
  * 使用 YouTube URL 生成文章（僅限公開影片）
  * POST /api/generate-article-url
- * Body: { videoId: string, prompt: string, videoTitle: string }
+ * Body: { videoId: string, prompt: string, videoTitle: string, quality?: number }
  */
 app.post('/api/generate-article-url', async (req, res) => {
-  const { videoId, prompt, videoTitle } = req.body;
+  const { videoId, prompt, videoTitle, quality = 2 } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
@@ -577,10 +636,25 @@ app.post('/api/generate-article-url', async (req, res) => {
 
     // 步驟 2: 下載影片用於截圖
     console.log('[Article URL] 步驟 2/3: 下載影片以進行截圖...');
+
+    // 根據截圖品質決定影片解析度
+    // quality=2（高畫質截圖）→ 下載 1080p 影片（至少 720p）
+    // quality=20（壓縮截圖）→ 下載 720p 影片（至少 480p）
+    let formatSelector;
+    if (quality <= 10) {
+      // 高品質：優先選擇 720p-1080p，再嘗試 ≥720p，最後選最佳
+      formatSelector = '"best[height>=720][height<=1080][ext=mp4]/best[height>=720][ext=mp4]/best[height>=720]/best[ext=mp4]/best"';
+      console.log(`[Article URL] 截圖品質: ${quality}（高畫質）→ 目標影片解析度: 720p-1080p`);
+    } else {
+      // 壓縮：優先選擇 480p-720p，再嘗試 ≥480p，最後選最佳
+      formatSelector = '"best[height>=480][height<=720][ext=mp4]/best[height>=480][ext=mp4]/best[height>=480]/best[ext=mp4]/best"';
+      console.log(`[Article URL] 截圖品質: ${quality}（壓縮）→ 目標影片解析度: 480p-720p`);
+    }
+
     const commandParts = [
       'yt-dlp',
       '--extractor-args', '"youtube:player_client=android"',
-      '-f', '"best[height<=720][ext=mp4]/best[height<=720]/best"',
+      '-f', formatSelector,
       '--remux-video', 'mp4',
       '-o', `"${outputPath}"`,
       '--retries', '5',
@@ -601,19 +675,7 @@ app.post('/api/generate-article-url', async (req, res) => {
 
     // 步驟 3: 使用 FFmpeg 截取畫面
     console.log('[Article URL] 步驟 3/3: 正在截取關鍵畫面...');
-
-    // 輔助函數：將 mm:ss 轉換為秒數
-    const timeToSeconds = (timeStr) => {
-      const [minutes, seconds] = timeStr.split(':').map(Number);
-      return minutes * 60 + seconds;
-    };
-
-    // 輔助函數：將秒數轉換為 mm:ss
-    const secondsToTime = (seconds) => {
-      const mins = Math.floor(seconds / 60);
-      const secs = Math.floor(seconds % 60);
-      return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    };
+    console.log(`[Article URL] 截圖品質設定: ${quality} (2=最高, 31=最低)`);
 
     const imageUrls = [];
     for (let i = 0; i < result.screenshots.length; i++) {
@@ -637,8 +699,7 @@ app.post('/api/generate-article-url', async (req, res) => {
         const screenshotPath = path.join(IMAGES_DIR, outputFilename);
 
         try {
-          // 直接用秒數，ffmpeg 原生支援且更高效
-          await execAsync(`ffmpeg -i "${outputPath}" -ss ${targetSeconds} -vframes 1 "${screenshotPath}" -y`);
+          await captureScreenshot(outputPath, targetSeconds, screenshotPath, quality);
           screenshotGroup.push(`/images/${outputFilename}`);
           console.log(`[Article URL] ✅ 截圖已儲存: ${outputFilename} (${label}: ${targetSeconds}s)`);
         } catch (error) {
@@ -680,11 +741,11 @@ app.post('/api/generate-article-url', async (req, res) => {
 /**
  * 生成文章與截圖（用於非公開影片）
  * POST /api/generate-article
- * Body: { videoId: string, filePath: string, prompt: string, videoTitle: string }
+ * Body: { videoId: string, filePath: string, prompt: string, videoTitle: string, quality?: number }
  * 注意：filePath 是必需的，因為需要本地檔案來截圖
  */
 app.post('/api/generate-article', async (req, res) => {
-  const { videoId, filePath, prompt, videoTitle } = req.body;
+  const { videoId, filePath, prompt, videoTitle, quality = 2 } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
@@ -836,22 +897,11 @@ app.post('/api/generate-article', async (req, res) => {
       throw new Error(`無法解析 Gemini 回應為 JSON 格式。錯誤：${parseError.message}`);
     }
 
-    // 輔助函數：將 mm:ss 轉換為秒數
-    const timeToSeconds = (timeStr) => {
-      const [minutes, seconds] = timeStr.split(':').map(Number);
-      return minutes * 60 + seconds;
-    };
-
-    // 輔助函數：將秒數轉換為 mm:ss
-    const secondsToTime = (seconds) => {
-      const mins = Math.floor(seconds / 60);
-      const secs = Math.floor(seconds % 60);
-      return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    };
-
     // 使用 FFmpeg 截取畫面
     // 每個時間點截取 3 張圖片：前 2 秒、當前、後 2 秒
     console.log(reusedFile ? '[Article] 步驟 4/5: 正在截取關鍵畫面...' : '[Article] 步驟 5/5: 正在截取關鍵畫面...');
+    console.log(`[Article] 截圖品質設定: ${quality} (2=最高, 31=最低)`);
+
     const imageUrls = [];
     for (let i = 0; i < result.screenshots.length; i++) {
       const screenshot = result.screenshots[i];
@@ -874,8 +924,7 @@ app.post('/api/generate-article', async (req, res) => {
         const outputPath = path.join(IMAGES_DIR, outputFilename);
 
         try {
-          // 直接用秒數，ffmpeg 原生支援且更高效
-          await execAsync(`ffmpeg -i "${filePath}" -ss ${targetSeconds} -vframes 1 "${outputPath}" -y`);
+          await captureScreenshot(filePath, targetSeconds, outputPath, quality);
           screenshotGroup.push(`/images/${outputFilename}`);
           console.log(`[Article] ✅ 截圖已儲存: ${outputFilename} (${label}: ${targetSeconds}s)`);
         } catch (error) {
@@ -1028,10 +1077,10 @@ app.post('/api/regenerate-article', async (req, res) => {
 /**
  * 重新生成截圖（讓 Gemini 重新看影片並提供新的截圖建議）
  * POST /api/regenerate-screenshots
- * Body: { videoId: string, videoTitle: string, filePath: string, prompt?: string }
+ * Body: { videoId: string, videoTitle: string, filePath: string, prompt?: string, quality?: number }
  */
 app.post('/api/regenerate-screenshots', async (req, res) => {
-  const { videoId, videoTitle, filePath, prompt } = req.body;
+  const { videoId, videoTitle, filePath, prompt, quality = 2 } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
@@ -1095,19 +1144,7 @@ app.post('/api/regenerate-screenshots', async (req, res) => {
 
     // 步驟 3: 使用本地影片進行截圖
     console.log('[Regenerate Screenshots] 步驟 3/4: 正在截取新的關鍵畫面...');
-
-    // 輔助函數：將 mm:ss 轉換為秒數
-    const timeToSeconds = (timeStr) => {
-      const [minutes, seconds] = timeStr.split(':').map(Number);
-      return minutes * 60 + seconds;
-    };
-
-    // 輔助函數：將秒數轉換為 mm:ss
-    const secondsToTime = (seconds) => {
-      const mins = Math.floor(seconds / 60);
-      const secs = Math.floor(seconds % 60);
-      return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    };
+    console.log(`[Regenerate Screenshots] 截圖品質設定: ${quality} (2=最高, 31=最低)`);
 
     const imageUrls = [];
     for (let i = 0; i < result.screenshots.length; i++) {
@@ -1132,8 +1169,7 @@ app.post('/api/regenerate-screenshots', async (req, res) => {
         const outputPath = path.join(IMAGES_DIR, outputFilename);
 
         try {
-          // 直接用秒數，ffmpeg 原生支援且更高效
-          await execAsync(`ffmpeg -i "${filePath}" -ss ${targetSeconds} -vframes 1 "${outputPath}" -y`);
+          await captureScreenshot(filePath, targetSeconds, outputPath, quality);
           screenshotGroup.push(`/images/${outputFilename}`);
           console.log(`[Regenerate Screenshots] ✅ 截圖已儲存: ${outputFilename} (${label}: ${targetSeconds}s)`);
         } catch (error) {

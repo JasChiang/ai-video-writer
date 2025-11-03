@@ -15,6 +15,7 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ArticleGenerationResult | null>(null);
   const [customPrompt, setCustomPrompt] = useState('');
+  const [screenshotQuality, setScreenshotQuality] = useState<number>(2); // 預設高畫質
   const [loadingStep, setLoadingStep] = useState<string>('');
 
   const handleGenerate = async () => {
@@ -34,6 +35,7 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
           video.id,
           customPrompt,
           video.title,
+          screenshotQuality,
           (step: string) => {
             setLoadingStep(step);
             console.log(`[Progress] ${step}`);
@@ -46,6 +48,7 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
           video.id,
           customPrompt,
           video.title,
+          screenshotQuality,
           (step: string) => {
             setLoadingStep(step);
             console.log(`[Progress] ${step}`);
@@ -86,6 +89,7 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
         video.id,
         video.title,
         customPrompt,
+        screenshotQuality,
         (step: string) => {
           setLoadingStep(step);
           console.log(`[Progress] ${step}`);
@@ -139,6 +143,39 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
                     color: '#03045E'
                   }}
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: '#03045E' }}>
+                  截圖品質
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="radio"
+                      name="quality"
+                      value="2"
+                      checked={screenshotQuality === 2}
+                      onChange={() => setScreenshotQuality(2)}
+                      className="mr-2"
+                    />
+                    <span style={{ color: '#03045E' }}>高畫質（預設）- 檔案較大，畫質最佳</span>
+                  </label>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="radio"
+                      name="quality"
+                      value="20"
+                      checked={screenshotQuality === 20}
+                      onChange={() => setScreenshotQuality(20)}
+                      className="mr-2"
+                    />
+                    <span style={{ color: '#03045E' }}>壓縮 - 檔案較小，適合網頁載入</span>
+                  </label>
+                </div>
+                <p className="text-xs mt-2" style={{ color: '#90E0EF' }}>
+                  💡 高畫質適合印刷或高解析度顯示，壓縮適合網頁快速載入
+                </p>
               </div>
 
               {error && (

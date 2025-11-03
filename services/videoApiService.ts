@@ -217,6 +217,7 @@ export async function analyzeUnlistedVideo(
  * @param videoId YouTube 影片 ID
  * @param userPrompt 使用者額外提示
  * @param videoTitle 影片標題
+ * @param screenshotQuality 截圖品質 (2=高畫質, 20=壓縮)
  * @param onProgress Optional: progress callback function
  * @returns 文章生成結果
  */
@@ -224,6 +225,7 @@ export async function generateArticleWithYouTubeUrl(
   videoId: string,
   userPrompt: string,
   videoTitle: string,
+  screenshotQuality: number = 2,
   onProgress?: ProgressCallback
 ): Promise<any> {
   try {
@@ -237,6 +239,7 @@ export async function generateArticleWithYouTubeUrl(
         videoId,
         prompt: userPrompt,
         videoTitle,
+        quality: screenshotQuality,
       }),
     });
 
@@ -262,6 +265,7 @@ export async function generateArticleWithYouTubeUrl(
  * @param videoId YouTube 影片 ID
  * @param userPrompt 使用者額外提示
  * @param videoTitle 影片標題
+ * @param screenshotQuality 截圖品質 (2=高畫質, 20=壓縮)
  * @param onProgress Optional: progress callback function
  * @returns 文章生成結果
  */
@@ -269,6 +273,7 @@ export async function generateArticleWithDownload(
   videoId: string,
   userPrompt: string,
   videoTitle: string,
+  screenshotQuality: number = 2,
   onProgress?: ProgressCallback
 ): Promise<any> {
   try {
@@ -281,7 +286,7 @@ export async function generateArticleWithDownload(
     const downloadResponse = await fetch(`${API_BASE_URL}/download-video`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ videoId }),
+      body: JSON.stringify({ videoId, quality: screenshotQuality }),
     });
 
     if (!downloadResponse.ok) {
@@ -310,6 +315,7 @@ export async function generateArticleWithDownload(
         filePath,
         prompt: userPrompt,
         videoTitle,
+        quality: screenshotQuality,
       }),
     });
 
@@ -352,6 +358,7 @@ export async function cleanupVideo(videoId: string): Promise<void> {
  * @param videoId YouTube 影片 ID
  * @param videoTitle 影片標題
  * @param userPrompt 使用者額外提示
+ * @param screenshotQuality 截圖品質 (2=高畫質, 20=壓縮)
  * @param onProgress Optional: progress callback function
  * @returns 新的文章生成結果（含新截圖）
  */
@@ -359,6 +366,7 @@ export async function regenerateScreenshots(
   videoId: string,
   videoTitle: string,
   userPrompt: string,
+  screenshotQuality: number = 2,
   onProgress?: ProgressCallback
 ): Promise<any> {
   try {
@@ -372,7 +380,7 @@ export async function regenerateScreenshots(
     const downloadResponse = await fetch(`${API_BASE_URL}/download-video`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ videoId }),
+      body: JSON.stringify({ videoId, quality: screenshotQuality }),
     });
 
     if (!downloadResponse.ok) {
@@ -400,6 +408,7 @@ export async function regenerateScreenshots(
         videoTitle,
         filePath,
         prompt: userPrompt,
+        quality: screenshotQuality,
       }),
     });
 
