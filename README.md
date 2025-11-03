@@ -15,6 +15,18 @@
 
 ---
 
+## 🐳 Docker 部署
+
+想要使用 Docker 快速部署？請切換到 **[Docker 分支](../../tree/Docker)**
+
+Docker 分支包含：
+- 📦 完整的 Docker 和 Docker Compose 配置
+- 📖 Docker Desktop 圖形介面使用指南
+- 🚀 一鍵啟動腳本
+- ✅ 內建 yt-dlp 和 FFmpeg，無需手動安裝
+
+---
+
 ## 📖 目錄
 
 - [專案特色](#-專案特色)
