@@ -178,24 +178,24 @@ app.post('/api/download-video', async (req, res) => {
     // quality=20（壓縮截圖）→ 下載 720p 影片（至少 480p）
     let formatSelector;
     if (quality <= 10) {
-      // 高品質：優先選擇 720p-1080p，再嘗試 ≥720p，最後選最佳
-      formatSelector = '"best[height>=720][height<=1080][ext=mp4]/best[height>=720][ext=mp4]/best[height>=720]/best[ext=mp4]/best"';
-      console.log(`[Download] 截圖品質: ${quality}（高畫質）→ 目標影片解析度: 720p-1080p`);
+      // 高品質：優先 1080p，次選 720p，最後接受 >=480p 或最佳
+      formatSelector = '"bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/best"';
+      console.log(`[Download] 截圖品質: ${quality}（高畫質）→ 目標影片解析度: 1080p (退回 720p)`);
     } else {
-      // 壓縮：優先選擇 480p-720p，再嘗試 ≥480p，最後選最佳
-      formatSelector = '"best[height>=480][height<=720][ext=mp4]/best[height>=480][ext=mp4]/best[height>=480]/best[ext=mp4]/best"';
-      console.log(`[Download] 截圖品質: ${quality}（壓縮）→ 目標影片解析度: 480p-720p`);
+      // 壓縮：優先 720p，次選 480p，最後接受 360p 或最佳
+      formatSelector = '"bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]/best"';
+      console.log(`[Download] 截圖品質: ${quality}（壓縮）→ 目標影片解析度: 720p (退回 480p)`);
     }
 
     // 建構命令（使用陣列避免換行問題）
+    // 注意：不使用 android client，因為它限制只能下載 360p
+    // 對於未列出的影片，現代 yt-dlp 可以不需要 cookies 直接下載
     const commandParts = [
       'yt-dlp',
-      // 使用 android player client（適合未列出影片，不需要 cookies）
-      '--extractor-args', '"youtube:player_client=android"',
       // 根據品質選擇格式
       '-f', formatSelector,
-      // 如果已經是 mp4 就不要重新編碼
-      '--remux-video', 'mp4',
+      // 如果下載分離的音視頻流，合併為 mp4
+      '--merge-output-format', 'mp4',
       '-o', `"${outputPath}"`,
       // 增加重試次數
       '--retries', '5',
@@ -642,20 +642,19 @@ app.post('/api/generate-article-url', async (req, res) => {
     // quality=20（壓縮截圖）→ 下載 720p 影片（至少 480p）
     let formatSelector;
     if (quality <= 10) {
-      // 高品質：優先選擇 720p-1080p，再嘗試 ≥720p，最後選最佳
-      formatSelector = '"best[height>=720][height<=1080][ext=mp4]/best[height>=720][ext=mp4]/best[height>=720]/best[ext=mp4]/best"';
-      console.log(`[Article URL] 截圖品質: ${quality}（高畫質）→ 目標影片解析度: 720p-1080p`);
+      // 高品質：優先 1080p，次選 720p，最後接受 >=480p 或最佳
+      formatSelector = '"bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/best"';
+      console.log(`[Article URL] 截圖品質: ${quality}（高畫質）→ 目標影片解析度: 1080p (退回 720p)`);
     } else {
-      // 壓縮：優先選擇 480p-720p，再嘗試 ≥480p，最後選最佳
-      formatSelector = '"best[height>=480][height<=720][ext=mp4]/best[height>=480][ext=mp4]/best[height>=480]/best[ext=mp4]/best"';
-      console.log(`[Article URL] 截圖品質: ${quality}（壓縮）→ 目標影片解析度: 480p-720p`);
+      // 壓縮：優先 720p，次選 480p，最後接受 360p 或最佳
+      formatSelector = '"bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]/best"';
+      console.log(`[Article URL] 截圖品質: ${quality}（壓縮）→ 目標影片解析度: 720p (退回 480p)`);
     }
 
     const commandParts = [
       'yt-dlp',
-      '--extractor-args', '"youtube:player_client=android"',
       '-f', formatSelector,
-      '--remux-video', 'mp4',
+      '--merge-output-format', 'mp4',
       '-o', `"${outputPath}"`,
       '--retries', '5',
       '--fragment-retries', '5',
