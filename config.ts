@@ -3,8 +3,8 @@
 // API Keys should NOT be exposed in the frontend - they are used in the backend only.
 export const YOUTUBE_CLIENT_ID = process.env.YOUTUBE_CLIENT_ID;
 
-// The scope required to access and modify the user's YouTube videos.
-export const YOUTUBE_SCOPES = 'https://www.googleapis.com/auth/youtube';
+// The scopes required to access and modify the user's YouTube videos and analytics.
+export const YOUTUBE_SCOPES = 'https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/yt-analytics.readonly';
 
 if (!YOUTUBE_CLIENT_ID) {
     console.warn(

@@ -6,6 +6,9 @@ import * as youtubeService from './services/youtubeService';
 import type { YouTubeVideo } from './types';
 import { YouTubeLogin } from './components/YouTubeLogin';
 import { VideoSelector } from './components/VideoSelector';
+import { VideoAnalytics } from './components/VideoAnalytics';
+
+type ActiveTab = 'videos' | 'analytics';
 
 export default function App() {
   const [isInitializing, setIsInitializing] = useState(true);
@@ -18,6 +21,7 @@ export default function App() {
   const [showPrivateVideos, setShowPrivateVideos] = useState<boolean>(false);
   const [showUnlistedVideos, setShowUnlistedVideos] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('videos');
   
   const init = async () => {
     setIsInitializing(true);
@@ -171,6 +175,11 @@ export default function App() {
       return <YouTubeLogin onLogin={handleLogin} />;
     }
 
+    // 根據 activeTab 渲染不同內容
+    if (activeTab === 'analytics') {
+      return <VideoAnalytics />;
+    }
+
     return (
       <>
         <div className="mb-6 space-y-4">
@@ -268,7 +277,12 @@ export default function App() {
   
   return (
     <div className="min-h-screen font-sans flex flex-col" style={{ color: '#03045E' }}>
-      <Header isLoggedIn={isLoggedIn} onLogout={handleLogout} />
+      <Header
+        isLoggedIn={isLoggedIn}
+        onLogout={handleLogout}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
       <main className="flex-grow p-4 md:p-8">
         <div className="container mx-auto max-w-7xl">
           {error && !isLoadingVideos && (

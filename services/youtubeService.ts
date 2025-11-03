@@ -312,3 +312,45 @@ export function logout(): void {
     // 但這不是必需的，因為我們已經清除了本地 token
     console.log('User logged out successfully');
 }
+
+/**
+ * 取得當前的 access token
+ * @returns {string | null} access token 或 null
+ */
+export function getAccessToken(): string | null {
+    if (!isGapiInitialized) return null;
+
+    try {
+        const token = gapi.client.getToken();
+        return token?.access_token || null;
+    } catch (error) {
+        console.error('Failed to get access token:', error);
+        return null;
+    }
+}
+
+/**
+ * 取得當前用戶的頻道 ID
+ * @returns {Promise<string>} 頻道 ID
+ */
+export async function getChannelId(): Promise<string> {
+    if (!isGapiInitialized) {
+        throw new Error('GAPI not initialized');
+    }
+
+    try {
+        const response = await gapi.client.youtube.channels.list({
+            part: 'id',
+            mine: true,
+        });
+
+        if (!response.result.items || response.result.items.length === 0) {
+            throw new Error('No channel found for this user');
+        }
+
+        return response.result.items[0].id;
+    } catch (error: any) {
+        console.error('Failed to get channel ID:', error);
+        throw new Error(`Failed to get channel ID: ${error.message}`);
+    }
+}

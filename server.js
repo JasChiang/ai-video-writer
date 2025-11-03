@@ -8,6 +8,8 @@ import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { generateFullPrompt } from './services/promptService.js';
 import { generateArticlePrompt } from './services/articlePromptService.js';
+import { getChannelVideosAnalytics, calculateUpdatePriority } from './services/analyticsService.js';
+import { generateKeywordAnalysisPrompt } from './services/keywordAnalysisPromptService.js';
 
 // 載入 .env.local 檔案
 dotenv.config({ path: '.env.local' });
@@ -1301,6 +1303,108 @@ app.delete('/api/cleanup/:videoId', (req, res) => {
   } catch (error) {
     console.error('Cleanup error:', error);
     res.status(500).json({ error: 'Cleanup failed' });
+  }
+});
+
+/**
+ * 獲取頻道影片分析數據
+ * POST /api/analytics/channel
+ */
+app.post('/api/analytics/channel', async (req, res) => {
+  try {
+    const { accessToken, channelId, daysThreshold } = req.body;
+
+    if (!accessToken || !channelId) {
+      return res.status(400).json({
+        error: 'Missing required parameters: accessToken and channelId',
+      });
+    }
+
+    console.log(`[Analytics API] 開始分析頻道: ${channelId}`);
+
+    // 獲取分析數據
+    const analyticsData = await getChannelVideosAnalytics(
+      accessToken,
+      channelId,
+      daysThreshold || 730 // 預設 2 年
+    );
+
+    // 計算優先級
+    const recommendations = calculateUpdatePriority(analyticsData);
+
+    console.log(`[Analytics API] 分析完成，建議更新 ${recommendations.length} 支影片`);
+
+    res.json({
+      success: true,
+      totalVideos: analyticsData.length,
+      recommendations: recommendations,
+    });
+  } catch (error) {
+    console.error('[Analytics API] 錯誤:', error);
+    res.status(500).json({
+      error: 'Analytics analysis failed',
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * 分析單一影片的關鍵字並提供優化建議
+ * POST /api/analytics/keyword-analysis
+ */
+app.post('/api/analytics/keyword-analysis', async (req, res) => {
+  try {
+    const { videoData } = req.body;
+
+    if (!videoData || !videoData.title) {
+      return res.status(400).json({
+        error: 'Missing required parameters: videoData with title',
+      });
+    }
+
+    console.log(`[Keyword Analysis] 開始分析影片: ${videoData.title}`);
+
+    // 生成 prompt
+    const prompt = generateKeywordAnalysisPrompt(videoData);
+
+    // 調用 Gemini AI
+    const genAI = new GoogleGenAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+
+    // 解析 JSON 回應
+    let analysis;
+    try {
+      // 移除可能的 markdown 代碼塊標記
+      const cleanedText = responseText
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim();
+      analysis = JSON.parse(cleanedText);
+    } catch (parseError) {
+      console.error('[Keyword Analysis] JSON 解析失敗:', parseError);
+      console.error('[Keyword Analysis] 原始回應:', responseText);
+      return res.status(500).json({
+        error: 'Failed to parse AI response',
+        message: parseError.message,
+        rawResponse: responseText,
+      });
+    }
+
+    console.log(`[Keyword Analysis] 分析完成`);
+
+    res.json({
+      success: true,
+      analysis: analysis,
+    });
+  } catch (error) {
+    console.error('[Keyword Analysis] 錯誤:', error);
+    res.status(500).json({
+      error: 'Keyword analysis failed',
+      message: error.message,
+    });
   }
 });
 
