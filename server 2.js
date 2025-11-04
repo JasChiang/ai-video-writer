@@ -6,7 +6,6 @@ import path from 'path';
 import { promisify } from 'util';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-import multer from 'multer';
 import { generateFullPrompt } from './services/promptService.js';
 import { generateArticlePrompt } from './services/articlePromptService.js';
 import {
@@ -16,12 +15,6 @@ import {
   getVideoExternalTrafficDetails,
 } from './services/analyticsService.js';
 import { generateKeywordAnalysisPrompt } from './services/keywordAnalysisPromptService.js';
-import {
-  uploadToGeminiFilesAPI,
-  deleteGeminiFile,
-  listGeminiFiles,
-  getGeminiFile
-} from './services/geminiFilesService.js';
 
 // 載入 .env.local 檔案
 dotenv.config({ path: '.env.local' });
@@ -64,54 +57,8 @@ if (!fs.existsSync(IMAGES_DIR)) {
   fs.mkdirSync(IMAGES_DIR, { recursive: true });
 }
 
-// 確保暫存檔案目錄存在
-const TEMP_FILES_DIR = path.join(process.cwd(), 'temp_files');
-if (!fs.existsSync(TEMP_FILES_DIR)) {
-  fs.mkdirSync(TEMP_FILES_DIR, { recursive: true });
-}
-
 // 靜態檔案服務 - 提供截圖存取
 app.use('/images', express.static(IMAGES_DIR));
-
-// ==================== Multer 檔案上傳配置 ====================
-
-// 配置檔案上傳
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, TEMP_FILES_DIR);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 100 * 1024 * 1024  // 限制 100MB
-  },
-  fileFilter: (req, file, cb) => {
-    // 驗證檔案類型
-    const allowedMimes = [
-      'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
-      'application/pdf',
-      'audio/mpeg', 'audio/wav', 'audio/flac',
-      'text/plain', 'text/csv', 'text/markdown',
-      'application/octet-stream'  // .md 檔案可能被識別為這個
-    ];
-
-    // 檢查副檔名（特別處理 .md 檔案）
-    const ext = path.extname(file.originalname).toLowerCase();
-    const allowedExts = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.pdf', '.mp3', '.wav', '.flac', '.txt', '.csv', '.md'];
-
-    if (allowedMimes.includes(file.mimetype) || allowedExts.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error(`不支援的檔案類型: ${file.mimetype} (${ext})`));
-    }
-  }
-});
 
 // 前端執行期設定：由後端輸出 config.js，避免在建置期烘入敏感或會變動的設定
 app.get('/app-config.js', (_req, res) => {
@@ -632,7 +579,7 @@ app.post('/api/reanalyze-with-existing-file', async (req, res) => {
  * Body: { videoId: string, prompt: string, videoTitle: string, quality?: number }
  */
 app.post('/api/generate-article-url', async (req, res) => {
-  const { videoId, prompt, videoTitle, quality = 2, uploadedFiles = [] } = req.body;
+  const { videoId, prompt, videoTitle, quality = 2 } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
@@ -646,9 +593,6 @@ app.post('/api/generate-article-url', async (req, res) => {
     console.log(`[Article URL] Video ID: ${videoId}`);
     console.log(`[Article URL] YouTube URL: ${youtubeUrl}`);
     console.log(`[Article URL] Video Title: ${videoTitle}`);
-    if (uploadedFiles.length > 0) {
-      console.log(`[Article URL] 📎 上傳的參考檔案: ${uploadedFiles.length} 個`);
-    }
 
     // 檢查 FFmpeg 是否安裝
     console.log('[Article URL] Checking FFmpeg installation...');
@@ -668,33 +612,7 @@ app.post('/api/generate-article-url', async (req, res) => {
 
     // 步驟 1: 使用 YouTube URL 生成文章與截圖時間點
     console.log('[Article URL] 步驟 1/3: 使用 YouTube URL 分析影片並生成文章...');
-
-    // 根據是否有上傳檔案，使用不同的 prompt 生成函數
-    const { generateArticlePromptWithFiles } = await import('./services/articlePromptService.js');
-    const fullPrompt = uploadedFiles.length > 0
-      ? generateArticlePromptWithFiles(videoTitle, prompt, uploadedFiles)
-      : generateArticlePrompt(videoTitle, prompt);
-
-    // 建立 parts 陣列，包含影片和 prompt
-    const parts = [
-      { fileData: { fileUri: youtubeUrl } }
-    ];
-
-    // 加入使用者上傳的參考檔案
-    if (uploadedFiles.length > 0) {
-      for (const file of uploadedFiles) {
-        console.log(`[Article URL] 加入參考檔案: ${file.displayName} (${file.mimeType})`);
-        parts.push({
-          fileData: {
-            mimeType: file.mimeType,
-            fileUri: file.uri
-          }
-        });
-      }
-    }
-
-    // 最後加入 prompt
-    parts.push({ text: fullPrompt });
+    const fullPrompt = generateArticlePrompt(videoTitle, prompt);
 
     // 根據最佳實踐：影片應該放在 prompt 之前
     const response = await ai.models.generateContent({
@@ -702,7 +620,10 @@ app.post('/api/generate-article-url', async (req, res) => {
       contents: [
         {
           role: 'user',
-          parts: parts
+          parts: [
+            { fileData: { fileUri: youtubeUrl } },
+            { text: fullPrompt }
+          ]
         }
       ],
       config: {
@@ -1389,127 +1310,6 @@ app.delete('/api/cleanup/:videoId', (req, res) => {
     res.status(500).json({ error: 'Cleanup failed' });
   }
 });
-
-// ==================== 檔案上傳 API ====================
-
-/**
- * 上傳檔案到 Gemini Files API
- * POST /api/gemini/upload-file
- */
-app.post('/api/gemini/upload-file', upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: '未提供檔案' });
-    }
-
-    const filePath = req.file.path;
-    const mimeType = req.file.mimetype;
-    const displayName = req.file.originalname;
-
-    console.log(`[File Upload] 接收到檔案: ${displayName}`);
-    console.log(`  類型: ${mimeType}`);
-    console.log(`  大小: ${(req.file.size / 1024).toFixed(2)} KB`);
-
-    // 上傳到 Gemini Files API
-    const fileMetadata = await uploadToGeminiFilesAPI(
-      filePath,
-      mimeType,
-      displayName
-    );
-
-    // 清除暫存檔案
-    fs.unlinkSync(filePath);
-
-    res.json({
-      name: fileMetadata.name,
-      uri: fileMetadata.uri,
-      mimeType: fileMetadata.mimeType,
-      displayName: fileMetadata.displayName,
-      sizeBytes: fileMetadata.sizeBytes
-    });
-
-  } catch (error) {
-    console.error('❌ 檔案上傳錯誤:', error);
-
-    // 清除暫存檔案（如果存在）
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-
-    res.status(500).json({
-      error: error.message || '檔案上傳失敗'
-    });
-  }
-});
-
-/**
- * 刪除 Gemini Files API 中的檔案
- * DELETE /api/gemini/file/:fileName
- */
-app.delete('/api/gemini/file/:fileName(*)', async (req, res) => {
-  try {
-    const fileName = req.params.fileName;
-
-    if (!fileName) {
-      return res.status(400).json({ error: '未提供檔案名稱' });
-    }
-
-    console.log(`[File Delete] 刪除檔案: ${fileName}`);
-    await deleteGeminiFile(fileName);
-
-    res.json({ success: true, message: '檔案已刪除' });
-
-  } catch (error) {
-    console.error('❌ 檔案刪除錯誤:', error);
-    res.status(500).json({
-      error: error.message || '檔案刪除失敗'
-    });
-  }
-});
-
-/**
- * 列出所有已上傳的檔案
- * GET /api/gemini/files
- */
-app.get('/api/gemini/files', async (req, res) => {
-  try {
-    const pageSize = parseInt(req.query.pageSize) || 100;
-    const files = await listGeminiFiles(pageSize);
-
-    res.json({ files });
-
-  } catch (error) {
-    console.error('❌ 列出檔案錯誤:', error);
-    res.status(500).json({
-      error: error.message || '列出檔案失敗'
-    });
-  }
-});
-
-/**
- * 取得檔案資訊
- * GET /api/gemini/file/:fileName
- */
-app.get('/api/gemini/file/:fileName(*)', async (req, res) => {
-  try {
-    const fileName = req.params.fileName;
-
-    if (!fileName) {
-      return res.status(400).json({ error: '未提供檔案名稱' });
-    }
-
-    const fileInfo = await getGeminiFile(fileName);
-    res.json(fileInfo);
-
-  } catch (error) {
-    console.error('❌ 取得檔案資訊錯誤:', error);
-    res.status(500).json({
-      error: error.message || '取得檔案資訊失敗'
-    });
-  }
-});
-
-// ==================== YouTube Analytics API ====================
 
 /**
  * 獲取頻道影片分析數據

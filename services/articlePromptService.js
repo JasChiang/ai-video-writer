@@ -56,3 +56,80 @@ ${userPrompt ? `額外要求：${userPrompt}\n` : ""}
 - seo_description: 字串
 - screenshots: 陣列，每個元素包含 timestamp_seconds（字串，格式為 mm:ss）和 reason_for_screenshot（字串）`;
 }
+
+/**
+ * 生成文章與截圖的完整提示詞（支援參考檔案）
+ * @param {string} videoTitle 影片標題
+ * @param {string} [userPrompt] 使用者額外提示（選填）
+ * @param {Array} [uploadedFiles] 使用者上傳的參考檔案（選填）
+ * @returns {string} 完整的提示詞
+ */
+export function generateArticlePromptWithFiles(videoTitle, userPrompt, uploadedFiles) {
+  let filesContext = '';
+
+  if (uploadedFiles && uploadedFiles.length > 0) {
+    filesContext = `\n\n# 參考資料\n\n以下是使用者提供的參考檔案，請仔細分析這些內容：\n\n`;
+    uploadedFiles.forEach((file, index) => {
+      const fileType =
+        file.mimeType.startsWith('image/') ? '圖片檔案' :
+        file.mimeType === 'application/pdf' ? 'PDF 文件' :
+        file.displayName.endsWith('.md') ? 'Markdown 文件' :
+        file.mimeType === 'text/plain' ? '文字檔案' : '檔案';
+
+      filesContext += `${index + 1}. ${file.displayName}（${fileType}）\n`;
+    });
+
+    filesContext += `\n**重要提示**：\n`;
+    filesContext += `- 請深入分析這些參考檔案的內容\n`;
+    filesContext += `- 將檔案中的資訊與影片內容結合，產出更豐富、更專業的文章\n`;
+    filesContext += `- 如果檔案中包含圖表、數據或技術規格，請在文章中適當引用和說明\n`;
+    filesContext += `- 確保文章內容與參考資料保持一致性\n`;
+  }
+
+  return `你是一位專業的科技內容顧問，擅長將複雜的科技知識轉化為讀者能輕易理解並應用的實用內容。
+
+# 任務
+
+請分析這部影片並撰寫一篇專業的產品分享或教學文章。
+
+影片標題：${videoTitle}
+${userPrompt ? `額外要求：${userPrompt}\n` : ""}${filesContext}
+
+# 寫作要求
+
+1. **顧問視角**：以科技生活顧問身份，解釋技術如何解決問題
+2. **價值優先**：用詞精準直接，提供實用價值
+3. **深度分析**：提煉關鍵亮點或核心步驟，闡述原理與應用
+4. **台灣用語**：使用台灣繁體中文、全形標點符號
+5. **中英數空格**：在中文、英文、數字之間插入半形空格（例：iPhone 15 Pro）
+6. **敘述性文字**：使用流暢段落，不使用條列、bullet points、數字列表、表格
+${uploadedFiles && uploadedFiles.length > 0 ? '7. **整合參考資料**：請確實參考並整合上述提供的檔案內容，讓文章更豐富完整\n' : ''}
+
+# 文章結構
+
+**標題**：生成 3 個風格的標題（15-25 字）
+- titleA：結果/價值導向
+- titleB：情境/痛點導向
+- titleC：技巧/趨勢導向
+
+**內文**（Markdown 格式）：
+- 前言：100-150 字，點出需求痛點
+- 主體：3-5 個段落，每段包含 ## 小標題與敘述性內文
+- 總結：約 100 字
+
+**SEO 描述**：150 字以內，包含主要關鍵字
+
+**截圖時間點**：3-5 個關鍵畫面
+- 時間點格式為 mm:ss
+- 說明選擇原因
+
+# 輸出格式
+
+請輸出 JSON，包含以下欄位：
+- titleA: 字串
+- titleB: 字串
+- titleC: 字串
+- article_text: 字串（Markdown 格式）
+- seo_description: 字串
+- screenshots: 陣列，每個元素包含 timestamp_seconds（字串，格式為 mm:ss）和 reason_for_screenshot（字串）`;
+}

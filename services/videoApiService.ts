@@ -227,10 +227,14 @@ export async function generateArticleWithYouTubeUrl(
   userPrompt: string,
   videoTitle: string,
   screenshotQuality: number = 2,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  uploadedFiles?: any[]
 ): Promise<any> {
   try {
     console.log(`[API] Generating article via YouTube URL: ${videoId}`);
+    if (uploadedFiles && uploadedFiles.length > 0) {
+      console.log(`[API] With ${uploadedFiles.length} uploaded reference files`);
+    }
     onProgress?.('📝 步驟 1/3：透過 YouTube URL 讓 Gemini AI 分析影片內容...');
 
     const response = await fetch(`${API_BASE_URL}/generate-article-url`, {
@@ -241,6 +245,7 @@ export async function generateArticleWithYouTubeUrl(
         prompt: userPrompt,
         videoTitle,
         quality: screenshotQuality,
+        uploadedFiles: uploadedFiles || [],
       }),
     });
 
@@ -275,10 +280,14 @@ export async function generateArticleWithDownload(
   userPrompt: string,
   videoTitle: string,
   screenshotQuality: number = 2,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  uploadedFiles?: any[]
 ): Promise<any> {
   try {
     console.log(`[API] Generating article with video download: ${videoId}`);
+    if (uploadedFiles && uploadedFiles.length > 0) {
+      console.log(`[API] With ${uploadedFiles.length} uploaded reference files`);
+    }
 
     // 步驟 1: 下載影片（生成文章需要本地檔案來截圖）
     onProgress?.('📥 步驟 1/12：準備從 YouTube 下載影片（文章生成需要本地檔案進行截圖）...');
@@ -317,6 +326,7 @@ export async function generateArticleWithDownload(
         prompt: userPrompt,
         videoTitle,
         quality: screenshotQuality,
+        uploadedFiles: uploadedFiles || [],
       }),
     });
 

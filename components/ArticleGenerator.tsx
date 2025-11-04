@@ -9,6 +9,14 @@ interface ArticleGeneratorProps {
   onClose: () => void;
 }
 
+interface UploadedFile {
+  name: string;
+  uri: string;
+  mimeType: string;
+  displayName: string;
+  sizeBytes: number;
+}
+
 export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRegeneratingScreenshots, setIsRegeneratingScreenshots] = useState(false);
@@ -17,6 +25,78 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
   const [customPrompt, setCustomPrompt] = useState('');
   const [screenshotQuality, setScreenshotQuality] = useState<number>(2); // 預設高畫質
   const [loadingStep, setLoadingStep] = useState<string>('');
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // 處理檔案上傳
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    setError(null);
+
+    try {
+      for (const file of Array.from(files)) {
+        // 檢查檔案大小（限制 100MB）
+        if (file.size > 100 * 1024 * 1024) {
+          throw new Error(`檔案 ${file.name} 超過 100MB 限制`);
+        }
+
+        console.log(`[Upload] 上傳檔案: ${file.name}`);
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('http://localhost:3001/api/gemini/upload-file', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || '檔案上傳失敗');
+        }
+
+        const data: UploadedFile = await response.json();
+        console.log(`[Upload] ✅ 檔案上傳成功:`, data);
+
+        setUploadedFiles(prev => [...prev, data]);
+      }
+    } catch (err: any) {
+      console.error('[Upload] 檔案上傳錯誤:', err);
+      setError(err.message || '檔案上傳失敗');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // 處理拖放上傳
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleFileUpload(e.dataTransfer.files);
+  };
+
+  // 移除檔案
+  const handleRemoveFile = async (index: number) => {
+    const file = uploadedFiles[index];
+
+    try {
+      // 從 Gemini Files API 刪除
+      const response = await fetch(`http://localhost:3001/api/gemini/file/${encodeURIComponent(file.name)}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        console.error('刪除檔案失敗');
+      }
+    } catch (err) {
+      console.error('刪除檔案錯誤:', err);
+    }
+
+    // 從列表中移除
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -31,6 +111,9 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
       if (privacyStatus === 'public') {
         // 公開影片：使用 YouTube URL 直接分析
         console.log('[Article] Using YouTube URL for public video');
+        if (uploadedFiles.length > 0) {
+          console.log(`[Article] With ${uploadedFiles.length} reference files`);
+        }
         generateData = await videoApiService.generateArticleWithYouTubeUrl(
           video.id,
           customPrompt,
@@ -39,11 +122,15 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
           (step: string) => {
             setLoadingStep(step);
             console.log(`[Progress] ${step}`);
-          }
+          },
+          uploadedFiles
         );
       } else {
         // 非公開影片：先下載再分析
         console.log('[Article] Using download mode for unlisted/private video');
+        if (uploadedFiles.length > 0) {
+          console.log(`[Article] With ${uploadedFiles.length} reference files`);
+        }
         generateData = await videoApiService.generateArticleWithDownload(
           video.id,
           customPrompt,
@@ -52,7 +139,8 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
           (step: string) => {
             setLoadingStep(step);
             console.log(`[Progress] ${step}`);
-          }
+          },
+          uploadedFiles
         );
       }
 
@@ -170,6 +258,92 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
                 </div>
                 <p className="text-xs mt-2 text-neutral-400">
                   💡 高畫質適合印刷或高解析度顯示，壓縮適合網頁快速載入
+                </p>
+              </div>
+
+              {/* 檔案上傳區域 */}
+              <div>
+                <label className="block text-sm font-medium mb-2 text-neutral-700">
+                  📎 上傳參考資料（選填）
+                </label>
+
+                {/* 檔案拖放區域 */}
+                <div
+                  onDrop={handleDrop}
+                  onDragOver={(e) => e.preventDefault()}
+                  className="border-2 border-dashed border-neutral-300 rounded-lg p-6 text-center cursor-pointer hover:border-red-500 hover:bg-neutral-50 transition"
+                >
+                  <input
+                    type="file"
+                    multiple
+                    onChange={(e) => handleFileUpload(e.target.files)}
+                    className="hidden"
+                    id="file-upload"
+                    accept="image/*,.pdf,.txt,.csv,.md"
+                    disabled={isUploading || isGenerating}
+                  />
+                  <label htmlFor="file-upload" className="cursor-pointer">
+                    <div className="text-neutral-600">
+                      <svg className="mx-auto h-12 w-12 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      <p className="mt-2">
+                        拖放檔案到這裡，或點擊選擇檔案
+                      </p>
+                      <p className="text-xs text-neutral-500 mt-1">
+                        支援：圖片（JPG, PNG, GIF, WEBP）、PDF、Markdown、文字檔（最大 100MB）
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                {/* 上傳進度提示 */}
+                {isUploading && (
+                  <div className="mt-3 flex items-center gap-2 text-neutral-600">
+                    <Loader />
+                    <span className="text-sm">正在上傳檔案...</span>
+                  </div>
+                )}
+
+                {/* 已上傳檔案列表 */}
+                {uploadedFiles.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-sm font-medium text-neutral-700">已上傳的檔案：</p>
+                    {uploadedFiles.map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between bg-neutral-50 px-3 py-2 rounded-lg border border-neutral-200"
+                      >
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className="text-neutral-600">
+                            {file.mimeType.startsWith('image/') ? '🖼️' :
+                             file.mimeType === 'application/pdf' ? '📄' :
+                             file.displayName.endsWith('.md') ? '📝' : '📎'}
+                          </span>
+                          <span className="text-sm text-neutral-700 truncate">
+                            {file.displayName}
+                          </span>
+                          <span className="text-xs text-neutral-500">
+                            ({(file.sizeBytes / 1024).toFixed(1)} KB)
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveFile(index)}
+                          className="text-red-600 hover:text-red-800 ml-2 flex-shrink-0"
+                          disabled={isUploading || isGenerating}
+                          title="移除檔案"
+                        >
+                          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <p className="text-xs mt-2 text-neutral-400">
+                  💡 上傳相關文件、圖片或 Markdown 檔案，AI 會參考這些資料來生成更精準的文章內容
                 </p>
               </div>
 
