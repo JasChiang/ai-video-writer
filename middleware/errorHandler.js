@@ -1,5 +1,5 @@
 /**
- * 統一錯誤處理中間件
+ * 統一錯誤處理中介軟體
  *
  * 攔截所有錯誤並以統一的格式返回給客戶端
  */
@@ -18,7 +18,7 @@ export class AppError extends Error {
 }
 
 /**
- * 全局錯誤處理中間件
+ * 全域錯誤處理中介軟體
  * @param {Error} err - 錯誤物件
  * @param {Object} req - Express request
  * @param {Object} res - Express response
@@ -64,7 +64,7 @@ export function notFoundHandler(req, res, next) {
 
 /**
  * 非同步函數錯誤包裝器
- * 自動捕捉 async 函數中的錯誤並傳遞給錯誤處理中間件
+ * 自動捕捉 async 函數中的錯誤並傳遞給錯誤處理中介軟體
  *
  * @param {Function} fn - 非同步函數
  * @returns {Function} - 包裝後的函數

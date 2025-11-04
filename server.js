@@ -1602,7 +1602,7 @@ app.post('/api/analytics/keyword-analysis', async (req, res) => {
     // 解析 JSON 回應
     let analysis;
     try {
-      // 移除可能的 markdown 代碼塊標記
+      // 移除可能的 markdown 程式碼區塊標記
       const cleanedText = responseText
         .replace(/```json\n?/g, '')
         .replace(/```\n?/g, '')

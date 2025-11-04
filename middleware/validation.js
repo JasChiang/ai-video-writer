@@ -1,5 +1,5 @@
 /**
- * 輸入驗證中間件
+ * 輸入驗證中介軟體
  *
  * 提供各種驗證函數，防止安全漏洞（如 Command Injection）
  */
@@ -22,7 +22,7 @@ export function isValidVideoId(videoId) {
 }
 
 /**
- * 驗證 Video ID 的中間件
+ * 驗證 Video ID 的中介軟體
  * 使用方式：app.post('/api/endpoint', validateVideoId, handler)
  */
 export function validateVideoId(req, res, next) {
@@ -89,7 +89,7 @@ export function isValidScreenshotQuality(quality) {
 }
 
 /**
- * 驗證截圖品質的中間件
+ * 驗證截圖品質的中介軟體
  */
 export function validateScreenshotQuality(req, res, next) {
   const quality = req.body.quality || req.query.quality;
@@ -116,7 +116,7 @@ export function validateScreenshotQuality(req, res, next) {
  * 驗證請求 body 必需欄位
  *
  * @param {Array<string>} requiredFields - 必需欄位列表
- * @returns {Function} - Express 中間件函數
+ * @returns {Function} - Express 中介軟體函數
  *
  * @example
  * app.post('/api/endpoint',
