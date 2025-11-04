@@ -17,13 +17,37 @@
 
 ## 🐳 Docker 部署
 
-想要使用 Docker 快速部署？請切換到 **[Docker 分支](../../tree/Docker)**
+專案主分支現在內建 Docker 支援，可直接在本機或伺服器上啟動。
 
-Docker 分支包含：
-- 📦 完整的 Docker 和 Docker Compose 配置
-- 📖 Docker Desktop 圖形介面使用指南
-- 🚀 一鍵啟動腳本
-- ✅ 內建 yt-dlp 和 FFmpeg，無需手動安裝
+### 快速開始
+
+1. 建立 `.env.local` 並填入必要金鑰：
+   ```bash
+   GEMINI_API_KEY=your_gemini_api_key
+   YOUTUBE_CLIENT_ID=your_client_id.apps.googleusercontent.com
+   ```
+2. 執行啟動腳本（會自動檢查環境變數並呼叫 `docker compose up -d`）：
+   ```bash
+   ./docker-start.sh
+   ```
+3. 開啟瀏覽器造訪 `http://localhost:3001`。
+
+常用指令：
+- `docker compose logs -f`：追蹤後端服務日誌
+- `docker compose restart`：重新啟動容器
+- `docker compose down`：停止並清除容器
+
+若偏好手動操作，可直接執行：
+```bash
+docker compose up --build
+```
+
+> 更多 Docker Desktop 圖形介面步驟與疑難排解，請參考 `DOCKER_DESKTOP.md`。
+
+### 為什麼需要 `.env.local`
+
+- `docker-start.sh` 會載入 `.env.local` 並將變數匯出給容器使用（不會寫入映像檔，金鑰仍保留在本機）。
+- 前端在啟動前會自動下載 `/app-config.js`，確保 `YOUTUBE_CLIENT_ID` 在容器、build、或開發模式下都一致可用。
 
 ---
 
