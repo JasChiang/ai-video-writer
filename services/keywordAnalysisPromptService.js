@@ -69,6 +69,11 @@ ${description || '（無說明）'}
       "步驟2：優化說明的前三行",
       "步驟3：新增 5-8 個相關標籤"
     ]
+  },
+  "metadataHints": {
+    "titleHooks": ["吸睛標題角度1", "吸睛標題角度2"],
+    "descriptionAngles": ["說明撰寫方向1", "說明撰寫方向2"],
+    "callToActions": ["CTA 建議1", "CTA 建議2"]
   }
 }
 \`\`\`
@@ -100,6 +105,12 @@ ${description || '（無說明）'}
    - **priority**: 根據流量數據判斷優先級（搜尋流量低 = 高優先）
    - **estimatedImpact**: 預估優化後的流量提升幅度
    - **steps**: 3-5 個具體可執行的步驟
+
+7. **中繼資料提示（metadataHints）**:
+   - **titleHooks**: 2-3 個適合用在標題的吸睛角度
+   - **descriptionAngles**: 2-3 個撰寫說明時可參考的架構或主題
+   - **callToActions**: 2-3 個可放在說明或影片內的 CTA 建議
+   - 內容要短句、可直接複製使用
 
 請確保輸出為**有效的 JSON 格式**，不要包含其他文字說明。`;
 }

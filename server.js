@@ -1373,11 +1373,31 @@ app.post('/api/analytics/keyword-analysis', async (req, res) => {
     const prompt = generateKeywordAnalysisPrompt(videoData);
 
     // 調用 Gemini AI
-    const genAI = new GoogleGenAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
+    const result = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: prompt }],
+        },
+      ],
+      generationConfig: {
+        responseMimeType: 'application/json',
+      },
+    });
+
+    let responseText = '';
+    if (typeof result.text === 'function') {
+      responseText = result.text();
+    } else if (typeof result.response?.text === 'function') {
+      responseText = result.response.text();
+    } else if (result.candidates?.[0]?.content?.parts?.length) {
+      responseText = result.candidates[0].content.parts
+        .map(part => part.text || '')
+        .join('\n');
+    }
 
     // 解析 JSON 回應
     let analysis;
@@ -1399,6 +1419,13 @@ app.post('/api/analytics/keyword-analysis', async (req, res) => {
     }
 
     console.log(`[Keyword Analysis] 分析完成`);
+
+    const metadataHints = analysis.metadataHints || {};
+    analysis.metadataHints = {
+      titleHooks: Array.isArray(metadataHints.titleHooks) ? metadataHints.titleHooks : [],
+      descriptionAngles: Array.isArray(metadataHints.descriptionAngles) ? metadataHints.descriptionAngles : [],
+      callToActions: Array.isArray(metadataHints.callToActions) ? metadataHints.callToActions : [],
+    };
 
     res.json({
       success: true,

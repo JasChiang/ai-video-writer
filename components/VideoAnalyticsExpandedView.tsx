@@ -64,6 +64,11 @@ interface KeywordAnalysis {
     estimatedImpact: string;
     steps: string[];
   };
+  metadataHints: {
+    titleHooks: string[];
+    descriptionAngles: string[];
+    callToActions: string[];
+  };
 }
 
 interface SearchTerm {
@@ -280,6 +285,53 @@ export function VideoAnalyticsExpandedView({
       setIsLoadingTrafficDetails(false);
     }
   };
+
+  const ensureMetadataHints = (analysis: KeywordAnalysis | null) => {
+    const hints = analysis?.metadataHints;
+    return {
+      titleHooks: Array.isArray(hints?.titleHooks) ? hints!.titleHooks : [],
+      descriptionAngles: Array.isArray(hints?.descriptionAngles) ? hints!.descriptionAngles : [],
+      callToActions: Array.isArray(hints?.callToActions) ? hints!.callToActions : [],
+    };
+  };
+
+  const buildMetadataHintText = (analysis: KeywordAnalysis): string => {
+    const metadataHints = ensureMetadataHints(analysis);
+    const sections: string[] = [];
+    if (metadataHints.titleHooks.length > 0) {
+      sections.push(['Title Hooks:', ...metadataHints.titleHooks.map(hook => `- ${hook}`)].join('\n'));
+    }
+    if (metadataHints.descriptionAngles.length > 0) {
+      sections.push(['Description Angles:', ...metadataHints.descriptionAngles.map(angle => `- ${angle}`)].join('\n'));
+    }
+    if (metadataHints.callToActions.length > 0) {
+      sections.push(['Call To Actions:', ...metadataHints.callToActions.map(cta => `- ${cta}`)].join('\n'));
+    }
+    return sections.join('\n\n');
+  };
+
+  const handleCopyMetadataHints = async () => {
+    if (!keywordAnalysis) return;
+    const text = buildMetadataHintText(keywordAnalysis);
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('已複製中繼資料提示，可在生成器中貼上');
+    } catch (error) {
+      console.error('[Metadata Hints] 複製失敗', error);
+      alert('複製失敗，請手動複製內容');
+    }
+  };
+
+  const handleApplyMetadataHints = () => {
+    if (!keywordAnalysis) return;
+    const text = buildMetadataHintText(keywordAnalysis);
+    setPrompt(text);
+    if (!showMetadataGenerator) {
+      setShowMetadataGenerator(true);
+    }
+  };
+
+  const metadataHints = keywordAnalysis ? ensureMetadataHints(keywordAnalysis) : { titleHooks: [], descriptionAngles: [], callToActions: [] };
 
   const fetchFullVideoData = async () => {
     setIsLoadingVideoData(true);
@@ -791,6 +843,79 @@ export function VideoAnalyticsExpandedView({
               </div>
             </div>
           </div>
+
+          {/* 中繼資料提示 */}
+          {(metadataHints.titleHooks.length > 0 ||
+            metadataHints.descriptionAngles.length > 0 ||
+            metadataHints.callToActions.length > 0) && (
+            <div
+              className="p-4 rounded-lg space-y-3"
+              style={{
+                backgroundColor: 'rgba(254, 202, 202, 0.3)',
+                border: '1px solid #FECACA',
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <p className="font-bold" style={{ color: '#1F1F1F' }}>
+                  ✨ 中繼資料提示
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCopyMetadataHints}
+                    className="px-3 py-1 text-sm rounded border"
+                    style={{ borderColor: '#DC2626', color: '#DC2626' }}
+                  >
+                    📋 複製
+                  </button>
+                  <button
+                    onClick={handleApplyMetadataHints}
+                    className="px-3 py-1 text-sm rounded border"
+                    style={{ borderColor: '#DC2626', color: '#DC2626' }}
+                  >
+                    ➕ 套用到生成器
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-3 text-sm">
+                {metadataHints.titleHooks.length > 0 && (
+                  <div>
+                    <p className="font-semibold" style={{ color: '#DC2626' }}>
+                      標題切入點
+                    </p>
+                    <ul className="list-disc list-inside space-y-1">
+                      {metadataHints.titleHooks.map((hook, idx) => (
+                        <li key={idx} style={{ color: '#1F1F1F' }}>{hook}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {metadataHints.descriptionAngles.length > 0 && (
+                  <div>
+                    <p className="font-semibold" style={{ color: '#DC2626' }}>
+                      說明撰寫方向
+                    </p>
+                    <ul className="list-disc list-inside space-y-1">
+                      {metadataHints.descriptionAngles.map((angle, idx) => (
+                        <li key={idx} style={{ color: '#1F1F1F' }}>{angle}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {metadataHints.callToActions.length > 0 && (
+                  <div>
+                    <p className="font-semibold" style={{ color: '#DC2626' }}>
+                      Call-to-Action 點子
+                    </p>
+                    <ul className="list-disc list-inside space-y-1">
+                      {metadataHints.callToActions.map((cta, idx) => (
+                        <li key={idx} style={{ color: '#1F1F1F' }}>{cta}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* 標題建議 */}
           <div>

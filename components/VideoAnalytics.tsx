@@ -68,6 +68,11 @@ interface KeywordAnalysis {
     estimatedImpact: string;
     steps: string[];
   };
+  metadataHints: {
+    titleHooks: string[];
+    descriptionAngles: string[];
+    callToActions: string[];
+  };
 }
 
 export function VideoAnalytics() {
@@ -264,10 +269,18 @@ export function VideoAnalytics() {
       const data = await response.json();
       console.log('[Keyword Analysis] 分析完成:', data);
 
+      const analysis = data.analysis as KeywordAnalysis;
+      const metadataHints = analysis?.metadataHints || { titleHooks: [], descriptionAngles: [], callToActions: [] };
+      analysis.metadataHints = {
+        titleHooks: Array.isArray(metadataHints.titleHooks) ? metadataHints.titleHooks : [],
+        descriptionAngles: Array.isArray(metadataHints.descriptionAngles) ? metadataHints.descriptionAngles : [],
+        callToActions: Array.isArray(metadataHints.callToActions) ? metadataHints.callToActions : [],
+      };
+
       // 儲存到快取
       setKeywordAnalysisCache(prev => ({
         ...prev,
-        [videoId]: data.analysis
+        [videoId]: analysis
       }));
     } catch (err: any) {
       console.error('[Keyword Analysis] 錯誤:', err);
