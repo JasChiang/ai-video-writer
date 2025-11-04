@@ -239,10 +239,15 @@ export function VideoAnalytics() {
     try {
       console.log('[Keyword Analysis] 開始分析關鍵字...');
 
-      // 準備影片資料（需要從 YouTube API 取得標題、說明、標籤）
-      const accessToken = youtubeService.getAccessToken();
-      if (!accessToken) {
-        throw new Error('請先登入 YouTube 帳號');
+      let description = '';
+      let tags: string[] = [];
+
+      try {
+        const metadata = await youtubeService.getVideoMetadata(video.videoId);
+        description = metadata.description || '';
+        tags = metadata.tags || [];
+      } catch (metaError: any) {
+        console.warn('[Keyword Analysis] 無法取得影片中繼資料，將使用預設值:', metaError?.message || metaError);
       }
 
       // 調用後端 API
@@ -254,8 +259,8 @@ export function VideoAnalytics() {
         body: JSON.stringify({
           videoData: {
             title: video.title,
-            description: '', // 如果需要，可以從 YouTube API 取得
-            tags: [], // 如果需要，可以從 YouTube API 取得
+            description,
+            tags,
             analytics: video,
           },
         }),

@@ -268,6 +268,34 @@ export function resetPagination(): void {
     // 目前 pageToken 由 App.tsx 管理，這裡保留函數以保持 API 一致性
 }
 
+export async function getVideoMetadata(videoId: string): Promise<{ title: string; description: string; tags: string[]; categoryId: string }> {
+    if (!isGapiInitialized || !isTokenValid()) {
+        throw new Error("Authentication required.");
+    }
+
+    try {
+        const response = await gapi.client.youtube.videos.list({
+            part: 'snippet',
+            id: videoId,
+        });
+
+        const item = response.result.items?.[0];
+        if (!item) {
+            throw new Error('找不到影片資訊');
+        }
+
+        return {
+            title: item.snippet?.title || '',
+            description: item.snippet?.description || '',
+            tags: item.snippet?.tags || [],
+            categoryId: item.snippet?.categoryId || '',
+        };
+    } catch (error: any) {
+        console.error('Error fetching video metadata:', error);
+        throw new Error(error.result?.error?.message || 'Failed to fetch video metadata');
+    }
+}
+
 
 export async function updateVideo(video: Partial<YouTubeVideo> & { id: string; categoryId: string }): Promise<any> {
      if (!isGapiInitialized || !isTokenValid()) {
