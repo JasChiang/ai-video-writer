@@ -36,8 +36,8 @@ export function VideoSelector({ videos, isLoading, error, hasMore, onLoadMore }:
   return (
     <div>
       <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold mb-1" style={{ color: '#03045E' }}>Your YouTube Videos</h2>
-        <p style={{ color: '#0077B6' }}>Generate optimized titles, descriptions, and tags for your content.</p>
+        <h2 className="text-3xl font-bold mb-1 text-neutral-900">Your YouTube Videos</h2>
+        <p className="text-neutral-600">Generate optimized titles, descriptions, and tags for your content.</p>
       </div>
 
       {videos.length > 0 && (
@@ -57,8 +57,7 @@ export function VideoSelector({ videos, isLoading, error, hasMore, onLoadMore }:
             <div className="flex justify-center pt-2">
               <button
                 onClick={onLoadMore}
-                className="text-white font-bold py-3 px-8 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg hover:opacity-90"
-                style={{ backgroundColor: '#0077B6' }}
+                className="text-white font-bold py-3 px-8 rounded-full transition-transform duration-200 hover:scale-105 shadow-lg bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
               >
                 載入更多影片
               </button>
@@ -66,7 +65,7 @@ export function VideoSelector({ videos, isLoading, error, hasMore, onLoadMore }:
           )}
 
           {!isLoading && !hasMore && videos.length > 0 && (
-            <div className="text-center py-4" style={{ color: '#0077B6' }}>
+            <div className="text-center py-4 text-neutral-500">
               <p className="text-sm">已載入所有影片</p>
             </div>
           )}
@@ -76,7 +75,7 @@ export function VideoSelector({ videos, isLoading, error, hasMore, onLoadMore }:
       {isLoading && <Loader />}
 
       {!isLoading && videos.length === 0 && !error && (
-        <div className="text-center py-8 rounded-2xl" style={{ backgroundColor: 'rgba(144, 224, 239, 0.3)', color: '#0077B6' }}>
+        <div className="text-center py-8 rounded-2xl bg-red-50 text-neutral-600 border border-red-100">
           <p>No videos found on your channel.</p>
           <p className="text-sm mt-1">Make sure you have uploaded videos to your channel.</p>
         </div>

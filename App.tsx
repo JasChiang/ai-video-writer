@@ -187,7 +187,7 @@ export default function App() {
           <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
             {/* 搜尋框 */}
             <div className="flex-1 relative">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#0077B6' }}>
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-red-600">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
@@ -197,18 +197,12 @@ export default function App() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="搜尋影片標題或描述..."
-                className="w-full pl-10 pr-10 py-2.5 rounded-lg focus:outline-none focus:ring-2 transition-all"
-                style={{
-                  backgroundColor: 'rgba(202, 240, 248, 0.5)',
-                  border: '1px solid #90E0EF',
-                  color: '#03045E',
-                }}
+                className="w-full pl-12 pr-10 py-3 rounded-full bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all shadow-sm"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 hover:opacity-70 transition-opacity"
-                  style={{ color: '#0077B6' }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors"
                   aria-label="清除搜尋"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -221,7 +215,7 @@ export default function App() {
             {/* 顯示未公開 / 私人影片開關 */}
             <div className="flex flex-col sm:flex-row gap-4 sm:items-center justify-end md:justify-start">
               <label className="flex items-center gap-3 cursor-pointer group">
-                <span className="text-sm group-hover:opacity-80 transition-opacity" style={{ color: '#0077B6' }}>
+                <span className="text-sm text-neutral-600 group-hover:text-neutral-900 transition-colors">
                   顯示未公開影片
                 </span>
                 <div className="relative">
@@ -231,12 +225,18 @@ export default function App() {
                     onChange={handleToggleUnlistedVideos}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all" style={{ backgroundColor: showUnlistedVideos ? '#0077B6' : '#90E0EF', borderColor: '#00B4D8' }}></div>
+                  <div
+                    className="w-12 h-6 rounded-full transition-colors peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border after:border-neutral-300 after:rounded-full after:h-5 after:w-5 after:transition-all"
+                    style={{
+                      backgroundColor: showUnlistedVideos ? '#FF0000' : '#E5E5E5',
+                      border: `1px solid ${showUnlistedVideos ? '#CC0000' : '#E5E5E5'}`
+                    }}
+                  ></div>
                 </div>
               </label>
 
               <label className="flex items-center gap-3 cursor-pointer group">
-                <span className="text-sm group-hover:opacity-80 transition-opacity" style={{ color: '#0077B6' }}>
+                <span className="text-sm text-neutral-600 group-hover:text-neutral-900 transition-colors">
                   顯示私人影片
                 </span>
                 <div className="relative">
@@ -246,7 +246,13 @@ export default function App() {
                     onChange={handleTogglePrivateVideos}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all" style={{ backgroundColor: showPrivateVideos ? '#0077B6' : '#90E0EF', borderColor: '#00B4D8' }}></div>
+                  <div
+                    className="w-12 h-6 rounded-full transition-colors peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border after:border-neutral-300 after:rounded-full after:h-5 after:w-5 after:transition-all"
+                    style={{
+                      backgroundColor: showPrivateVideos ? '#FF0000' : '#E5E5E5',
+                      border: `1px solid ${showPrivateVideos ? '#CC0000' : '#E5E5E5'}`
+                    }}
+                  ></div>
                 </div>
               </label>
             </div>
@@ -254,7 +260,7 @@ export default function App() {
 
           {/* 搜尋結果提示 */}
           {searchQuery && !isLoadingVideos && (
-            <div className="text-sm" style={{ color: '#0077B6' }}>
+            <div className="text-sm text-red-600">
               {videos.length > 0 ? (
                 <span>找到 {videos.length} 個包含「{searchQuery}」的影片</span>
               ) : (
@@ -276,7 +282,10 @@ export default function App() {
   };
   
   return (
-    <div className="min-h-screen font-sans flex flex-col" style={{ color: '#03045E' }}>
+    <div
+      className="min-h-screen font-sans flex flex-col bg-neutral-50 text-neutral-900"
+      style={{ color: '#1F1F1F' }}
+    >
       <Header
         isLoggedIn={isLoggedIn}
         onLogout={handleLogout}
@@ -286,10 +295,13 @@ export default function App() {
       <main className="flex-grow p-4 md:p-8">
         <div className="container mx-auto max-w-7xl">
           {error && !isLoadingVideos && (
-             <div className="p-4 rounded-lg mb-4 text-center" style={{ backgroundColor: 'rgba(220, 38, 38, 0.1)', border: '1px solid #DC2626', color: '#DC2626' }}>
-                <p className="font-bold">An error occurred:</p>
-                <p>{error}</p>
-             </div>
+            <div
+              className="p-4 rounded-lg mb-4 text-center"
+              style={{ backgroundColor: '#FEE2E2', border: '1px solid #F87171', color: '#B91C1C' }}
+            >
+              <p className="font-bold">An error occurred:</p>
+              <p>{error}</p>
+            </div>
           )}
           {renderContent()}
         </div>

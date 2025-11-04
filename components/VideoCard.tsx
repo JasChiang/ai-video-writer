@@ -23,18 +23,15 @@ export const VideoCard: React.FC<VideoCardProps> = ({
 
   return (
     <div
-      className="rounded-2xl border transition-all duration-200 shadow-sm"
-      style={{
-        borderColor: isActive ? '#00B4D8' : '#90E0EF',
-        backgroundColor: isActive ? 'rgba(255, 255, 255, 0.96)' : 'rgba(255, 255, 255, 0.88)',
-      }}
+      className={`rounded-2xl border transition-all duration-200 shadow-sm ${
+        isActive ? 'border-red-500 shadow-md bg-white' : 'border-neutral-200 bg-white hover:border-neutral-300'
+      }`}
     >
       <button
         type="button"
         onClick={() => onToggle(video.id)}
         aria-expanded={showDetailInline ? isExpanded : undefined}
-        className="w-full text-left flex flex-col gap-4 p-4 md:p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 rounded-2xl transition"
-        style={{ color: '#03045E' }}
+        className="w-full text-left flex flex-col gap-4 p-4 md:p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500 rounded-2xl transition text-neutral-900"
       >
         <div className="flex flex-col md:flex-row gap-4 md:items-center">
           <div className="relative w-full md:w-44 lg:w-48 overflow-hidden rounded-xl shadow-md">
@@ -62,7 +59,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
                 <svg
                   className={`w-6 h-6 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
                   fill="none"
-                  stroke="#00B4D8"
+                  stroke="#DC2626"
                   viewBox="0 0 24 24"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -70,7 +67,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm" style={{ color: '#0077B6' }}>
+            <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm text-neutral-500">
               {video.privacyStatus && (
                 <span
                   className="px-2 py-0.5 rounded font-medium"
@@ -104,7 +101,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             </div>
 
             {video.description && (
-              <p className="text-sm text-slate-600 line-clamp-2 md:line-clamp-3" style={{ color: '#0077B6', opacity: showDetailInline ? 1 : 0.75 }}>
+              <p className="text-sm text-neutral-600 line-clamp-2 md:line-clamp-3" style={{ opacity: showDetailInline ? 1 : 0.75 }}>
                 {video.description}
               </p>
             )}
@@ -113,7 +110,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       </button>
 
       {showDetailInline && isExpanded && (
-        <div className="border-t" style={{ borderColor: '#90E0EF' }}>
+        <div className="border-t border-neutral-200">
           <VideoDetailPanel video={video} />
         </div>
       )}

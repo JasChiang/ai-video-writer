@@ -131,11 +131,11 @@ export function MetadataGenerator({ video, onClose }: MetadataGeneratorProps) {
   };
 
   return (
-    <div className="rounded-lg p-6" style={{ backgroundColor: 'rgba(255, 255, 255, 0.8)' }}>
+    <div className="rounded-2xl p-6 bg-white border border-neutral-200 shadow-sm space-y-6">
       {/* Prompt Input */}
       {!generatedContent && !isLoading && (
         <div className="mb-4">
-          <label className="block text-sm font-medium mb-2" style={{ color: '#03045E' }}>
+          <label className="block text-sm font-medium mb-2 text-neutral-700">
             額外提示（選填）
           </label>
           <input
@@ -143,12 +143,7 @@ export function MetadataGenerator({ video, onClose }: MetadataGeneratorProps) {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="例如：適合初學者的有趣教學"
-            className="w-full rounded-md px-3 py-2 focus:outline-none"
-            style={{
-              backgroundColor: 'rgba(202, 240, 248, 0.5)',
-              border: '1px solid #90E0EF',
-              color: '#03045E'
-            }}
+            className="w-full rounded-lg px-3 py-2 bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all shadow-sm"
           />
         </div>
       )}
@@ -158,16 +153,15 @@ export function MetadataGenerator({ video, onClose }: MetadataGeneratorProps) {
         <div className="space-y-3">
           <button
             onClick={handleGenerate}
-            className="w-full flex items-center justify-center gap-2 text-white font-bold py-3 px-4 rounded-lg transition-transform duration-200 transform hover:scale-105"
-            style={{ backgroundColor: '#0077B6' }}
+            className="w-full flex items-center justify-center gap-2 text-white font-bold py-3 px-4 rounded-full transition-transform duration-200 transform hover:scale-105 bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-md"
           >
             <SparklesIcon /> 使用 Gemini AI 生成 SEO 強化內容
           </button>
           <div className="space-y-2">
-            <p className="text-xs text-center" style={{ color: '#0077B6' }}>
+            <p className="text-xs text-center text-neutral-600">
               Gemini AI 將分析影片內容，自動生成三種風格標題、章節時間軸及 SEO 標籤
             </p>
-            <p className="text-xs text-center" style={{ color: '#90E0EF' }}>
+            <p className="text-xs text-center text-neutral-400">
               💡 處理流程：檢查雲端檔案 → 分析影片內容 → 生成 SEO 強化建議（公開影片約 30 秒，未列出影片首次需下載約 2-5 分鐘）
             </p>
           </div>
@@ -176,80 +170,97 @@ export function MetadataGenerator({ video, onClose }: MetadataGeneratorProps) {
 
       {/* Loading State */}
       {isLoading && (
-        <div className="p-4 rounded-lg" style={{ backgroundColor: 'rgba(0, 180, 216, 0.1)', border: '1px solid #00B4D8' }}>
+        <div className="p-4 rounded-lg bg-neutral-100 border border-neutral-200">
           <div className="flex items-center gap-3">
             <Loader />
-            <span className="text-sm" style={{ color: '#0077B6' }}>{loadingStep}</span>
+            <span className="text-sm text-neutral-600">{loadingStep}</span>
           </div>
         </div>
       )}
 
       {/* Error State */}
-      {error && <div className="p-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(220, 38, 38, 0.1)', border: '1px solid #DC2626', color: '#DC2626' }}>{error}</div>}
+      {error && (
+        <div className="p-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-600">
+          {error}
+        </div>
+      )}
 
       {/* Generated Content Form */}
       {generatedContent && (
         <div className="space-y-4 animate-fade-in">
           {/* Title Options */}
           <div>
-            <label className="text-sm font-semibold mb-1 block" style={{ color: '#03045E' }}>建議標題（請選擇一個）</label>
-            <p className="text-xs mb-2" style={{ color: '#90E0EF' }}>
+            <label className="text-sm font-semibold mb-1 block text-neutral-700">建議標題（請選擇一個）</label>
+            <p className="text-xs mb-2 text-neutral-500">
               💡 Gemini AI 提供三種不同風格的標題，點選即可選擇並編輯
             </p>
             <div className="space-y-2 mb-3">
               <div
                 onClick={() => setSelectedTitle('titleA')}
-                className="p-3 rounded-lg cursor-pointer transition-all border-2"
-                style={{
-                  backgroundColor: selectedTitle === 'titleA' ? '#0077B6' : 'rgba(202, 240, 248, 0.5)',
-                  borderColor: selectedTitle === 'titleA' ? '#00B4D8' : '#90E0EF',
-                  color: selectedTitle === 'titleA' ? 'white' : '#03045E'
-                }}
+                className={`p-3 rounded-lg cursor-pointer transition-all border-2 ${
+                  selectedTitle === 'titleA'
+                    ? 'bg-red-600 border-red-600 text-white shadow-sm'
+                    : 'bg-neutral-100 border-neutral-200 text-neutral-800 hover:bg-neutral-50 hover:border-neutral-300'
+                }`}
               >
-                <div className="text-xs mb-1" style={{ color: selectedTitle === 'titleA' ? 'rgba(255,255,255,0.8)' : '#0077B6' }}>選項 A（關鍵字導向）</div>
+                <div
+                  className={`text-xs mb-1 ${
+                    selectedTitle === 'titleA' ? 'text-white/80' : 'text-neutral-500'
+                  }`}
+                >
+                  選項 A（關鍵字導向）
+                </div>
                 <div>{generatedContent.titleA}</div>
               </div>
               <div
                 onClick={() => setSelectedTitle('titleB')}
-                className="p-3 rounded-lg cursor-pointer transition-all border-2"
-                style={{
-                  backgroundColor: selectedTitle === 'titleB' ? '#0077B6' : 'rgba(202, 240, 248, 0.5)',
-                  borderColor: selectedTitle === 'titleB' ? '#00B4D8' : '#90E0EF',
-                  color: selectedTitle === 'titleB' ? 'white' : '#03045E'
-                }}
+                className={`p-3 rounded-lg cursor-pointer transition-all border-2 ${
+                  selectedTitle === 'titleB'
+                    ? 'bg-red-600 border-red-600 text-white shadow-sm'
+                    : 'bg-neutral-100 border-neutral-200 text-neutral-800 hover:bg-neutral-50 hover:border-neutral-300'
+                }`}
               >
-                <div className="text-xs mb-1" style={{ color: selectedTitle === 'titleB' ? 'rgba(255,255,255,0.8)' : '#0077B6' }}>選項 B（懸念/好奇心導向）</div>
+                <div
+                  className={`text-xs mb-1 ${
+                    selectedTitle === 'titleB' ? 'text-white/80' : 'text-neutral-500'
+                  }`}
+                >
+                  選項 B（懸念/好奇心導向）
+                </div>
                 <div>{generatedContent.titleB}</div>
               </div>
               <div
                 onClick={() => setSelectedTitle('titleC')}
-                className="p-3 rounded-lg cursor-pointer transition-all border-2"
-                style={{
-                  backgroundColor: selectedTitle === 'titleC' ? '#0077B6' : 'rgba(202, 240, 248, 0.5)',
-                  borderColor: selectedTitle === 'titleC' ? '#00B4D8' : '#90E0EF',
-                  color: selectedTitle === 'titleC' ? 'white' : '#03045E'
-                }}
+                className={`p-3 rounded-lg cursor-pointer transition-all border-2 ${
+                  selectedTitle === 'titleC'
+                    ? 'bg-red-600 border-red-600 text-white shadow-sm'
+                    : 'bg-neutral-100 border-neutral-200 text-neutral-800 hover:bg-neutral-50 hover:border-neutral-300'
+                }`}
               >
-                <div className="text-xs mb-1" style={{ color: selectedTitle === 'titleC' ? 'rgba(255,255,255,0.8)' : '#0077B6' }}>選項 C（結果/效益導向）</div>
+                <div
+                  className={`text-xs mb-1 ${
+                    selectedTitle === 'titleC' ? 'text-white/80' : 'text-neutral-500'
+                  }`}
+                >
+                  選項 C（結果/效益導向）
+                </div>
                 <div>{generatedContent.titleC}</div>
               </div>
             </div>
 
             {/* Editable Title */}
-            <label className="text-xs mb-1 block" style={{ color: '#0077B6' }}>編輯選定的標題</label>
+            <label className="text-xs mb-1 block text-neutral-500">編輯選定的標題</label>
             <div className="flex gap-2 mt-1">
               <input
                 type="text"
                 value={editableContent.title}
                 onChange={e => setEditableContent(prev => ({ ...prev, title: e.target.value }))}
-                className="w-full rounded-md px-3 py-2 focus:outline-none"
-                style={{
-                  backgroundColor: 'rgba(202, 240, 248, 0.5)',
-                  border: '1px solid #90E0EF',
-                  color: '#03045E'
-                }}
+                className="w-full rounded-lg px-3 py-2 bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all shadow-sm"
               />
-              <button onClick={() => handleUpdate('title')} className="text-white font-bold px-3 rounded-lg text-sm w-24 flex items-center justify-center hover:opacity-90" style={{ backgroundColor: '#0077B6' }}>
+              <button
+                onClick={() => handleUpdate('title')}
+                className="text-white font-bold px-3 rounded-full text-sm w-24 flex items-center justify-center bg-red-600 hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
                 {getButtonContent(updateState.title)}
               </button>
             </div>
@@ -257,24 +268,22 @@ export function MetadataGenerator({ video, onClose }: MetadataGeneratorProps) {
 
           {/* Description */}
           <div>
-            <label className="text-sm font-semibold" style={{ color: '#03045E' }}>影片說明（包含章節與標籤）</label>
-            <div className="text-xs mb-1 space-y-0.5" style={{ color: '#0077B6' }}>
+            <label className="text-sm font-semibold text-neutral-700">影片說明（包含章節與標籤）</label>
+            <div className="text-xs mb-1 space-y-0.5 text-neutral-500">
               <p>此欄位包含完整的影片說明、章節導覽和說明用標籤</p>
-              <p style={{ color: '#90E0EF' }}>💡 Gemini AI 會自動生成章節時間軸（格式：00:00），並在說明中加入相關標籤以提升搜尋能見度</p>
+              <p className="text-neutral-400">💡 Gemini AI 會自動生成章節時間軸（格式：00:00），並在說明中加入相關標籤以提升搜尋能見度</p>
             </div>
             <div className="flex gap-2 mt-1">
               <textarea
                 value={editableContent.description}
                 onChange={e => setEditableContent(prev => ({ ...prev, description: e.target.value }))}
                 rows={8}
-                className="w-full rounded-md px-3 py-2 font-mono text-sm focus:outline-none"
-                style={{
-                  backgroundColor: 'rgba(202, 240, 248, 0.5)',
-                  border: '1px solid #90E0EF',
-                  color: '#03045E'
-                }}
+                className="w-full rounded-lg px-3 py-2 font-mono text-sm bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all shadow-sm"
               />
-              <button onClick={() => handleUpdate('description')} className="text-white font-bold px-3 rounded-lg text-sm w-24 flex items-center justify-center hover:opacity-90" style={{ backgroundColor: '#0077B6' }}>
+              <button
+                onClick={() => handleUpdate('description')}
+                className="text-white font-bold px-3 rounded-full text-sm w-24 flex items-center justify-center bg-red-600 hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
                 {getButtonContent(updateState.description)}
               </button>
             </div>
@@ -282,39 +291,36 @@ export function MetadataGenerator({ video, onClose }: MetadataGeneratorProps) {
 
           {/* Tags */}
           <div>
-            <label className="text-sm font-semibold" style={{ color: '#03045E' }}>後台標籤（逗號分隔）</label>
-            <div className="text-xs mb-1 space-y-0.5" style={{ color: '#0077B6' }}>
+            <label className="text-sm font-semibold text-neutral-700">後台標籤（逗號分隔）</label>
+            <div className="text-xs mb-1 space-y-0.5 text-neutral-500">
               <p>這些標籤會設定在 YouTube 後台，不含 # 符號</p>
-              <p style={{ color: '#90E0EF' }}>💡 Gemini AI 根據影片內容選擇相關關鍵字，幫助 YouTube 演算法推薦您的影片給目標觀眾</p>
+              <p className="text-neutral-400">💡 Gemini AI 根據影片內容選擇相關關鍵字，幫助 YouTube 演算法推薦您的影片給目標觀眾</p>
             </div>
             <div className="flex gap-2 mt-1">
               <input
                 type="text"
                 value={editableContent.tags}
                 onChange={e => setEditableContent(prev => ({ ...prev, tags: e.target.value }))}
-                className="w-full rounded-md px-3 py-2 focus:outline-none"
-                style={{
-                  backgroundColor: 'rgba(202, 240, 248, 0.5)',
-                  border: '1px solid #90E0EF',
-                  color: '#03045E'
-                }}
+                className="w-full rounded-lg px-3 py-2 bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all shadow-sm"
               />
-              <button onClick={() => handleUpdate('tags')} className="text-white font-bold px-3 rounded-lg text-sm w-24 flex items-center justify-center hover:opacity-90" style={{ backgroundColor: '#0077B6' }}>
+              <button
+                onClick={() => handleUpdate('tags')}
+                className="text-white font-bold px-3 rounded-full text-sm w-24 flex items-center justify-center bg-red-600 hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
                 {getButtonContent(updateState.tags)}
               </button>
             </div>
           </div>
 
-          <div className="border-t pt-4 space-y-2" style={{ borderColor: '#90E0EF' }}>
+          <div className="border-t border-neutral-200 pt-4 space-y-2">
             <button
               onClick={handleGenerate}
               disabled={isLoading}
-              className="w-full text-center text-sm py-2 hover:opacity-80 disabled:opacity-50 font-medium"
-              style={{ color: '#0077B6' }}
+              className="w-full text-center text-sm py-2 font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
             >
               {isLoading ? '🔄 生成中...' : '🔄 重新生成（讓 AI 提供不同的建議）'}
             </button>
-            <p className="text-xs text-center" style={{ color: '#CAF0F8' }}>
+            <p className="text-xs text-center text-neutral-400">
               💡 Gemini AI 每次分析都可能產生不同風格的標題和說明，重新生成可獲得更多靈感
             </p>
           </div>

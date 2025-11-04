@@ -295,7 +295,7 @@ export function VideoAnalyticsExpandedView({
           target="_blank"
           rel="noopener noreferrer"
           className="text-sm underline hover:opacity-70 inline-flex items-center gap-2"
-          style={{ color: '#0077B6' }}
+          style={{ color: '#DC2626' }}
         >
           🎬 在 YouTube 上查看
         </a>
@@ -303,43 +303,43 @@ export function VideoAnalyticsExpandedView({
 
       {/* 核心指標 */}
       <div>
-        <h5 className="font-bold mb-3 text-lg" style={{ color: '#03045E' }}>
+        <h5 className="font-bold mb-3 text-lg" style={{ color: '#1F1F1F' }}>
           📊 核心指標
         </h5>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div className="p-3 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-            <p className="text-sm" style={{ color: '#0077B6' }}>觀看次數</p>
-            <p className="text-2xl font-bold" style={{ color: '#03045E' }}>
+          <div className="p-3 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)' }}>
+            <p className="text-sm" style={{ color: '#DC2626' }}>觀看次數</p>
+            <p className="text-2xl font-bold" style={{ color: '#1F1F1F' }}>
               {formatNumber(video.metrics.views)}
             </p>
           </div>
-          <div className="p-3 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-            <p className="text-sm" style={{ color: '#0077B6' }}>平均觀看時長</p>
-            <p className="text-2xl font-bold" style={{ color: '#03045E' }}>
+          <div className="p-3 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)' }}>
+            <p className="text-sm" style={{ color: '#DC2626' }}>平均觀看時長</p>
+            <p className="text-2xl font-bold" style={{ color: '#1F1F1F' }}>
               {video.metrics.averageViewPercentage}%
             </p>
           </div>
-          <div className="p-3 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-            <p className="text-sm" style={{ color: '#0077B6' }}>讚數比例</p>
-            <p className="text-2xl font-bold" style={{ color: '#03045E' }}>
+          <div className="p-3 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)' }}>
+            <p className="text-sm" style={{ color: '#DC2626' }}>讚數比例</p>
+            <p className="text-2xl font-bold" style={{ color: '#1F1F1F' }}>
               {video.metrics.likeRatio}%
             </p>
           </div>
-          <div className="p-3 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-            <p className="text-sm" style={{ color: '#0077B6' }}>留言數</p>
-            <p className="text-2xl font-bold" style={{ color: '#03045E' }}>
+          <div className="p-3 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)' }}>
+            <p className="text-sm" style={{ color: '#DC2626' }}>留言數</p>
+            <p className="text-2xl font-bold" style={{ color: '#1F1F1F' }}>
               {formatNumber(video.metrics.comments)}
             </p>
           </div>
-          <div className="p-3 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-            <p className="text-sm" style={{ color: '#0077B6' }}>分享次數</p>
-            <p className="text-2xl font-bold" style={{ color: '#03045E' }}>
+          <div className="p-3 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)' }}>
+            <p className="text-sm" style={{ color: '#DC2626' }}>分享次數</p>
+            <p className="text-2xl font-bold" style={{ color: '#1F1F1F' }}>
               {formatNumber(video.metrics.shares)}
             </p>
           </div>
-          <div className="p-3 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-            <p className="text-sm" style={{ color: '#0077B6' }}>新訂閱</p>
-            <p className="text-2xl font-bold" style={{ color: '#03045E' }}>
+          <div className="p-3 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)' }}>
+            <p className="text-sm" style={{ color: '#DC2626' }}>新訂閱</p>
+            <p className="text-2xl font-bold" style={{ color: '#1F1F1F' }}>
               {formatNumber(video.metrics.subscribersGained)}
             </p>
           </div>
@@ -348,37 +348,37 @@ export function VideoAnalyticsExpandedView({
 
       {/* 流量來源 */}
       <div>
-        <h5 className="font-bold mb-3 text-lg" style={{ color: '#03045E' }}>
+        <h5 className="font-bold mb-3 text-lg" style={{ color: '#1F1F1F' }}>
           🚦 流量來源
         </h5>
         <div className="space-y-2">
-          <div className="flex justify-between items-center p-2 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-            <span style={{ color: '#0077B6' }}>YouTube 搜尋</span>
-            <span className="font-semibold" style={{ color: '#03045E' }}>
+          <div className="flex justify-between items-center p-2 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)' }}>
+            <span style={{ color: '#DC2626' }}>YouTube 搜尋</span>
+            <span className="font-semibold" style={{ color: '#1F1F1F' }}>
               {formatNumber(video.trafficSources.youtubeSearch)} 次
             </span>
           </div>
-          <div className="flex justify-between items-center p-2 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-            <span style={{ color: '#0077B6' }}>Google 搜尋</span>
-            <span className="font-semibold" style={{ color: '#03045E' }}>
+          <div className="flex justify-between items-center p-2 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)' }}>
+            <span style={{ color: '#DC2626' }}>Google 搜尋</span>
+            <span className="font-semibold" style={{ color: '#1F1F1F' }}>
               {formatNumber(video.trafficSources.googleSearch)} 次
             </span>
           </div>
-          <div className="flex justify-between items-center p-2 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-            <span style={{ color: '#0077B6' }}>建議影片</span>
-            <span className="font-semibold" style={{ color: '#03045E' }}>
+          <div className="flex justify-between items-center p-2 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)' }}>
+            <span style={{ color: '#DC2626' }}>建議影片</span>
+            <span className="font-semibold" style={{ color: '#1F1F1F' }}>
               {formatNumber(video.trafficSources.suggested)} 次
             </span>
           </div>
-          <div className="flex justify-between items-center p-2 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-            <span style={{ color: '#0077B6' }}>外部連結</span>
-            <span className="font-semibold" style={{ color: '#03045E' }}>
+          <div className="flex justify-between items-center p-2 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)' }}>
+            <span style={{ color: '#DC2626' }}>外部連結</span>
+            <span className="font-semibold" style={{ color: '#1F1F1F' }}>
               {formatNumber(video.trafficSources.external)} 次
             </span>
           </div>
-          <div className="flex justify-between items-center p-2 rounded font-bold" style={{ backgroundColor: 'rgba(0, 119, 182, 0.1)' }}>
-            <span style={{ color: '#0077B6' }}>總搜尋流量佔比</span>
-            <span style={{ color: '#03045E' }}>
+          <div className="flex justify-between items-center p-2 rounded font-bold" style={{ backgroundColor: 'rgba(220, 38, 38, 0.1)' }}>
+            <span style={{ color: '#DC2626' }}>總搜尋流量佔比</span>
+            <span style={{ color: '#1F1F1F' }}>
               {video.trafficSources.searchPercentage}%
             </span>
           </div>
@@ -392,7 +392,7 @@ export function VideoAnalyticsExpandedView({
           disabled={isAnalyzing}
           className="flex-1 px-4 py-3 rounded-lg font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg"
           style={{
-            backgroundColor: '#0077B6',
+            backgroundColor: '#DC2626',
             color: 'white',
           }}
         >
@@ -402,8 +402,8 @@ export function VideoAnalyticsExpandedView({
           onClick={() => setShowMetadataGenerator(!showMetadataGenerator)}
           className="flex-1 px-4 py-3 rounded-lg font-semibold transition-all hover:shadow-lg"
           style={{
-            backgroundColor: '#90E0EF',
-            color: '#03045E',
+            backgroundColor: '#FECACA',
+            color: '#1F1F1F',
           }}
         >
           {showMetadataGenerator ? '✕ 關閉中繼資料生成' : '✨ 生成中繼資料'}
@@ -423,12 +423,12 @@ export function VideoAnalyticsExpandedView({
           <div
             className="p-4 rounded-lg"
             style={{
-              backgroundColor: 'rgba(202, 240, 248, 0.3)',
-              border: '1px solid #90E0EF',
+              backgroundColor: 'rgba(254, 202, 202, 0.3)',
+              border: '1px solid #FECACA',
             }}
           >
             <div className="flex justify-between items-center mb-3">
-              <span className="font-bold" style={{ color: '#03045E' }}>
+              <span className="font-bold" style={{ color: '#1F1F1F' }}>
                 目前關鍵字評分
               </span>
               <span
@@ -452,7 +452,7 @@ export function VideoAnalyticsExpandedView({
                 </p>
                 <ul className="list-disc list-inside space-y-1 text-sm">
                   {keywordAnalysis.currentKeywords.strengths.map((s, idx) => (
-                    <li key={idx} style={{ color: '#0077B6' }}>
+                    <li key={idx} style={{ color: '#DC2626' }}>
                       {s}
                     </li>
                   ))}
@@ -464,7 +464,7 @@ export function VideoAnalyticsExpandedView({
                 </p>
                 <ul className="list-disc list-inside space-y-1 text-sm">
                   {keywordAnalysis.currentKeywords.weaknesses.map((w, idx) => (
-                    <li key={idx} style={{ color: '#0077B6' }}>
+                    <li key={idx} style={{ color: '#DC2626' }}>
                       {w}
                     </li>
                   ))}
@@ -475,12 +475,12 @@ export function VideoAnalyticsExpandedView({
 
           {/* 建議關鍵字 */}
           <div>
-            <p className="font-bold mb-2" style={{ color: '#03045E' }}>
+            <p className="font-bold mb-2" style={{ color: '#1F1F1F' }}>
               🎯 建議關鍵字
             </p>
             <div className="space-y-2">
               <div>
-                <span className="text-sm font-semibold" style={{ color: '#0077B6' }}>
+                <span className="text-sm font-semibold" style={{ color: '#DC2626' }}>
                   核心關鍵字：
                 </span>
                 <div className="flex flex-wrap gap-2 mt-1">
@@ -489,7 +489,7 @@ export function VideoAnalyticsExpandedView({
                       key={idx}
                       className="px-3 py-1 rounded-full text-sm font-semibold"
                       style={{
-                        backgroundColor: '#0077B6',
+                        backgroundColor: '#DC2626',
                         color: 'white',
                       }}
                     >
@@ -499,7 +499,7 @@ export function VideoAnalyticsExpandedView({
                 </div>
               </div>
               <div>
-                <span className="text-sm font-semibold" style={{ color: '#0077B6' }}>
+                <span className="text-sm font-semibold" style={{ color: '#DC2626' }}>
                   次要關鍵字：
                 </span>
                 <div className="flex flex-wrap gap-2 mt-1">
@@ -508,8 +508,8 @@ export function VideoAnalyticsExpandedView({
                       key={idx}
                       className="px-3 py-1 rounded-full text-sm"
                       style={{
-                        backgroundColor: 'rgba(0, 119, 182, 0.2)',
-                        color: '#0077B6',
+                        backgroundColor: 'rgba(254, 202, 202, 0.2)',
+                        color: '#DC2626',
                       }}
                     >
                       {kw}
@@ -518,7 +518,7 @@ export function VideoAnalyticsExpandedView({
                 </div>
               </div>
               <div>
-                <span className="text-sm font-semibold" style={{ color: '#0077B6' }}>
+                <span className="text-sm font-semibold" style={{ color: '#DC2626' }}>
                   長尾關鍵字：
                 </span>
                 <div className="flex flex-wrap gap-2 mt-1">
@@ -527,9 +527,9 @@ export function VideoAnalyticsExpandedView({
                       key={idx}
                       className="px-3 py-1 rounded text-sm"
                       style={{
-                        backgroundColor: 'rgba(202, 240, 248, 0.5)',
-                        color: '#0077B6',
-                        border: '1px solid #90E0EF',
+                        backgroundColor: 'rgba(254, 202, 202, 0.5)',
+                        color: '#DC2626',
+                        border: '1px solid #FECACA',
                       }}
                     >
                       {kw}
@@ -542,7 +542,7 @@ export function VideoAnalyticsExpandedView({
 
           {/* 標題建議 */}
           <div>
-            <p className="font-bold mb-2" style={{ color: '#03045E' }}>
+            <p className="font-bold mb-2" style={{ color: '#1F1F1F' }}>
               📝 標題優化建議
             </p>
             <div className="space-y-2">
@@ -551,9 +551,9 @@ export function VideoAnalyticsExpandedView({
                   key={idx}
                   className="p-3 rounded"
                   style={{
-                    backgroundColor: 'rgba(202, 240, 248, 0.3)',
-                    border: '1px solid #90E0EF',
-                    color: '#03045E',
+                    backgroundColor: 'rgba(254, 202, 202, 0.3)',
+                    border: '1px solid #FECACA',
+                    color: '#1F1F1F',
                   }}
                 >
                   {idx + 1}. {title}
@@ -564,12 +564,12 @@ export function VideoAnalyticsExpandedView({
 
           {/* 說明優化提示 */}
           <div>
-            <p className="font-bold mb-2" style={{ color: '#03045E' }}>
+            <p className="font-bold mb-2" style={{ color: '#1F1F1F' }}>
               📄 說明優化提示
             </p>
             <ul className="list-disc list-inside space-y-1">
               {keywordAnalysis.descriptionTips.map((tip, idx) => (
-                <li key={idx} style={{ color: '#0077B6' }}>
+                <li key={idx} style={{ color: '#DC2626' }}>
                   {tip}
                 </li>
               ))}
@@ -595,7 +595,7 @@ export function VideoAnalyticsExpandedView({
               }`,
             }}
           >
-            <h6 className="font-bold mb-2" style={{ color: '#03045E' }}>
+            <h6 className="font-bold mb-2" style={{ color: '#1F1F1F' }}>
               📋 行動計畫
             </h6>
             <div className="space-y-2 text-sm">
@@ -628,7 +628,7 @@ export function VideoAnalyticsExpandedView({
                 <p className="font-semibold mb-1">執行步驟：</p>
                 <ol className="list-decimal list-inside space-y-1 ml-2">
                   {keywordAnalysis.actionPlan.steps.map((step, idx) => (
-                    <li key={idx} style={{ color: '#0077B6' }}>
+                    <li key={idx} style={{ color: '#DC2626' }}>
                       {step}
                     </li>
                   ))}
@@ -645,10 +645,10 @@ export function VideoAnalyticsExpandedView({
           className="p-6 rounded-lg"
           style={{
             backgroundColor: 'rgba(255, 255, 255, 0.8)',
-            border: '2px solid #0077B6',
+            border: '2px solid #DC2626',
           }}
         >
-          <h5 className="font-bold mb-4 text-lg" style={{ color: '#03045E' }}>
+          <h5 className="font-bold mb-4 text-lg" style={{ color: '#1F1F1F' }}>
             ✨ Gemini AI 中繼資料生成器
           </h5>
 
@@ -656,7 +656,7 @@ export function VideoAnalyticsExpandedView({
           {isLoadingVideoData && (
             <div className="flex items-center justify-center py-8">
               <Loader />
-              <span className="ml-3" style={{ color: '#0077B6' }}>正在載入影片資訊...</span>
+              <span className="ml-3" style={{ color: '#DC2626' }}>正在載入影片資訊...</span>
             </div>
           )}
 
@@ -666,7 +666,7 @@ export function VideoAnalyticsExpandedView({
               {/* Prompt Input */}
               {!generatedContent && !isGenerating && (
                 <div className="mb-4">
-                  <label className="block text-sm font-medium mb-2" style={{ color: '#03045E' }}>
+                  <label className="block text-sm font-medium mb-2" style={{ color: '#1F1F1F' }}>
                     額外提示（選填）
                   </label>
                   <input
@@ -676,9 +676,9 @@ export function VideoAnalyticsExpandedView({
                     placeholder="例如：適合初學者的有趣教學"
                     className="w-full rounded-md px-3 py-2 focus:outline-none"
                     style={{
-                      backgroundColor: 'rgba(202, 240, 248, 0.5)',
-                      border: '1px solid #90E0EF',
-                      color: '#03045E'
+                      backgroundColor: 'rgba(254, 202, 202, 0.5)',
+                      border: '1px solid #FECACA',
+                      color: '#1F1F1F'
                     }}
                   />
                 </div>
@@ -690,15 +690,15 @@ export function VideoAnalyticsExpandedView({
                   <button
                     onClick={handleGenerate}
                     className="w-full flex items-center justify-center gap-2 text-white font-bold py-3 px-4 rounded-lg transition-transform duration-200 transform hover:scale-105"
-                    style={{ backgroundColor: '#0077B6' }}
+                    style={{ backgroundColor: '#DC2626' }}
                   >
                     <SparklesIcon /> 使用 Gemini AI 生成 SEO 強化內容
                   </button>
                   <div className="space-y-2">
-                    <p className="text-xs text-center" style={{ color: '#0077B6' }}>
+                    <p className="text-xs text-center" style={{ color: '#DC2626' }}>
                       Gemini AI 將分析影片內容，自動生成三種風格標題、章節時間軸及 SEO 標籤
                     </p>
-                    <p className="text-xs text-center" style={{ color: '#90E0EF' }}>
+                    <p className="text-xs text-center" style={{ color: '#FECACA' }}>
                       💡 處理流程：檢查雲端檔案 → 分析影片內容 → 生成 SEO 強化建議（公開影片約 30 秒，未列出影片首次需下載約 2-5 分鐘）
                     </p>
                   </div>
@@ -707,10 +707,10 @@ export function VideoAnalyticsExpandedView({
 
               {/* Loading State */}
               {isGenerating && (
-                <div className="p-4 rounded-lg" style={{ backgroundColor: 'rgba(0, 180, 216, 0.1)', border: '1px solid #00B4D8' }}>
+                <div className="p-4 rounded-lg" style={{ backgroundColor: 'rgba(220, 38, 38, 0.1)', border: '1px solid #B91C1C' }}>
                   <div className="flex items-center gap-3">
                     <Loader />
-                    <span className="text-sm" style={{ color: '#0077B6' }}>{loadingStep}</span>
+                    <span className="text-sm" style={{ color: '#DC2626' }}>{loadingStep}</span>
                   </div>
                 </div>
               )}
@@ -734,8 +734,8 @@ export function VideoAnalyticsExpandedView({
                 <div className="space-y-4 animate-fade-in">
                   {/* Title Options */}
                   <div>
-                    <label className="text-sm font-semibold mb-1 block" style={{ color: '#03045E' }}>建議標題（請選擇一個）</label>
-                    <p className="text-xs mb-2" style={{ color: '#90E0EF' }}>
+                    <label className="text-sm font-semibold mb-1 block" style={{ color: '#1F1F1F' }}>建議標題（請選擇一個）</label>
+                    <p className="text-xs mb-2" style={{ color: '#FECACA' }}>
                       💡 Gemini AI 提供三種不同風格的標題，點選即可選擇並編輯
                     </p>
                     <div className="space-y-2 mb-3">
@@ -743,42 +743,42 @@ export function VideoAnalyticsExpandedView({
                         onClick={() => setSelectedTitle('titleA')}
                         className="p-3 rounded-lg cursor-pointer transition-all border-2"
                         style={{
-                          backgroundColor: selectedTitle === 'titleA' ? '#0077B6' : 'rgba(202, 240, 248, 0.5)',
-                          borderColor: selectedTitle === 'titleA' ? '#00B4D8' : '#90E0EF',
-                          color: selectedTitle === 'titleA' ? 'white' : '#03045E'
+                          backgroundColor: selectedTitle === 'titleA' ? '#DC2626' : 'rgba(254, 202, 202, 0.5)',
+                          borderColor: selectedTitle === 'titleA' ? '#B91C1C' : '#FECACA',
+                          color: selectedTitle === 'titleA' ? 'white' : '#1F1F1F'
                         }}
                       >
-                        <div className="text-xs mb-1" style={{ color: selectedTitle === 'titleA' ? 'rgba(255,255,255,0.8)' : '#0077B6' }}>選項 A（關鍵字導向）</div>
+                        <div className="text-xs mb-1" style={{ color: selectedTitle === 'titleA' ? 'rgba(255,255,255,0.8)' : '#DC2626' }}>選項 A（關鍵字導向）</div>
                         <div>{generatedContent.titleA}</div>
                       </div>
                       <div
                         onClick={() => setSelectedTitle('titleB')}
                         className="p-3 rounded-lg cursor-pointer transition-all border-2"
                         style={{
-                          backgroundColor: selectedTitle === 'titleB' ? '#0077B6' : 'rgba(202, 240, 248, 0.5)',
-                          borderColor: selectedTitle === 'titleB' ? '#00B4D8' : '#90E0EF',
-                          color: selectedTitle === 'titleB' ? 'white' : '#03045E'
+                          backgroundColor: selectedTitle === 'titleB' ? '#DC2626' : 'rgba(254, 202, 202, 0.5)',
+                          borderColor: selectedTitle === 'titleB' ? '#B91C1C' : '#FECACA',
+                          color: selectedTitle === 'titleB' ? 'white' : '#1F1F1F'
                         }}
                       >
-                        <div className="text-xs mb-1" style={{ color: selectedTitle === 'titleB' ? 'rgba(255,255,255,0.8)' : '#0077B6' }}>選項 B（懸念/好奇心導向）</div>
+                        <div className="text-xs mb-1" style={{ color: selectedTitle === 'titleB' ? 'rgba(255,255,255,0.8)' : '#DC2626' }}>選項 B（懸念/好奇心導向）</div>
                         <div>{generatedContent.titleB}</div>
                       </div>
                       <div
                         onClick={() => setSelectedTitle('titleC')}
                         className="p-3 rounded-lg cursor-pointer transition-all border-2"
                         style={{
-                          backgroundColor: selectedTitle === 'titleC' ? '#0077B6' : 'rgba(202, 240, 248, 0.5)',
-                          borderColor: selectedTitle === 'titleC' ? '#00B4D8' : '#90E0EF',
-                          color: selectedTitle === 'titleC' ? 'white' : '#03045E'
+                          backgroundColor: selectedTitle === 'titleC' ? '#DC2626' : 'rgba(254, 202, 202, 0.5)',
+                          borderColor: selectedTitle === 'titleC' ? '#B91C1C' : '#FECACA',
+                          color: selectedTitle === 'titleC' ? 'white' : '#1F1F1F'
                         }}
                       >
-                        <div className="text-xs mb-1" style={{ color: selectedTitle === 'titleC' ? 'rgba(255,255,255,0.8)' : '#0077B6' }}>選項 C（結果/效益導向）</div>
+                        <div className="text-xs mb-1" style={{ color: selectedTitle === 'titleC' ? 'rgba(255,255,255,0.8)' : '#DC2626' }}>選項 C（結果/效益導向）</div>
                         <div>{generatedContent.titleC}</div>
                       </div>
                     </div>
 
                     {/* Editable Title */}
-                    <label className="text-xs mb-1 block" style={{ color: '#0077B6' }}>編輯選定的標題</label>
+                    <label className="text-xs mb-1 block" style={{ color: '#DC2626' }}>編輯選定的標題</label>
                     <div className="flex gap-2 mt-1">
                       <input
                         type="text"
@@ -786,12 +786,12 @@ export function VideoAnalyticsExpandedView({
                         onChange={e => setEditableContent(prev => ({ ...prev, title: e.target.value }))}
                         className="w-full rounded-md px-3 py-2 focus:outline-none"
                         style={{
-                          backgroundColor: 'rgba(202, 240, 248, 0.5)',
-                          border: '1px solid #90E0EF',
-                          color: '#03045E'
+                          backgroundColor: 'rgba(254, 202, 202, 0.5)',
+                          border: '1px solid #FECACA',
+                          color: '#1F1F1F'
                         }}
                       />
-                      <button onClick={() => handleUpdate('title')} className="text-white font-bold px-3 rounded-lg text-sm w-24 flex items-center justify-center hover:opacity-90" style={{ backgroundColor: '#0077B6' }}>
+                      <button onClick={() => handleUpdate('title')} className="text-white font-bold px-3 rounded-lg text-sm w-24 flex items-center justify-center hover:opacity-90" style={{ backgroundColor: '#DC2626' }}>
                         {getButtonContent(updateState.title)}
                       </button>
                     </div>
@@ -799,10 +799,10 @@ export function VideoAnalyticsExpandedView({
 
                   {/* Description */}
                   <div>
-                    <label className="text-sm font-semibold" style={{ color: '#03045E' }}>影片說明（包含章節與標籤）</label>
-                    <div className="text-xs mb-1 space-y-0.5" style={{ color: '#0077B6' }}>
+                    <label className="text-sm font-semibold" style={{ color: '#1F1F1F' }}>影片說明（包含章節與標籤）</label>
+                    <div className="text-xs mb-1 space-y-0.5" style={{ color: '#DC2626' }}>
                       <p>此欄位包含完整的影片說明、章節導覽和說明用標籤</p>
-                      <p style={{ color: '#90E0EF' }}>💡 Gemini AI 會自動生成章節時間軸（格式：00:00），並在說明中加入相關標籤以提升搜尋能見度</p>
+                      <p style={{ color: '#FECACA' }}>💡 Gemini AI 會自動生成章節時間軸（格式：00:00），並在說明中加入相關標籤以提升搜尋能見度</p>
                     </div>
                     <div className="flex gap-2 mt-1">
                       <textarea
@@ -811,12 +811,12 @@ export function VideoAnalyticsExpandedView({
                         rows={8}
                         className="w-full rounded-md px-3 py-2 font-mono text-sm focus:outline-none"
                         style={{
-                          backgroundColor: 'rgba(202, 240, 248, 0.5)',
-                          border: '1px solid #90E0EF',
-                          color: '#03045E'
+                          backgroundColor: 'rgba(254, 202, 202, 0.5)',
+                          border: '1px solid #FECACA',
+                          color: '#1F1F1F'
                         }}
                       />
-                      <button onClick={() => handleUpdate('description')} className="text-white font-bold px-3 rounded-lg text-sm w-24 flex items-center justify-center hover:opacity-90" style={{ backgroundColor: '#0077B6' }}>
+                      <button onClick={() => handleUpdate('description')} className="text-white font-bold px-3 rounded-lg text-sm w-24 flex items-center justify-center hover:opacity-90" style={{ backgroundColor: '#DC2626' }}>
                         {getButtonContent(updateState.description)}
                       </button>
                     </div>
@@ -824,8 +824,8 @@ export function VideoAnalyticsExpandedView({
 
                   {/* Tags */}
                   <div>
-                    <label className="text-sm font-semibold" style={{ color: '#03045E' }}>SEO 標籤（逗號分隔）</label>
-                    <p className="text-xs mb-1" style={{ color: '#0077B6' }}>
+                    <label className="text-sm font-semibold" style={{ color: '#1F1F1F' }}>SEO 標籤（逗號分隔）</label>
+                    <p className="text-xs mb-1" style={{ color: '#DC2626' }}>
                       💡 這些標籤將用於 YouTube 的標籤欄位，幫助搜尋演算法理解影片內容
                     </p>
                     <div className="flex gap-2 mt-1">
@@ -835,12 +835,12 @@ export function VideoAnalyticsExpandedView({
                         onChange={e => setEditableContent(prev => ({ ...prev, tags: e.target.value }))}
                         className="w-full rounded-md px-3 py-2 focus:outline-none font-mono text-sm"
                         style={{
-                          backgroundColor: 'rgba(202, 240, 248, 0.5)',
-                          border: '1px solid #90E0EF',
-                          color: '#03045E'
+                          backgroundColor: 'rgba(254, 202, 202, 0.5)',
+                          border: '1px solid #FECACA',
+                          color: '#1F1F1F'
                         }}
                       />
-                      <button onClick={() => handleUpdate('tags')} className="text-white font-bold px-3 rounded-lg text-sm w-24 flex items-center justify-center hover:opacity-90" style={{ backgroundColor: '#0077B6' }}>
+                      <button onClick={() => handleUpdate('tags')} className="text-white font-bold px-3 rounded-lg text-sm w-24 flex items-center justify-center hover:opacity-90" style={{ backgroundColor: '#DC2626' }}>
                         {getButtonContent(updateState.tags)}
                       </button>
                     </div>

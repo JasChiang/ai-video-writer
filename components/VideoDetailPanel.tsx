@@ -54,7 +54,7 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
   }, [video.id, video.privacyStatus]);
 
   return (
-    <div className="space-y-6 p-6 rounded-2xl" style={{ backgroundColor: 'rgba(255, 255, 255, 0.92)', border: '1px solid #90E0EF' }}>
+    <div className="space-y-6 p-6 rounded-2xl bg-white border border-neutral-200 shadow-sm">
       {/* Video Preview */}
       <div className="space-y-4">
         {showPlayer ? (
@@ -72,8 +72,7 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
           <button
             type="button"
             onClick={() => setShowPlayer(true)}
-            className="relative block w-full overflow-hidden rounded-xl shadow-lg group focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-            style={{ backgroundColor: 'rgba(3, 4, 94, 0.04)', border: '1px solid rgba(0, 180, 216, 0.2)' }}
+            className="relative block w-full overflow-hidden rounded-xl shadow-lg group focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500 bg-neutral-100 border border-neutral-200"
           >
             <img
               src={video.thumbnailUrl}
@@ -99,10 +98,10 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
         )}
 
         <div className="space-y-3">
-          <h3 className="text-xl md:text-2xl font-bold leading-snug" style={{ color: '#03045E' }}>
+          <h3 className="text-xl md:text-2xl font-bold leading-snug text-neutral-900">
             {video.title}
           </h3>
-          <div className="flex flex-wrap gap-3 text-xs md:text-sm" style={{ color: '#0077B6' }}>
+          <div className="flex flex-wrap gap-3 text-xs md:text-sm text-neutral-500">
             {video.privacyStatus && (
               <span
                 className="px-3 py-1 rounded-full font-medium"
@@ -145,7 +144,7 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
           </div>
 
           {video.description && (
-            <div className="rounded-lg p-4 text-sm whitespace-pre-wrap" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)', border: '1px solid #90E0EF', color: '#03045E' }}>
+            <div className="rounded-lg p-4 text-sm whitespace-pre-wrap bg-neutral-100 border border-neutral-200 text-neutral-700">
               {video.description.length > 300
                 ? `${video.description.substring(0, 300)}...`
                 : video.description}
@@ -157,19 +156,16 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
       {/* Action Buttons */}
       {activeMode === 'none' && (
         <div className="space-y-4">
-          <h4 className="text-base md:text-lg font-semibold" style={{ color: '#03045E' }}>選擇生成模式</h4>
+          <h4 className="text-base md:text-lg font-semibold text-neutral-900">選擇生成模式</h4>
 
           {video.privacyStatus !== 'public' && (
-            <div className="rounded-lg p-3" style={{
-              backgroundColor: fileStatus.exists
-                ? 'rgba(34, 197, 94, 0.1)'
-                : 'rgba(0, 119, 182, 0.1)',
-              border: fileStatus.exists
-                ? '1px solid #22C55E'
-                : '1px solid #0077B6'
-            }}>
+            <div
+              className={`rounded-lg p-3 border ${
+                fileStatus.exists ? 'bg-green-50 border-green-200' : 'bg-neutral-100 border-neutral-200'
+              }`}
+            >
               {fileStatus.checking ? (
-                <div className="flex items-center gap-2 text-sm" style={{ color: '#0077B6' }}>
+                <div className="flex items-center gap-2 text-sm text-neutral-600">
                   <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -177,7 +173,7 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
                   檢查 Files API 中的檔案...
                 </div>
               ) : fileStatus.processing ? (
-                <div className="text-sm" style={{ color: '#CA8A04' }}>
+                <div className="text-sm text-amber-600">
                   <div className="flex items-center gap-2 mb-1">
                     <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -188,7 +184,7 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
                   <p className="text-xs opacity-80">Gemini 正在處理已上傳的影片</p>
                 </div>
               ) : fileStatus.exists ? (
-                <div className="text-sm" style={{ color: '#16A34A' }}>
+                <div className="text-sm text-green-600">
                   <div className="flex items-center gap-2 mb-1">
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -203,7 +199,7 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
                   </p>
                 </div>
               ) : (
-                <div className="text-sm" style={{ color: '#0077B6' }}>
+                <div className="text-sm text-neutral-600">
                   <div className="flex items-center gap-2 mb-1">
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
@@ -217,7 +213,7 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
           )}
 
           {video.privacyStatus === 'private' ? (
-            <div className="p-5 rounded-lg text-center" style={{ backgroundColor: 'rgba(239, 68, 68, 0.12)', border: '1px solid #EF4444', color: '#DC2626' }}>
+            <div className="p-5 rounded-lg text-center bg-red-50 border border-red-200 text-red-600">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -230,11 +226,10 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <button
                 onClick={() => setActiveMode('metadata')}
-                className="group relative p-5 md:p-6 rounded-xl transition-all duration-200 transform hover:scale-[1.01] shadow-lg text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-                style={{ background: 'linear-gradient(135deg, #0077B6 0%, #00B4D8 100%)' }}
+                className="group relative p-5 md:p-6 rounded-xl transition-all duration-200 transform hover:scale-[1.01] shadow-md text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500 bg-red-600 hover:bg-red-700"
               >
                 <div className="flex items-center gap-4">
-                  <div className="bg-white/15 p-3 rounded-lg">
+                  <div className="bg-white/20 p-3 rounded-lg">
                     <svg className="w-7 h-7 md:w-8 md:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                     </svg>
@@ -248,11 +243,10 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
 
               <button
                 onClick={() => setActiveMode('article')}
-                className="group relative p-5 md:p-6 rounded-xl transition-all duration-200 transform hover:scale-[1.01] shadow-lg text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-                style={{ background: 'linear-gradient(135deg, #00B4D8 0%, #90E0EF 100%)' }}
+                className="group relative p-5 md:p-6 rounded-xl transition-all duration-200 transform hover:scale-[1.01] shadow-md text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-neutral-900 bg-neutral-900 hover:bg-neutral-800"
               >
                 <div className="flex items-center gap-4">
-                  <div className="bg-white/15 p-3 rounded-lg">
+                  <div className="bg-white/20 p-3 rounded-lg">
                     <svg className="w-7 h-7 md:w-8 md:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
@@ -272,8 +266,7 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
         <div>
           <button
             onClick={() => setActiveMode('none')}
-            className="mb-4 flex items-center gap-2 text-sm md:text-base hover:opacity-80 focus:outline-none"
-            style={{ color: '#0077B6' }}
+            className="mb-4 flex items-center gap-2 text-sm md:text-base text-red-600 hover:text-red-700 transition-colors focus:outline-none"
           >
             ← 返回選擇模式
           </button>
@@ -288,8 +281,7 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
         <div>
           <button
             onClick={() => setActiveMode('none')}
-            className="mb-4 flex items-center gap-2 text-sm md:text-base hover:opacity-80 focus:outline-none"
-            style={{ color: '#00B4D8' }}
+            className="mb-4 flex items-center gap-2 text-sm md:text-base text-red-600 hover:text-red-700 transition-colors focus:outline-none"
           >
             ← 返回選擇模式
           </button>
