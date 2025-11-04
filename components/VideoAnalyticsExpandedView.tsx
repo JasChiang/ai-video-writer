@@ -199,7 +199,17 @@ export function VideoAnalyticsExpandedView({
       }
 
       const data = await response.json();
-      setSearchTerms(data.searchTerms || []);
+      const videoViews = video.metrics.views || 0;
+      const normalizedTerms: SearchTerm[] = (data.searchTerms || []).map((term: any) => {
+        const views = typeof term.views === 'number' ? term.views : parseFloat(String(term.views)) || 0;
+        const percentage = videoViews > 0 ? (views / videoViews) * 100 : 0;
+        return {
+          term: term.term,
+          views,
+          percentage,
+        };
+      });
+      setSearchTerms(normalizedTerms);
     } catch (err: any) {
       console.error('[Search Terms] 獲取失敗:', err);
       setSearchTermsError(err.message);
