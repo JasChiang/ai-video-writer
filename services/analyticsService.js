@@ -9,10 +9,10 @@ import { google } from 'googleapis';
  * 取得頻道的所有影片分析數據
  * @param {string} accessToken - YouTube OAuth access token
  * @param {string} channelId - YouTube 頻道 ID
- * @param {number} daysThreshold - 排除多少天前的影片（預設 730 天 = 2 年）
+ * @param {number} daysThreshold - 排除多少天前的影片（預設 365 天 = 1 年）
  * @returns {Promise<Array>} 影片分析數據陣列
  */
-export async function getChannelVideosAnalytics(accessToken, channelId, daysThreshold = 730) {
+export async function getChannelVideosAnalytics(accessToken, channelId, daysThreshold = 365) {
   try {
     const oauth2Client = new google.auth.OAuth2();
     oauth2Client.setCredentials({ access_token: accessToken });
@@ -28,17 +28,10 @@ export async function getChannelVideosAnalytics(accessToken, channelId, daysThre
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysThreshold);
 
-    // 步驟 1: 獲取頻道所有影片
-    console.log('[Analytics] 開始獲取頻道影片列表...');
-    const allVideos = await getAllChannelVideos(youtube, channelId);
-    console.log(`[Analytics] 找到 ${allVideos.length} 支影片`);
-
-    // 過濾掉超過 2 年的影片
-    const recentVideos = allVideos.filter(video => {
-      const publishDate = new Date(video.publishedAt);
-      return publishDate >= cutoffDate;
-    });
-    console.log(`[Analytics] 過濾後剩餘 ${recentVideos.length} 支影片（近 ${daysThreshold} 天內發布）`);
+    // 步驟 1: 獲取頻道指定時間範圍內的影片
+    console.log(`[Analytics] 開始獲取頻道影片列表（近 ${daysThreshold} 天）...`);
+    const recentVideos = await getAllChannelVideos(youtube, channelId, cutoffDate);
+    console.log(`[Analytics] 找到 ${recentVideos.length} 支影片（近 ${daysThreshold} 天內發布）`);
 
     if (recentVideos.length === 0) {
       console.log('[Analytics] 沒有符合條件的影片');
@@ -62,33 +55,114 @@ export async function getChannelVideosAnalytics(accessToken, channelId, daysThre
 }
 
 /**
- * 獲取頻道所有影片（處理分頁）
+ * 獲取頻道指定時間範圍內的影片（使用 PlaylistItems API - 更可靠且省配額）
+ * @param {Object} youtube - YouTube API 客戶端
+ * @param {string} channelId - 頻道 ID
+ * @param {Date} cutoffDate - 截止日期，只獲取此日期之後的影片
+ * @returns {Promise<Array>} 影片列表
  */
-async function getAllChannelVideos(youtube, channelId) {
+async function getAllChannelVideos(youtube, channelId, cutoffDate) {
+  console.log('[Analytics] 開始獲取頻道影片...');
+  console.log(`[Analytics]   截止日期: ${cutoffDate.toLocaleDateString()}`);
+
+  // 步驟 1: 獲取頻道的「上傳播放清單 ID」
+  console.log('[Analytics]   → 步驟 1: 獲取頻道資訊...');
+  const channelResponse = await youtube.channels.list({
+    part: 'contentDetails',
+    id: channelId,
+  });
+
+  if (!channelResponse.data.items || channelResponse.data.items.length === 0) {
+    throw new Error('找不到頻道資訊');
+  }
+
+  const uploadsPlaylistId = channelResponse.data.items[0].contentDetails.relatedPlaylists.uploads;
+  console.log(`[Analytics]     ✓ 上傳播放清單 ID: ${uploadsPlaylistId}`);
+
+  // 步驟 2: 獲取播放清單中指定時間範圍的影片（分頁）
+  console.log('[Analytics]   → 步驟 2: 開始分頁查詢影片...');
   const videos = [];
   let pageToken = null;
+  let pageCount = 0;
+  let shouldContinue = true;
+  const maxPages = 200; // 安全上限
 
   do {
-    const response = await youtube.search.list({
-      part: 'snippet',
-      channelId: channelId,
-      maxResults: 50,
-      order: 'date',
-      type: 'video',
-      pageToken: pageToken,
-    });
+    pageCount++;
+    console.log(`[Analytics]     → 正在獲取第 ${pageCount} 頁 (pageToken: ${pageToken || '首頁'})`);
 
-    const items = response.data.items || [];
-    videos.push(...items.map(item => ({
-      videoId: item.id.videoId,
-      title: item.snippet.title,
-      publishedAt: item.snippet.publishedAt,
-      thumbnail: item.snippet.thumbnails?.medium?.url || '',
-    })));
+    try {
+      const response = await youtube.playlistItems.list({
+        part: 'snippet',
+        playlistId: uploadsPlaylistId,
+        maxResults: 50,
+        pageToken: pageToken,
+      });
 
-    pageToken = response.data.nextPageToken;
-  } while (pageToken);
+      const items = response.data.items || [];
 
+      if (items.length === 0) {
+        console.log(`[Analytics]       ⚠ 本頁: 0 支影片`);
+        break;
+      }
+
+      // 處理本頁影片，並檢查日期
+      let addedCount = 0;
+      let stoppedByDate = false;
+
+      for (const item of items) {
+        const publishDate = new Date(item.snippet.publishedAt);
+
+        // 檢查是否超過截止日期
+        if (publishDate < cutoffDate) {
+          console.log(`[Analytics]       ⚠ 發現超過截止日期的影片 (${publishDate.toLocaleDateString()})，停止獲取`);
+          shouldContinue = false;
+          stoppedByDate = true;
+          break;
+        }
+
+        // 在範圍內，加入列表
+        videos.push({
+          videoId: item.snippet.resourceId.videoId,
+          title: item.snippet.title,
+          publishedAt: item.snippet.publishedAt,
+          thumbnail: item.snippet.thumbnails?.medium?.url || '',
+        });
+        addedCount++;
+      }
+
+      if (addedCount > 0) {
+        const firstDate = new Date(items[0].snippet.publishedAt);
+        const lastAddedDate = new Date(videos[videos.length - 1].publishedAt);
+        console.log(`[Analytics]       ✓ 本頁: ${addedCount}/${items.length} 支影片在範圍內 (${firstDate.toLocaleDateString()} ~ ${lastAddedDate.toLocaleDateString()})`);
+      }
+
+      console.log(`[Analytics]       累計: ${videos.length} 支 | ${stoppedByDate ? '已達截止日期' : (response.data.nextPageToken ? '繼續下一頁' : '已是最後一頁')}`);
+
+      // 如果因日期停止，不需要繼續
+      if (stoppedByDate) {
+        break;
+      }
+
+      pageToken = response.data.nextPageToken;
+
+      // 安全機制
+      if (pageCount >= maxPages) {
+        console.log(`[Analytics]     ⚠️  已達最大頁數限制 (${maxPages} 頁)，停止查詢`);
+        break;
+      }
+
+    } catch (error) {
+      console.error(`[Analytics]     ❌ 第 ${pageCount} 頁查詢失敗:`, error.message);
+      if (error.response?.data) {
+        console.error('[Analytics]        API 錯誤詳情:', JSON.stringify(error.response.data, null, 2));
+      }
+      throw error;
+    }
+
+  } while (pageToken && shouldContinue);
+
+  console.log(`[Analytics] ✓ 分頁查詢完成：共 ${pageCount} 頁，${videos.length} 支影片`);
   return videos;
 }
 

@@ -1326,7 +1326,7 @@ app.post('/api/analytics/channel', async (req, res) => {
     const analyticsData = await getChannelVideosAnalytics(
       accessToken,
       channelId,
-      daysThreshold || 730 // 預設 2 年
+      daysThreshold || 365 // 預設 1 年
     );
 
     // 計算優先級

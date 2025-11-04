@@ -74,8 +74,10 @@ export function VideoAnalytics() {
   const [selectedVideo, setSelectedVideo] = useState<VideoAnalyticsData | null>(null);
   const [keywordAnalysis, setKeywordAnalysis] = useState<KeywordAnalysis | null>(null);
   const [isAnalyzingKeywords, setIsAnalyzingKeywords] = useState(false);
+  const [selectedYears, setSelectedYears] = useState(1); // 預設 1 年
+  const [currentYearRange, setCurrentYearRange] = useState(1); // 當前已載入的年份範圍
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = async (yearsToFetch: number = selectedYears, append: boolean = false) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -87,7 +89,7 @@ export function VideoAnalytics() {
         throw new Error('請先登入 YouTube 帳號');
       }
 
-      console.log('[Analytics] 開始獲取分析數據...');
+      console.log(`[Analytics] 開始獲取分析數據（${yearsToFetch} 年）...`);
 
       // 調用後端 API
       const response = await fetch('http://localhost:3001/api/analytics/channel', {
@@ -98,7 +100,7 @@ export function VideoAnalytics() {
         body: JSON.stringify({
           accessToken,
           channelId,
-          daysThreshold: 730, // 2 年
+          daysThreshold: yearsToFetch * 365, // 轉換為天數
         }),
       });
 
@@ -110,13 +112,27 @@ export function VideoAnalytics() {
       const data: AnalyticsResponse = await response.json();
       console.log('[Analytics] 分析完成:', data);
 
-      setAnalyticsData(data.recommendations);
+      if (append) {
+        // 合併新舊數據並去重
+        const existingIds = new Set(analyticsData.map(v => v.videoId));
+        const newVideos = data.recommendations.filter(v => !existingIds.has(v.videoId));
+        setAnalyticsData([...analyticsData, ...newVideos]);
+      } else {
+        setAnalyticsData(data.recommendations);
+      }
+
+      setCurrentYearRange(yearsToFetch);
     } catch (err: any) {
       console.error('[Analytics] 錯誤:', err);
       setError(err.message || '分析失敗，請稍後再試');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const loadMoreYears = () => {
+    const nextYearRange = currentYearRange + 1;
+    fetchAnalytics(nextYearRange, true);
   };
 
   const formatNumber = (num: number): string => {
@@ -191,22 +207,51 @@ export function VideoAnalytics() {
           📊 影片表現分析
         </h2>
         <p className="text-lg" style={{ color: '#0077B6' }}>
-          分析你的影片表現，找出需要優化的影片（近 2 年內發布）
+          分析你的影片表現，找出需要優化的影片
         </p>
       </div>
 
-      {/* 開始分析按鈕 */}
+      {/* 開始分析按鈕與年度選擇 */}
       {analyticsData.length === 0 && !isLoading && (
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center gap-4">
+          {/* 年度選擇器 */}
+          <div className="flex flex-col items-center gap-2">
+            <label className="text-sm font-semibold" style={{ color: '#0077B6' }}>
+              選擇分析時間範圍
+            </label>
+            <div className="flex gap-2">
+              {[1, 2, 3, 5].map((years) => (
+                <button
+                  key={years}
+                  onClick={() => setSelectedYears(years)}
+                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                    selectedYears === years ? 'shadow-lg transform scale-105' : ''
+                  }`}
+                  style={{
+                    backgroundColor: selectedYears === years ? '#0077B6' : '#CAF0F8',
+                    color: selectedYears === years ? 'white' : '#0077B6',
+                    border: selectedYears === years ? 'none' : '1px solid #90E0EF',
+                  }}
+                >
+                  {years} 年
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-center" style={{ color: '#0077B6', maxWidth: '400px' }}>
+              💡 建議先選擇 1 年，避免超過 API 配額限制。分析完成後可載入更多年份。
+            </p>
+          </div>
+
+          {/* 開始分析按鈕 */}
           <button
-            onClick={fetchAnalytics}
+            onClick={() => fetchAnalytics()}
             className="px-8 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 active:scale-95 shadow-lg"
             style={{
               backgroundColor: '#0077B6',
               color: 'white',
             }}
           >
-            🚀 開始分析
+            🚀 開始分析（近 {selectedYears} 年影片）
           </button>
         </div>
       )}
@@ -265,17 +310,29 @@ export function VideoAnalytics() {
             </h3>
             <p style={{ color: '#0077B6' }}>
               找到 <span className="font-bold">{analyticsData.length}</span> 支建議更新的影片
+              <span className="text-sm ml-2">（近 {currentYearRange} 年內發布）</span>
             </p>
             <p className="text-sm mt-2" style={{ color: '#0077B6' }}>
               以下影片根據優先級排序（分數越高越建議更新）
             </p>
           </div>
 
-          {/* 重新分析按鈕 */}
-          <div className="flex justify-end">
+          {/* 操作按鈕 */}
+          <div className="flex justify-end gap-2">
             <button
-              onClick={fetchAnalytics}
-              className="px-6 py-2 rounded-lg font-semibold transition-all"
+              onClick={loadMoreYears}
+              className="px-6 py-2 rounded-lg font-semibold transition-all hover:shadow-lg"
+              style={{
+                backgroundColor: '#CAF0F8',
+                color: '#0077B6',
+                border: '1px solid #90E0EF',
+              }}
+            >
+              ⏳ 載入更多（往前 1 年）
+            </button>
+            <button
+              onClick={() => fetchAnalytics()}
+              className="px-6 py-2 rounded-lg font-semibold transition-all hover:shadow-lg"
               style={{
                 backgroundColor: '#0077B6',
                 color: 'white',
