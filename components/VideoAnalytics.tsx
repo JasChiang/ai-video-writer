@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Loader } from './Loader';
 import * as youtubeService from '../services/youtubeService';
+import { VideoAnalyticsExpandedView } from './VideoAnalyticsExpandedView';
 
 interface AnalyticsMetrics {
   views: number;
@@ -71,11 +72,30 @@ export function VideoAnalytics() {
   const [isLoading, setIsLoading] = useState(false);
   const [analyticsData, setAnalyticsData] = useState<VideoAnalyticsData[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [selectedVideo, setSelectedVideo] = useState<VideoAnalyticsData | null>(null);
-  const [keywordAnalysis, setKeywordAnalysis] = useState<KeywordAnalysis | null>(null);
+  const [expandedVideoId, setExpandedVideoId] = useState<string | null>(null);
+  const [keywordAnalysisCache, setKeywordAnalysisCache] = useState<Record<string, KeywordAnalysis>>({});
   const [isAnalyzingKeywords, setIsAnalyzingKeywords] = useState(false);
   const [selectedYears, setSelectedYears] = useState(1); // 預設 1 年
   const [currentYearRange, setCurrentYearRange] = useState(1); // 當前已載入的年份範圍
+  const [showMetadataGenerator, setShowMetadataGenerator] = useState<Record<string, boolean>>({});
+
+  // 從 localStorage 載入快取的分析數據
+  useEffect(() => {
+    const cached = localStorage.getItem('videoAnalyticsData');
+    const cachedTimestamp = localStorage.getItem('videoAnalyticsTimestamp');
+    if (cached && cachedTimestamp) {
+      const timestamp = parseInt(cachedTimestamp);
+      const now = Date.now();
+      // 快取 24 小時內有效
+      if (now - timestamp < 24 * 60 * 60 * 1000) {
+        setAnalyticsData(JSON.parse(cached));
+      } else {
+        // 過期，清除快取
+        localStorage.removeItem('videoAnalyticsData');
+        localStorage.removeItem('videoAnalyticsTimestamp');
+      }
+    }
+  }, []);
 
   const fetchAnalytics = async (yearsToFetch: number = selectedYears, append: boolean = false) => {
     setIsLoading(true);
@@ -112,16 +132,22 @@ export function VideoAnalytics() {
       const data: AnalyticsResponse = await response.json();
       console.log('[Analytics] 分析完成:', data);
 
+      let newData: VideoAnalyticsData[];
       if (append) {
         // 合併新舊數據並去重
         const existingIds = new Set(analyticsData.map(v => v.videoId));
         const newVideos = data.recommendations.filter(v => !existingIds.has(v.videoId));
-        setAnalyticsData([...analyticsData, ...newVideos]);
+        newData = [...analyticsData, ...newVideos];
       } else {
-        setAnalyticsData(data.recommendations);
+        newData = data.recommendations;
       }
 
+      setAnalyticsData(newData);
       setCurrentYearRange(yearsToFetch);
+
+      // 儲存到 localStorage
+      localStorage.setItem('videoAnalyticsData', JSON.stringify(newData));
+      localStorage.setItem('videoAnalyticsTimestamp', Date.now().toString());
     } catch (err: any) {
       console.error('[Analytics] 錯誤:', err);
       setError(err.message || '分析失敗，請稍後再試');
@@ -153,9 +179,14 @@ export function VideoAnalytics() {
     });
   };
 
-  const analyzeKeywords = async (video: VideoAnalyticsData) => {
+  const analyzeKeywords = async (videoId: string, video: VideoAnalyticsData) => {
+    // 檢查快取
+    if (keywordAnalysisCache[videoId]) {
+      console.log('[Keyword Analysis] 使用快取的分析結果');
+      return;
+    }
+
     setIsAnalyzingKeywords(true);
-    setKeywordAnalysis(null);
 
     try {
       console.log('[Keyword Analysis] 開始分析關鍵字...');
@@ -190,13 +221,29 @@ export function VideoAnalytics() {
       const data = await response.json();
       console.log('[Keyword Analysis] 分析完成:', data);
 
-      setKeywordAnalysis(data.analysis);
+      // 儲存到快取
+      setKeywordAnalysisCache(prev => ({
+        ...prev,
+        [videoId]: data.analysis
+      }));
     } catch (err: any) {
       console.error('[Keyword Analysis] 錯誤:', err);
       alert(`關鍵字分析失敗: ${err.message}`);
     } finally {
       setIsAnalyzingKeywords(false);
     }
+  };
+
+  const toggleVideoExpansion = (videoId: string) => {
+    setExpandedVideoId(expandedVideoId === videoId ? null : videoId);
+  };
+
+  const clearCache = () => {
+    localStorage.removeItem('videoAnalyticsData');
+    localStorage.removeItem('videoAnalyticsTimestamp');
+    setAnalyticsData([]);
+    setKeywordAnalysisCache({});
+    setExpandedVideoId(null);
   };
 
   return (
@@ -318,42 +365,56 @@ export function VideoAnalytics() {
           </div>
 
           {/* 操作按鈕 */}
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-between items-center">
             <button
-              onClick={loadMoreYears}
-              className="px-6 py-2 rounded-lg font-semibold transition-all hover:shadow-lg"
+              onClick={clearCache}
+              className="px-4 py-2 rounded-lg font-semibold transition-all hover:shadow-lg text-sm"
               style={{
-                backgroundColor: '#CAF0F8',
-                color: '#0077B6',
-                border: '1px solid #90E0EF',
+                backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                color: '#DC2626',
+                border: '1px solid #DC2626',
               }}
             >
-              ⏳ 載入更多（往前 1 年）
+              🗑️ 清除快取
             </button>
-            <button
-              onClick={() => fetchAnalytics()}
-              className="px-6 py-2 rounded-lg font-semibold transition-all hover:shadow-lg"
-              style={{
-                backgroundColor: '#0077B6',
-                color: 'white',
-              }}
-            >
-              🔄 重新分析
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={loadMoreYears}
+                className="px-6 py-2 rounded-lg font-semibold transition-all hover:shadow-lg"
+                style={{
+                  backgroundColor: '#CAF0F8',
+                  color: '#0077B6',
+                  border: '1px solid #90E0EF',
+                }}
+              >
+                ⏳ 載入更多（往前 1 年）
+              </button>
+              <button
+                onClick={() => fetchAnalytics()}
+                className="px-6 py-2 rounded-lg font-semibold transition-all hover:shadow-lg"
+                style={{
+                  backgroundColor: '#0077B6',
+                  color: 'white',
+                }}
+              >
+                🔄 重新分析
+              </button>
+            </div>
           </div>
 
           {/* 影片列表 */}
           <div className="grid gap-4">
             {analyticsData.map((video, index) => (
-              <div
-                key={video.videoId}
-                className="p-6 rounded-lg shadow-md hover:shadow-xl transition-all cursor-pointer"
-                style={{
-                  backgroundColor: 'white',
-                  border: '2px solid #90E0EF',
-                }}
-                onClick={() => setSelectedVideo(video)}
-              >
+              <div key={video.videoId}>
+                {/* 影片卡片 */}
+                <div
+                  className="p-6 rounded-lg shadow-md hover:shadow-xl transition-all cursor-pointer"
+                  style={{
+                    backgroundColor: 'white',
+                    border: `2px solid ${expandedVideoId === video.videoId ? '#0077B6' : '#90E0EF'}`,
+                  }}
+                  onClick={() => toggleVideoExpansion(video.videoId)}
+                >
                 <div className="flex gap-4">
                   {/* 排名徽章 */}
                   <div
@@ -425,400 +486,37 @@ export function VideoAnalytics() {
                         </div>
                       ))}
                     </div>
+
+                    {/* 展開/收合指示器 */}
+                    <div className="flex items-center justify-center mt-2">
+                      <span className="text-sm" style={{ color: '#0077B6' }}>
+                        {expandedVideoId === video.videoId ? '▲ 點擊收合' : '▼ 點擊查看詳情'}
+                      </span>
+                    </div>
                   </div>
                 </div>
+              </div>
+
+                {/* 展開的詳細資訊 */}
+                {expandedVideoId === video.videoId && (
+                  <div
+                    className="mt-4 p-6 rounded-lg shadow-inner animate-fade-in"
+                    style={{
+                      backgroundColor: 'rgba(202, 240, 248, 0.2)',
+                      border: '2px solid #0077B6',
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <VideoAnalyticsExpandedView
+                      video={video}
+                      keywordAnalysis={keywordAnalysisCache[video.videoId] || null}
+                      onAnalyzeKeywords={() => analyzeKeywords(video.videoId, video)}
+                      isAnalyzing={isAnalyzingKeywords}
+                    />
+                  </div>
+                )}
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {/* 詳細資訊彈窗 */}
-      {selectedVideo && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-          onClick={() => setSelectedVideo(null)}
-        >
-          <div
-            className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-start mb-4">
-              <h3 className="text-2xl font-bold" style={{ color: '#03045E' }}>
-                影片詳細分析
-              </h3>
-              <button
-                onClick={() => setSelectedVideo(null)}
-                className="text-2xl hover:opacity-70"
-                style={{ color: '#0077B6' }}
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              {/* 影片資訊 */}
-              <div>
-                <img
-                  src={selectedVideo.thumbnail}
-                  alt={selectedVideo.title}
-                  className="w-full rounded-lg mb-4"
-                />
-                <h4 className="text-xl font-bold mb-2" style={{ color: '#03045E' }}>
-                  {selectedVideo.title}
-                </h4>
-                <p style={{ color: '#0077B6' }}>
-                  發布日期: {formatDate(selectedVideo.publishedAt)}
-                </p>
-                <a
-                  href={`https://www.youtube.com/watch?v=${selectedVideo.videoId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm underline hover:opacity-70"
-                  style={{ color: '#0077B6' }}
-                >
-                  在 YouTube 上查看
-                </a>
-              </div>
-
-              {/* 核心指標 */}
-              <div>
-                <h5 className="font-bold mb-3 text-lg" style={{ color: '#03045E' }}>
-                  📊 核心指標
-                </h5>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="p-3 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-                    <p className="text-sm" style={{ color: '#0077B6' }}>觀看次數</p>
-                    <p className="text-2xl font-bold" style={{ color: '#03045E' }}>
-                      {formatNumber(selectedVideo.metrics.views)}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-                    <p className="text-sm" style={{ color: '#0077B6' }}>平均觀看時長</p>
-                    <p className="text-2xl font-bold" style={{ color: '#03045E' }}>
-                      {selectedVideo.metrics.averageViewPercentage}%
-                    </p>
-                  </div>
-                  <div className="p-3 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-                    <p className="text-sm" style={{ color: '#0077B6' }}>讚數比例</p>
-                    <p className="text-2xl font-bold" style={{ color: '#03045E' }}>
-                      {selectedVideo.metrics.likeRatio}%
-                    </p>
-                  </div>
-                  <div className="p-3 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-                    <p className="text-sm" style={{ color: '#0077B6' }}>留言數</p>
-                    <p className="text-2xl font-bold" style={{ color: '#03045E' }}>
-                      {formatNumber(selectedVideo.metrics.comments)}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-                    <p className="text-sm" style={{ color: '#0077B6' }}>分享次數</p>
-                    <p className="text-2xl font-bold" style={{ color: '#03045E' }}>
-                      {formatNumber(selectedVideo.metrics.shares)}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-                    <p className="text-sm" style={{ color: '#0077B6' }}>新訂閱</p>
-                    <p className="text-2xl font-bold" style={{ color: '#03045E' }}>
-                      {formatNumber(selectedVideo.metrics.subscribersGained)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* 流量來源 */}
-              <div>
-                <h5 className="font-bold mb-3 text-lg" style={{ color: '#03045E' }}>
-                  🚦 流量來源
-                </h5>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center p-2 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-                    <span style={{ color: '#0077B6' }}>YouTube 搜尋</span>
-                    <span className="font-semibold" style={{ color: '#03045E' }}>
-                      {formatNumber(selectedVideo.trafficSources.youtubeSearch)} 次
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-                    <span style={{ color: '#0077B6' }}>Google 搜尋</span>
-                    <span className="font-semibold" style={{ color: '#03045E' }}>
-                      {formatNumber(selectedVideo.trafficSources.googleSearch)} 次
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-                    <span style={{ color: '#0077B6' }}>建議影片</span>
-                    <span className="font-semibold" style={{ color: '#03045E' }}>
-                      {formatNumber(selectedVideo.trafficSources.suggested)} 次
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 rounded" style={{ backgroundColor: 'rgba(202, 240, 248, 0.3)' }}>
-                    <span style={{ color: '#0077B6' }}>外部連結</span>
-                    <span className="font-semibold" style={{ color: '#03045E' }}>
-                      {formatNumber(selectedVideo.trafficSources.external)} 次
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-2 rounded font-bold" style={{ backgroundColor: 'rgba(0, 119, 182, 0.1)' }}>
-                    <span style={{ color: '#0077B6' }}>總搜尋流量佔比</span>
-                    <span style={{ color: '#03045E' }}>
-                      {selectedVideo.trafficSources.searchPercentage}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 更新建議 */}
-              <div>
-                <h5 className="font-bold mb-3 text-lg" style={{ color: '#03045E' }}>
-                  💡 更新建議
-                </h5>
-                <div className="space-y-2">
-                  {selectedVideo.updateReasons.map((reason, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3 rounded"
-                      style={{
-                        backgroundColor: 'rgba(220, 38, 38, 0.1)',
-                        border: '1px solid #DC2626',
-                        color: '#DC2626',
-                      }}
-                    >
-                      {reason}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* AI 關鍵字分析 */}
-              <div>
-                <div className="flex justify-between items-center mb-3">
-                  <h5 className="font-bold text-lg" style={{ color: '#03045E' }}>
-                    🤖 AI 關鍵字分析
-                  </h5>
-                  <button
-                    onClick={() => analyzeKeywords(selectedVideo)}
-                    disabled={isAnalyzingKeywords}
-                    className="px-4 py-2 rounded-lg font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{
-                      backgroundColor: '#0077B6',
-                      color: 'white',
-                    }}
-                  >
-                    {isAnalyzingKeywords ? '分析中...' : '開始 AI 分析'}
-                  </button>
-                </div>
-
-                {isAnalyzingKeywords && (
-                  <div className="flex justify-center items-center py-8">
-                    <Loader />
-                  </div>
-                )}
-
-                {keywordAnalysis && !isAnalyzingKeywords && (
-                  <div className="space-y-4">
-                    {/* 關鍵字評分 */}
-                    <div
-                      className="p-4 rounded-lg"
-                      style={{
-                        backgroundColor: 'rgba(202, 240, 248, 0.3)',
-                        border: '1px solid #90E0EF',
-                      }}
-                    >
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="font-bold" style={{ color: '#03045E' }}>
-                          目前關鍵字評分
-                        </span>
-                        <span
-                          className="text-3xl font-bold"
-                          style={{
-                            color:
-                              keywordAnalysis.currentKeywords.score >= 70
-                                ? '#10B981'
-                                : keywordAnalysis.currentKeywords.score >= 40
-                                ? '#F59E0B'
-                                : '#DC2626',
-                          }}
-                        >
-                          {keywordAnalysis.currentKeywords.score}/100
-                        </span>
-                      </div>
-                      <div className="grid md:grid-cols-2 gap-4 mt-3">
-                        <div>
-                          <p className="font-semibold mb-2" style={{ color: '#10B981' }}>
-                            ✅ 優勢
-                          </p>
-                          <ul className="list-disc list-inside space-y-1 text-sm">
-                            {keywordAnalysis.currentKeywords.strengths.map((s, idx) => (
-                              <li key={idx} style={{ color: '#0077B6' }}>
-                                {s}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                        <div>
-                          <p className="font-semibold mb-2" style={{ color: '#DC2626' }}>
-                            ⚠️ 需改善
-                          </p>
-                          <ul className="list-disc list-inside space-y-1 text-sm">
-                            {keywordAnalysis.currentKeywords.weaknesses.map((w, idx) => (
-                              <li key={idx} style={{ color: '#0077B6' }}>
-                                {w}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 建議關鍵字 */}
-                    <div>
-                      <p className="font-bold mb-2" style={{ color: '#03045E' }}>
-                        🎯 建議關鍵字
-                      </p>
-                      <div className="space-y-2">
-                        <div>
-                          <span className="text-sm font-semibold" style={{ color: '#0077B6' }}>
-                            核心關鍵字：
-                          </span>
-                          <div className="flex flex-wrap gap-2 mt-1">
-                            {keywordAnalysis.recommendedKeywords.primary.map((kw, idx) => (
-                              <span
-                                key={idx}
-                                className="px-3 py-1 rounded-full text-sm font-semibold"
-                                style={{
-                                  backgroundColor: '#0077B6',
-                                  color: 'white',
-                                }}
-                              >
-                                {kw}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <span className="text-sm font-semibold" style={{ color: '#0077B6' }}>
-                            次要關鍵字：
-                          </span>
-                          <div className="flex flex-wrap gap-2 mt-1">
-                            {keywordAnalysis.recommendedKeywords.secondary.map((kw, idx) => (
-                              <span
-                                key={idx}
-                                className="px-3 py-1 rounded-full text-sm"
-                                style={{
-                                  backgroundColor: 'rgba(0, 119, 182, 0.2)',
-                                  color: '#0077B6',
-                                }}
-                              >
-                                {kw}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <span className="text-sm font-semibold" style={{ color: '#0077B6' }}>
-                            長尾關鍵字：
-                          </span>
-                          <div className="flex flex-wrap gap-2 mt-1">
-                            {keywordAnalysis.recommendedKeywords.longtail.map((kw, idx) => (
-                              <span
-                                key={idx}
-                                className="px-3 py-1 rounded text-sm"
-                                style={{
-                                  backgroundColor: 'rgba(202, 240, 248, 0.5)',
-                                  color: '#0077B6',
-                                  border: '1px solid #90E0EF',
-                                }}
-                              >
-                                {kw}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 標題建議 */}
-                    <div>
-                      <p className="font-bold mb-2" style={{ color: '#03045E' }}>
-                        📝 標題優化建議
-                      </p>
-                      <div className="space-y-2">
-                        {keywordAnalysis.titleSuggestions.map((title, idx) => (
-                          <div
-                            key={idx}
-                            className="p-3 rounded"
-                            style={{
-                              backgroundColor: 'rgba(202, 240, 248, 0.3)',
-                              border: '1px solid #90E0EF',
-                              color: '#03045E',
-                            }}
-                          >
-                            {idx + 1}. {title}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 說明優化提示 */}
-                    <div>
-                      <p className="font-bold mb-2" style={{ color: '#03045E' }}>
-                        📄 說明優化提示
-                      </p>
-                      <ul className="list-disc list-inside space-y-1">
-                        {keywordAnalysis.descriptionTips.map((tip, idx) => (
-                          <li key={idx} style={{ color: '#0077B6' }}>
-                            {tip}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    {/* 行動計畫 */}
-                    <div
-                      className="p-4 rounded-lg"
-                      style={{
-                        backgroundColor:
-                          keywordAnalysis.actionPlan.priority === 'high'
-                            ? 'rgba(220, 38, 38, 0.1)'
-                            : keywordAnalysis.actionPlan.priority === 'medium'
-                            ? 'rgba(245, 158, 11, 0.1)'
-                            : 'rgba(16, 185, 129, 0.1)',
-                        border: `1px solid ${
-                          keywordAnalysis.actionPlan.priority === 'high'
-                            ? '#DC2626'
-                            : keywordAnalysis.actionPlan.priority === 'medium'
-                            ? '#F59E0B'
-                            : '#10B981'
-                        }`,
-                      }}
-                    >
-                      <p className="font-bold mb-2" style={{ color: '#03045E' }}>
-                        🎬 行動計畫
-                      </p>
-                      <p className="text-sm mb-2" style={{ color: '#0077B6' }}>
-                        優先級：
-                        <span className="font-semibold">
-                          {keywordAnalysis.actionPlan.priority === 'high'
-                            ? '高'
-                            : keywordAnalysis.actionPlan.priority === 'medium'
-                            ? '中'
-                            : '低'}
-                        </span>{' '}
-                        | 預估影響：
-                        <span className="font-semibold">
-                          {keywordAnalysis.actionPlan.estimatedImpact}
-                        </span>
-                      </p>
-                      <ol className="list-decimal list-inside space-y-1">
-                        {keywordAnalysis.actionPlan.steps.map((step, idx) => (
-                          <li key={idx} style={{ color: '#0077B6' }}>
-                            {step}
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
         </div>
       )}
