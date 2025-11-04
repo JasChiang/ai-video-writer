@@ -13,6 +13,17 @@
 [![React](https://img.shields.io/badge/react-19.2.0-61dafb.svg)](https://reactjs.org/)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-@jaschiang-0077B5.svg)](https://www.linkedin.com/in/jascty/)
 
+---
+
+## 🔀 Feature 分支
+
+`feature/video-performance-analytics` 分支目前包含：
+- 影片表現分析儀表板與相關 API
+- Docker 化流程（`docker-compose.yml`、`docker-start.sh` 等工具）
+- 前端執行期設定載入機制，確保 Docker/打包環境能正確初始化 YouTube OAuth
+
+---
+
 ## 📖 目錄
 
 - [專案特色](#-專案特色)
