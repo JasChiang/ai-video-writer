@@ -147,6 +147,9 @@ export function VideoAnalytics() {
         throw new Error('請先登入 YouTube 帳號');
       }
 
+      // 確保更新頻道 ID 快取（避免切換頻道仍使用舊值）
+      localStorage.setItem('channelId', channelId);
+
       console.log(`[Analytics] 開始獲取分析數據（${yearsToFetch} 年）...`);
 
       // 調用後端 API
@@ -180,11 +183,14 @@ export function VideoAnalytics() {
         newData = data.recommendations;
       }
 
-      setAnalyticsData(newData);
+      // 依影片 ID 去重，避免 React key 重複
+      const deduped = Array.from(new Map(newData.map(video => [video.videoId, video])).values());
+
+      setAnalyticsData(deduped);
       setCurrentYearRange(yearsToFetch);
 
       // 儲存到 localStorage
-      persistAnalyticsData(newData);
+      persistAnalyticsData(deduped);
     } catch (err: any) {
       console.error('[Analytics] 錯誤:', err);
       setError(err.message || '分析失敗，請稍後再試');

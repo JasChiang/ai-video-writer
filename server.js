@@ -1453,9 +1453,10 @@ app.post('/api/analytics/search-terms', async (req, res) => {
     });
   } catch (error) {
     console.error('[Search Terms API] 錯誤:', error);
+    const reason = error.response?.data?.error?.errors?.[0]?.reason || error.message;
     res.status(500).json({
       error: 'Search terms retrieval failed',
-      message: error.message,
+      message: reason,
     });
   }
 });
@@ -1499,9 +1500,10 @@ app.post('/api/analytics/external-traffic', async (req, res) => {
     });
   } catch (error) {
     console.error('[External Details API] 錯誤:', error);
+    const reason = error.response?.data?.error?.errors?.[0]?.reason || error.message;
     res.status(500).json({
       error: 'External traffic details retrieval failed',
-      message: error.message,
+      message: reason,
     });
   }
 });
