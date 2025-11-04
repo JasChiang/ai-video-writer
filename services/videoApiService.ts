@@ -238,6 +238,9 @@ export async function generateArticleWithYouTubeUrl(
     }
     onProgress?.('📝 步驟 1/3：透過 YouTube URL 讓 Gemini AI 分析影片內容...');
 
+    // 取得 access token 用於下載（即使是公開影片也需要下載來截圖）
+    const accessToken = youtubeService.getAccessToken();
+
     const response = await fetch(`${API_BASE_URL}/generate-article-url`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -247,6 +250,7 @@ export async function generateArticleWithYouTubeUrl(
         videoTitle,
         quality: screenshotQuality,
         uploadedFiles: uploadedFiles || [],
+        accessToken,
       }),
     });
 

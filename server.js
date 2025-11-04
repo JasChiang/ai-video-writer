@@ -711,11 +711,39 @@ app.post('/api/reanalyze-with-existing-file', async (req, res) => {
  * Body: { videoId: string, prompt: string, videoTitle: string, quality?: number }
  */
 app.post('/api/generate-article-url', async (req, res) => {
-  const { videoId, prompt, videoTitle, quality = 2, uploadedFiles = [] } = req.body;
+  const { videoId, prompt, videoTitle, quality = 2, uploadedFiles = [], accessToken } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
   }
+
+  // 速率限制檢查（雙重保護：帳號 + IP）
+  const rateLimitId = accessToken || req.ip;
+  const clientIp = req.ip;
+
+  const tokenRateCheck = checkRateLimit(rateLimitId, downloadRateLimiter, MAX_DOWNLOADS_PER_HOUR);
+  if (!tokenRateCheck.allowed) {
+    console.warn(`[Article URL] Token rate limit exceeded for ${rateLimitId}`);
+    return res.status(429).json({
+      error: '下載次數已達上限',
+      message: `為保護您的帳號安全，請在 ${tokenRateCheck.waitMinutes} 分鐘後再試`,
+      waitMinutes: tokenRateCheck.waitMinutes,
+      limitType: 'account'
+    });
+  }
+
+  const ipRateCheck = checkRateLimit(clientIp, ipRateLimiter, MAX_DOWNLOADS_PER_HOUR_PER_IP);
+  if (!ipRateCheck.allowed) {
+    console.warn(`[Article URL] IP rate limit exceeded for ${clientIp}`);
+    return res.status(429).json({
+      error: '下載次數已達上限',
+      message: `此 IP 位址下載次數過多，請在 ${ipRateCheck.waitMinutes} 分鐘後再試`,
+      waitMinutes: ipRateCheck.waitMinutes,
+      limitType: 'ip'
+    });
+  }
+
+  console.log(`[Article URL] Rate limit - Token: ${tokenRateCheck.remaining} remaining, IP: ${ipRateCheck.remaining} remaining`);
 
   const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
   const outputPath = path.join(DOWNLOAD_DIR, `${videoId}.mp4`);
@@ -725,6 +753,7 @@ app.post('/api/generate-article-url', async (req, res) => {
     console.log(`[Article URL] Video ID: ${videoId}`);
     console.log(`[Article URL] YouTube URL: ${youtubeUrl}`);
     console.log(`[Article URL] Video Title: ${videoTitle}`);
+    console.log(`[Article URL] OAuth Token: ${accessToken ? '✅ 已提供（使用 OAuth 認證）' : '❌ 未提供（匿名下載）'}`);
     if (uploadedFiles.length > 0) {
       console.log(`[Article URL] 📎 上傳的參考檔案: ${uploadedFiles.length} 個`);
     }
@@ -825,11 +854,23 @@ app.post('/api/generate-article-url', async (req, res) => {
 
     const commandParts = [
       'yt-dlp',
+      // 如果有 accessToken，使用 OAuth 認證
+      ...(accessToken ? [
+        '--username', 'oauth2',
+        '--password', `"${accessToken}"`,
+      ] : []),
+      // 反偵測參數：模擬真實瀏覽器
+      '--user-agent', '"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"',
+      '--referer', '"https://www.youtube.com/"',
+      '--sleep-requests', '1',
+      '--sleep-interval', '1',
+      '--force-ipv4',
       '-f', formatSelector,
       '--merge-output-format', 'mp4',
       '-o', `"${outputPath}"`,
-      '--retries', '5',
-      '--fragment-retries', '5',
+      '--retries', '15',
+      '--fragment-retries', '15',
+      '--socket-timeout', '30',
       `"${youtubeUrl}"`,
     ];
 
