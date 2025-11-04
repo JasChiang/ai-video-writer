@@ -6,22 +6,6 @@
 import { google } from 'googleapis';
 
 /**
- * 解析 ISO 8601 duration 格式 (例如: PT15M33S, PT1H2M10S)
- * @param {string} duration - ISO 8601 duration 字符串
- * @returns {number} 總秒數
- */
-function parseDuration(duration) {
-  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-  if (!match) return 0;
-
-  const hours = parseInt(match[1] || 0);
-  const minutes = parseInt(match[2] || 0);
-  const seconds = parseInt(match[3] || 0);
-
-  return hours * 3600 + minutes * 60 + seconds;
-}
-
-/**
  * 判斷流量來源細節是否為 Google 搜尋
  * @param {string} detail - 流量來源詳細資料
  * @returns {boolean}
@@ -85,36 +69,13 @@ export async function getChannelVideosAnalytics(accessToken, channelId, daysThre
     }
 
     // 步驟 2: 獲取影片詳細資訊（包含長度）
-    console.log('[Analytics] 獲取影片長度資訊...');
-    const videoDurations = new Map();
-    try {
-      const videoIds = recentVideos.map(v => v.videoId).join(',');
-      const videoDetailsResponse = await youtube.videos.list({
-        part: 'contentDetails',
-        id: videoIds,
-      });
-
-      if (videoDetailsResponse.data.items) {
-        videoDetailsResponse.data.items.forEach(item => {
-          // 解析 ISO 8601 duration (例如: PT15M33S)
-          const duration = item.contentDetails.duration;
-          const seconds = parseDuration(duration);
-          videoDurations.set(item.id, seconds);
-        });
-        console.log(`[Analytics] 成功獲取 ${videoDurations.size} 支影片的長度資訊`);
-      }
-    } catch (error) {
-      console.error('[Analytics] 獲取影片長度失敗，將使用預設計算:', error.message);
-    }
-
-    // 步驟 3: 批次獲取影片的詳細分析數據
+    // 步驟 2: 批次獲取影片的詳細分析數據
     const analyticsData = await getVideosAnalyticsData(
       youtubeAnalytics,
       channelId,
       recentVideos,
       startDate,
-      endDate,
-      videoDurations
+      endDate
     );
 
     return analyticsData;
@@ -238,9 +199,8 @@ async function getAllChannelVideos(youtube, channelId, cutoffDate) {
 
 /**
  * 獲取影片的分析數據（批次處理）
- * @param {Object} videoDurations - Map of videoId -> duration in seconds
  */
-async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, startDate, endDate, videoDurations) {
+async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, startDate, endDate) {
   const analyticsData = [];
   const videoIds = videos.map(v => v.videoId).join(',');
 
@@ -257,7 +217,7 @@ async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, start
       ids: `channel==${channelId}`,
       startDate: startDateStr,
       endDate: endDateStr,
-      metrics: 'views,estimatedMinutesWatched,averageViewDuration,likes,comments,shares,subscribersGained',
+      metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,comments,shares,subscribersGained',
       dimensions: 'video',
       filters: `video==${videoIds}`,
       sort: '-views',
@@ -297,10 +257,11 @@ async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, start
           views: row[1] || 0,
           estimatedMinutesWatched: row[2] || 0,
           averageViewDuration: row[3] || 0,
-          likes: row[4] || 0,
-          comments: row[5] || 0,
-          shares: row[6] || 0,
-          subscribersGained: row[7] || 0,
+          averageViewPercentage: row[4] || 0,
+          likes: row[5] || 0,
+          comments: row[6] || 0,
+          shares: row[7] || 0,
+          subscribersGained: row[8] || 0,
         });
       });
     }
@@ -370,15 +331,10 @@ async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, start
         ctr: 0,
       };
 
-      const totalViews = basic.views || 0;
-      const avgDuration = basic.averageViewDuration || 0;
-      const estimatedMinutes = basic.estimatedMinutesWatched || 0;
-
-      // 計算平均觀看時長百分比（使用實際影片長度）
-      const videoDuration = videoDurations.get(video.videoId) || 0;
-      const averageViewPercentage = videoDuration > 0 && avgDuration > 0
-        ? (avgDuration / videoDuration) * 100
-        : 0;
+      const totalViews = Number(basic.views) || 0;
+      const avgDuration = Number(basic.averageViewDuration) || 0;
+      const avgViewPercentageValue = Number(basic.averageViewPercentage) || 0;
+      const estimatedMinutes = Number(basic.estimatedMinutesWatched) || 0;
 
       analyticsData.push({
         videoId: video.videoId,
@@ -389,12 +345,12 @@ async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, start
           views: totalViews,
           estimatedMinutesWatched: estimatedMinutes,
           averageViewDuration: avgDuration,
-          averageViewPercentage: averageViewPercentage.toFixed(2),
-          likes: basic.likes || 0,
-          comments: basic.comments || 0,
-          shares: basic.shares || 0,
-          subscribersGained: basic.subscribersGained || 0,
-          likeRatio: totalViews > 0 ? ((basic.likes / totalViews) * 100).toFixed(2) : 0,
+          averageViewPercentage: avgViewPercentageValue.toFixed(2),
+          likes: Number(basic.likes) || 0,
+          comments: Number(basic.comments) || 0,
+          shares: Number(basic.shares) || 0,
+          subscribersGained: Number(basic.subscribersGained) || 0,
+          likeRatio: totalViews > 0 ? (((Number(basic.likes) || 0) / totalViews) * 100).toFixed(2) : 0,
         },
         trafficSources: {
           youtubeSearch: traffic.youtubeSearch,
