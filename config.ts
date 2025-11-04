@@ -12,15 +12,28 @@ declare global {
     }
 }
 
-// 從後端動態注入的配置讀取（/app-config.js）
-export const YOUTUBE_CLIENT_ID = typeof window !== 'undefined'
-    ? window.__APP_CONFIG__?.YOUTUBE_CLIENT_ID || null
-    : null;
+const runtimeConfig =
+    typeof window !== 'undefined' ? window.__APP_CONFIG__ : undefined;
+
+const envConfig =
+    typeof process !== 'undefined' && typeof process.env !== 'undefined'
+        ? {
+              YOUTUBE_CLIENT_ID: process.env.YOUTUBE_CLIENT_ID ?? null,
+              YOUTUBE_SCOPES: process.env.YOUTUBE_SCOPES ?? null,
+          }
+        : { YOUTUBE_CLIENT_ID: null, YOUTUBE_SCOPES: null };
+
+// 從執行期注入的 config 優先，若不存在則回退至 build-time 注入的環境變數
+export const YOUTUBE_CLIENT_ID =
+    runtimeConfig?.YOUTUBE_CLIENT_ID ??
+    envConfig.YOUTUBE_CLIENT_ID ??
+    null;
 
 // The scopes required to access and modify the user's YouTube videos and analytics.
-export const YOUTUBE_SCOPES = typeof window !== 'undefined'
-    ? window.__APP_CONFIG__?.YOUTUBE_SCOPES || 'https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/yt-analytics.readonly'
-    : 'https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/yt-analytics.readonly';
+export const YOUTUBE_SCOPES =
+    runtimeConfig?.YOUTUBE_SCOPES ??
+    envConfig.YOUTUBE_SCOPES ??
+    'https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/yt-analytics.readonly';
 
 if (!YOUTUBE_CLIENT_ID) {
     console.warn(
