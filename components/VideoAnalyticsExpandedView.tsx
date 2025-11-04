@@ -24,6 +24,8 @@ interface TrafficSources {
   external: number;
   other: number;
   searchPercentage: string;
+  topExternalSources: { name: string; views: number }[];
+  externalDetailsLoaded?: boolean;
 }
 
 interface Impressions {
@@ -64,11 +66,18 @@ interface KeywordAnalysis {
   };
 }
 
+interface SearchTerm {
+  term: string;
+  views: number;
+  percentage: number;
+}
+
 interface ExpandedViewProps {
   video: VideoAnalyticsData;
   keywordAnalysis: KeywordAnalysis | null;
   onAnalyzeKeywords: () => void;
   isAnalyzing: boolean;
+  onTrafficSourcesUpdate?: (videoId: string, updates: Partial<TrafficSources>) => void;
 }
 
 type UpdateStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -82,9 +91,20 @@ export function VideoAnalyticsExpandedView({
   video,
   keywordAnalysis,
   onAnalyzeKeywords,
-  isAnalyzing
+  isAnalyzing,
+  onTrafficSourcesUpdate,
 }: ExpandedViewProps) {
   const [showMetadataGenerator, setShowMetadataGenerator] = useState(false);
+
+  // 搜尋字詞狀態
+  const [searchTerms, setSearchTerms] = useState<SearchTerm[]>([]);
+  const [isLoadingSearchTerms, setIsLoadingSearchTerms] = useState(false);
+  const [searchTermsError, setSearchTermsError] = useState<string | null>(null);
+
+  // 流量來源細節
+  const [trafficDetails, setTrafficDetails] = useState<TrafficSources>(video.trafficSources);
+  const [isLoadingTrafficDetails, setIsLoadingTrafficDetails] = useState(false);
+  const [trafficDetailsError, setTrafficDetailsError] = useState<string | null>(null);
 
   // 中繼資料生成狀態
   const [fullVideoData, setFullVideoData] = useState<YouTubeVideo | null>(null);
@@ -119,12 +139,137 @@ export function VideoAnalyticsExpandedView({
     }
   }, [generatedContent, selectedTitle]);
 
+  // 同步最新的 trafficSources
+  useEffect(() => {
+    setTrafficDetails(video.trafficSources);
+  }, [video.trafficSources]);
+
+  // 當組件載入時，自動獲取搜尋字詞與外部細節
+  useEffect(() => {
+    fetchSearchTerms();
+    if (!video.trafficSources.externalDetailsLoaded && !isLoadingTrafficDetails) {
+      fetchExternalTrafficDetails();
+    }
+  }, []);
+
   // 當展開中繼資料生成器時，獲取完整影片資訊
   useEffect(() => {
     if (showMetadataGenerator && !fullVideoData && !isLoadingVideoData) {
       fetchFullVideoData();
     }
   }, [showMetadataGenerator]);
+
+  const fetchSearchTerms = async () => {
+    setIsLoadingSearchTerms(true);
+    setSearchTermsError(null);
+    try {
+      const accessToken = youtubeService.getAccessToken();
+      if (!accessToken) {
+        throw new Error('請先登入 YouTube 帳號');
+      }
+
+      // 取得頻道 ID，先嘗試快取，若無則重新查詢
+      let channelId = localStorage.getItem('channelId');
+      if (!channelId) {
+        try {
+          channelId = await youtubeService.getChannelId();
+          localStorage.setItem('channelId', channelId);
+        } catch (channelError: any) {
+          throw new Error(channelError?.message || '找不到頻道 ID');
+        }
+      }
+
+      const baseUrl = import.meta.env?.VITE_SERVER_BASE_URL || 'http://localhost:3001';
+      const response = await fetch(`${baseUrl}/api/analytics/search-terms`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          accessToken,
+          channelId,
+          videoId: video.videoId,
+          daysThreshold: 365,
+          maxResults: 10,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('獲取搜尋字詞失敗');
+      }
+
+      const data = await response.json();
+      setSearchTerms(data.searchTerms || []);
+    } catch (err: any) {
+      console.error('[Search Terms] 獲取失敗:', err);
+      setSearchTermsError(err.message);
+    } finally {
+      setIsLoadingSearchTerms(false);
+    }
+  };
+
+  const fetchExternalTrafficDetails = async () => {
+    setIsLoadingTrafficDetails(true);
+    setTrafficDetailsError(null);
+    try {
+      const accessToken = youtubeService.getAccessToken();
+      if (!accessToken) {
+        throw new Error('請先登入 YouTube 帳號');
+      }
+
+      let channelId = localStorage.getItem('channelId');
+      if (!channelId) {
+        channelId = await youtubeService.getChannelId();
+        localStorage.setItem('channelId', channelId);
+      }
+
+      const baseUrl = import.meta.env?.VITE_SERVER_BASE_URL || 'http://localhost:3001';
+      const response = await fetch(`${baseUrl}/api/analytics/external-traffic`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          accessToken,
+          channelId,
+          videoId: video.videoId,
+          daysThreshold: 365,
+          maxResults: 25,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('獲取外部流量細節失敗');
+      }
+
+      const data = await response.json();
+      const googleSearchViews: number = data.googleSearch || 0;
+      const externalViews: number = data.adjustedExternal ?? trafficDetails.external;
+      const topExternalSources: { name: string; views: number }[] = data.topExternalSources || [];
+
+      const totalViews = video.metrics.views;
+      const updatedSearchPercentage = totalViews > 0
+        ? ((trafficDetails.youtubeSearch + googleSearchViews) / totalViews * 100).toFixed(2)
+        : '0.00';
+
+      const updatedDetails: TrafficSources = {
+        ...trafficDetails,
+        googleSearch: googleSearchViews,
+        external: externalViews,
+        searchPercentage: updatedSearchPercentage,
+        topExternalSources,
+        externalDetailsLoaded: true,
+      };
+
+      setTrafficDetails(updatedDetails);
+      onTrafficSourcesUpdate?.(video.videoId, updatedDetails);
+    } catch (err: any) {
+      console.error('[External Details] 獲取失敗:', err);
+      setTrafficDetailsError(err.message);
+    } finally {
+      setIsLoadingTrafficDetails(false);
+    }
+  };
 
   const fetchFullVideoData = async () => {
     setIsLoadingVideoData(true);
@@ -355,34 +500,131 @@ export function VideoAnalyticsExpandedView({
           <div className="flex justify-between items-center p-2 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)' }}>
             <span style={{ color: '#DC2626' }}>YouTube 搜尋</span>
             <span className="font-semibold" style={{ color: '#1F1F1F' }}>
-              {formatNumber(video.trafficSources.youtubeSearch)} 次
+              {formatNumber(trafficDetails.youtubeSearch)} 次
             </span>
           </div>
           <div className="flex justify-between items-center p-2 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)' }}>
             <span style={{ color: '#DC2626' }}>Google 搜尋</span>
             <span className="font-semibold" style={{ color: '#1F1F1F' }}>
-              {formatNumber(video.trafficSources.googleSearch)} 次
+              {formatNumber(trafficDetails.googleSearch)} 次
             </span>
           </div>
           <div className="flex justify-between items-center p-2 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)' }}>
             <span style={{ color: '#DC2626' }}>建議影片</span>
             <span className="font-semibold" style={{ color: '#1F1F1F' }}>
-              {formatNumber(video.trafficSources.suggested)} 次
+              {formatNumber(trafficDetails.suggested)} 次
             </span>
           </div>
           <div className="flex justify-between items-center p-2 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)' }}>
             <span style={{ color: '#DC2626' }}>外部連結</span>
             <span className="font-semibold" style={{ color: '#1F1F1F' }}>
-              {formatNumber(video.trafficSources.external)} 次
+              {formatNumber(trafficDetails.external)} 次
             </span>
           </div>
           <div className="flex justify-between items-center p-2 rounded font-bold" style={{ backgroundColor: 'rgba(220, 38, 38, 0.1)' }}>
             <span style={{ color: '#DC2626' }}>總搜尋流量佔比</span>
             <span style={{ color: '#1F1F1F' }}>
-              {video.trafficSources.searchPercentage}%
+              {trafficDetails.searchPercentage}%
             </span>
           </div>
         </div>
+        {isLoadingTrafficDetails && (
+          <div className="text-sm mt-2" style={{ color: '#DC2626' }}>
+            正在載入外部流量細節...
+          </div>
+        )}
+        {trafficDetailsError && (
+          <div className="text-sm mt-2" style={{ color: '#DC2626' }}>
+            {trafficDetailsError}
+          </div>
+        )}
+        {!isLoadingTrafficDetails && !trafficDetailsError && trafficDetails.topExternalSources?.length > 0 && (
+          <div className="mt-3">
+            <p className="text-sm mb-2" style={{ color: '#DC2626' }}>外部來源排行</p>
+            <div className="space-y-1">
+              {trafficDetails.topExternalSources.slice(0, 5).map((source, idx) => (
+                <div key={idx} className="flex justify-between text-sm px-3 py-1 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.2)' }}>
+                  <span style={{ color: '#1F1F1F' }}>{source.name || '未知來源'}</span>
+                  <span style={{ color: '#DC2626' }}>{formatNumber(source.views)} 次</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 搜尋字詞 */}
+      <div>
+        <h5 className="font-bold mb-3 text-lg" style={{ color: '#1F1F1F' }}>
+          🔍 YouTube 搜尋字詞（近 1 年）
+        </h5>
+
+        {isLoadingSearchTerms && (
+          <div className="flex items-center justify-center py-4">
+            <Loader />
+            <span className="ml-3" style={{ color: '#DC2626' }}>載入搜尋字詞中...</span>
+          </div>
+        )}
+
+        {searchTermsError && (
+          <div className="p-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(220, 38, 38, 0.1)', border: '1px solid #DC2626', color: '#DC2626' }}>
+            {searchTermsError}
+          </div>
+        )}
+
+        {!isLoadingSearchTerms && !searchTermsError && searchTerms.length === 0 && (
+          <div className="p-3 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)', color: '#DC2626' }}>
+            此影片暫無搜尋字詞資料（可能是搜尋流量不足或影片太新）
+          </div>
+        )}
+
+        {!isLoadingSearchTerms && !searchTermsError && searchTerms.length > 0 && (
+          <div className="space-y-2">
+            {searchTerms.map((term, idx) => (
+              <div
+                key={idx}
+                className="flex justify-between items-center p-3 rounded"
+                style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)' }}
+              >
+                <div className="flex items-center gap-3 flex-1">
+                  <span
+                    className="font-bold text-lg"
+                    style={{
+                      color: idx < 3 ? '#DC2626' : '#1F1F1F',
+                      minWidth: '30px',
+                    }}
+                  >
+                    #{idx + 1}
+                  </span>
+                  <span
+                    className="font-semibold"
+                    style={{ color: '#1F1F1F' }}
+                  >
+                    {term.term}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span
+                    className="text-sm"
+                    style={{ color: '#DC2626' }}
+                  >
+                    {formatNumber(term.views)} 次觀看
+                  </span>
+                  <span
+                    className="font-bold"
+                    style={{
+                      color: '#DC2626',
+                      minWidth: '60px',
+                      textAlign: 'right',
+                    }}
+                  >
+                    {term.percentage.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 操作按鈕 */}

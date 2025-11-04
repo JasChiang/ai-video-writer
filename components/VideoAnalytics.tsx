@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Loader } from './Loader';
 import * as youtubeService from '../services/youtubeService';
 import { VideoAnalyticsExpandedView } from './VideoAnalyticsExpandedView';
@@ -22,6 +22,8 @@ interface TrafficSources {
   external: number;
   other: number;
   searchPercentage: string;
+  topExternalSources: { name: string; views: number }[];
+  externalDetailsLoaded?: boolean;
 }
 
 interface Impressions {
@@ -78,6 +80,42 @@ export function VideoAnalytics() {
   const [selectedYears, setSelectedYears] = useState(1); // 預設 1 年
   const [currentYearRange, setCurrentYearRange] = useState(1); // 當前已載入的年份範圍
   const [showMetadataGenerator, setShowMetadataGenerator] = useState<Record<string, boolean>>({});
+
+  const persistAnalyticsData = useCallback((data: VideoAnalyticsData[]) => {
+    try {
+      localStorage.setItem('videoAnalyticsData', JSON.stringify(data));
+      localStorage.setItem('videoAnalyticsTimestamp', Date.now().toString());
+    } catch (error) {
+      console.warn('Failed to persist analytics data', error);
+    }
+  }, []);
+
+  const handleTrafficSourcesUpdate = useCallback(
+    (videoId: string, updates: Partial<TrafficSources>) => {
+      setAnalyticsData(prev => {
+        const updated = prev.map(video => {
+          if (video.videoId !== videoId) return video;
+
+          const updatedTraffic: TrafficSources = {
+            ...video.trafficSources,
+            ...updates,
+            searchPercentage: (updates.searchPercentage ?? video.trafficSources.searchPercentage) as string,
+            topExternalSources: updates.topExternalSources ?? video.trafficSources.topExternalSources,
+            externalDetailsLoaded: updates.externalDetailsLoaded ?? video.trafficSources.externalDetailsLoaded ?? false,
+          };
+
+          return {
+            ...video,
+            trafficSources: updatedTraffic,
+          };
+        });
+
+        persistAnalyticsData(updated);
+        return updated;
+      });
+    },
+    [persistAnalyticsData]
+  );
 
   // 從 localStorage 載入快取的分析數據
   useEffect(() => {
@@ -146,8 +184,7 @@ export function VideoAnalytics() {
       setCurrentYearRange(yearsToFetch);
 
       // 儲存到 localStorage
-      localStorage.setItem('videoAnalyticsData', JSON.stringify(newData));
-      localStorage.setItem('videoAnalyticsTimestamp', Date.now().toString());
+      persistAnalyticsData(newData);
     } catch (err: any) {
       console.error('[Analytics] 錯誤:', err);
       setError(err.message || '分析失敗，請稍後再試');
@@ -512,6 +549,7 @@ export function VideoAnalytics() {
                       keywordAnalysis={keywordAnalysisCache[video.videoId] || null}
                       onAnalyzeKeywords={() => analyzeKeywords(video.videoId, video)}
                       isAnalyzing={isAnalyzingKeywords}
+                      onTrafficSourcesUpdate={handleTrafficSourcesUpdate}
                     />
                   </div>
                 )}

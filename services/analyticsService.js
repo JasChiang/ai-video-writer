@@ -6,6 +6,52 @@
 import { google } from 'googleapis';
 
 /**
+ * 解析 ISO 8601 duration 格式 (例如: PT15M33S, PT1H2M10S)
+ * @param {string} duration - ISO 8601 duration 字符串
+ * @returns {number} 總秒數
+ */
+function parseDuration(duration) {
+  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!match) return 0;
+
+  const hours = parseInt(match[1] || 0);
+  const minutes = parseInt(match[2] || 0);
+  const seconds = parseInt(match[3] || 0);
+
+  return hours * 3600 + minutes * 60 + seconds;
+}
+
+/**
+ * 判斷流量來源細節是否為 Google 搜尋
+ * @param {string} detail - 流量來源詳細資料
+ * @returns {boolean}
+ */
+function isGoogleSearchDetail(detail) {
+  if (!detail) {
+    return false;
+  }
+
+  const normalized = detail.toString().trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  const googleKeywords = ['google search', 'google搜尋', 'google 搜尋'];
+  if (googleKeywords.some(keyword => normalized === keyword)) {
+    return true;
+  }
+
+  // 網域判斷：任何包含 google.* 或 google.*.*
+  const domainPattern = /(^|[\s/.:])google\.[a-z.]+/;
+  if (domainPattern.test(normalized)) {
+    return true;
+  }
+
+  // 部分資料會包含額外描述（例如：google search, youtube），採用包含判斷避免漏掉
+  return googleKeywords.some(keyword => normalized.includes(keyword));
+}
+
+/**
  * 取得頻道的所有影片分析數據
  * @param {string} accessToken - YouTube OAuth access token
  * @param {string} channelId - YouTube 頻道 ID
@@ -38,13 +84,37 @@ export async function getChannelVideosAnalytics(accessToken, channelId, daysThre
       return [];
     }
 
-    // 步驟 2: 批次獲取影片的詳細分析數據
+    // 步驟 2: 獲取影片詳細資訊（包含長度）
+    console.log('[Analytics] 獲取影片長度資訊...');
+    const videoDurations = new Map();
+    try {
+      const videoIds = recentVideos.map(v => v.videoId).join(',');
+      const videoDetailsResponse = await youtube.videos.list({
+        part: 'contentDetails',
+        id: videoIds,
+      });
+
+      if (videoDetailsResponse.data.items) {
+        videoDetailsResponse.data.items.forEach(item => {
+          // 解析 ISO 8601 duration (例如: PT15M33S)
+          const duration = item.contentDetails.duration;
+          const seconds = parseDuration(duration);
+          videoDurations.set(item.id, seconds);
+        });
+        console.log(`[Analytics] 成功獲取 ${videoDurations.size} 支影片的長度資訊`);
+      }
+    } catch (error) {
+      console.error('[Analytics] 獲取影片長度失敗，將使用預設計算:', error.message);
+    }
+
+    // 步驟 3: 批次獲取影片的詳細分析數據
     const analyticsData = await getVideosAnalyticsData(
       youtubeAnalytics,
       channelId,
       recentVideos,
       startDate,
-      endDate
+      endDate,
+      videoDurations
     );
 
     return analyticsData;
@@ -168,8 +238,9 @@ async function getAllChannelVideos(youtube, channelId, cutoffDate) {
 
 /**
  * 獲取影片的分析數據（批次處理）
+ * @param {Object} videoDurations - Map of videoId -> duration in seconds
  */
-async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, startDate, endDate) {
+async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, startDate, endDate, videoDurations) {
   const analyticsData = [];
   const videoIds = videos.map(v => v.videoId).join(',');
 
@@ -192,7 +263,7 @@ async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, start
       sort: '-views',
     });
 
-    // 查詢 2: 流量來源數據
+    // 查詢 2: 流量來源數據（依流量來源類型）
     const trafficSources = await youtubeAnalytics.reports.query({
       ids: `channel==${channelId}`,
       startDate: startDateStr,
@@ -253,22 +324,17 @@ async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, start
         }
 
         const sources = trafficSourceMap.get(videoId);
-        switch (sourceType) {
-          case 'YT_SEARCH':
-            sources.youtubeSearch = views;
-            break;
-          case 'GOOGLE_SEARCH':
-            sources.googleSearch = views;
-            break;
-          case 'RELATED_VIDEO':
-          case 'SUGGESTED_VIDEO':
-            sources.suggested = views;
-            break;
-          case 'EXT_URL':
-            sources.external = views;
-            break;
-          default:
-            sources.other += views;
+
+        // 判斷流量來源
+        if (sourceType === 'YT_SEARCH') {
+          sources.youtubeSearch += views;
+        } else if (sourceType === 'EXT_URL') {
+          // 缺少細節來源時，統一歸類為外部流量
+          sources.external += views;
+        } else if (sourceType === 'RELATED_VIDEO' || sourceType === 'SUGGESTED_VIDEO') {
+          sources.suggested += views;
+        } else {
+          sources.other += views;
         }
       });
     }
@@ -296,6 +362,8 @@ async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, start
         external: 0,
         other: 0,
       };
+      const totalGoogleSearchViews = traffic.googleSearch;
+      const topExternalSources = [];
       const impression = impressionMap.get(video.videoId) || {
         impressions: 0,
         clicks: 0,
@@ -306,8 +374,11 @@ async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, start
       const avgDuration = basic.averageViewDuration || 0;
       const estimatedMinutes = basic.estimatedMinutesWatched || 0;
 
-      // 計算平均觀看時長百分比（需要先取得影片總長度）
-      const averageViewPercentage = avgDuration > 0 ? (avgDuration / 60) * 100 : 0; // 暫時估算
+      // 計算平均觀看時長百分比（使用實際影片長度）
+      const videoDuration = videoDurations.get(video.videoId) || 0;
+      const averageViewPercentage = videoDuration > 0 && avgDuration > 0
+        ? (avgDuration / videoDuration) * 100
+        : 0;
 
       analyticsData.push({
         videoId: video.videoId,
@@ -327,13 +398,15 @@ async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, start
         },
         trafficSources: {
           youtubeSearch: traffic.youtubeSearch,
-          googleSearch: traffic.googleSearch,
+          googleSearch: totalGoogleSearchViews,
           suggested: traffic.suggested,
           external: traffic.external,
           other: traffic.other,
           searchPercentage: totalViews > 0
-            ? (((traffic.youtubeSearch + traffic.googleSearch) / totalViews) * 100).toFixed(2)
-            : 0,
+            ? (((traffic.youtubeSearch + totalGoogleSearchViews) / totalViews) * 100).toFixed(2)
+            : '0.00',
+          topExternalSources,
+          externalDetailsLoaded: false,
         },
         impressions: impression,
       });
@@ -409,4 +482,156 @@ export function calculateUpdatePriority(analyticsData) {
 
   console.log(`[Analytics] 計算完成，找到 ${sorted.length} 支建議更新的影片`);
   return sorted;
+}
+
+/**
+ * 獲取單一影片的熱門搜尋字詞
+ * @param {string} accessToken - YouTube OAuth access token
+ * @param {string} channelId - YouTube 頻道 ID
+ * @param {string} videoId - 影片 ID
+ * @param {number} daysThreshold - 查詢天數範圍（預設 365 天）
+ * @param {number} maxResults - 最多返回幾個搜尋詞（預設 10）
+ * @returns {Promise<Array>} 搜尋字詞數據
+ */
+export async function getVideoSearchTerms(accessToken, channelId, videoId, daysThreshold = 365, maxResults = 10) {
+  try {
+    const oauth2Client = new google.auth.OAuth2();
+    oauth2Client.setCredentials({ access_token: accessToken });
+
+    const youtubeAnalytics = google.youtubeAnalytics({ version: 'v2', auth: oauth2Client });
+
+    // 計算日期範圍
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysThreshold);
+
+    const formatDate = (date) => date.toISOString().split('T')[0];
+    const startDateStr = formatDate(startDate);
+    const endDateStr = formatDate(endDate);
+
+    console.log(`[SearchTerms] 查詢影片 ${videoId} 的搜尋字詞 (${startDateStr} ~ ${endDateStr})`);
+
+    // 查詢 YouTube 搜尋字詞
+    const searchTermsReport = await youtubeAnalytics.reports.query({
+      ids: `channel==${channelId}`,
+      startDate: startDateStr,
+      endDate: endDateStr,
+      metrics: 'views',
+      dimensions: 'insightTrafficSourceDetail',
+      filters: `video==${videoId};insightTrafficSourceType==YT_SEARCH`,
+      sort: '-views',
+      maxResults: maxResults,
+    });
+
+    let searchTerms = [];
+
+    if (searchTermsReport.data.rows && searchTermsReport.data.rows.length > 0) {
+      const rows = searchTermsReport.data.rows.map(row => {
+        const term = row[0];
+        const views = row[1] || 0;
+        return { term, views };
+      });
+
+      const totalSearchViews = rows.reduce((sum, item) => sum + item.views, 0);
+
+      searchTerms = rows.map(item => ({
+        ...item,
+        percentage: totalSearchViews > 0 ? (item.views / totalSearchViews) * 100 : 0,
+      }));
+
+      console.log(`[SearchTerms] 找到 ${searchTerms.length} 個搜尋字詞，總搜尋觀看次數: ${totalSearchViews}`);
+    } else {
+      console.log(`[SearchTerms] 未找到搜尋字詞數據`);
+    }
+
+    return searchTerms;
+  } catch (error) {
+    console.error('[SearchTerms] 錯誤:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * 取得單一影片的外部流量詳細資料（EXT_URL）
+ * @param {string} accessToken - YouTube OAuth access token
+ * @param {string} channelId - YouTube 頻道 ID
+ * @param {string} videoId - 影片 ID
+ * @param {number} daysThreshold - 查詢天數範圍（預設 365 天）
+ * @param {number} maxResults - 最多返回幾個外部來源（預設 25）
+ * @returns {Promise<Object>} 外部流量詳細資訊
+ */
+export async function getVideoExternalTrafficDetails(
+  accessToken,
+  channelId,
+  videoId,
+  daysThreshold = 365,
+  maxResults = 25
+) {
+  try {
+    const oauth2Client = new google.auth.OAuth2();
+    oauth2Client.setCredentials({ access_token: accessToken });
+
+    const youtubeAnalytics = google.youtubeAnalytics({ version: 'v2', auth: oauth2Client });
+
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysThreshold);
+
+    const formatDate = (date) => date.toISOString().split('T')[0];
+    const startDateStr = formatDate(startDate);
+    const endDateStr = formatDate(endDate);
+
+    console.log(`[ExternalDetails] 查詢影片 ${videoId} 的外部流量 (${startDateStr} ~ ${endDateStr})`);
+
+    const detailResponse = await youtubeAnalytics.reports.query({
+      ids: `channel==${channelId}`,
+      startDate: startDateStr,
+      endDate: endDateStr,
+      metrics: 'views',
+      dimensions: 'insightTrafficSourceDetail',
+      filters: `video==${videoId};insightTrafficSourceType==EXT_URL`,
+      sort: '-views',
+      maxResults,
+    });
+
+    const topExternalSources = [];
+    let googleSearch = 0;
+    let totalExternalViews = 0;
+
+    if (detailResponse.data.rows && detailResponse.data.rows.length > 0) {
+      detailResponse.data.rows.forEach(row => {
+        const detail = row[0] || '';
+        const views = row[1] || 0;
+        totalExternalViews += views;
+
+        topExternalSources.push({ name: detail, views });
+
+        if (isGoogleSearchDetail(detail)) {
+          googleSearch += views;
+        }
+
+        console.log('[ExternalDetails] EXT_URL detail', JSON.stringify({
+          videoId,
+          detail,
+          views,
+        }));
+      });
+
+      topExternalSources.sort((a, b) => b.views - a.views);
+    } else {
+      console.log('[ExternalDetails] 未找到外部流量細節資料');
+    }
+
+    const adjustedExternal = Math.max(0, totalExternalViews - googleSearch);
+
+    return {
+      googleSearch,
+      adjustedExternal,
+      totalExternalViews,
+      topExternalSources,
+    };
+  } catch (error) {
+    console.error('[ExternalDetails] 錯誤:', error.message);
+    throw error;
+  }
 }

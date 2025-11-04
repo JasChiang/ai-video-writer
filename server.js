@@ -8,7 +8,12 @@ import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { generateFullPrompt } from './services/promptService.js';
 import { generateArticlePrompt } from './services/articlePromptService.js';
-import { getChannelVideosAnalytics, calculateUpdatePriority } from './services/analyticsService.js';
+import {
+  getChannelVideosAnalytics,
+  calculateUpdatePriority,
+  getVideoSearchTerms,
+  getVideoExternalTrafficDetails,
+} from './services/analyticsService.js';
 import { generateKeywordAnalysisPrompt } from './services/keywordAnalysisPromptService.js';
 
 // 載入 .env.local 檔案
@@ -1403,6 +1408,99 @@ app.post('/api/analytics/keyword-analysis', async (req, res) => {
     console.error('[Keyword Analysis] 錯誤:', error);
     res.status(500).json({
       error: 'Keyword analysis failed',
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * 獲取單一影片的搜尋字詞數據
+ * POST /api/analytics/search-terms
+ */
+app.post('/api/analytics/search-terms', async (req, res) => {
+  try {
+    const { accessToken, channelId, videoId, daysThreshold, maxResults } = req.body;
+
+    if (!accessToken || !channelId || !videoId) {
+      return res.status(400).json({
+        error: 'Missing required parameters: accessToken, channelId, and videoId',
+      });
+    }
+
+    if (!isValidVideoId(videoId)) {
+      return res.status(400).json({
+        error: 'Invalid videoId format',
+      });
+    }
+
+    console.log(`[Search Terms API] 開始獲取影片搜尋字詞: ${videoId}`);
+
+    // 調用 analyticsService 的 getVideoSearchTerms 函數
+    const searchTermsData = await getVideoSearchTerms(
+      accessToken,
+      channelId,
+      videoId,
+      daysThreshold || 365, // 預設 1 年
+      maxResults || 10 // 預設前 10 個
+    );
+
+    console.log(`[Search Terms API] 成功獲取 ${searchTermsData.length} 個搜尋字詞`);
+
+    res.json({
+      success: true,
+      videoId: videoId,
+      searchTerms: searchTermsData,
+    });
+  } catch (error) {
+    console.error('[Search Terms API] 錯誤:', error);
+    res.status(500).json({
+      error: 'Search terms retrieval failed',
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * 獲取單一影片的外部流量詳細資料
+ * POST /api/analytics/external-traffic
+ */
+app.post('/api/analytics/external-traffic', async (req, res) => {
+  try {
+    const { accessToken, channelId, videoId, daysThreshold, maxResults } = req.body;
+
+    if (!accessToken || !channelId || !videoId) {
+      return res.status(400).json({
+        error: 'Missing required parameters: accessToken, channelId, and videoId',
+      });
+    }
+
+    if (!isValidVideoId(videoId)) {
+      return res.status(400).json({
+        error: 'Invalid videoId format',
+      });
+    }
+
+    console.log(`[External Details API] 開始獲取影片外部流量細節: ${videoId}`);
+
+    const details = await getVideoExternalTrafficDetails(
+      accessToken,
+      channelId,
+      videoId,
+      daysThreshold || 365,
+      maxResults || 25
+    );
+
+    console.log(`[External Details API] 完成獲取外部流量細節: ${videoId}`);
+
+    res.json({
+      success: true,
+      videoId,
+      ...details,
+    });
+  } catch (error) {
+    console.error('[External Details API] 錯誤:', error);
+    res.status(500).json({
+      error: 'External traffic details retrieval failed',
       message: error.message,
     });
   }
