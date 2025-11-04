@@ -15,6 +15,35 @@
 
 ---
 
+## 🧠 系統總覽
+
+AI Video Writer 將「影片內容 → 文章與數據洞察」的流程整合在同一個介面中，主要分為三大模組：
+
+- **內容生成**：使用 Gemini 2.5 Flash 從 YouTube 影片擷取資訊，生成 SEO 中繼資料與完整文章。
+- **參考檔案上傳**：允許使用者拖放圖片、PDF、Markdown、音訊等檔案，透過 Gemini Files API 建立多模態分析上下文。
+- **影片表現分析**：連線 YouTube Analytics API，彙整影片 KPI、搜尋詞、外部流量並產出 AI 建議。
+
+### 模組與程式碼對照
+
+| 模組 | 主要檔案/資料夾 | 關鍵職責 |
+| ---- | --------------- | -------- |
+| 前端應用 (React 19 + Vite) | `App.tsx`, `components/`, `services/` | OAuth 登入、影片列表、內容生成 UI、分析儀表板 |
+| 後端 API (Express) | `server.js`, `services/*Service.js` | 與 YouTube/Gemini API 整合、影片下載與截圖、文章/分析任務 |
+| Gemini Files 支援 | `services/geminiFilesService.js` | 上傳/刪除/列出 Gemini 參考檔案、供文章生成使用 |
+| Docker 環境 | `docker/`, `docker-compose.yml`, `docker-start.sh` | 建構 Node + FFmpeg + yt-dlp 執行環境，支援一鍵啟動 |
+| 自動化工具 | `hooks/`, `middleware/`, `utils/` | 安全檢查、請求節流、背景任務等輔助功能 |
+
+### 使用流程概覽
+
+1. 使用者於前端登入 Google 帳號並授權 YouTube OAuth。
+2. 選擇影片後可：
+   - 生成 SEO 中繼資料或文章；
+   - 上傳參考檔案，加強文章生成脈絡；
+   - 啟動影片表現分析，取得 AI 建議。
+3. 後端依任務呼叫 Gemini/YouTube API，並把結果回傳前端顯示或匯出。
+
+---
+
 ## 🐳 Docker 部署
 
 專案主分支現在內建 Docker 支援，可直接在本機或伺服器上啟動。
@@ -48,6 +77,7 @@ docker compose up --build
 
 - `docker-start.sh` 會載入 `.env.local` 並將變數匯出給容器使用（不會寫入映像檔，金鑰仍保留在本機）。
 - 前端在啟動前會自動下載 `/app-config.js`，確保 `YOUTUBE_CLIENT_ID` 在容器、build、或開發模式下都一致可用。
+- `index.tsx` 會在啟動 React 之前載入上述設定，若載入失敗會顯示錯誤提示，方便排查。
 
 ---
 
@@ -83,6 +113,7 @@ docker compose up --build
    - 自動識別關鍵畫面並截圖
    - SEO 強化的 meta description
    - 支援 Markdown 和 HTML 格式輸出
+   - 可附加自訂參考檔案（圖片、PDF、Markdown、音訊等）強化文章內容
 
 3. **影片表現分析與改善建議**
    - 智慧分析頻道影片表現數據
@@ -98,6 +129,7 @@ docker compose up --build
 - **全影片類型支援**：公開、未公開皆可處理
 - **智慧輸入驗證**：防止 Command Injection 等安全風險
 - **自動清理機制**：啟動時自動清理過期檔案，節省磁碟空間
+- **多模態參考素材**：支援上傳圖片、PDF、Markdown、音訊等檔案，提供 Gemini Files API 進一步分析
 
 ### 🧹 自動清理機制
 
@@ -464,6 +496,19 @@ YOUTUBE_CLIENT_ID=你的_用戶端_ID.apps.googleusercontent.com
 # YOUTUBE_API_KEY=你的_YouTube_API_金鑰
 ```
 
+**環境變數一覽**
+
+| 變數 | 必填 | 用途 | 預設/範例 |
+| ---- | ---- | ---- | ---------- |
+| `GEMINI_API_KEY` | ✅ | 後端呼叫 Gemini 內容生成與 Files API | （無預設）`AIzaSy...` |
+| `YOUTUBE_CLIENT_ID` | ✅ | 前端 OAuth 2.0 登入與 Token 交換 | （無預設）`123456.apps.googleusercontent.com` |
+| `PORT` | ⏱️ | 後端 Express 監聽埠號 | `3001` |
+| `VITE_API_URL` | ⏱️ | 前端呼叫後端 API 的 base URL | `http://localhost:3001/api` |
+| `FRONTEND_URL` | ⏱️ | CORS 允許的前端來源 | `http://localhost:3000` |
+| `FILE_RETENTION_DAYS` | ⏱️ | 暫存影片與截圖的保留天數 | `7` |
+
+> ⏱️：可選設定，若未設定則採用系統預設值。
+
 **重要提醒**：
 - 請將上面的「你的_XXX」替換為實際的金鑰
 - 只需填寫 `GEMINI_API_KEY` 和 `YOUTUBE_CLIENT_ID`，不需要填寫 `YOUTUBE_API_KEY`
@@ -520,6 +565,9 @@ YOUTUBE_CLIENT_ID=你的_用戶端_ID.apps.googleusercontent.com
    - 「適合技術部落格」
    - 「包含實作步驟」
    - 「使用專業術語」
+   - （可選）拖放或上傳參考檔案（支援 JPG/PNG/WEBP/GIF、PDF、TXT/CSV/Markdown、MP3/WAV/FLAC）
+     - 上傳後會顯示於清單中，可隨時移除
+     - 檔案會透過 Gemini Files API 暫存於 Google 端，完成後可在後端刪除
 3. 點選「開始生成文章」
 4. 等待生成（通常 20-60 秒）
 5. 查看文章內容：
@@ -712,8 +760,11 @@ ai-video-writer/
 │   ├── server.js                      # Express 主伺服器
 │   │
 │   └── services/                      # 後端服務
-│       ├── promptService.js           # 中繼資料（Metadata）提示詞（包含完整 prompt）
-│       └── articlePromptService.js    # 文章提示詞（包含完整 prompt）
+│       ├── promptService.js           # 中繼資料（Metadata）提示詞
+│       ├── articlePromptService.js    # 文章提示詞（含參考檔案支援）
+│       ├── analyticsService.js        # YouTube Analytics 取數與整理
+│       ├── keywordAnalysisPromptService.js # 關鍵字分析專用 prompt
+│       └── geminiFilesService.js      # Gemini Files API 上傳/刪除/列出工具
 │
 ├── 設定檔
 │   ├── vite.config.ts                 # Vite 建置設定
@@ -724,6 +775,7 @@ ai-video-writer/
 │
 ├── 執行時目錄（自動建立）
 │   ├── temp_videos/                   # 暫存影片
+│   ├── temp_files/                    # 上傳參考檔案暫存
 │   └── public/images/                 # 截圖存放
 │
 └── 文件
