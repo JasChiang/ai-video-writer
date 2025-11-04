@@ -374,7 +374,8 @@ export function VideoAnalytics() {
       }
 
       // 調用後端 API
-      const response = await fetch('http://localhost:3001/api/analytics/keyword-analysis', {
+      const baseUrl = import.meta.env?.VITE_SERVER_BASE_URL || 'http://localhost:3001';
+      const response = await fetch(`${baseUrl}/api/analytics/keyword-analysis`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

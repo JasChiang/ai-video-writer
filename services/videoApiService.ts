@@ -1,4 +1,5 @@
 import type { GeneratedContentType } from '../types';
+import * as youtubeService from './youtubeService';
 
 // 從環境變數獲取 API 基址，如果沒有設定則使用預設值
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -293,10 +294,14 @@ export async function generateArticleWithDownload(
     onProgress?.('📥 步驟 1/12：準備從 YouTube 下載影片（文章生成需要本地檔案進行截圖）...');
     onProgress?.('⬇️ 步驟 2/12：正在從 YouTube 下載影片（可能需要數分鐘，視影片大小而定）...');
     console.log(`[API] Downloading video for screenshots: ${videoId}`);
+
+    // 取得 access token 用於下載未公開影片
+    const accessToken = youtubeService.getAccessToken();
+
     const downloadResponse = await fetch(`${API_BASE_URL}/download-video`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ videoId, quality: screenshotQuality }),
+      body: JSON.stringify({ videoId, quality: screenshotQuality, accessToken }),
     });
 
     if (!downloadResponse.ok) {
@@ -388,10 +393,14 @@ export async function regenerateScreenshots(
     console.log(`[API] Downloading video for screenshots: ${videoId}`);
 
     onProgress?.('📥 步驟 2/10：準備下載影片到本地（截圖需要本地檔案）...');
+
+    // 取得 access token 用於下載未公開影片
+    const accessToken = youtubeService.getAccessToken();
+
     const downloadResponse = await fetch(`${API_BASE_URL}/download-video`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ videoId, quality: screenshotQuality }),
+      body: JSON.stringify({ videoId, quality: screenshotQuality, accessToken }),
     });
 
     if (!downloadResponse.ok) {

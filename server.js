@@ -33,6 +33,42 @@ const PORT = process.env.PORT || 3001;
 // 檔案保留天數設定（預設 7 天）
 const FILE_RETENTION_DAYS = parseInt(process.env.FILE_RETENTION_DAYS || '7', 10);
 
+// 下載速率限制（保護用戶帳號安全）
+const downloadRateLimiter = new Map(); // key: userId/token, value: { count, resetTime }
+const ipRateLimiter = new Map(); // key: IP address, value: { count, resetTime }
+const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 小時
+const MAX_DOWNLOADS_PER_HOUR = 10; // 每小時最多 10 次下載（每個帳號）
+const MAX_DOWNLOADS_PER_HOUR_PER_IP = 20; // 每小時最多 20 次下載（每個 IP，防止濫用多帳號）
+
+function checkRateLimit(identifier, limiterMap, maxDownloads) {
+  const now = Date.now();
+  const record = limiterMap.get(identifier);
+
+  if (!record || now > record.resetTime) {
+    // 新的時間窗口
+    limiterMap.set(identifier, {
+      count: 1,
+      resetTime: now + RATE_LIMIT_WINDOW
+    });
+    return { allowed: true, remaining: maxDownloads - 1 };
+  }
+
+  if (record.count >= maxDownloads) {
+    const waitMinutes = Math.ceil((record.resetTime - now) / (60 * 1000));
+    return {
+      allowed: false,
+      remaining: 0,
+      waitMinutes
+    };
+  }
+
+  record.count++;
+  return {
+    allowed: true,
+    remaining: maxDownloads - record.count
+  };
+}
+
 // 驗證 API Key
 if (!process.env.GEMINI_API_KEY) {
   console.error('❌ ERROR: GEMINI_API_KEY is not set in .env.local');
@@ -217,6 +253,36 @@ app.post('/api/download-video', async (req, res) => {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
   }
 
+  // 速率限制檢查（雙重保護：帳號 + IP）
+  const rateLimitId = accessToken || req.ip;
+  const clientIp = req.ip;
+
+  // 1. 檢查帳號/Token 限制
+  const tokenRateCheck = checkRateLimit(rateLimitId, downloadRateLimiter, MAX_DOWNLOADS_PER_HOUR);
+  if (!tokenRateCheck.allowed) {
+    console.warn(`[Download] Token rate limit exceeded for ${rateLimitId}`);
+    return res.status(429).json({
+      error: '下載次數已達上限',
+      message: `為保護您的帳號安全，請在 ${tokenRateCheck.waitMinutes} 分鐘後再試`,
+      waitMinutes: tokenRateCheck.waitMinutes,
+      limitType: 'account'
+    });
+  }
+
+  // 2. 檢查 IP 限制（防止多帳號濫用）
+  const ipRateCheck = checkRateLimit(clientIp, ipRateLimiter, MAX_DOWNLOADS_PER_HOUR_PER_IP);
+  if (!ipRateCheck.allowed) {
+    console.warn(`[Download] IP rate limit exceeded for ${clientIp}`);
+    return res.status(429).json({
+      error: '下載次數已達上限',
+      message: `此 IP 位址下載次數過多，請在 ${ipRateCheck.waitMinutes} 分鐘後再試`,
+      waitMinutes: ipRateCheck.waitMinutes,
+      limitType: 'ip'
+    });
+  }
+
+  console.log(`[Download] Rate limit - Token: ${tokenRateCheck.remaining} remaining, IP: ${ipRateCheck.remaining} remaining`);
+
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
   const outputPath = path.join(DOWNLOAD_DIR, `${videoId}.mp4`);
 
@@ -224,6 +290,7 @@ app.post('/api/download-video', async (req, res) => {
     console.log(`\n========== 🎬 開始下載影片 ==========`);
     console.log(`[Download] Video ID: ${videoId}`);
     console.log(`[Download] Video URL: ${videoUrl}`);
+    console.log(`[Download] OAuth Token: ${accessToken ? '✅ 已提供（使用 OAuth 認證）' : '❌ 未提供（匿名下載）'}`);
 
     // 檢查 yt-dlp 是否安裝
     console.log(`[Download] Checking yt-dlp installation...`);
@@ -255,18 +322,30 @@ app.post('/api/download-video', async (req, res) => {
     }
 
     // 建構命令（使用陣列避免換行問題）
-    // 注意：不使用 android client，因為它限制只能下載 360p
-    // 對於未列出的影片，現代 yt-dlp 可以不需要 cookies 直接下載
     const commandParts = [
       'yt-dlp',
+      // 如果有 accessToken，使用 OAuth 認證（可存取未公開影片）
+      ...(accessToken ? [
+        '--username', 'oauth2',
+        '--password', `"${accessToken}"`,
+      ] : []),
+      // 反偵測參數：模擬真實瀏覽器
+      '--user-agent', '"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"',
+      '--referer', '"https://www.youtube.com/"',
+      // 減慢請求速度，避免觸發反機器人機制
+      '--sleep-requests', '1',
+      '--sleep-interval', '1',
+      // 強制使用 IPv4（某些雲端環境 IPv6 可能有問題）
+      '--force-ipv4',
       // 根據品質選擇格式
       '-f', formatSelector,
       // 如果下載分離的音視頻流，合併為 mp4
       '--merge-output-format', 'mp4',
       '-o', `"${outputPath}"`,
-      // 增加重試次數
-      '--retries', '5',
-      '--fragment-retries', '5',
+      // 增加重試次數和超時設定
+      '--retries', '15',
+      '--fragment-retries', '15',
+      '--socket-timeout', '30',
       // 添加影片 URL
       `"${videoUrl}"`,
     ];

@@ -1,5 +1,6 @@
 import type { GeneratedContentType } from "../types";
 import * as videoApiService from './videoApiService';
+import * as youtubeService from './youtubeService';
 
 export interface GenerateMetadataResult {
   content: GeneratedContentType;
@@ -39,12 +40,16 @@ export async function generateVideoMetadata(
   // 未列出影片：使用後端下載+上傳的方式
   if (privacyStatus === 'unlisted') {
     console.log(`[Gemini] Using video download mode for unlisted video`);
+    // 取得 YouTube OAuth access token（用於下載未公開影片）
+    const accessToken = youtubeService.getAccessToken();
+    console.log(`[Gemini] Access Token: ${accessToken ? '✅ 已取得' : '❌ 未登入'}`);
+
     const result = await videoApiService.analyzeUnlistedVideo(
       videoId,
       userPrompt,
       videoTitle,
       geminiFileName,
-      undefined,
+      accessToken,
       onProgress
     );
 

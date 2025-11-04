@@ -36,7 +36,8 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
 
     const checkFile = async () => {
       try {
-        const response = await fetch(`http://localhost:3001/api/check-file/${video.id}`);
+        const baseUrl = import.meta.env?.VITE_SERVER_BASE_URL || 'http://localhost:3001';
+        const response = await fetch(`${baseUrl}/api/check-file/${video.id}`);
         const data = await response.json();
         setFileStatus({
           checking: false,

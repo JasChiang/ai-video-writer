@@ -17,6 +17,9 @@ interface UploadedFile {
   sizeBytes: number;
 }
 
+// 取得伺服器基礎 URL
+const getServerBaseUrl = () => import.meta.env?.VITE_SERVER_BASE_URL || 'http://localhost:3001';
+
 export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRegeneratingScreenshots, setIsRegeneratingScreenshots] = useState(false);
@@ -47,7 +50,7 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
         const formData = new FormData();
         formData.append('file', file);
 
-        const response = await fetch('http://localhost:3001/api/gemini/upload-file', {
+        const response = await fetch(`${getServerBaseUrl()}/api/gemini/upload-file`, {
           method: 'POST',
           body: formData
         });
@@ -83,7 +86,7 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
 
     try {
       // 從 Gemini Files API 刪除
-      const response = await fetch(`http://localhost:3001/api/gemini/file/${encodeURIComponent(file.name)}`, {
+      const response = await fetch(`${getServerBaseUrl()}/api/gemini/file/${encodeURIComponent(file.name)}`, {
         method: 'DELETE'
       });
 
@@ -530,7 +533,7 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
                           {screenshotGroup.map((url, imageIndex) => (
                             <div key={imageIndex} className="relative">
                               <img
-                                src={`http://localhost:3001${url}`}
+                                src={`${getServerBaseUrl()}${url}`}
                                 alt={`Screenshot ${groupIndex + 1}-${imageIndex + 1}`}
                                 className="w-full h-auto rounded-lg border border-neutral-200 shadow-sm"
                               />
