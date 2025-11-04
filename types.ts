@@ -43,4 +43,6 @@ export interface ArticleGenerationResult {
   seo_description: string;
   image_urls: string[][]; // 二維陣列，每個時間點有 3 張圖片
   screenshots: Screenshot[];
+  needsScreenshots?: boolean; // 標記是否需要截圖（Render 環境）
+  videoId?: string; // 影片 ID，用於截圖
 }

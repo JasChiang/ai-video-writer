@@ -324,18 +324,14 @@ app.post('/api/download-video', async (req, res) => {
     // 建構命令（使用陣列避免換行問題）
     const commandParts = [
       'yt-dlp',
-      // 如果有 accessToken，使用 OAuth 認證（可存取未公開影片）
-      ...(accessToken ? [
-        '--username', 'oauth2',
-        '--password', `"${accessToken}"`,
-      ] : []),
+      // ⚠️ OAuth 認證已被 yt-dlp 移除，改用反偵測參數
       // 反偵測參數：模擬真實瀏覽器
       '--user-agent', '"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"',
       '--referer', '"https://www.youtube.com/"',
       // 減慢請求速度，避免觸發反機器人機制
       '--sleep-requests', '1',
       '--sleep-interval', '1',
-      // 強制使用 IPv4（某些雲端環境 IPv6 可能有問題）
+      // 強制使用 IPv4
       '--force-ipv4',
       // 根據品質選擇格式
       '-f', formatSelector,
@@ -805,18 +801,37 @@ app.post('/api/generate-article-url', async (req, res) => {
     parts.push({ text: fullPrompt });
 
     // 根據最佳實踐：影片應該放在 prompt 之前
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [
-        {
-          role: 'user',
-          parts: parts
+    // 添加重試機制處理 503 錯誤
+    let response;
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (attempts < maxAttempts) {
+      try {
+        response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: [
+            {
+              role: 'user',
+              parts: parts
+            }
+          ],
+          config: {
+            responseMimeType: "application/json",
+          },
+        });
+        break; // 成功則跳出循環
+      } catch (error) {
+        attempts++;
+        if (error.status === 503 && attempts < maxAttempts) {
+          const waitTime = attempts * 5; // 5秒、10秒、15秒
+          console.log(`[Article URL] ⚠️  Gemini API 過載，${waitTime} 秒後重試（第 ${attempts}/${maxAttempts} 次）...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
+        } else {
+          throw error; // 其他錯誤或達到最大重試次數
         }
-      ],
-      config: {
-        responseMimeType: "application/json",
-      },
-    });
+      }
+    }
 
     let result;
     try {
@@ -835,97 +850,9 @@ app.post('/api/generate-article-url', async (req, res) => {
       throw new Error(`無法解析 Gemini 回應為 JSON 格式。錯誤：${parseError.message}`);
     }
 
-    // 步驟 2: 下載影片用於截圖
-    console.log('[Article URL] 步驟 2/3: 下載影片以進行截圖...');
-
-    // 根據截圖品質決定影片解析度
-    // quality=2（高畫質截圖）→ 下載 1080p 影片（至少 720p）
-    // quality=20（壓縮截圖）→ 下載 720p 影片（至少 480p）
-    let formatSelector;
-    if (quality <= 10) {
-      // 高品質：優先 1080p，次選 720p，最後接受 >=480p 或最佳
-      formatSelector = '"bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/best"';
-      console.log(`[Article URL] 截圖品質: ${quality}（高畫質）→ 目標影片解析度: 1080p (退回 720p)`);
-    } else {
-      // 壓縮：優先 720p，次選 480p，最後接受 360p 或最佳
-      formatSelector = '"bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]/best"';
-      console.log(`[Article URL] 截圖品質: ${quality}（壓縮）→ 目標影片解析度: 720p (退回 480p)`);
-    }
-
-    const commandParts = [
-      'yt-dlp',
-      // 如果有 accessToken，使用 OAuth 認證
-      ...(accessToken ? [
-        '--username', 'oauth2',
-        '--password', `"${accessToken}"`,
-      ] : []),
-      // 反偵測參數：模擬真實瀏覽器
-      '--user-agent', '"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"',
-      '--referer', '"https://www.youtube.com/"',
-      '--sleep-requests', '1',
-      '--sleep-interval', '1',
-      '--force-ipv4',
-      '-f', formatSelector,
-      '--merge-output-format', 'mp4',
-      '-o', `"${outputPath}"`,
-      '--retries', '15',
-      '--fragment-retries', '15',
-      '--socket-timeout', '30',
-      `"${youtubeUrl}"`,
-    ];
-
-    const command = commandParts.join(' ');
-    console.log(`[Article URL] Executing: ${command}`);
-
-    await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
-
-    if (!fs.existsSync(outputPath)) {
-      throw new Error('Video download failed - file not found');
-    }
-
-    console.log(`[Article URL] ✅ 影片下載完成: ${outputPath}`);
-
-    // 步驟 3: 使用 FFmpeg 截取畫面
-    console.log('[Article URL] 步驟 3/3: 正在截取關鍵畫面...');
-    console.log(`[Article URL] 截圖品質設定: ${quality} (2=最高, 31=最低)`);
-
-    const imageUrls = [];
-    for (let i = 0; i < result.screenshots.length; i++) {
-      const screenshot = result.screenshots[i];
-      const timestamp = screenshot.timestamp_seconds;
-      const currentSeconds = timeToSeconds(timestamp);
-
-      const screenshotGroup = [];
-      const offsets = [
-        { offset: -2, label: 'before' },
-        { offset: 0, label: 'current' },
-        { offset: 2, label: 'after' }
-      ];
-
-      console.log(`[Article URL] 截圖組 ${i + 1}/${result.screenshots.length} - 時間點: ${timestamp} - 原因: ${screenshot.reason_for_screenshot}`);
-
-      for (const { offset, label } of offsets) {
-        const targetSeconds = Math.max(0, currentSeconds + offset);
-        const targetTime = secondsToTime(targetSeconds); // 僅用於檔名
-        const outputFilename = `${videoId}_screenshot_${i}_${label}_${targetTime.replace(':', '-')}.jpg`;
-        const screenshotPath = path.join(IMAGES_DIR, outputFilename);
-
-        try {
-          await captureScreenshot(outputPath, targetSeconds, screenshotPath, quality);
-          screenshotGroup.push(`/images/${outputFilename}`);
-          console.log(`[Article URL] ✅ 截圖已儲存: ${outputFilename} (${label}: ${targetSeconds}s)`);
-        } catch (error) {
-          console.error(`[Article URL] ❌ 截圖失敗 (時間點 ${targetSeconds}s, ${label}):`, error.message);
-        }
-      }
-
-      if (screenshotGroup.length > 0) {
-        imageUrls.push(screenshotGroup);
-      }
-    }
-
-    // 保留暫存影片檔案供後續重新截圖使用
-    console.log(`[Article URL] ✅ 已完成截圖，暫存檔案保留供後續使用: ${outputPath}`);
+    // 🎉 步驟 2: 完成（不下載影片，不截圖）
+    console.log('[Article URL] ✅ 文章生成完成！截圖時間點已規劃');
+    console.log('[Article URL] ℹ️  如需截圖，請使用「截圖」按鈕（需要本地環境或支援 yt-dlp 的環境）');
     console.log(`========== 文章生成完成 ==========\n`);
 
     res.json({
@@ -935,9 +862,11 @@ app.post('/api/generate-article-url', async (req, res) => {
       titleC: result.titleC,
       article: result.article_text,
       seo_description: result.seo_description,
-      image_urls: imageUrls,
-      screenshots: result.screenshots,
-      usedYouTubeUrl: true
+      image_urls: [], // 尚未截圖
+      screenshots: result.screenshots, // 包含時間碼和說明
+      usedYouTubeUrl: true,
+      needsScreenshots: true, // 標記需要截圖
+      videoId: videoId
     });
 
   } catch (error) {
@@ -951,13 +880,173 @@ app.post('/api/generate-article-url', async (req, res) => {
 });
 
 /**
- * 生成文章與截圖（用於非公開影片）
+ * 截圖 API（用於已生成文章的影片）
+ * POST /api/capture-screenshots
+ * Body: { videoId: string, screenshots: array, quality?: number }
+ */
+app.post('/api/capture-screenshots', async (req, res) => {
+  const { videoId, screenshots, quality = 2 } = req.body;
+
+  if (!videoId || !isValidVideoId(videoId)) {
+    return res.status(400).json({ error: 'Missing or invalid videoId format' });
+  }
+
+  if (!screenshots || !Array.isArray(screenshots) || screenshots.length === 0) {
+    return res.status(400).json({ error: 'Missing or invalid screenshots array' });
+  }
+
+  const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  const outputPath = path.join(DOWNLOAD_DIR, `${videoId}.mp4`);
+
+  try {
+    console.log(`\n========== 📸 開始截圖 ==========`);
+    console.log(`[Capture] Video ID: ${videoId}`);
+    console.log(`[Capture] Screenshot count: ${screenshots.length}`);
+    console.log(`[Capture] Quality: ${quality}`);
+
+    // 檢查 FFmpeg 是否安裝
+    console.log('[Capture] Checking FFmpeg installation...');
+    try {
+      const { stdout } = await execAsync('ffmpeg -version');
+      const version = stdout.split('\n')[0];
+      console.log(`[Capture] ✅ FFmpeg found: ${version}`);
+    } catch (error) {
+      console.error('[Capture] ❌ FFmpeg not found');
+      return res.status(500).json({
+        error: 'FFmpeg is not installed. Please install it first.',
+        details: 'This feature is only available in local environment with FFmpeg installed.'
+      });
+    }
+
+    // 步驟 1: 檢查本地是否已有影片
+    let needsDownload = !fs.existsSync(outputPath);
+
+    if (needsDownload) {
+      console.log('[Capture] 步驟 1/3: 本地無影片，開始下載...');
+
+      // 檢查 yt-dlp 是否安裝
+      try {
+        const { stdout } = await execAsync('yt-dlp --version');
+        console.log(`[Capture] ✅ yt-dlp version: ${stdout.trim()}`);
+      } catch (error) {
+        console.error(`[Capture] ❌ yt-dlp not found`);
+        return res.status(500).json({
+          error: 'yt-dlp is not installed. This feature is only available in local environment.',
+          details: 'Please install yt-dlp: https://github.com/yt-dlp/yt-dlp#installation'
+        });
+      }
+
+      // 根據截圖品質決定影片解析度
+      let formatSelector;
+      if (quality <= 10) {
+        formatSelector = '"bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/best"';
+        console.log(`[Capture] 截圖品質: ${quality}（高畫質）→ 目標影片解析度: 1080p`);
+      } else {
+        formatSelector = '"bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]/best"';
+        console.log(`[Capture] 截圖品質: ${quality}（壓縮）→ 目標影片解析度: 720p`);
+      }
+
+      const commandParts = [
+        'yt-dlp',
+        '--user-agent', '"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"',
+        '--referer', '"https://www.youtube.com/"',
+        '--sleep-requests', '1',
+        '--sleep-interval', '1',
+        '--force-ipv4',
+        '-f', formatSelector,
+        '--merge-output-format', 'mp4',
+        '-o', `"${outputPath}"`,
+        '--retries', '15',
+        '--fragment-retries', '15',
+        '--socket-timeout', '30',
+        `"${youtubeUrl}"`,
+      ];
+
+      const command = commandParts.join(' ');
+      console.log(`[Capture] Executing: ${command}`);
+
+      await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
+
+      if (!fs.existsSync(outputPath)) {
+        throw new Error('Video download failed - file not found');
+      }
+
+      console.log(`[Capture] ✅ 影片下載完成: ${outputPath}`);
+    } else {
+      console.log('[Capture] ✅ 本地已有影片，跳過下載');
+    }
+
+    // 步驟 2: 使用 FFmpeg 截取畫面
+    console.log('[Capture] 步驟 2/3: 正在截取關鍵畫面...');
+    console.log(`[Capture] 截圖品質設定: ${quality} (2=最高, 31=最低)`);
+
+    const imageUrls = [];
+    for (let i = 0; i < screenshots.length; i++) {
+      const screenshot = screenshots[i];
+      const timestamp = screenshot.timestamp_seconds;
+      const currentSeconds = timeToSeconds(timestamp);
+
+      const screenshotGroup = [];
+      const offsets = [
+        { offset: -2, label: 'before' },
+        { offset: 0, label: 'current' },
+        { offset: 2, label: 'after' }
+      ];
+
+      console.log(`[Capture] 截圖組 ${i + 1}/${screenshots.length} - 時間點: ${timestamp} - 原因: ${screenshot.reason_for_screenshot}`);
+
+      for (const { offset, label } of offsets) {
+        const targetSeconds = Math.max(0, currentSeconds + offset);
+        const targetTime = secondsToTime(targetSeconds);
+        const outputFilename = `${videoId}_screenshot_${i}_${label}_${targetTime.replace(':', '-')}.jpg`;
+        const screenshotPath = path.join(IMAGES_DIR, outputFilename);
+
+        try {
+          await captureScreenshot(outputPath, targetSeconds, screenshotPath, quality);
+          screenshotGroup.push(`/images/${outputFilename}`);
+          console.log(`[Capture] ✅ 截圖已儲存: ${outputFilename} (${label}: ${targetSeconds}s)`);
+        } catch (error) {
+          console.error(`[Capture] ❌ 截圖失敗 (時間點 ${targetSeconds}s, ${label}):`, error.message);
+        }
+      }
+
+      if (screenshotGroup.length > 0) {
+        imageUrls.push(screenshotGroup);
+      }
+    }
+
+    // 步驟 3: 完成
+    console.log(`[Capture] ✅ 已完成截圖，暫存檔案保留供後續使用: ${outputPath}`);
+    console.log(`========== 截圖完成 ==========\n`);
+
+    res.json({
+      success: true,
+      image_urls: imageUrls,
+      screenshots: screenshots,
+      videoPath: outputPath
+    });
+
+  } catch (error) {
+    console.error('Screenshot capture error:', error);
+
+    res.status(500).json({
+      error: 'Failed to capture screenshots',
+      details: error.message,
+      isLocalOnly: true,
+      hint: 'This feature requires yt-dlp and FFmpeg to be installed locally.'
+    });
+  }
+});
+
+/**
+ * 生成文章（用於非公開影片，不包含截圖）
  * POST /api/generate-article
- * Body: { videoId: string, filePath: string, prompt: string, videoTitle: string, quality?: number }
- * 注意：filePath 是必需的，因為需要本地檔案來截圖
+ * Body: { videoId: string, filePath: string, prompt: string, videoTitle: string }
+ * 注意：filePath 是必需的，用於上傳到 Gemini
+ * 截圖功能已分離到 /api/capture-screenshots 端點
  */
 app.post('/api/generate-article', async (req, res) => {
-  const { videoId, filePath, prompt, videoTitle, quality = 2 } = req.body;
+  const { videoId, filePath, prompt, videoTitle } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
@@ -968,24 +1057,10 @@ app.post('/api/generate-article', async (req, res) => {
   }
 
   try {
-    console.log(`\n========== 📝 開始生成文章 ==========`);
+    console.log(`\n========== 📝 開始生成文章（未公開影片）==========`);
     console.log(`[Article] Video ID: ${videoId}`);
     console.log(`[Article] File Path: ${filePath}`);
     console.log(`[Article] Video Title: ${videoTitle}`);
-
-    // 檢查 FFmpeg 是否安裝
-    console.log('[Article] Checking FFmpeg installation...');
-    try {
-      const { stdout } = await execAsync('ffmpeg -version');
-      const version = stdout.split('\n')[0];
-      console.log(`[Article] ✅ FFmpeg found: ${version}`);
-    } catch (error) {
-      console.error('[Article] ❌ FFmpeg not found');
-      return res.status(500).json({
-        error: 'FFmpeg is not installed. Please install it first.',
-        details: 'Install FFmpeg: brew install ffmpeg (macOS) or sudo apt install ffmpeg (Ubuntu)'
-      });
-    }
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -1062,7 +1137,7 @@ app.post('/api/generate-article', async (req, res) => {
       }
 
     // 生成文章提示詞
-    console.log(reusedFile ? '[Article] 步驟 3/5: 正在生成文章內容與截圖時間點...' : '[Article] 步驟 4/5: 正在生成文章內容與截圖時間點...');
+    console.log(reusedFile ? '[Article] 步驟 3/4: 正在生成文章內容與截圖時間點...' : '[Article] 步驟 4/5: 正在生成文章內容與截圖時間點...');
     const fullPrompt = generateArticlePrompt(videoTitle, prompt);
 
     // 呼叫 Gemini API 生成文章與截圖時間點
@@ -1109,49 +1184,10 @@ app.post('/api/generate-article', async (req, res) => {
       throw new Error(`無法解析 Gemini 回應為 JSON 格式。錯誤：${parseError.message}`);
     }
 
-    // 使用 FFmpeg 截取畫面
-    // 每個時間點截取 3 張圖片：前 2 秒、當前、後 2 秒
-    console.log(reusedFile ? '[Article] 步驟 4/5: 正在截取關鍵畫面...' : '[Article] 步驟 5/5: 正在截取關鍵畫面...');
-    console.log(`[Article] 截圖品質設定: ${quality} (2=最高, 31=最低)`);
-
-    const imageUrls = [];
-    for (let i = 0; i < result.screenshots.length; i++) {
-      const screenshot = result.screenshots[i];
-      const timestamp = screenshot.timestamp_seconds; // 格式：mm:ss
-      const currentSeconds = timeToSeconds(timestamp);
-
-      const screenshotGroup = [];
-      const offsets = [
-        { offset: -2, label: 'before' },
-        { offset: 0, label: 'current' },
-        { offset: 2, label: 'after' }
-      ];
-
-      console.log(`[Article] 截圖組 ${i + 1}/${result.screenshots.length} - 時間點: ${timestamp} - 原因: ${screenshot.reason_for_screenshot}`);
-
-      for (const { offset, label } of offsets) {
-        const targetSeconds = Math.max(0, currentSeconds + offset); // 確保不會小於 0
-        const targetTime = secondsToTime(targetSeconds); // 僅用於檔名
-        const outputFilename = `${videoId}_screenshot_${i}_${label}_${targetTime.replace(':', '-')}.jpg`;
-        const outputPath = path.join(IMAGES_DIR, outputFilename);
-
-        try {
-          await captureScreenshot(filePath, targetSeconds, outputPath, quality);
-          screenshotGroup.push(`/images/${outputFilename}`);
-          console.log(`[Article] ✅ 截圖已儲存: ${outputFilename} (${label}: ${targetSeconds}s)`);
-        } catch (error) {
-          console.error(`[Article] ❌ 截圖失敗 (時間點 ${targetSeconds}s, ${label}):`, error.message);
-          // 如果某張截圖失敗，仍然繼續處理其他截圖
-        }
-      }
-
-      if (screenshotGroup.length > 0) {
-        imageUrls.push(screenshotGroup);
-      }
-    }
-
-    // 保留暫存影片檔案供後續重新截圖使用
-    console.log(`[Article] ✅ 已完成截圖，暫存檔案保留供後續使用: ${filePath}`);
+    // 不執行截圖，保留影片檔案供後續 /api/capture-screenshots 使用
+    console.log(`[Article] ✅ 文章生成完成！截圖時間點已規劃`);
+    console.log(`[Article] ℹ️  如需截圖，請使用「截圖」按鈕（需要本地環境或支援 yt-dlp 的環境）`);
+    console.log(`[Article] 暫存檔案保留供截圖使用: ${filePath}`);
     console.log(`========== 文章生成完成 ==========\n`);
 
     res.json({
@@ -1161,8 +1197,10 @@ app.post('/api/generate-article', async (req, res) => {
       titleC: result.titleC,
       article: result.article_text,
       seo_description: result.seo_description,
-      image_urls: imageUrls,
+      image_urls: [], // 尚未截圖
       screenshots: result.screenshots,
+      needsScreenshots: true, // 標記需要截圖
+      videoId: videoId, // 用於後續截圖
       geminiFileName: uploadedFile.name,
       geminiFileUri: uploadedFile.uri
     });

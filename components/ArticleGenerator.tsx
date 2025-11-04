@@ -23,6 +23,7 @@ const getServerBaseUrl = () => import.meta.env?.VITE_SERVER_BASE_URL || 'http://
 export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRegeneratingScreenshots, setIsRegeneratingScreenshots] = useState(false);
+  const [isCapturingScreenshots, setIsCapturingScreenshots] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ArticleGenerationResult | null>(null);
   const [customPrompt, setCustomPrompt] = useState('');
@@ -155,8 +156,10 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
         titleC: generateData.titleC,
         article: generateData.article,
         seo_description: generateData.seo_description,
-        image_urls: generateData.image_urls,
-        screenshots: generateData.screenshots
+        image_urls: generateData.image_urls || [],
+        screenshots: generateData.screenshots,
+        needsScreenshots: generateData.needsScreenshots,
+        videoId: generateData.videoId || video.id
       });
 
     } catch (err: any) {
@@ -206,6 +209,57 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
     } finally {
       setIsRegeneratingScreenshots(false);
       setLoadingStep('');
+    }
+  };
+
+  const handleCaptureScreenshots = async () => {
+    if (!result?.videoId || !result?.screenshots) {
+      setError('無法執行截圖：缺少必要資訊');
+      return;
+    }
+
+    setIsCapturingScreenshots(true);
+    setError(null);
+    setLoadingStep('準備截圖...');
+
+    try {
+      console.log('[Article] Capturing screenshots...');
+
+      const response = await fetch(`${getServerBaseUrl()}/api/capture-screenshots`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          videoId: result.videoId,
+          screenshots: result.screenshots,
+          quality: screenshotQuality,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '截圖失敗');
+      }
+
+      const data = await response.json();
+      console.log('[Article] Screenshots captured successfully');
+
+      // 更新結果，添加截圖 URLs
+      setResult({
+        ...result,
+        image_urls: data.image_urls,
+        needsScreenshots: false, // 截圖完成，不再需要
+      });
+
+      setLoadingStep('');
+
+    } catch (err: any) {
+      console.error('[Article] Screenshot capture error:', err);
+      setError(err.message || '截圖時發生錯誤');
+      setLoadingStep('');
+    } finally {
+      setIsCapturingScreenshots(false);
     }
   };
 
@@ -397,15 +451,30 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
 
           {result && (
             <div className="space-y-6">
-              <div className="px-4 py-3 rounded-lg space-y-1 bg-green-50 border border-green-200 text-green-700">
-                <p className="font-semibold">✓ 文章生成成功</p>
-                <p className="text-sm">
-                  已擷取 {result.image_urls.length} 組關鍵畫面（每組 3 張，共 {result.image_urls.reduce((acc, group) => acc + group.length, 0)} 張）
-                </p>
-                <p className="text-xs text-green-600/80">
-                  💡 內容包含：三種標題風格、SEO 描述、完整文章（Markdown 格式）、關鍵畫面截圖（可複製使用）
-                </p>
-              </div>
+              {result.needsScreenshots ? (
+                <div className="px-4 py-3 rounded-lg space-y-1 bg-blue-50 border border-blue-200 text-blue-700">
+                  <p className="font-semibold">✓ 文章生成成功（部分完成）</p>
+                  <p className="text-sm">
+                    已規劃 {result.screenshots?.length || 0} 個截圖時間點，可點擊「截圖」按鈕執行截圖（需要本地環境）
+                  </p>
+                  <p className="text-xs text-blue-600/80">
+                    💡 內容包含：三種標題風格、SEO 描述、完整文章（Markdown 格式）、截圖時間點規劃
+                  </p>
+                  <p className="text-xs text-blue-600/80">
+                    ℹ️ 截圖功能需要 FFmpeg 和 yt-dlp，請在本地環境中執行
+                  </p>
+                </div>
+              ) : (
+                <div className="px-4 py-3 rounded-lg space-y-1 bg-green-50 border border-green-200 text-green-700">
+                  <p className="font-semibold">✓ 文章生成成功</p>
+                  <p className="text-sm">
+                    已擷取 {result.image_urls.length} 組關鍵畫面（每組 3 張，共 {result.image_urls.reduce((acc, group) => acc + group.length, 0)} 張）
+                  </p>
+                  <p className="text-xs text-green-600/80">
+                    💡 內容包含：三種標題風格、SEO 描述、完整文章（Markdown 格式）、關鍵畫面截圖（可複製使用）
+                  </p>
+                </div>
+              )}
 
               <div>
                 <div className="mb-3">
@@ -471,27 +540,48 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
                 </div>
               </div>
 
-              {result.image_urls.length > 0 && (
+              {result.screenshots && result.screenshots.length > 0 && (
                 <div>
                   <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-lg font-semibold text-neutral-900">關鍵畫面截圖</h3>
-                    <button
-                      onClick={handleRegenerateScreenshots}
-                      disabled={isRegeneratingScreenshots}
-                      className="text-white font-semibold py-2 px-4 rounded-full transition-transform flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 hover:scale-[1.01]"
-                    >
-                      {isRegeneratingScreenshots ? (
-                        <>
-                          <Loader />
-                          <span>重新截圖中...</span>
-                        </>
+                    <h3 className="text-lg font-semibold text-neutral-900">
+                      {result.needsScreenshots ? '截圖時間點規劃' : '關鍵畫面截圖'}
+                    </h3>
+                    <div className="flex gap-2">
+                      {result.needsScreenshots ? (
+                        <button
+                          onClick={handleCaptureScreenshots}
+                          disabled={isCapturingScreenshots}
+                          className="text-white font-semibold py-2 px-4 rounded-full transition-transform flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 hover:scale-[1.01]"
+                        >
+                          {isCapturingScreenshots ? (
+                            <>
+                              <Loader />
+                              <span>截圖中...</span>
+                            </>
+                          ) : (
+                            '📸 截圖'
+                          )}
+                        </button>
                       ) : (
-                        '🔄 重新截圖'
+                        <button
+                          onClick={handleRegenerateScreenshots}
+                          disabled={isRegeneratingScreenshots}
+                          className="text-white font-semibold py-2 px-4 rounded-full transition-transform flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 hover:scale-[1.01]"
+                        >
+                          {isRegeneratingScreenshots ? (
+                            <>
+                              <Loader />
+                              <span>重新截圖中...</span>
+                            </>
+                          ) : (
+                            '🔄 重新截圖'
+                          )}
+                        </button>
                       )}
-                    </button>
+                    </div>
                   </div>
 
-                  {isRegeneratingScreenshots && loadingStep && (
+                  {(isRegeneratingScreenshots || isCapturingScreenshots) && loadingStep && (
                     <div className="px-4 py-3 rounded-lg mb-4 bg-neutral-100 border border-neutral-200 text-neutral-600">
                       <div className="flex items-center gap-3">
                         <Loader />
@@ -500,49 +590,75 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
                     </div>
                   )}
 
-                  {!isRegeneratingScreenshots && (
+                  {!isRegeneratingScreenshots && !isCapturingScreenshots && (
                     <div className="space-y-1 mb-4">
-                      <p className="text-xs text-neutral-500">
-                        💡 提示：如果截圖時間點不理想，可使用「重新截圖」功能，讓 Gemini AI 重新分析並選擇更合適的畫面
-                      </p>
-                      <p className="text-xs text-neutral-400">
-                        🔄 重新截圖流程：檢查本地檔案 → 下載影片（如需要） → Gemini AI 重新觀看影片 → 規劃新的截圖時間點 → FFmpeg 擷取畫面（約 1-3 分鐘）
-                      </p>
+                      {result.needsScreenshots ? (
+                        <>
+                          <p className="text-xs text-blue-600">
+                            💡 AI 已規劃好截圖時間點，點擊「截圖」按鈕開始擷取畫面
+                          </p>
+                          <p className="text-xs text-neutral-400">
+                            ⚠️ 截圖功能需要 FFmpeg 和 yt-dlp，僅在本地環境可用
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-xs text-neutral-500">
+                            💡 提示：如果截圖時間點不理想，可使用「重新截圖」功能，讓 Gemini AI 重新分析並選擇更合適的畫面
+                          </p>
+                          <p className="text-xs text-neutral-400">
+                            🔄 重新截圖流程：檢查本地檔案 → 下載影片（如需要） → Gemini AI 重新觀看影片 → 規劃新的截圖時間點 → FFmpeg 擷取畫面（約 1-3 分鐘）
+                          </p>
+                        </>
+                      )}
                     </div>
                   )}
 
-                  <p className="text-xs mb-3 text-neutral-400">
-                    📸 每個關鍵時間點提供 3 張截圖（當前畫面 ± 2 秒），讓您選擇最佳構圖
-                  </p>
+                  {!result.needsScreenshots && (
+                    <p className="text-xs mb-3 text-neutral-400">
+                      📸 每個關鍵時間點提供 3 張截圖（當前畫面 ± 2 秒），讓您選擇最佳構圖
+                    </p>
+                  )}
 
                   <div className="space-y-6">
-                    {result.image_urls.map((screenshotGroup, groupIndex) => (
+                    {result.screenshots.map((screenshot, groupIndex) => (
                       <div
                         key={groupIndex}
                         className="rounded-lg p-4 bg-white border border-neutral-200 shadow-sm"
                       >
                         <div className="mb-3">
                           <p className="text-sm font-semibold text-neutral-700">
-                            時間點: {result.screenshots[groupIndex]?.timestamp_seconds}
+                            時間點: {screenshot.timestamp_seconds}
                           </p>
                           <p className="text-sm mt-1 text-neutral-600">
-                            {result.screenshots[groupIndex]?.reason_for_screenshot}
+                            {screenshot.reason_for_screenshot}
                           </p>
                         </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          {screenshotGroup.map((url, imageIndex) => (
-                            <div key={imageIndex} className="relative">
-                              <img
-                                src={`${getServerBaseUrl()}${url}`}
-                                alt={`Screenshot ${groupIndex + 1}-${imageIndex + 1}`}
-                                className="w-full h-auto rounded-lg border border-neutral-200 shadow-sm"
-                              />
-                              <div className="text-xs text-center mt-1 text-neutral-500">
-                                {imageIndex === 0 ? '-2s' : imageIndex === 1 ? '當前' : '+2s'}
+
+                        {result.image_urls && result.image_urls[groupIndex] ? (
+                          <div className="grid grid-cols-3 gap-2">
+                            {result.image_urls[groupIndex].map((url, imageIndex) => (
+                              <div key={imageIndex} className="relative">
+                                <img
+                                  src={`${getServerBaseUrl()}${url}`}
+                                  alt={`Screenshot ${groupIndex + 1}-${imageIndex + 1}`}
+                                  className="w-full h-auto rounded-lg border border-neutral-200 shadow-sm"
+                                />
+                                <div className="text-xs text-center mt-1 text-neutral-500">
+                                  {imageIndex === 0 ? '-2s' : imageIndex === 1 ? '當前' : '+2s'}
+                                </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 px-4 bg-neutral-50 rounded-lg border-2 border-dashed border-neutral-300">
+                            <svg className="mx-auto h-12 w-12 text-neutral-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <p className="text-sm text-neutral-500">等待截圖...</p>
+                            <p className="text-xs text-neutral-400 mt-1">點擊上方「截圖」按鈕開始擷取</p>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
