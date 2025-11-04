@@ -46,7 +46,7 @@ Docker 分支包含：
 
 ## ✨ 專案特色
 
-### 🎯 兩大核心功能
+### 🎯 三大核心功能
 
 1. **SEO 中繼資料自動生成**
    - 三種風格的標題選項（關鍵字導向、懸念導向、效益導向）
@@ -59,6 +59,12 @@ Docker 分支包含：
    - 自動識別關鍵畫面並截圖
    - SEO 強化的 meta description
    - 支援 Markdown 和 HTML 格式輸出
+
+3. **影片表現分析與改善建議**
+   - 智慧分析頻道影片表現數據
+   - 提供優先級排序的改善建議
+   - AI 驅動的關鍵字分析與改善方案
+   - 深入剖析流量來源與搜尋表現
 
 ### 🚀 技術亮點
 
@@ -143,6 +149,35 @@ FILE_RETENTION_DAYS=14  # 保留 14 天
 2. 使用 FFmpeg 自動截圖
 3. 每個時間點附上說明與理由
 4. 整合為圖文並茂的文章
+
+### 功能 3：影片表現分析
+
+**適用場景**：找出頻道中需要改善的影片，提升整體頻道表現
+
+**核心功能**：
+
+**數據分析面板**
+- 📊 觀看次數、觀看時長百分比、按讚數、留言數、分享數
+- 📈 平均觀看時長、按讚比率、訂閱者增長
+- 🔍 流量來源分析（YouTube 搜尋、Google 搜尋、建議影片、外部來源）
+- 👁️ 曝光次數與點擊率（CTR）分析
+
+**智慧優先級排序**
+- 🎯 根據多項指標計算優先分數
+- 💡 自動標記需要改善的原因（搜尋流量低、觀看時長短、CTR 低等）
+- 📅 支援 1 年、2 年、3 年、5 年等時間範圍分析
+- 🔄 快取機制避免重複 API 請求
+
+**AI 關鍵字分析**
+- 🤖 Gemini AI 深度分析現有關鍵字優缺點
+- 🎯 提供主要、次要、長尾關鍵字建議
+- 📝 生成標題改善建議與說明改善方向
+- 📋 提供具體執行步驟的改善計畫
+
+**詳細流量分析**
+- 🔎 查看實際搜尋關鍵字（前 25 名）及其觀看次數
+- 🌐 分析外部流量來源（網站、社群媒體等）
+- 📊 視覺化呈現流量來源分佈
 
 ---
 
@@ -328,6 +363,11 @@ npm run dev:all
 2. 搜尋「YouTube Data API v3」
 3. 點選並啟用
 
+**啟用 YouTube Analytics API**
+1. 搜尋「YouTube Analytics API」
+2. 點選並啟用
+3. 此 API 用於影片表現分析功能
+
 **啟用 Generative Language API（Gemini）**
 1. 搜尋「Generative Language API」
 2. 點選並啟用
@@ -343,7 +383,8 @@ npm run dev:all
    - 開發人員聯絡資訊：你的 Gmail
 4. 點選「儲存並繼續」
 5. **範圍設定**：點選「新增或移除範圍」
-   - 搜尋並勾選 `https://www.googleapis.com/auth/youtube`
+   - 搜尋並勾選 `https://www.googleapis.com/auth/youtube`（用於影片管理）
+   - 搜尋並勾選 `https://www.googleapis.com/auth/yt-analytics.readonly`（用於影片分析）
    - 點選「更新」
 6. **測試使用者**：點選「新增使用者」
    - 輸入你的 Gmail 帳號
@@ -473,6 +514,73 @@ YOUTUBE_CLIENT_ID=你的_用戶端_ID.apps.googleusercontent.com
 - 點選「複製 HTML」：複製帶圖片的 HTML 格式
 - 直接貼到你的部落格或內容管理系統
 
+### 使用功能 3：影片表現分析
+
+**步驟 1：切換到分析頁面**
+1. 登入後，在頁面頂端點選「📊 影片分析」標籤
+2. 首次使用會看到時間範圍選擇器
+
+**步驟 2：選擇分析範圍並開始分析**
+1. 選擇要分析的時間範圍：
+   - 1 年（建議，避免超過 API 配額）
+   - 2 年
+   - 3 年
+   - 5 年
+2. 點選「🚀 開始分析」
+3. 等待分析完成（通常 1-2 分鐘，視影片數量而定）
+
+**步驟 3：查看分析結果**
+1. 查看找到的影片數量和分析摘要
+2. 影片按優先分數排序（分數越高越需要改善）
+3. 每支影片顯示：
+   - 排名徽章
+   - 影片縮圖和標題
+   - 發布日期
+   - 關鍵指標（觀看次數、觀看時長%、搜尋流量%、優先分數）
+   - 更新建議標籤（標示需要改善的原因）
+
+**步驟 4：展開查看詳細分析**
+1. 點選任一影片卡片展開詳細資訊
+2. 查看完整的數據指標面板：
+   - 互動數據（按讚、留言、分享、訂閱者增長）
+   - 流量來源分佈
+   - 曝光與點擊率分析
+
+**步驟 5：使用 AI 關鍵字分析（可選）**
+1. 在展開的影片詳情中，點選「🤖 AI 關鍵字分析」
+2. 等待 Gemini AI 分析（約 10-30 秒）
+3. 查看分析結果：
+   - **現有關鍵字評分**：優點和弱點分析
+   - **建議關鍵字**：主要、次要、長尾關鍵字
+   - **標題建議**：具體的改善方向
+   - **說明改善建議**：如何改善影片說明
+   - **執行計畫**：優先級、預估影響、具體步驟
+   - **中繼資料提示**：標題鉤子、說明角度、行動呼籲
+
+**步驟 6：查看詳細流量數據（可選）**
+1. 點選「🔍 查看搜尋關鍵字詳情」：
+   - 查看前 25 個搜尋關鍵字及其觀看次數
+   - 了解觀眾實際用什麼詞找到你的影片
+2. 點選「🌐 查看外部流量詳情」：
+   - 查看外部網站、社群媒體等流量來源
+   - 了解哪些平台為你的影片帶來流量
+
+**步驟 7：根據分析結果改善影片**
+1. 使用「生成中繼資料」功能重新生成標題、說明、標籤
+2. 在生成時可參考關鍵字分析的建議
+3. 更新到 YouTube
+
+**進階功能**：
+- **載入更多**：點選「⏳ 載入更多（往前 1 年）」繼續分析更早的影片
+- **重新分析**：點選「🔄 重新分析」刷新數據
+- **清除快取**：點選「🗑️ 清除快取」重置分析結果
+
+**小技巧**：
+- 分析結果會快取 24 小時，避免重複 API 請求
+- 優先處理分數高的影片，效益最大
+- 結合關鍵字分析和流量來源，制定精準的改善策略
+- 定期（每月或每季）重新分析，追蹤改善成效
+
 ---
 
 ## 🏗️ 技術架構
@@ -488,6 +596,7 @@ YOUTUBE_CLIENT_ID=你的_用戶端_ID.apps.googleusercontent.com
 │  - YouTube OAuth 認證                                        │
 │  - 影片列表管理                                              │
 │  - 內容編輯器                                                │
+│  - 影片表現分析介面                                          │
 └────────────────┬──────────────────────────────────┬─────────┘
                  │                                  │
                  ↓                                  ↓
@@ -496,19 +605,20 @@ YOUTUBE_CLIENT_ID=你的_用戶端_ID.apps.googleusercontent.com
     │                        │        │  (Port 3001)           │
     │  - OAuth 認證          │←──────→│                        │
     │  - 影片列表            │        │  - yt-dlp 下載         │
-    │  - 中繼資料（Metadata）更新          │        │  - Gemini File API     │
+    │  - 中繼資料更新        │        │  - Gemini File API     │
     │                        │        │  - FFmpeg 截圖         │
     └────────────────────────┘        │  - 內容快取            │
-                                      └────────┬───────────────┘
-                                               │
-                                               ↓
-                                      ┌────────────────┐
-                                      │  Gemini API    │
-                                      │                │
-                                      │  - 影片分析    │
-                                      │  - 內容生成    │
-                                      │  - 智慧快取    │
-                                      └────────────────┘
+                 ↓                    └────────┬───────────────┘
+    ┌────────────────────────┐                │
+    │  YouTube Analytics API │                ↓
+    │                        │       ┌────────────────┐
+    │  - 影片表現數據        │       │  Gemini API    │
+    │  - 流量來源分析        │       │                │
+    │  - 搜尋關鍵字統計      │       │  - 影片分析    │
+    │  - 曝光與點擊率        │       │  - 內容生成    │
+    └────────────────────────┘       │  - 關鍵字分析  │
+                                     │  - 智慧快取    │
+                                     └────────────────┘
 ```
 
 ### 技術棧
@@ -532,7 +642,8 @@ YOUTUBE_CLIENT_ID=你的_用戶端_ID.apps.googleusercontent.com
 
 **Google APIs**
 - YouTube Data API v3 - 影片管理
-- Gemini 2.5 Flash - AI 內容生成
+- YouTube Analytics API - 影片表現數據分析
+- Gemini 2.5 Flash - AI 內容生成與關鍵字分析
 - Gemini File API - 影片檔案管理
 
 ---
@@ -555,7 +666,11 @@ ai-video-writer/
 │   │   ├── VideoDetailPanel.tsx       # 影片詳情面板
 │   │   ├── MetadataGenerator.tsx      # SEO 中繼資料（Metadata）生成器
 │   │   ├── ArticleGenerator.tsx       # 文章生成器
+│   │   ├── VideoAnalytics.tsx         # 影片表現分析主元件
+│   │   ├── VideoAnalyticsExpandedView.tsx  # 影片分析展開檢視
 │   │   ├── Header.tsx                 # 頁面標題
+│   │   ├── Footer.tsx                 # 頁面底部
+│   │   ├── Loader.tsx                 # 載入動畫
 │   │   └── [其他 UI 元件]
 │   │
 │   ├── hooks/                         # React Hooks
@@ -595,11 +710,13 @@ ai-video-writer/
 
 | 檔案 | 行數 | 功能 |
 |------|------|------|
-| **server.js** | ~1270 行 | Express 主伺服器，處理所有後端邏輯 |
-| **App.tsx** | ~270 行 | React 主控制器，管理登入與影片列表 |
-| **MetadataGenerator.tsx** | ~325 行 | SEO 中繼資料（Metadata）生成器 |
+| **server.js** | ~1550 行 | Express 主伺服器，處理所有後端邏輯與 API 端點 |
+| **App.tsx** | ~270 行 | React 主控制器，管理登入、影片列表與頁面切換 |
+| **MetadataGenerator.tsx** | ~325 行 | SEO 中繼資料生成器 |
 | **ArticleGenerator.tsx** | ~345 行 | 文章生成器（兩階段流程） |
-| **promptService.js** | ~95 行 | SEO 中繼資料（Metadata）提示詞 |
+| **VideoAnalytics.tsx** | ~714 行 | 影片表現分析主元件（含快取管理） |
+| **VideoAnalyticsExpandedView.tsx** | ~600+ 行 | 影片分析詳細資訊展開檢視 |
+| **promptService.js** | ~95 行 | SEO 中繼資料提示詞服務 |
 | **articlePromptService.js** | ~60 行 | 文章生成提示詞服務 |
 
 ---
@@ -743,15 +860,20 @@ const API_BASE_URL = 'http://localhost:3001/api';  // 改為對應的 port
 **位置**：`config.ts`
 
 ```typescript
-// 原本：完整 YouTube 管理權限
+// 目前設定：完整 YouTube 管理權限 + 分析權限（包含影片分析功能）
+export const YOUTUBE_SCOPES = 'https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/yt-analytics.readonly';
+
+// 改為：僅影片管理，不含分析（將無法使用影片表現分析功能）
 export const YOUTUBE_SCOPES = 'https://www.googleapis.com/auth/youtube';
 
-// 改為：唯讀權限（無法更新影片）
+// 改為：唯讀權限（無法更新影片，無分析功能）
 export const YOUTUBE_SCOPES = 'https://www.googleapis.com/auth/youtube.readonly';
 
-// 改為：僅上傳權限
+// 改為：僅上傳權限（無分析功能）
 export const YOUTUBE_SCOPES = 'https://www.googleapis.com/auth/youtube.upload';
 ```
+
+**重要提醒**：如果需要使用「影片表現分析」功能，必須包含 `https://www.googleapis.com/auth/yt-analytics.readonly` 範圍。
 
 ### 新增自訂提示詞欄位
 
