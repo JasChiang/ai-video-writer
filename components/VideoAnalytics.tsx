@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader } from './Loader';
 import * as youtubeService from '../services/youtubeService';
 import { VideoAnalyticsExpandedView } from './VideoAnalyticsExpandedView';
@@ -75,21 +75,50 @@ interface KeywordAnalysis {
   };
 }
 
+const ANALYTICS_CACHE_KEY = 'videoAnalytics.cache';
+const ACTIVE_CHANNEL_STORAGE_KEY = 'videoAnalytics.activeChannelId';
+const LEGACY_DATA_KEY = 'videoAnalyticsData';
+const LEGACY_TIMESTAMP_KEY = 'videoAnalyticsTimestamp';
+const LEGACY_CHANNEL_KEY = 'channelId';
+const CACHE_TTL = 24 * 60 * 60 * 1000;
+
+interface AnalyticsCachePayload {
+  channelId: string;
+  timestamp: number;
+  yearRange: number;
+  data: VideoAnalyticsData[];
+}
+
 export function VideoAnalytics() {
   const [isLoading, setIsLoading] = useState(false);
   const [analyticsData, setAnalyticsData] = useState<VideoAnalyticsData[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [expandedVideoId, setExpandedVideoId] = useState<string | null>(null);
+  const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
   const [keywordAnalysisCache, setKeywordAnalysisCache] = useState<Record<string, KeywordAnalysis>>({});
   const [isAnalyzingKeywords, setIsAnalyzingKeywords] = useState(false);
   const [selectedYears, setSelectedYears] = useState(1); // 預設 1 年
   const [currentYearRange, setCurrentYearRange] = useState(1); // 當前已載入的年份範圍
   const [showMetadataGenerator, setShowMetadataGenerator] = useState<Record<string, boolean>>({});
+  const previousChannelIdRef = useRef<string | null>(null);
 
-  const persistAnalyticsData = useCallback((data: VideoAnalyticsData[]) => {
+  const persistAnalyticsData = useCallback((channelId: string, data: VideoAnalyticsData[], yearRange: number) => {
+    if (!channelId) return;
+
+    const payload: AnalyticsCachePayload = {
+      channelId,
+      timestamp: Date.now(),
+      yearRange: Math.max(1, Number.isFinite(yearRange) ? yearRange : 1),
+      data,
+    };
+
     try {
-      localStorage.setItem('videoAnalyticsData', JSON.stringify(data));
-      localStorage.setItem('videoAnalyticsTimestamp', Date.now().toString());
+      localStorage.setItem(ANALYTICS_CACHE_KEY, JSON.stringify(payload));
+      localStorage.setItem(ACTIVE_CHANNEL_STORAGE_KEY, channelId);
+      // 保留舊版鍵值，提供其他元件相容性
+      localStorage.setItem(LEGACY_CHANNEL_KEY, channelId);
+      localStorage.removeItem(LEGACY_DATA_KEY);
+      localStorage.removeItem(LEGACY_TIMESTAMP_KEY);
     } catch (error) {
       console.warn('Failed to persist analytics data', error);
     }
@@ -115,30 +144,117 @@ export function VideoAnalytics() {
           };
         });
 
-        persistAnalyticsData(updated);
+        if (activeChannelId) {
+          persistAnalyticsData(activeChannelId, updated, currentYearRange || selectedYears || 1);
+        }
         return updated;
       });
     },
-    [persistAnalyticsData]
+    [activeChannelId, currentYearRange, persistAnalyticsData, selectedYears]
   );
 
-  // 從 localStorage 載入快取的分析數據
+  // 復原並確認目前的頻道 ID，以便後續比對快取
   useEffect(() => {
-    const cached = localStorage.getItem('videoAnalyticsData');
-    const cachedTimestamp = localStorage.getItem('videoAnalyticsTimestamp');
-    if (cached && cachedTimestamp) {
-      const timestamp = parseInt(cachedTimestamp);
-      const now = Date.now();
-      // 快取 24 小時內有效
-      if (now - timestamp < 24 * 60 * 60 * 1000) {
-        setAnalyticsData(JSON.parse(cached));
-      } else {
-        // 過期，清除快取
-        localStorage.removeItem('videoAnalyticsData');
-        localStorage.removeItem('videoAnalyticsTimestamp');
+    let isMounted = true;
+
+    const restoreChannelIdFromStorage = () => {
+      try {
+        const stored = localStorage.getItem(ACTIVE_CHANNEL_STORAGE_KEY) || localStorage.getItem(LEGACY_CHANNEL_KEY);
+        if (stored && isMounted) {
+          setActiveChannelId(prev => prev ?? stored);
+        }
+      } catch (error) {
+        console.warn('Failed to restore channel ID from storage', error);
+      }
+    };
+
+    const resolveChannelId = async () => {
+      try {
+        const channelId = await youtubeService.getChannelId();
+        if (!isMounted || !channelId) return;
+
+        setActiveChannelId(prev => (prev === channelId ? prev : channelId));
+        localStorage.setItem(ACTIVE_CHANNEL_STORAGE_KEY, channelId);
+        localStorage.setItem(LEGACY_CHANNEL_KEY, channelId);
+      } catch (error) {
+        console.warn('Failed to resolve channel ID for analytics cache', error);
+      }
+    };
+
+    restoreChannelIdFromStorage();
+    resolveChannelId();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // 根據當前頻道載入對應的快取，若不相符則清除舊資料
+  useEffect(() => {
+    if (!activeChannelId) return;
+
+    const previousChannelId = previousChannelIdRef.current;
+    if (previousChannelId !== null && previousChannelId === activeChannelId) {
+      return;
+    }
+
+    const channelChanged = Boolean(previousChannelId && previousChannelId !== activeChannelId);
+    previousChannelIdRef.current = activeChannelId;
+
+    if (channelChanged) {
+      setAnalyticsData([]);
+      setKeywordAnalysisCache({});
+      setExpandedVideoId(null);
+      setShowMetadataGenerator({});
+      setCurrentYearRange(1);
+    }
+
+    const now = Date.now();
+    let cacheApplied = false;
+
+    try {
+      const raw = localStorage.getItem(ANALYTICS_CACHE_KEY);
+      if (raw) {
+        const payload = JSON.parse(raw) as AnalyticsCachePayload;
+        if (payload.channelId === activeChannelId) {
+          if (now - payload.timestamp < CACHE_TTL && Array.isArray(payload.data)) {
+            setAnalyticsData(payload.data);
+            setCurrentYearRange(Math.max(1, Number.isFinite(payload.yearRange) ? payload.yearRange : 1));
+            cacheApplied = true;
+          } else {
+            localStorage.removeItem(ANALYTICS_CACHE_KEY);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load analytics cache', error);
+    }
+
+    if (!cacheApplied) {
+      const legacyDataRaw = localStorage.getItem(LEGACY_DATA_KEY);
+      const legacyTimestampRaw = localStorage.getItem(LEGACY_TIMESTAMP_KEY);
+      const legacyChannelId = localStorage.getItem(LEGACY_CHANNEL_KEY);
+
+      if (legacyDataRaw && legacyTimestampRaw && legacyChannelId === activeChannelId) {
+        const legacyTimestamp = parseInt(legacyTimestampRaw, 10);
+        if (Number.isFinite(legacyTimestamp) && now - legacyTimestamp < CACHE_TTL) {
+          try {
+            const legacyData = JSON.parse(legacyDataRaw);
+            if (Array.isArray(legacyData)) {
+              setAnalyticsData(legacyData);
+              setCurrentYearRange(1);
+              persistAnalyticsData(activeChannelId, legacyData, 1);
+              cacheApplied = true;
+            }
+          } catch (error) {
+            console.warn('Failed to parse legacy analytics cache', error);
+          }
+        }
       }
     }
-  }, []);
+
+    // 若未載入任何快取，保留當前狀態，讓使用者重新觸發分析
+  }, [activeChannelId, persistAnalyticsData]);
 
   const fetchAnalytics = async (yearsToFetch: number = selectedYears, append: boolean = false) => {
     setIsLoading(true);
@@ -152,13 +268,20 @@ export function VideoAnalytics() {
         throw new Error('請先登入 YouTube 帳號');
       }
 
-      // 確保更新頻道 ID 快取（避免切換頻道仍使用舊值）
-      localStorage.setItem('channelId', channelId);
+      // 確保更新頻道 ID（避免切換頻道仍使用舊值）
+      try {
+        localStorage.setItem(ACTIVE_CHANNEL_STORAGE_KEY, channelId);
+        localStorage.setItem(LEGACY_CHANNEL_KEY, channelId);
+      } catch (storageError) {
+        console.warn('Failed to persist channel ID for analytics cache', storageError);
+      }
+      setActiveChannelId(prev => (prev === channelId ? prev : channelId));
 
       console.log(`[Analytics] 開始獲取分析數據（${yearsToFetch} 年）...`);
 
       // 調用後端 API
-      const response = await fetch('http://localhost:3001/api/analytics/channel', {
+      const baseUrl = import.meta.env?.VITE_SERVER_BASE_URL || 'http://localhost:3001';
+      const response = await fetch(`${baseUrl}/api/analytics/channel`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -194,8 +317,8 @@ export function VideoAnalytics() {
       setAnalyticsData(deduped);
       setCurrentYearRange(yearsToFetch);
 
-      // 儲存到 localStorage
-      persistAnalyticsData(deduped);
+      // 儲存到 localStorage（記錄對應頻道與時間範圍）
+      persistAnalyticsData(channelId, deduped, yearsToFetch);
     } catch (err: any) {
       console.error('[Analytics] 錯誤:', err);
       setError(err.message || '分析失敗，請稍後再試');
@@ -300,11 +423,14 @@ export function VideoAnalytics() {
   };
 
   const clearCache = () => {
-    localStorage.removeItem('videoAnalyticsData');
-    localStorage.removeItem('videoAnalyticsTimestamp');
+    localStorage.removeItem(ANALYTICS_CACHE_KEY);
+    localStorage.removeItem(LEGACY_DATA_KEY);
+    localStorage.removeItem(LEGACY_TIMESTAMP_KEY);
     setAnalyticsData([]);
     setKeywordAnalysisCache({});
     setExpandedVideoId(null);
+    setShowMetadataGenerator({});
+    setCurrentYearRange(1);
   };
 
   return (

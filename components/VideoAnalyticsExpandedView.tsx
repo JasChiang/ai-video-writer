@@ -5,6 +5,8 @@ import * as youtubeService from '../services/youtubeService';
 import * as geminiService from '../services/geminiService';
 import type { GeneratedContentType, YouTubeVideo } from '../types';
 
+const ACTIVE_CHANNEL_STORAGE_KEY = 'videoAnalytics.activeChannelId';
+
 interface AnalyticsMetrics {
   views: number;
   estimatedMinutesWatched: number;
@@ -174,10 +176,11 @@ export function VideoAnalyticsExpandedView({
       }
 
       // 取得頻道 ID，先嘗試快取，若無則重新查詢
-      let channelId = localStorage.getItem('channelId');
+      let channelId = localStorage.getItem(ACTIVE_CHANNEL_STORAGE_KEY) || localStorage.getItem('channelId');
       if (!channelId) {
         try {
           channelId = await youtubeService.getChannelId();
+          localStorage.setItem(ACTIVE_CHANNEL_STORAGE_KEY, channelId);
           localStorage.setItem('channelId', channelId);
         } catch (channelError: any) {
           throw new Error(channelError?.message || '找不到頻道 ID');
@@ -232,9 +235,10 @@ export function VideoAnalyticsExpandedView({
         throw new Error('請先登入 YouTube 帳號');
       }
 
-      let channelId = localStorage.getItem('channelId');
+      let channelId = localStorage.getItem(ACTIVE_CHANNEL_STORAGE_KEY) || localStorage.getItem('channelId');
       if (!channelId) {
         channelId = await youtubeService.getChannelId();
+        localStorage.setItem(ACTIVE_CHANNEL_STORAGE_KEY, channelId);
         localStorage.setItem('channelId', channelId);
       }
 
