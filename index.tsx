@@ -33,15 +33,10 @@ async function bootstrap() {
   const AppModule = await import('./App');
   const App = AppModule.default;
 
-  const NotionContextModule = await import('./contexts/NotionContext');
-  const NotionProvider = NotionContextModule.NotionProvider;
-
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <React.StrictMode>
-      <NotionProvider>
-        <App />
-      </NotionProvider>
+      <App />
     </React.StrictMode>
   );
 }

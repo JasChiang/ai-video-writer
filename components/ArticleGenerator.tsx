@@ -3,8 +3,6 @@ import type { ArticleGenerationResult, YouTubeVideo } from '../types';
 import * as videoApiService from '../services/videoApiService';
 import { Loader } from './Loader';
 import { CopyButton } from './CopyButton';
-import NotionConnect from './NotionConnect';
-import NotionSaveButton from './NotionSaveButton';
 
 interface ArticleGeneratorProps {
   video: YouTubeVideo;
@@ -412,11 +410,6 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
                 </p>
               </div>
 
-              {/* Notion 連接 */}
-              <div>
-                <NotionConnect />
-              </div>
-
               {error && (
                 <div className="px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600">
                   <p className="font-semibold">錯誤</p>
@@ -540,22 +533,7 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
                 <div className="mb-2">
                   <div className="flex justify-between items-center">
                     <h3 className="text-lg font-semibold text-neutral-900">文章內容（Markdown）</h3>
-                    <div className="flex items-center gap-2">
-                      <CopyButton textToCopy={result.article} />
-                      <NotionSaveButton
-                        articleData={{
-                          selectedTitle: result.titleA,
-                          article: result.article,
-                          seoDescription: result.seo_description,
-                          videoId: result.videoId || video.id,
-                          videoTitle: video.title,
-                          imageUrls: result.image_urls
-                        }}
-                        onSaveSuccess={(url) => {
-                          console.log('[Notion] Article saved:', url);
-                        }}
-                      />
-                    </div>
+                    <CopyButton textToCopy={result.article} />
                   </div>
                   <p className="text-xs mt-1 text-neutral-500">
                     💡 Gemini AI 根據影片內容撰寫的完整文章，使用 Markdown 格式，可直接複製到部落格或內容管理系統
