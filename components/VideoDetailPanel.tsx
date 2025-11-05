@@ -26,7 +26,8 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
   }>({ checking: true, exists: false });
   const privacyBadge = getPrivacyStatusBadge(video.privacyStatus);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
-  const DESCRIPTION_PREVIEW_LIMIT = 420;
+  const DESCRIPTION_PREVIEW_CHAR_THRESHOLD = 180;
+  const NEWLINE_THRESHOLD = 3;
 
   // 檢查檔案是否存在於 Files API
   React.useEffect(() => {
@@ -61,13 +62,20 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
     setIsDescriptionExpanded(false);
   }, [video.id]);
 
-  const shouldTruncateDescription =
-    Boolean(video.description) && video.description.length > DESCRIPTION_PREVIEW_LIMIT;
+  const newlineCount = video.description
+    ? (video.description.match(/\r?\n/g) || []).length
+    : 0;
 
-  const displayedDescription =
-    shouldTruncateDescription && !isDescriptionExpanded
-      ? `${video.description.substring(0, DESCRIPTION_PREVIEW_LIMIT)}…`
-      : video.description;
+  const shouldTruncateDescription =
+    Boolean(video.description) &&
+    (video.description.length > DESCRIPTION_PREVIEW_CHAR_THRESHOLD || newlineCount >= NEWLINE_THRESHOLD);
+
+  const descriptionClasses = [
+    'rounded-lg border border-neutral-200 bg-neutral-100 px-4 py-3 text-sm leading-relaxed text-neutral-700 whitespace-pre-line',
+    shouldTruncateDescription && !isDescriptionExpanded ? 'line-clamp-3' : ''
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <div className="space-y-6 p-6 rounded-2xl bg-white border border-neutral-200 shadow-sm">
@@ -161,8 +169,8 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
 
           {video.description && (
             <div className="space-y-2">
-              <div className="rounded-lg border border-neutral-200 bg-neutral-100 px-4 py-3 text-sm leading-relaxed text-neutral-700 whitespace-pre-wrap">
-                {displayedDescription}
+              <div className={descriptionClasses}>
+                {video.description}
               </div>
               {shouldTruncateDescription && (
                 <button
