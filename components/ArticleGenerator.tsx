@@ -429,11 +429,11 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
               <button
                 onClick={handleGenerate}
                 disabled={isGenerating}
-                className="w-full text-white font-semibold py-3 px-6 rounded-full transition-transform flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 hover:scale-[1.01]"
+                className="w-full h-[48px] text-white font-semibold px-6 rounded-full transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
               >
                 {isGenerating ? (
                   <>
-                    <Loader />
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
                     <span>生成中...</span>
                   </>
                 ) : (
@@ -557,11 +557,11 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
                         <button
                           onClick={handleCaptureScreenshots}
                           disabled={isCapturingScreenshots}
-                          className="text-white font-semibold py-2 px-4 rounded-full transition-transform flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 hover:scale-[1.01]"
+                          className="w-[120px] h-[40px] text-white font-semibold px-4 rounded-full transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                         >
                           {isCapturingScreenshots ? (
                             <>
-                              <Loader />
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
                               <span>截圖中...</span>
                             </>
                           ) : (
@@ -572,11 +572,11 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
                         <button
                           onClick={handleRegenerateScreenshots}
                           disabled={isRegeneratingScreenshots}
-                          className="text-white font-semibold py-2 px-4 rounded-full transition-transform flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 hover:scale-[1.01]"
+                          className="w-[140px] h-[40px] text-white font-semibold px-4 rounded-full transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                         >
                           {isRegeneratingScreenshots ? (
                             <>
-                              <Loader />
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
                               <span>重新截圖中...</span>
                             </>
                           ) : (
