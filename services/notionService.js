@@ -290,3 +290,72 @@ export async function listNotionDatabases(
     nextCursor: data.next_cursor || null,
   };
 }
+
+/**
+ * 取得單一 Notion 資料庫資訊
+ * @param {string} notionToken
+ * @param {string} databaseId
+ * @returns {Promise<{ id: string, title: string, titleProperty: string | null, properties: Array }>}
+ */
+export async function getNotionDatabase(notionToken, databaseId) {
+  if (!notionToken) {
+    throw new Error('缺少 Notion 金鑰');
+  }
+  if (!databaseId) {
+    throw new Error('缺少 Notion 資料庫 ID');
+  }
+
+  const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${notionToken}`,
+      'Content-Type': 'application/json',
+      'Notion-Version': NOTION_API_VERSION,
+    },
+  });
+
+  if (!response.ok) {
+    let errorMessage = `Notion API 呼叫失敗 (${response.status})`;
+    try {
+      const errorData = await response.json();
+      if (errorData?.message) {
+        errorMessage = errorData.message;
+      }
+    } catch {
+      // ignore
+    }
+    const err = new Error(errorMessage);
+    err.statusCode = response.status;
+    throw err;
+  }
+
+  const data = await response.json();
+  let title = '未命名資料庫';
+  if (Array.isArray(data?.title) && data.title.length > 0) {
+    title = data.title.map((t) => t?.plain_text || '').join('').trim() || title;
+  }
+
+  let titlePropertyName = null;
+  const properties = [];
+
+  if (data?.properties && typeof data.properties === 'object') {
+    for (const [name, prop] of Object.entries(data.properties)) {
+      const propertyInfo = {
+        name,
+        type: prop?.type || null,
+        isTitle: prop?.type === 'title',
+      };
+      properties.push(propertyInfo);
+      if (propertyInfo.isTitle) {
+        titlePropertyName = name;
+      }
+    }
+  }
+
+  return {
+    id: data.id,
+    title,
+    titleProperty: titlePropertyName,
+    properties,
+  };
+}

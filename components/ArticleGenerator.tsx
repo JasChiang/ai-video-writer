@@ -49,6 +49,7 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
   const [notionPageTitle, setNotionPageTitle] = useState('');
   const [isPublishingToNotion, setIsPublishingToNotion] = useState(false);
   const [notionStatus, setNotionStatus] = useState<NotionStatus | null>(null);
+  const [titlePropertyManuallyEdited, setTitlePropertyManuallyEdited] = useState(false);
   const notionOAuthMonitorRef = useRef<number | null>(null);
   const [notionAccessToken, setNotionAccessToken] = useState('');
   const [notionRefreshToken, setNotionRefreshToken] = useState('');
@@ -60,6 +61,8 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
   const [notionDatabaseCursor, setNotionDatabaseCursor] = useState<string | null>(null);
   const [notionDatabaseError, setNotionDatabaseError] = useState<string | null>(null);
   const [isLaunchingNotionOAuth, setIsLaunchingNotionOAuth] = useState(false);
+  const [isFetchingDatabaseInfo, setIsFetchingDatabaseInfo] = useState(false);
+  const [fetchedDatabaseInfo, setFetchedDatabaseInfo] = useState<notionClient.NotionDatabaseInfo | null>(null);
   const serverOrigin = useMemo(() => {
     if (typeof window === 'undefined') {
       return '';
@@ -77,6 +80,62 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
       return window.location.origin;
     }
   }, []);
+
+  const [manualDatabaseIdInput, setManualDatabaseIdInput] = useState('');
+
+  const handleDatabaseIdUpdate = useCallback((value: string) => {
+    setNotionDatabaseId(value);
+    setManualDatabaseIdInput(value);
+    setNotionStatus(null);
+    setTitlePropertyManuallyEdited(false);
+    setFetchedDatabaseInfo(null);
+    setNotionDatabaseError(null);
+    setNotionTitleProperty(value ? '' : 'Name');
+    setIsFetchingDatabaseInfo(false);
+  }, []);
+
+  const extractDatabaseId = useCallback((value: string) => {
+    if (!value) return '';
+
+    let candidate = value.trim();
+    if (!candidate) return '';
+
+    if (/^https?:\/\//i.test(candidate)) {
+      try {
+        const url = new URL(candidate);
+        candidate = url.pathname.split('/').pop() || candidate;
+        if (candidate.includes('?')) {
+          candidate = candidate.split('?')[0];
+        }
+      } catch {
+        // ignore parsing error
+      }
+    }
+
+    const match = candidate.match(/[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
+    if (match) {
+      return match[0];
+    }
+
+    return candidate;
+  }, []);
+
+  const handleDatabaseSelectionChange = useCallback(
+    (value: string) => {
+      handleDatabaseIdUpdate(value);
+    },
+    [handleDatabaseIdUpdate]
+  );
+
+  const handleDatabaseInputChange = useCallback((value: string) => {
+    setManualDatabaseIdInput(value);
+  }, []);
+
+  const handleDatabaseInputBlur = useCallback(() => {
+    const normalized = extractDatabaseId(manualDatabaseIdInput);
+    handleDatabaseIdUpdate(normalized);
+  }, [extractDatabaseId, handleDatabaseIdUpdate, manualDatabaseIdInput]);
+
   const quickTitleOptions = useMemo(() => {
     if (!result) {
       return [];
@@ -121,9 +180,11 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
           }
           if (typeof parsed.databaseId === 'string') {
             setNotionDatabaseId(parsed.databaseId);
+            setManualDatabaseIdInput(parsed.databaseId);
           }
           if (typeof parsed.titleProperty === 'string' && parsed.titleProperty.trim().length > 0) {
             setNotionTitleProperty(parsed.titleProperty);
+            setTitlePropertyManuallyEdited(true);
           }
           if (typeof parsed.workspaceName === 'string') {
             setNotionWorkspaceName(parsed.workspaceName);
@@ -437,7 +498,7 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
           if (!hasCurrent) {
             const first = response.databases[0];
             if (first) {
-              setNotionDatabaseId(first.id);
+              handleDatabaseIdUpdate(first.id);
             }
           }
         }
@@ -459,7 +520,7 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
         setIsFetchingNotionDatabases(false);
       }
     },
-    [notionAccessToken, notionDatabaseId]
+    [handleDatabaseIdUpdate, notionAccessToken, notionDatabaseId]
   );
 
   const handleRefreshNotionDatabases = useCallback(() => {
@@ -471,6 +532,35 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
     if (!notionAccessToken || !notionHasMoreDatabases || !notionDatabaseCursor) return;
     fetchNotionDatabases({ startCursor: notionDatabaseCursor, append: true });
   }, [fetchNotionDatabases, notionAccessToken, notionHasMoreDatabases, notionDatabaseCursor]);
+
+  const fetchNotionDatabaseInfo = useCallback(
+    async (databaseId: string) => {
+      if (!notionAccessToken || !databaseId) {
+        setFetchedDatabaseInfo(null);
+        return;
+      }
+
+      setIsFetchingDatabaseInfo(true);
+      try {
+        const info = await notionClient.getNotionDatabaseInfo(notionAccessToken, databaseId);
+        setFetchedDatabaseInfo(info);
+
+        if (info.titleProperty && !titlePropertyManuallyEdited) {
+          setNotionTitleProperty(info.titleProperty);
+        }
+      } catch (err: any) {
+        console.error('[Notion] 取得資料庫資訊錯誤:', err);
+        setFetchedDatabaseInfo(null);
+        setNotionStatus({
+          type: 'error',
+          message: err?.message || '取得 Notion 資料庫資訊失敗，請稍後再試。',
+        });
+      } finally {
+        setIsFetchingDatabaseInfo(false);
+      }
+    },
+    [notionAccessToken, titlePropertyManuallyEdited]
+  );
 
   const handleConnectNotion = useCallback(async () => {
     try {
@@ -534,6 +624,9 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
     setNotionHasMoreDatabases(false);
     setNotionDatabaseCursor(null);
     setNotionDatabaseError(null);
+    setFetchedDatabaseInfo(null);
+    setIsFetchingDatabaseInfo(false);
+    setTitlePropertyManuallyEdited(false);
     setNotionStatus({
       type: 'success',
       message: '已解除與 Notion 的連線。',
@@ -621,11 +714,22 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
       setAvailableNotionDatabases([]);
       setNotionHasMoreDatabases(false);
       setNotionDatabaseCursor(null);
+      setFetchedDatabaseInfo(null);
+      setManualDatabaseIdInput('');
       return;
     }
 
     fetchNotionDatabases({ append: false });
   }, [fetchNotionDatabases, notionAccessToken]);
+
+  useEffect(() => {
+    if (!notionAccessToken || !notionDatabaseId) {
+      setFetchedDatabaseInfo(null);
+      return;
+    }
+
+    fetchNotionDatabaseInfo(notionDatabaseId.trim());
+  }, [fetchNotionDatabaseInfo, notionAccessToken, notionDatabaseId]);
 
   useEffect(() => {
     return () => {
@@ -668,10 +772,15 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
     }
 
     setNotionStatus(null);
-    setIsPublishingToNotion(true);
+  setIsPublishingToNotion(true);
 
-    try {
-      const titlePropertyValue = notionTitleProperty.trim() || 'Name';
+  try {
+      const autoTitleProperty = fetchedDatabaseInfo?.titleProperty?.trim();
+      const titlePropertyValue = notionTitleProperty.trim() || autoTitleProperty || 'Name';
+      if (!notionTitleProperty.trim() && autoTitleProperty) {
+        setNotionTitleProperty(autoTitleProperty);
+        setTitlePropertyManuallyEdited(false);
+      }
       const payload: notionClient.NotionPublishPayload = {
         title: pageTitle,
         article: result.article,
@@ -812,8 +921,7 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
                 <select
                   value={notionDatabaseId}
                   onChange={(e) => {
-                    setNotionDatabaseId(e.target.value);
-                    setNotionStatus(null);
+                    handleDatabaseSelectionChange(e.target.value);
                   }}
                   className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 shadow-sm sm:w-80"
                 >
@@ -853,11 +961,11 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
             </label>
             <input
               type="text"
-              value={notionDatabaseId}
+              value={manualDatabaseIdInput}
               onChange={(e) => {
-                setNotionDatabaseId(e.target.value);
-                setNotionStatus(null);
+                handleDatabaseInputChange(e.target.value);
               }}
+              onBlur={handleDatabaseInputBlur}
               placeholder="例如：abcd1234efgh5678ijkl9012mnop3456"
               className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 shadow-sm"
             />
@@ -905,19 +1013,52 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
               <label className="block text-sm font-medium text-neutral-700">
                 標題欄位名稱
               </label>
+              {isFetchingDatabaseInfo && (
+                <p className="mt-1 text-xs text-neutral-500">正在讀取資料庫欄位資訊...</p>
+              )}
+              {!isFetchingDatabaseInfo && fetchedDatabaseInfo?.titleProperty && !titlePropertyManuallyEdited && (
+                <p className="mt-1 text-xs text-green-600">
+                  已自動偵測標題欄位：{fetchedDatabaseInfo.titleProperty}
+                </p>
+              )}
+              {!isFetchingDatabaseInfo && !fetchedDatabaseInfo?.titleProperty && (
+                <p className="mt-1 text-xs text-amber-600">
+                  未偵測到 Title 欄位，請手動輸入資料庫中的標題欄位名稱。
+                </p>
+              )}
               <input
                 type="text"
                 value={notionTitleProperty}
                 onChange={(e) => {
                   setNotionTitleProperty(e.target.value);
                   setNotionStatus(null);
+                  setTitlePropertyManuallyEdited(true);
                 }}
-                placeholder="預設為 Name"
+                placeholder={
+                  fetchedDatabaseInfo?.titleProperty
+                    ? `例如：${fetchedDatabaseInfo.titleProperty}`
+                    : '預設為 Name'
+                }
                 className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 shadow-sm"
               />
-              <p className="mt-1 text-xs text-neutral-400">
-                若資料庫的 Title 欄位不是 Name，請輸入實際欄位名稱。
-              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-neutral-400">
+                  Notion 每個資料庫僅允許一個 Title 欄位，若名稱不同請在此處輸入實際欄位名稱。
+                </span>
+                {titlePropertyManuallyEdited && fetchedDatabaseInfo?.titleProperty && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNotionTitleProperty(fetchedDatabaseInfo.titleProperty || '');
+                      setTitlePropertyManuallyEdited(false);
+                      setNotionStatus(null);
+                    }}
+                    className="rounded-full border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-600 transition-colors hover:border-red-400 hover:text-red-600"
+                  >
+                    還原為 {fetchedDatabaseInfo.titleProperty}
+                  </button>
+                )}
+              </div>
             </div>
 
             {!hasConnected && (

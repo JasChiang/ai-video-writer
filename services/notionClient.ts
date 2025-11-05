@@ -46,6 +46,17 @@ export interface NotionDatabasesResponse {
   nextCursor?: string | null;
 }
 
+export interface NotionDatabaseInfo {
+  id: string;
+  title: string;
+  titleProperty: string | null;
+  properties: Array<{
+    name: string;
+    type: string | null;
+    isTitle: boolean;
+  }>;
+}
+
 /**
  * 將生成的文章發佈到 Notion
  */
@@ -135,6 +146,38 @@ export async function listNotionDatabases(
 
     if (response.status === 401) {
       errorMessage = 'Notion 權杖已失效，請重新登入。';
+    }
+
+    throw new Error(errorMessage);
+  }
+
+  return response.json();
+}
+
+export async function getNotionDatabaseInfo(
+  notionToken: string,
+  databaseId: string
+): Promise<NotionDatabaseInfo> {
+  const response = await fetch(`${API_BASE_URL}/notion/database-info`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      notionToken,
+      databaseId,
+    }),
+  });
+
+  if (!response.ok) {
+    let errorMessage = '取得 Notion 資料庫資訊失敗。';
+    try {
+      const errorData = await response.json();
+      if (errorData?.error) {
+        errorMessage = errorData.error;
+      }
+    } catch (err) {
+      console.error('解析 Notion 資料庫資訊錯誤時失敗：', err);
     }
 
     throw new Error(errorMessage);

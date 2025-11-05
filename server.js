@@ -24,7 +24,7 @@ import {
   getGeminiFile
 } from './services/geminiFilesService.js';
 import * as taskQueue from './services/taskQueue.js';
-import { publishArticleToNotion, listNotionDatabases } from './services/notionService.js';
+import { publishArticleToNotion, listNotionDatabases, getNotionDatabase } from './services/notionService.js';
 
 // 載入 .env.local 檔案
 dotenv.config({ path: '.env.local' });
@@ -213,6 +213,7 @@ app.get('/api/notion/oauth/url', (req, res) => {
     notionAuthUrl.searchParams.set('client_id', clientId);
     notionAuthUrl.searchParams.set('redirect_uri', redirectUri);
     notionAuthUrl.searchParams.set('state', state);
+    notionAuthUrl.searchParams.set('scope', 'databases.read,databases.write');
 
     res.json({ url: notionAuthUrl.toString(), state });
   } catch (error) {
@@ -488,6 +489,32 @@ app.post('/api/notion/databases', async (req, res) => {
     const statusCode = error?.statusCode && Number.isInteger(error.statusCode) ? error.statusCode : 500;
     res.status(statusCode).json({
       error: error.message || '取得 Notion 資料庫列表失敗',
+    });
+  }
+});
+
+/**
+ * 取得指定 Notion 資料庫的欄位資訊
+ * POST /api/notion/database-info
+ */
+app.post('/api/notion/database-info', async (req, res) => {
+  try {
+    const { notionToken, databaseId } = req.body || {};
+
+    if (!notionToken || !databaseId) {
+      return res.status(400).json({
+        error: '缺少 Notion Access Token 或資料庫 ID',
+      });
+    }
+
+    const databaseInfo = await getNotionDatabase(notionToken, databaseId);
+
+    res.json(databaseInfo);
+  } catch (error) {
+    console.error('[Notion] 取得資料庫資訊失敗:', error);
+    const statusCode = error?.statusCode && Number.isInteger(error.statusCode) ? error.statusCode : 500;
+    res.status(statusCode).json({
+      error: error.message || '取得 Notion 資料庫資訊失敗',
     });
   }
 });
