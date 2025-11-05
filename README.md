@@ -54,6 +54,19 @@ AI Video Writer 將「影片內容 → 文章與數據洞察」的流程整合�
    ```bash
    GEMINI_API_KEY=your_gemini_api_key
    YOUTUBE_CLIENT_ID=your_client_id.apps.googleusercontent.com
+
+   # （選填）預設的 Notion 整合設定，可在前端覆寫
+   NOTION_API_TOKEN=your_notion_internal_integration_secret
+   NOTION_DATABASE_ID=your_default_database_id
+   NOTION_TITLE_PROPERTY=Name
+
+   # （選填）啟用 Notion OAuth 登入與資料庫選擇
+   NOTION_CLIENT_ID=your_notion_public_integration_client_id
+   NOTION_CLIENT_SECRET=your_notion_public_integration_client_secret
+   NOTION_REDIRECT_URI=http://localhost:3001/api/notion/oauth/callback
+
+   # （選填）指定前端網址，供 CORS 與 Notion OAuth 回傳使用
+   FRONTEND_URL=http://localhost:3000
    ```
 2. 執行啟動腳本（會自動檢查環境變數並呼叫 `docker compose up -d`）：
    ```bash
@@ -114,6 +127,8 @@ docker compose up --build
    - SEO 強化的 meta description
    - 支援 Markdown 和 HTML 格式輸出
    - 可附加自訂參考檔案（圖片、PDF、Markdown、音訊等）強化文章內容
+   - 一鍵發佈到 Notion 資料庫，延伸成部落格或知識庫內容
+   - 支援 Notion OAuth 登入與資料庫清單選擇，免手動貼金鑰
 
 3. **影片表現分析與改善建議**
    - 智慧分析頻道影片表現數據
@@ -798,6 +813,32 @@ ai-video-writer/
 ---
 
 ## 🛠️ 自訂調整指南
+
+### 設定 Notion 匯出預設值
+
+1. 在 Notion 建立 Internal Integration，取得 Secret（如 `secret_xxx`），並在要寫入的資料庫右上角點選 **Share → Invite**，將該整合加入。
+2. 取得資料庫 ID：於瀏覽器開啟資料庫頁面，網址中長度為 32 的字串即為 Database ID。
+3. 於 `.env.local` 設定以下變數（可被前端輸入覆寫）：
+   ```bash
+   NOTION_API_TOKEN=secret_xxx                # 整合金鑰
+   NOTION_DATABASE_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   NOTION_TITLE_PROPERTY=Name                 # 資料庫中 Title 欄位的實際名稱
+   ```
+4. 生成文章後，可在「Notion 匯出」區塊檢視／修改這些設定，並選擇是否將設定記住在瀏覽器內。
+5. （選填）若要使用「登入 Notion」並直接從清單挑選資料庫，請建立 Notion Public Integration，將 redirect URI 設為 `http://localhost:3001/api/notion/oauth/callback`（或自訂網域），並在 `.env.local` 增加：
+   ```bash
+   NOTION_CLIENT_ID=your_notion_public_integration_client_id
+   NOTION_CLIENT_SECRET=your_notion_public_integration_client_secret
+   NOTION_REDIRECT_URI=https://your-domain.com/api/notion/oauth/callback
+   FRONTEND_URL=https://your-frontend-domain.com  # 必須與實際前端 origin 相同
+   ```
+   前端登入後即可取回 Access Token，顯示工作區名稱並自動列出已共享的資料庫。
+   > 舊版若已設定 `/api/notion/callback` 亦可沿用，伺服器會自動重新導向至新路徑。
+
+> 未填寫金鑰或資料庫 ID 時，系統會改用伺服器端的 `.env.local` 預設值。
+> OAuth 欄位留空時仍可使用手動輸入模式，方便離線或單一帳號部署需求。
+
+登入成功後，即使尚未生成文章，介面也會顯示「Notion 匯出」卡片，可先完成授權、選擇資料庫並設定標題。完成文章生成後按下「傳送到 Notion」即可建立新頁面；若勾選「記住 Notion 設定」則會將 Access Token、安全地儲存在瀏覽器的 localStorage 以利下次使用。
 
 ### 調整 AI 生成內容的風格
 

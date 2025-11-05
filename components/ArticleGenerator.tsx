@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ArticleGenerationResult, YouTubeVideo } from '../types';
 import * as videoApiService from '../services/videoApiService';
+import * as notionClient from '../services/notionClient';
 import { Loader } from './Loader';
 import { CopyButton } from './CopyButton';
 
@@ -16,6 +17,10 @@ interface UploadedFile {
   displayName: string;
   sizeBytes: number;
 }
+
+type NotionStatus =
+  | { type: 'success'; message: string; url?: string }
+  | { type: 'error'; message: string; url?: string };
 
 // 取得伺服器基礎 URL
 // 開發模式使用 localhost:3001，生產模式使用空字符串（相對路徑，與前端同域）
@@ -37,6 +42,143 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
   const [loadingStep, setLoadingStep] = useState<string>('');
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [notionToken, setNotionToken] = useState('');
+  const [notionDatabaseId, setNotionDatabaseId] = useState('');
+  const [notionTitleProperty, setNotionTitleProperty] = useState('Name');
+  const [rememberNotionSettings, setRememberNotionSettings] = useState(false);
+  const [notionPageTitle, setNotionPageTitle] = useState('');
+  const [isPublishingToNotion, setIsPublishingToNotion] = useState(false);
+  const [notionStatus, setNotionStatus] = useState<NotionStatus | null>(null);
+  const notionOAuthMonitorRef = useRef<number | null>(null);
+  const [notionAccessToken, setNotionAccessToken] = useState('');
+  const [notionRefreshToken, setNotionRefreshToken] = useState('');
+  const [notionWorkspaceName, setNotionWorkspaceName] = useState('');
+  const [notionWorkspaceIcon, setNotionWorkspaceIcon] = useState<string | null>(null);
+  const [availableNotionDatabases, setAvailableNotionDatabases] = useState<notionClient.NotionDatabase[]>([]);
+  const [isFetchingNotionDatabases, setIsFetchingNotionDatabases] = useState(false);
+  const [notionHasMoreDatabases, setNotionHasMoreDatabases] = useState(false);
+  const [notionDatabaseCursor, setNotionDatabaseCursor] = useState<string | null>(null);
+  const [notionDatabaseError, setNotionDatabaseError] = useState<string | null>(null);
+  const [isLaunchingNotionOAuth, setIsLaunchingNotionOAuth] = useState(false);
+  const serverOrigin = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+
+    const base = getServerBaseUrl();
+    if (!base || base === '/' || base === './' || base === '../') {
+      return window.location.origin;
+    }
+
+    try {
+      const url = new URL(base);
+      return url.origin;
+    } catch {
+      return window.location.origin;
+    }
+  }, []);
+  const quickTitleOptions = useMemo(() => {
+    if (!result) {
+      return [];
+    }
+
+    const options = [
+      { label: '選項 A', value: result.titleA },
+      { label: '選項 B', value: result.titleB },
+      { label: '選項 C', value: result.titleC },
+      { label: '原始影片標題', value: video.title },
+    ];
+
+    return options
+      .filter((option) => option.value && option.value.trim().length > 0)
+      .filter(
+        (option, index, self) =>
+          self.findIndex((item) => item.value === option.value) === index
+      );
+  }, [result, video.title]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const rawSettings = window.localStorage.getItem('notionSettings');
+      if (rawSettings) {
+        const parsed = JSON.parse(rawSettings);
+        if (parsed && typeof parsed === 'object') {
+          // Backward compatibility: 舊版會使用 token 欄位儲存整合金鑰
+          if (typeof parsed.accessToken === 'string') {
+            setNotionAccessToken(parsed.accessToken);
+          } else if (typeof parsed.token === 'string') {
+            setNotionToken(parsed.token);
+          }
+          if (typeof parsed.refreshToken === 'string') {
+            setNotionRefreshToken(parsed.refreshToken);
+          }
+          if (typeof parsed.manualToken === 'string') {
+            setNotionToken(parsed.manualToken);
+          }
+          if (typeof parsed.databaseId === 'string') {
+            setNotionDatabaseId(parsed.databaseId);
+          }
+          if (typeof parsed.titleProperty === 'string' && parsed.titleProperty.trim().length > 0) {
+            setNotionTitleProperty(parsed.titleProperty);
+          }
+          if (typeof parsed.workspaceName === 'string') {
+            setNotionWorkspaceName(parsed.workspaceName);
+          }
+          if (typeof parsed.workspaceIcon === 'string') {
+            setNotionWorkspaceIcon(parsed.workspaceIcon);
+          }
+          setRememberNotionSettings(true);
+        }
+      }
+    } catch (err) {
+      console.warn('[Notion] 無法載入儲存的設定:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (result) {
+      setNotionPageTitle(result.titleA || video.title);
+      setNotionStatus(null);
+    } else {
+      setNotionPageTitle('');
+      setNotionStatus(null);
+    }
+  }, [result, video.title]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (!rememberNotionSettings) {
+      return;
+    }
+
+    const payload = {
+      accessToken: notionAccessToken || undefined,
+      refreshToken: notionRefreshToken || undefined,
+      manualToken: notionToken || undefined,
+      databaseId: notionDatabaseId || undefined,
+      titleProperty: notionTitleProperty || undefined,
+      workspaceName: notionWorkspaceName || undefined,
+      workspaceIcon: notionWorkspaceIcon || undefined,
+    };
+
+    window.localStorage.setItem('notionSettings', JSON.stringify(payload));
+  }, [
+    rememberNotionSettings,
+    notionAccessToken,
+    notionRefreshToken,
+    notionToken,
+    notionDatabaseId,
+    notionTitleProperty,
+    notionWorkspaceName,
+    notionWorkspaceIcon,
+  ]);
 
   // 處理檔案上傳
   const handleFileUpload = async (files: FileList | null) => {
@@ -269,6 +411,598 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
     }
   };
 
+  const fetchNotionDatabases = useCallback(
+    async ({ startCursor, append }: { startCursor?: string; append?: boolean } = {}) => {
+      if (!notionAccessToken) {
+        return;
+      }
+
+      setIsFetchingNotionDatabases(true);
+      setNotionDatabaseError(null);
+
+      try {
+        const response = await notionClient.listNotionDatabases(notionAccessToken, {
+          startCursor,
+          pageSize: 50,
+        });
+
+        setAvailableNotionDatabases((prev) =>
+          append ? [...prev, ...response.databases] : response.databases
+        );
+        setNotionHasMoreDatabases(response.hasMore);
+        setNotionDatabaseCursor(response.nextCursor ?? null);
+
+        if (!append) {
+          const hasCurrent = response.databases.some((db) => db.id === notionDatabaseId);
+          if (!hasCurrent) {
+            const first = response.databases[0];
+            if (first) {
+              setNotionDatabaseId(first.id);
+            }
+          }
+        }
+      } catch (err: any) {
+        console.error('[Notion] 取得資料庫列表錯誤:', err);
+        setNotionDatabaseError(err?.message || '取得 Notion 資料庫列表失敗。');
+        setNotionStatus({
+          type: 'error',
+          message: err?.message || '取得 Notion 資料庫列表失敗，請稍後再試。',
+        });
+
+        if (err?.message?.includes('重新登入') || err?.message?.includes('權杖')) {
+          setNotionAccessToken('');
+          setNotionRefreshToken('');
+          setNotionWorkspaceName('');
+          setNotionWorkspaceIcon(null);
+        }
+      } finally {
+        setIsFetchingNotionDatabases(false);
+      }
+    },
+    [notionAccessToken, notionDatabaseId]
+  );
+
+  const handleRefreshNotionDatabases = useCallback(() => {
+    if (!notionAccessToken) return;
+    fetchNotionDatabases({ append: false });
+  }, [fetchNotionDatabases, notionAccessToken]);
+
+  const handleLoadMoreNotionDatabases = useCallback(() => {
+    if (!notionAccessToken || !notionHasMoreDatabases || !notionDatabaseCursor) return;
+    fetchNotionDatabases({ startCursor: notionDatabaseCursor, append: true });
+  }, [fetchNotionDatabases, notionAccessToken, notionHasMoreDatabases, notionDatabaseCursor]);
+
+  const handleConnectNotion = useCallback(async () => {
+    try {
+      setIsLaunchingNotionOAuth(true);
+      setNotionStatus(null);
+      const clientOrigin = typeof window !== 'undefined' ? window.location.origin : undefined;
+      const { url } = await notionClient.getNotionAuthUrl(clientOrigin);
+
+      const width = 640;
+      const height = 720;
+      const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2);
+      const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2);
+
+      const oauthWindow = window.open(
+        url,
+        'notion-oauth',
+        `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes`
+      );
+
+      if (!oauthWindow) {
+        setIsLaunchingNotionOAuth(false);
+        setNotionStatus({
+          type: 'error',
+          message: '瀏覽器阻擋了彈出視窗，請允許後再試。',
+        });
+        return;
+      }
+
+      oauthWindow.focus();
+
+      if (notionOAuthMonitorRef.current) {
+        window.clearInterval(notionOAuthMonitorRef.current);
+        notionOAuthMonitorRef.current = null;
+      }
+
+      notionOAuthMonitorRef.current = window.setInterval(() => {
+        if (oauthWindow.closed) {
+          if (notionOAuthMonitorRef.current) {
+            window.clearInterval(notionOAuthMonitorRef.current);
+            notionOAuthMonitorRef.current = null;
+          }
+          setIsLaunchingNotionOAuth(false);
+        }
+      }, 500);
+    } catch (err: any) {
+      console.error('[Notion] 啟動 OAuth 流程失敗:', err);
+      setIsLaunchingNotionOAuth(false);
+      setNotionStatus({
+        type: 'error',
+        message: err?.message || '無法啟動 Notion 授權流程，請稍後再試。',
+      });
+    }
+  }, []);
+
+  const handleDisconnectNotion = useCallback(() => {
+    setNotionAccessToken('');
+    setNotionRefreshToken('');
+    setNotionWorkspaceName('');
+    setNotionWorkspaceIcon(null);
+    setAvailableNotionDatabases([]);
+    setNotionHasMoreDatabases(false);
+    setNotionDatabaseCursor(null);
+    setNotionDatabaseError(null);
+    setNotionStatus({
+      type: 'success',
+      message: '已解除與 Notion 的連線。',
+    });
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      if (
+        event.origin !== window.location.origin &&
+        event.origin !== serverOrigin
+      ) {
+        return;
+      }
+
+      if (!event.data || typeof event.data !== 'object') {
+        return;
+      }
+
+      const { type, payload } = event.data as { type?: string; payload?: unknown };
+      if (type !== 'notion:oauth:result') {
+        return;
+      }
+
+      setIsLaunchingNotionOAuth(false);
+      if (notionOAuthMonitorRef.current) {
+        window.clearInterval(notionOAuthMonitorRef.current);
+        notionOAuthMonitorRef.current = null;
+      }
+
+      if (!payload || typeof payload !== 'object') {
+        setNotionStatus({
+          type: 'error',
+          message: 'Notion 授權回應格式不正確，請重新嘗試。',
+        });
+        return;
+      }
+
+      const oauthPayload = payload as {
+        success?: boolean;
+        message?: string;
+        data?: notionClient.NotionOAuthPayload;
+      };
+
+      if (!oauthPayload.success) {
+        setNotionStatus({
+          type: 'error',
+          message: oauthPayload.message || 'Notion 授權失敗，請重新嘗試。',
+        });
+        return;
+      }
+
+      const data = oauthPayload.data;
+      if (!data?.accessToken) {
+        setNotionStatus({
+          type: 'error',
+          message: '未收到 Notion Access Token，請重新授權。',
+        });
+        return;
+      }
+
+      setNotionAccessToken(data.accessToken);
+      setNotionRefreshToken(data.refreshToken || '');
+      setNotionWorkspaceName(data.workspaceName || '');
+      setNotionWorkspaceIcon(data.workspaceIcon || null);
+      setNotionToken('');
+      setNotionStatus({
+        type: 'success',
+        message: `已連線到 Notion 工作區：${data.workspaceName || '未命名工作區'}`,
+      });
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [serverOrigin]);
+
+  useEffect(() => {
+    if (!notionAccessToken) {
+      setAvailableNotionDatabases([]);
+      setNotionHasMoreDatabases(false);
+      setNotionDatabaseCursor(null);
+      return;
+    }
+
+    fetchNotionDatabases({ append: false });
+  }, [fetchNotionDatabases, notionAccessToken]);
+
+  useEffect(() => {
+    return () => {
+      if (notionOAuthMonitorRef.current) {
+        window.clearInterval(notionOAuthMonitorRef.current);
+        notionOAuthMonitorRef.current = null;
+      }
+    };
+  }, []);
+
+  const handlePublishToNotion = async () => {
+    if (!result) {
+      return;
+    }
+
+    const pageTitle = notionPageTitle.trim();
+    if (!pageTitle) {
+      setNotionStatus({
+        type: 'error',
+        message: '請先輸入 Notion 頁面標題。',
+      });
+      return;
+    }
+
+    const resolvedToken = (notionAccessToken || notionToken).trim();
+    if (!resolvedToken) {
+      setNotionStatus({
+        type: 'error',
+        message: '請先登入 Notion 或填寫整合金鑰。',
+      });
+      return;
+    }
+
+    if (!notionDatabaseId.trim()) {
+      setNotionStatus({
+        type: 'error',
+        message: '請先選擇或輸入 Notion 資料庫 ID。',
+      });
+      return;
+    }
+
+    setNotionStatus(null);
+    setIsPublishingToNotion(true);
+
+    try {
+      const titlePropertyValue = notionTitleProperty.trim() || 'Name';
+      const payload: notionClient.NotionPublishPayload = {
+        title: pageTitle,
+        article: result.article,
+        seoDescription: result.seo_description,
+        videoUrl: `https://www.youtube.com/watch?v=${video.id}`,
+        titleProperty: titlePropertyValue,
+      };
+
+      payload.databaseId = notionDatabaseId.trim();
+      payload.notionToken = resolvedToken;
+
+      const response = await notionClient.publishArticleToNotion(payload);
+
+      if (typeof window !== 'undefined') {
+        if (rememberNotionSettings) {
+          window.localStorage.setItem(
+            'notionSettings',
+            JSON.stringify({
+              accessToken: notionAccessToken || undefined,
+              refreshToken: notionRefreshToken || undefined,
+              manualToken: notionAccessToken ? undefined : notionToken || undefined,
+              databaseId: notionDatabaseId,
+              titleProperty: titlePropertyValue,
+              workspaceName: notionWorkspaceName || undefined,
+              workspaceIcon: notionWorkspaceIcon || undefined,
+            }),
+          );
+        } else {
+          window.localStorage.removeItem('notionSettings');
+        }
+      }
+
+      setNotionStatus({
+        type: 'success',
+        message: '已成功發佈到 Notion！',
+        url: response.url,
+      });
+    } catch (err: any) {
+      console.error('[Notion] 發佈錯誤:', err);
+      setNotionStatus({
+        type: 'error',
+        message: err?.message || 'Notion 發佈失敗，請稍後再試。',
+      });
+    } finally {
+      setIsPublishingToNotion(false);
+    }
+  };
+
+  const renderNotionPanel = (showPublishControls: boolean) => {
+    const hasConnected = notionAccessToken.trim().length > 0;
+    const resolvedToken = (notionAccessToken || notionToken).trim();
+    const hasDatabase = notionDatabaseId.trim().length > 0;
+    const hasTitle = notionPageTitle.trim().length > 0;
+    const canPublish =
+      showPublishControls &&
+      Boolean(result && resolvedToken && hasDatabase && hasTitle && !isPublishingToNotion);
+    const publishLabel = isPublishingToNotion
+      ? '傳送中...'
+      : showPublishControls
+        ? '傳送到 Notion'
+        : '生成文章後可傳送';
+
+    const renderDatabaseOptionLabel = (db: notionClient.NotionDatabase) => {
+      if (db.icon && db.icon.length <= 4) {
+        return `${db.icon} ${db.title}`;
+      }
+      return db.title;
+    };
+
+    return (
+      <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-neutral-900">Notion 匯出</h3>
+            <p className="text-xs text-neutral-500">
+              連結 Notion 帳號後，可從授權的資料庫中選擇目標，將生成的文章與 SEO 資訊匯入。
+            </p>
+            <p className="text-xs text-neutral-400">
+              ⚠️ 登入後請在目標資料庫的 Share 設定中加入此整合，才能寫入內容。
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+            {hasConnected ? (
+              <>
+                <div className="flex items-center gap-2 rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
+                  {notionWorkspaceIcon && notionWorkspaceIcon.length <= 4 ? (
+                    <span>{notionWorkspaceIcon}</span>
+                  ) : null}
+                  <span>{notionWorkspaceName || 'Notion 已連線'}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDisconnectNotion}
+                  className="rounded-full border border-neutral-300 px-4 py-2 text-xs font-semibold text-neutral-600 transition-colors hover:border-neutral-400 hover:text-neutral-800"
+                >
+                  解除連線
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRefreshNotionDatabases}
+                  disabled={isFetchingNotionDatabases}
+                  className="rounded-full border border-neutral-300 px-4 py-2 text-xs font-semibold text-neutral-600 transition-colors hover:border-neutral-400 hover:text-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isFetchingNotionDatabases ? '更新中...' : '重新整理清單'}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={handleConnectNotion}
+                disabled={isLaunchingNotionOAuth}
+                className="rounded-full bg-black px-5 py-2 text-xs font-semibold text-white transition-colors hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isLaunchingNotionOAuth ? '啟動中...' : '登入 Notion'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {hasConnected ? (
+          <div className="mt-4 rounded-lg border border-green-100 bg-green-50 px-4 py-3 text-xs text-green-700">
+            <p>已連線工作區：{notionWorkspaceName || '未命名工作區'}</p>
+            <p>若清單中沒有看到資料庫，請到 Notion 中開啟該資料庫，並在 Share → Invite 中加入此整合。</p>
+          </div>
+        ) : (
+          <p className="mt-4 text-xs text-neutral-500">
+            尚未登入 Notion，可直接輸入整合金鑰與資料庫 ID；或登入後從清單中快速選擇。
+          </p>
+        )}
+
+        <div className="mt-4 grid gap-4">
+          {availableNotionDatabases.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-neutral-700">
+                選擇 Notion 資料庫
+              </label>
+              <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                <select
+                  value={notionDatabaseId}
+                  onChange={(e) => {
+                    setNotionDatabaseId(e.target.value);
+                    setNotionStatus(null);
+                  }}
+                  className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 shadow-sm sm:w-80"
+                >
+                  <option value="">請選擇資料庫</option>
+                  {availableNotionDatabases.map((db) => (
+                    <option key={db.id} value={db.id}>
+                      {renderDatabaseOptionLabel(db)}
+                    </option>
+                  ))}
+                </select>
+                {notionHasMoreDatabases && (
+                  <button
+                    type="button"
+                    onClick={handleLoadMoreNotionDatabases}
+                    disabled={isFetchingNotionDatabases}
+                    className="rounded-full border border-neutral-300 px-4 py-2 text-xs font-semibold text-neutral-600 transition-colors hover:border-neutral-400 hover:text-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    載入更多
+                  </button>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-neutral-400">
+                從授權給此整合的資料庫中快速選擇。若未出現在清單中，可手動輸入資料庫 ID。
+              </p>
+            </div>
+          )}
+
+          {notionDatabaseError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-600">
+              {notionDatabaseError}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700">
+              Notion 資料庫 ID
+            </label>
+            <input
+              type="text"
+              value={notionDatabaseId}
+              onChange={(e) => {
+                setNotionDatabaseId(e.target.value);
+                setNotionStatus(null);
+              }}
+              placeholder="例如：abcd1234efgh5678ijkl9012mnop3456"
+              className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 shadow-sm"
+            />
+            <p className="mt-1 text-xs text-neutral-400">
+              開啟資料庫時，網址中長度為 32 的字串。可直接貼上來覆蓋上方選擇。
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700">
+              Notion 頁面標題
+            </label>
+            <input
+              type="text"
+              value={notionPageTitle}
+              onChange={(e) => {
+                setNotionPageTitle(e.target.value);
+                setNotionStatus(null);
+              }}
+              placeholder="輸入要在 Notion 顯示的標題"
+              className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 shadow-sm"
+            />
+            {quickTitleOptions.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-neutral-500">快速套用：</span>
+                {quickTitleOptions.map((option) => (
+                  <button
+                    key={option.label}
+                    type="button"
+                    onClick={() => {
+                      setNotionPageTitle(option.value);
+                      setNotionStatus(null);
+                    }}
+                    className="rounded-full border border-neutral-300 px-3 py-1 text-xs font-medium text-neutral-600 transition-colors hover:border-red-500 hover:text-red-600"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-neutral-700">
+                標題欄位名稱
+              </label>
+              <input
+                type="text"
+                value={notionTitleProperty}
+                onChange={(e) => {
+                  setNotionTitleProperty(e.target.value);
+                  setNotionStatus(null);
+                }}
+                placeholder="預設為 Name"
+                className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 shadow-sm"
+              />
+              <p className="mt-1 text-xs text-neutral-400">
+                若資料庫的 Title 欄位不是 Name，請輸入實際欄位名稱。
+              </p>
+            </div>
+
+            {!hasConnected && (
+              <div>
+                <label className="block text-sm font-medium text-neutral-700">
+                  Notion 整合金鑰（選填）
+                </label>
+                <input
+                  type="password"
+                  value={notionToken}
+                  onChange={(e) => {
+                    setNotionToken(e.target.value);
+                    setNotionStatus(null);
+                  }}
+                  placeholder="secret_xxxxxxxxxxxxxxxxxxxxx"
+                  autoComplete="off"
+                  className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 shadow-sm"
+                />
+                <p className="mt-1 text-xs text-neutral-400">
+                  若未使用 OAuth，可直接貼上 Internal Integration Secret。
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {notionStatus && (
+          <div
+            className={`mt-4 rounded-lg border px-4 py-3 text-sm ${
+              notionStatus.type === 'success'
+                ? 'border-green-200 bg-green-50 text-green-700'
+                : 'border-red-200 bg-red-50 text-red-600'
+            }`}
+          >
+            <p>{notionStatus.message}</p>
+            {notionStatus.type === 'success' && notionStatus.url && (
+              <p className="mt-1 text-xs">
+                <a
+                  className="font-medium text-green-700 underline underline-offset-2 hover:text-green-800"
+                  href={notionStatus.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  在 Notion 開啟頁面
+                </a>
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <label className="flex items-center text-sm text-neutral-600">
+            <input
+              type="checkbox"
+              checked={rememberNotionSettings}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setRememberNotionSettings(checked);
+                setNotionStatus(null);
+                if (!checked && typeof window !== 'undefined') {
+                  window.localStorage.removeItem('notionSettings');
+                }
+              }}
+              className="mr-2 h-4 w-4 accent-red-600"
+            />
+            記住 Notion 設定（僅儲存在本機瀏覽器）
+          </label>
+          <button
+            onClick={handlePublishToNotion}
+            disabled={!canPublish}
+            className="h-[40px] w-full rounded-full bg-red-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-[200px]"
+          >
+            {publishLabel}
+          </button>
+        </div>
+
+        {!showPublishControls && (
+          <p className="mt-2 text-xs text-neutral-400">
+            生成文章後即可啟用「傳送到 Notion」功能。
+          </p>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="rounded-2xl p-6 bg-white border border-neutral-200 shadow-sm">
           {!result && (
@@ -452,6 +1186,10 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
                   ⏱️ 預計時間：公開影片約 1-2 分鐘，未列出影片首次需下載約 3-8 分鐘（視影片大小而定）
                 </p>
               </div>
+
+              <div className="pt-2">
+                {renderNotionPanel(false)}
+              </div>
             </div>
           )}
 
@@ -545,6 +1283,8 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
                   </pre>
                 </div>
               </div>
+
+              {renderNotionPanel(true)}
 
               {result.screenshots && result.screenshots.length > 0 && (
                 <div>
