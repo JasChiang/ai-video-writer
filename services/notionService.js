@@ -1,5 +1,176 @@
+import fs from 'fs';
+import path from 'path';
 const NOTION_API_ENDPOINT = 'https://api.notion.com/v1/pages';
 export const NOTION_API_VERSION = '2022-06-28';
+const NOTION_FILES_VERSION = '2025-09-03';
+
+const { promises: fsPromises } = fs;
+
+const IMAGE_PURPOSE = 'file';
+const IMAGE_MIME_TYPES = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+};
+
+function guessImageMimeType(filePath) {
+  const ext = path.extname(filePath || '').toLowerCase();
+  return IMAGE_MIME_TYPES[ext] || 'image/png';
+}
+
+function resolveLocalImagePath(imageUrl) {
+  if (!imageUrl || typeof imageUrl !== 'string') {
+    return null;
+  }
+
+  const candidates = [];
+
+  const pushCandidatesForPath = (rawPath) => {
+    if (!rawPath) return;
+    const trimmed = rawPath.startsWith('/') ? rawPath.slice(1) : rawPath;
+    // Absolute path
+    if (path.isAbsolute(rawPath)) {
+      candidates.push(rawPath);
+    } else {
+      candidates.push(path.join(process.cwd(), trimmed));
+    }
+    candidates.push(path.join(process.cwd(), 'public', trimmed));
+    if (trimmed.startsWith('images/')) {
+      candidates.push(path.join(process.cwd(), 'public', trimmed));
+    }
+  };
+
+  try {
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      const parsed = new URL(imageUrl);
+      const pathname = decodeURIComponent(parsed.pathname || '');
+      pushCandidatesForPath(pathname);
+    } else {
+      pushCandidatesForPath(imageUrl);
+    }
+  } catch (err) {
+    pushCandidatesForPath(imageUrl);
+  }
+
+  for (const candidate of candidates) {
+    if (candidate && fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+async function uploadImageToNotion(notionToken, buffer, filename, mimeType, contentLength) {
+  const { FormData, File } = globalThis;
+  if (!FormData || !File) {
+    throw new Error('FormData/File is not available in this runtime. Please use Node.js >= 18.');
+  }
+
+  const createResponse = await fetch('https://api.notion.com/v1/file_uploads', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${notionToken}`,
+      'Notion-Version': NOTION_FILES_VERSION,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      mode: 'single_part',
+      filename,
+      content_type: mimeType,
+      content_length: contentLength,
+    }),
+  });
+
+  if (!createResponse.ok) {
+    let errorMessage = `Notion 準備檔案上傳失敗 (${createResponse.status})`;
+    try {
+      const errorData = await createResponse.json();
+      if (errorData?.message) {
+        errorMessage = errorData.message;
+      }
+    } catch {
+      // ignore
+    }
+    throw new Error(errorMessage);
+  }
+
+  const uploadInfo = await createResponse.json();
+  const uploadId = uploadInfo?.id;
+  const uploadUrl = uploadInfo?.upload_url;
+
+  if (!uploadId || !uploadUrl) {
+    throw new Error('Notion 回傳的上傳資訊不完整，缺少 id 或 upload_url');
+  }
+
+  const formData = new FormData();
+  const file = new File([buffer], filename, { type: mimeType || 'application/octet-stream' });
+  formData.append('file', file);
+
+  const sendResponse = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${notionToken}`,
+      'Notion-Version': NOTION_FILES_VERSION,
+    },
+    body: formData,
+  });
+
+  if (!sendResponse.ok) {
+    let errorMessage = `Notion 圖片上傳失敗 (${sendResponse.status})`;
+    try {
+      const errorData = await sendResponse.json();
+      if (errorData?.message) {
+        errorMessage = errorData.message;
+      }
+    } catch {
+      // ignore
+    }
+    throw new Error(errorMessage);
+  }
+
+  return {
+    fileUploadId: uploadId,
+    name: uploadInfo?.filename || filename,
+  };
+}
+
+async function prepareImageForNotion(notionToken, imageUrl) {
+  const localPath = resolveLocalImagePath(imageUrl);
+  if (!localPath) {
+    return {
+      type: 'external',
+      url: imageUrl,
+    };
+  }
+
+  try {
+    const fileBuffer = await fsPromises.readFile(localPath);
+    const fileName = path.basename(localPath);
+    const mimeType = guessImageMimeType(localPath);
+    const stats = await fsPromises.stat(localPath);
+    const uploaded = await uploadImageToNotion(
+      notionToken,
+      fileBuffer,
+      fileName,
+      mimeType,
+      stats.size,
+    );
+    return {
+      type: 'file_upload',
+      file_upload_id: uploaded.fileUploadId,
+      name: uploaded.name || fileName,
+    };
+  } catch (error) {
+    console.error('[Notion] 圖片上傳失敗，改用原始 URL:', error);
+    return {
+      type: 'external',
+      url: imageUrl,
+    };
+  }
+}
 
 /**
  * 將長文字切割成 Notion API 可接受的片段（每段 <= 1800 字元）
@@ -53,6 +224,8 @@ function chunkText(text, chunkSize = 1800) {
  * @param {string} [params.seoDescription] - SEO 描述
  * @param {string} [params.videoUrl] - 影片網址
  * @param {string} [params.titleProperty='Name'] - 目標資料庫的標題欄位名稱
+ * @param {Array<{ timestamp_seconds?: string, timestamp?: string, reason_for_screenshot?: string, reason?: string }>} [params.screenshotPlan] - 截圖規劃
+ * @param {string[][]} [params.imageUrls] - 截圖圖片 URL 陣列
  * @returns {Promise<{pageId: string, url: string}>}
  */
 export async function publishArticleToNotion({
@@ -63,6 +236,8 @@ export async function publishArticleToNotion({
   seoDescription,
   videoUrl,
   titleProperty = 'Name',
+  screenshotPlan,
+  imageUrls,
 }) {
   if (!notionToken) {
     throw new Error('缺少 Notion 金鑰');
@@ -84,6 +259,54 @@ export async function publishArticleToNotion({
   };
 
   const children = [];
+  const normalizedPlan = Array.isArray(screenshotPlan)
+    ? screenshotPlan
+        .map((item, index) => {
+          if (!item || typeof item !== 'object') {
+            return null;
+          }
+          const timestamp =
+            typeof item.timestamp_seconds === 'string' && item.timestamp_seconds.trim()
+              ? item.timestamp_seconds.trim()
+              : typeof item.timestamp === 'string' && item.timestamp.trim()
+                ? item.timestamp.trim()
+                : `Step ${index + 1}`;
+          const reason =
+            typeof item.reason_for_screenshot === 'string' && item.reason_for_screenshot.trim()
+              ? item.reason_for_screenshot.trim()
+              : typeof item.reason === 'string' && item.reason.trim()
+                ? item.reason.trim()
+                : '';
+          return {
+            timestamp,
+            reason,
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  const normalizedImages = Array.isArray(imageUrls)
+    ? imageUrls
+        .map((group) =>
+          Array.isArray(group)
+            ? group
+                .map((url) => (typeof url === 'string' ? url.trim() : ''))
+                .filter((url) => url.length > 0)
+            : []
+        )
+        .filter((group) => group.length > 0)
+    : [];
+
+  const uploadedImageGroups = [];
+  if (normalizedImages.length > 0) {
+    for (const group of normalizedImages) {
+      const uploadedGroup = [];
+      for (const imageUrl of group) {
+        uploadedGroup.push(await prepareImageForNotion(notionToken, imageUrl));
+      }
+      uploadedImageGroups.push(uploadedGroup);
+    }
+  }
 
   if (videoUrl) {
     children.push({
@@ -158,6 +381,116 @@ export async function publishArticleToNotion({
         },
       });
     }
+  }
+
+  if (normalizedPlan.length > 0) {
+    children.push({
+      object: 'block',
+      type: 'heading_2',
+      heading_2: {
+        rich_text: [
+          {
+            type: 'text',
+            text: { content: '截圖時間點規劃' },
+          },
+        ],
+        color: 'default',
+      },
+    });
+
+    normalizedPlan.forEach((planItem) => {
+      const textContent = planItem.reason
+        ? `${planItem.timestamp} — ${planItem.reason}`
+        : planItem.timestamp;
+      children.push({
+        object: 'block',
+        type: 'bulleted_list_item',
+        bulleted_list_item: {
+          rich_text: [
+            {
+              type: 'text',
+              text: { content: textContent },
+            },
+          ],
+        },
+      });
+    });
+  }
+
+  if (uploadedImageGroups.length > 0) {
+    children.push({
+      object: 'block',
+      type: 'heading_2',
+      heading_2: {
+        rich_text: [
+          {
+            type: 'text',
+            text: { content: '截圖圖像' },
+          },
+        ],
+        color: 'default',
+      },
+    });
+
+    uploadedImageGroups.forEach((group, index) => {
+      let headingLabel = `截圖組 ${index + 1}`;
+      if (normalizedPlan[index]?.timestamp) {
+        headingLabel = `截圖 ${normalizedPlan[index].timestamp}`;
+      }
+
+      children.push({
+        object: 'block',
+        type: 'heading_3',
+        heading_3: {
+          rich_text: [
+            {
+              type: 'text',
+              text: { content: headingLabel },
+            },
+          ],
+          color: 'default',
+        },
+      });
+
+      group.forEach((imageData, imageIndex) => {
+        const caption = normalizedPlan[index]?.reason && imageIndex === 0
+          ? [
+              {
+                type: 'text',
+                text: {
+                  content: normalizedPlan[index].reason,
+                },
+              },
+            ]
+          : [];
+
+        if (imageData.type === 'file_upload' && imageData.file_upload_id) {
+          children.push({
+            object: 'block',
+            type: 'image',
+            image: {
+              type: 'file_upload',
+              file_upload: {
+                id: imageData.file_upload_id,
+              },
+              caption,
+            },
+          });
+        } else {
+          children.push({
+            object: 'block',
+            type: 'image',
+            image: {
+              type: 'external',
+              external: {
+                url: imageData.url,
+              },
+              caption,
+            },
+          });
+        }
+      });
+    });
   }
 
   const payload = {

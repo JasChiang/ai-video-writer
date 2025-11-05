@@ -50,6 +50,8 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
   const [isPublishingToNotion, setIsPublishingToNotion] = useState(false);
   const [notionStatus, setNotionStatus] = useState<NotionStatus | null>(null);
   const [titlePropertyManuallyEdited, setTitlePropertyManuallyEdited] = useState(false);
+  const [includeScreenshotPlan, setIncludeScreenshotPlan] = useState(false);
+  const [includeScreenshotImages, setIncludeScreenshotImages] = useState(false);
   const notionOAuthMonitorRef = useRef<number | null>(null);
   const [notionAccessToken, setNotionAccessToken] = useState('');
   const [notionRefreshToken, setNotionRefreshToken] = useState('');
@@ -63,6 +65,8 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
   const [isLaunchingNotionOAuth, setIsLaunchingNotionOAuth] = useState(false);
   const [isFetchingDatabaseInfo, setIsFetchingDatabaseInfo] = useState(false);
   const [fetchedDatabaseInfo, setFetchedDatabaseInfo] = useState<notionClient.NotionDatabaseInfo | null>(null);
+  const storedScreenshotPlanPreferenceRef = useRef<boolean | null>(null);
+  const storedScreenshotImagesPreferenceRef = useRef<boolean | null>(null);
   const serverOrigin = useMemo(() => {
     if (typeof window === 'undefined') {
       return '';
@@ -192,6 +196,14 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
           if (typeof parsed.workspaceIcon === 'string') {
             setNotionWorkspaceIcon(parsed.workspaceIcon);
           }
+          if (typeof parsed.includeScreenshotPlan === 'boolean') {
+            setIncludeScreenshotPlan(parsed.includeScreenshotPlan);
+            storedScreenshotPlanPreferenceRef.current = parsed.includeScreenshotPlan;
+          }
+          if (typeof parsed.includeScreenshotImages === 'boolean') {
+            setIncludeScreenshotImages(parsed.includeScreenshotImages);
+            storedScreenshotImagesPreferenceRef.current = parsed.includeScreenshotImages;
+          }
           setRememberNotionSettings(true);
         }
       }
@@ -204,9 +216,38 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
     if (result) {
       setNotionPageTitle(result.titleA || video.title);
       setNotionStatus(null);
+
+      const hasPlan = Array.isArray(result.screenshots) && result.screenshots.length > 0;
+      const storedPlanPref = storedScreenshotPlanPreferenceRef.current;
+      if (hasPlan) {
+        if (typeof storedPlanPref === 'boolean') {
+          setIncludeScreenshotPlan(storedPlanPref && hasPlan);
+        } else {
+          setIncludeScreenshotPlan(true);
+        }
+      } else {
+        setIncludeScreenshotPlan(false);
+      }
+
+      const hasImages =
+        Array.isArray(result.image_urls) &&
+        result.image_urls.some((group) => Array.isArray(group) && group.some((url) => typeof url === 'string' && url.trim().length > 0));
+      const storedImagesPref = storedScreenshotImagesPreferenceRef.current;
+      if (hasImages && !result.needsScreenshots) {
+        if (typeof storedImagesPref === 'boolean') {
+          setIncludeScreenshotImages(storedImagesPref && hasImages);
+        } else {
+          setIncludeScreenshotImages(true);
+        }
+      } else {
+        setIncludeScreenshotImages(false);
+      }
+
     } else {
       setNotionPageTitle('');
       setNotionStatus(null);
+      setIncludeScreenshotPlan(false);
+      setIncludeScreenshotImages(false);
     }
   }, [result, video.title]);
 
@@ -227,6 +268,8 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
       titleProperty: notionTitleProperty || undefined,
       workspaceName: notionWorkspaceName || undefined,
       workspaceIcon: notionWorkspaceIcon || undefined,
+      includeScreenshotPlan: includeScreenshotPlan,
+      includeScreenshotImages: includeScreenshotImages,
     };
 
     window.localStorage.setItem('notionSettings', JSON.stringify(payload));
@@ -239,6 +282,8 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
     notionTitleProperty,
     notionWorkspaceName,
     notionWorkspaceIcon,
+    includeScreenshotPlan,
+    includeScreenshotImages,
   ]);
 
   // 處理檔案上傳
@@ -627,6 +672,10 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
     setFetchedDatabaseInfo(null);
     setIsFetchingDatabaseInfo(false);
     setTitlePropertyManuallyEdited(false);
+    setIncludeScreenshotPlan(false);
+    setIncludeScreenshotImages(false);
+    storedScreenshotPlanPreferenceRef.current = null;
+    storedScreenshotImagesPreferenceRef.current = null;
     setNotionStatus({
       type: 'success',
       message: '已解除與 Notion 的連線。',
@@ -781,6 +830,20 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
         setNotionTitleProperty(autoTitleProperty);
         setTitlePropertyManuallyEdited(false);
       }
+      const hasPlan =
+        Array.isArray(result.screenshots) && result.screenshots.length > 0 && includeScreenshotPlan;
+      const normalizedImageGroups = Array.isArray(result.image_urls)
+        ? result.image_urls
+            .map((group) =>
+              Array.isArray(group)
+                ? group
+                    .map((url) => (typeof url === 'string' ? url.trim() : ''))
+                    .filter((url) => url.length > 0)
+                : []
+            )
+            .filter((group) => group.length > 0)
+        : [];
+      const hasImages = normalizedImageGroups.length > 0 && includeScreenshotImages;
       const payload: notionClient.NotionPublishPayload = {
         title: pageTitle,
         article: result.article,
@@ -791,11 +854,24 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
 
       payload.databaseId = notionDatabaseId.trim();
       payload.notionToken = resolvedToken;
+      if (hasPlan) {
+        payload.screenshotPlan = result.screenshots
+          .map((item) => ({
+            timestamp: typeof item.timestamp_seconds === 'string' ? item.timestamp_seconds : '',
+            reason: typeof item.reason_for_screenshot === 'string' ? item.reason_for_screenshot : '',
+          }))
+          .filter((item) => item.timestamp || item.reason);
+      }
+      if (hasImages) {
+        payload.imageUrls = normalizedImageGroups;
+      }
 
       const response = await notionClient.publishArticleToNotion(payload);
 
       if (typeof window !== 'undefined') {
         if (rememberNotionSettings) {
+          storedScreenshotPlanPreferenceRef.current = includeScreenshotPlan;
+          storedScreenshotImagesPreferenceRef.current = includeScreenshotImages;
           window.localStorage.setItem(
             'notionSettings',
             JSON.stringify({
@@ -806,10 +882,14 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
               titleProperty: titlePropertyValue,
               workspaceName: notionWorkspaceName || undefined,
               workspaceIcon: notionWorkspaceIcon || undefined,
+              includeScreenshotPlan: includeScreenshotPlan,
+              includeScreenshotImages: includeScreenshotImages,
             }),
           );
         } else {
           window.localStorage.removeItem('notionSettings');
+          storedScreenshotPlanPreferenceRef.current = null;
+          storedScreenshotImagesPreferenceRef.current = null;
         }
       }
 
@@ -833,6 +913,13 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
     const hasConnected = notionAccessToken.trim().length > 0;
     const resolvedToken = (notionAccessToken || notionToken).trim();
     const hasDatabase = notionDatabaseId.trim().length > 0;
+    const hasScreenshotPlan =
+      !!result && Array.isArray(result.screenshots) && result.screenshots.length > 0;
+    const hasScreenshotImages =
+      !!result &&
+      Array.isArray(result.image_urls) &&
+      result.image_urls.some((group) => Array.isArray(group) && group.length > 0) &&
+      !result.needsScreenshots;
     const hasTitle = notionPageTitle.trim().length > 0;
     const canPublish =
       showPublishControls &&
@@ -1082,6 +1169,57 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
                 </p>
               </div>
             )}
+          </div>
+
+          <div className="rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
+            <p className="font-medium text-neutral-800">儲存內容選項</p>
+            <div className="mt-3 flex flex-col gap-2">
+              <label className={`flex items-center gap-2 ${hasScreenshotPlan ? '' : 'text-neutral-400'}`}>
+                <input
+                  type="checkbox"
+                  disabled={!hasScreenshotPlan}
+                  checked={hasScreenshotPlan ? includeScreenshotPlan : false}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setIncludeScreenshotPlan(checked);
+                    storedScreenshotPlanPreferenceRef.current = checked;
+                    if (!hasScreenshotPlan) {
+                      setIncludeScreenshotPlan(false);
+                      storedScreenshotPlanPreferenceRef.current = false;
+                    }
+                  }}
+                  className="h-4 w-4 accent-red-600"
+                />
+                <span>
+                  包含截圖時間點規劃
+                  {!hasScreenshotPlan && '（無可用資料）'}
+                </span>
+              </label>
+              <label className={`flex items-center gap-2 ${hasScreenshotImages ? '' : 'text-neutral-400'}`}>
+                <input
+                  type="checkbox"
+                  disabled={!hasScreenshotImages}
+                  checked={hasScreenshotImages ? includeScreenshotImages : false}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setIncludeScreenshotImages(checked);
+                    storedScreenshotImagesPreferenceRef.current = checked;
+                    if (!hasScreenshotImages) {
+                      setIncludeScreenshotImages(false);
+                      storedScreenshotImagesPreferenceRef.current = false;
+                    }
+                  }}
+                  className="h-4 w-4 accent-red-600"
+                />
+                <span>
+                  包含截圖圖像
+                  {!hasScreenshotImages && '（尚未完成截圖）'}
+                </span>
+              </label>
+            </div>
+            <p className="mt-2 text-xs text-neutral-400">
+              需先完成截圖或規劃後才能將資料寫入 Notion。
+            </p>
           </div>
         </div>
 

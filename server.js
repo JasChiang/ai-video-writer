@@ -408,6 +408,8 @@ app.post('/api/notion/publish', async (req, res) => {
       seoDescription,
       videoUrl,
       titleProperty,
+      screenshotPlan,
+      imageUrls,
     } = req.body || {};
 
     const resolvedToken = notionToken || process.env.NOTION_API_TOKEN;
@@ -445,6 +447,8 @@ app.post('/api/notion/publish', async (req, res) => {
       seoDescription: typeof seoDescription === 'string' ? seoDescription : undefined,
       videoUrl: typeof videoUrl === 'string' ? videoUrl : undefined,
       titleProperty: resolvedTitleProperty,
+      screenshotPlan: Array.isArray(screenshotPlan) ? screenshotPlan : undefined,
+      imageUrls: Array.isArray(imageUrls) ? imageUrls : undefined,
     });
 
     console.log('[Notion] 發佈成功，頁面 ID:', result.pageId);

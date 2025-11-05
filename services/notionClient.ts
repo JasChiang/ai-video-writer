@@ -10,12 +10,19 @@ export interface NotionPublishPayload {
   notionToken?: string;
   videoUrl?: string;
   titleProperty?: string;
+  screenshotPlan?: NotionScreenshotPlanItem[];
+  imageUrls?: string[][];
 }
 
 export interface NotionPublishResponse {
   success: boolean;
   pageId: string;
   url: string;
+}
+
+export interface NotionScreenshotPlanItem {
+  timestamp: string;
+  reason?: string;
 }
 
 export interface NotionAuthUrlResponse {
