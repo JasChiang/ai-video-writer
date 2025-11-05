@@ -1,5 +1,6 @@
 import type { GeneratedContentType } from '../types';
 import * as youtubeService from './youtubeService';
+import { executeAsyncTask, pollTaskUntilComplete } from './taskPollingService';
 
 // 從環境變數獲取 API 基址，如果沒有設定則使用預設值
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -55,6 +56,64 @@ export async function reanalyzeWithExistingFile(
   } catch (error: any) {
     console.error('[API] Reanalysis error:', error);
     return null;
+  }
+}
+
+/**
+ * 使用 YouTube URL 直接分析公開影片（異步版本，適合手機端）
+ * @param videoId YouTube 影片 ID
+ * @param userPrompt 使用者額外提示
+ * @param videoTitle 影片標題
+ * @param onProgress Optional: progress callback function
+ * @returns 分析結果
+ */
+export async function analyzePublicVideoAsync(
+  videoId: string,
+  userPrompt: string,
+  videoTitle: string,
+  onProgress?: ProgressCallback
+): Promise<AnalysisResult> {
+  try {
+    console.log(`[API Async] Analyzing public video via YouTube URL (async mode): ${videoId}`);
+
+    // 使用異步任務執行
+    return await executeAsyncTask(
+      async () => {
+        // 創建任務
+        onProgress?.('📹 正在建立影片分析任務...');
+
+        const analyzeResponse = await fetch(`${API_BASE_URL}/analyze-video-url-async`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            videoId,
+            prompt: userPrompt,
+            videoTitle,
+          }),
+        });
+
+        if (!analyzeResponse.ok) {
+          const error = await analyzeResponse.json();
+          throw new Error(error.error || 'Failed to create analysis task');
+        }
+
+        const data = await analyzeResponse.json();
+        console.log(`[API Async] Task created: ${data.taskId}`);
+        return { taskId: data.taskId };
+      },
+      {
+        interval: 2000, // 每 2 秒輪詢一次
+        timeout: 10 * 60 * 1000, // 10 分鐘超時
+        onProgress: (progress, message) => {
+          console.log(`[API Async] Progress: ${progress}% - ${message}`);
+          onProgress?.(message);
+        }
+      }
+    );
+
+  } catch (error: any) {
+    console.error('[API Async] Error:', error);
+    throw new Error(`影片分析失敗: ${error.message}`);
   }
 }
 
@@ -211,6 +270,77 @@ export async function analyzeUnlistedVideo(
   } catch (error: any) {
     console.error('[API] Error:', error);
     throw new Error(`影片分析失敗: ${error.message}`);
+  }
+}
+
+/**
+ * 使用 YouTube URL 生成文章（異步版本，適合手機端使用）
+ * @param videoId YouTube 影片 ID
+ * @param userPrompt 使用者額外提示
+ * @param videoTitle 影片標題
+ * @param screenshotQuality 截圖品質 (2=高畫質, 20=壓縮)
+ * @param onProgress Optional: progress callback function
+ * @param uploadedFiles Optional: uploaded reference files
+ * @returns 文章生成結果
+ */
+export async function generateArticleWithYouTubeUrlAsync(
+  videoId: string,
+  userPrompt: string,
+  videoTitle: string,
+  screenshotQuality: number = 2,
+  onProgress?: ProgressCallback,
+  uploadedFiles?: any[]
+): Promise<any> {
+  try {
+    console.log(`[API Async] Generating article via YouTube URL (async mode): ${videoId}`);
+    if (uploadedFiles && uploadedFiles.length > 0) {
+      console.log(`[API Async] With ${uploadedFiles.length} uploaded reference files`);
+    }
+
+    // 取得 access token
+    const accessToken = youtubeService.getAccessToken();
+
+    // 使用異步任務執行
+    return await executeAsyncTask(
+      async () => {
+        // 創建任務
+        onProgress?.('📝 正在建立文章生成任務...');
+
+        const response = await fetch(`${API_BASE_URL}/generate-article-url-async`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            videoId,
+            prompt: userPrompt,
+            videoTitle,
+            quality: screenshotQuality,
+            uploadedFiles: uploadedFiles || [],
+            accessToken,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to create article generation task');
+        }
+
+        const data = await response.json();
+        console.log(`[API Async] Task created: ${data.taskId}`);
+        return { taskId: data.taskId };
+      },
+      {
+        interval: 2000, // 每 2 秒輪詢一次
+        timeout: 10 * 60 * 1000, // 10 分鐘超時
+        onProgress: (progress, message) => {
+          console.log(`[API Async] Progress: ${progress}% - ${message}`);
+          onProgress?.(message);
+        }
+      }
+    );
+
+  } catch (error: any) {
+    console.error('[API Async] Error:', error);
+    throw new Error(`文章生成失敗: ${error.message}`);
   }
 }
 

@@ -22,6 +22,7 @@ import {
   listGeminiFiles,
   getGeminiFile
 } from './services/geminiFilesService.js';
+import * as taskQueue from './services/taskQueue.js';
 
 // 載入 .env.local 檔案
 dotenv.config({ path: '.env.local' });
@@ -241,6 +242,55 @@ async function findFileByDisplayName(ai, displayName) {
 
 // ==================== API 端點 ====================
 
+// ==================== 任務隊列 API ====================
+
+/**
+ * 查詢任務狀態
+ * GET /api/task/:taskId
+ */
+app.get('/api/task/:taskId', (req, res) => {
+  const { taskId } = req.params;
+  const task = taskQueue.getTask(taskId);
+
+  if (!task) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+
+  res.json({
+    id: task.id,
+    type: task.type,
+    status: task.status,
+    progress: task.progress,
+    progressMessage: task.progressMessage,
+    result: task.result,
+    error: task.error,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt
+  });
+});
+
+/**
+ * 取消任務
+ * DELETE /api/task/:taskId
+ */
+app.delete('/api/task/:taskId', (req, res) => {
+  const { taskId } = req.params;
+  const task = taskQueue.getTask(taskId);
+
+  if (!task) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+
+  if (task.status === taskQueue.TaskStatus.PROCESSING) {
+    return res.status(400).json({ error: 'Cannot cancel a task that is currently processing' });
+  }
+
+  taskQueue.failTask(taskId, 'Task cancelled by user');
+  res.json({ success: true, message: 'Task cancelled' });
+});
+
+// ==================== 影片處理 API ====================
+
 /**
  * 下載 YouTube 影片
  * POST /api/download-video
@@ -390,6 +440,96 @@ app.post('/api/download-video', async (req, res) => {
       details: errorDetails,
       videoId,
       videoUrl
+    });
+  }
+});
+
+/**
+ * 使用 YouTube URL 直接分析公開影片（異步版本，手機友好）
+ * POST /api/analyze-video-url-async
+ * Body: { videoId: string, prompt: string, videoTitle: string }
+ * Response: { taskId: string }
+ */
+app.post('/api/analyze-video-url-async', async (req, res) => {
+  const { videoId, prompt, videoTitle } = req.body;
+
+  if (!videoId || !isValidVideoId(videoId)) {
+    return res.status(400).json({ error: 'Missing or invalid videoId format' });
+  }
+
+  try {
+    // 創建任務
+    const taskId = taskQueue.createTask('analyze-video-url', {
+      videoId,
+      prompt,
+      videoTitle
+    });
+
+    // 立即返回任務 ID
+    res.json({
+      success: true,
+      taskId,
+      message: '任務已建立，請使用 taskId 查詢進度'
+    });
+
+    // 在背景執行任務
+    taskQueue.executeTask(taskId, async (taskId) => {
+      const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+      console.log(`\n========== 🤖 [Task ${taskId}] 使用 YouTube URL 分析影片 ==========`);
+      console.log(`[Analyze URL] Video ID: ${videoId}`);
+      console.log(`[Analyze URL] YouTube URL: ${youtubeUrl}`);
+      console.log(`[Analyze URL] Video Title: ${videoTitle}`);
+
+      taskQueue.updateTaskProgress(taskId, 20, '初始化 Gemini AI...');
+
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+      // 生成提示詞
+      taskQueue.updateTaskProgress(taskId, 40, '正在生成 SEO 強化內容...');
+      console.log('[Analyze URL] 正在生成 SEO 強化內容...');
+      const fullPrompt = generateFullPrompt(videoTitle, prompt);
+
+      taskQueue.updateTaskProgress(taskId, 60, 'Gemini AI 正在分析影片...');
+
+      // 直接使用 YouTube URL 呼叫 Gemini API
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { fileData: { fileUri: youtubeUrl } },
+              { text: fullPrompt }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: "application/json",
+        },
+      });
+
+      taskQueue.updateTaskProgress(taskId, 90, '解析 AI 回應...');
+
+      console.log('[Analyze URL] ✅ Gemini 分析完成!');
+      const result = JSON.parse(response.text);
+      console.log(`[Analyze URL] Generated: ${result.titleA}`);
+      console.log(`========== 分析完成 ==========\n`);
+
+      taskQueue.updateTaskProgress(taskId, 100, '分析完成！');
+
+      return {
+        success: true,
+        metadata: result,
+        usedYouTubeUrl: true
+      };
+    });
+
+  } catch (error) {
+    console.error('Task creation error:', error);
+    res.status(500).json({
+      error: 'Failed to create task',
+      details: error.message
     });
   }
 });
@@ -696,6 +836,191 @@ app.post('/api/reanalyze-with-existing-file', async (req, res) => {
     console.error('Reanalysis error:', error);
     res.status(500).json({
       error: 'Failed to reanalyze video',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * 使用 YouTube URL 生成文章（異步版本，手機友好）
+ * POST /api/generate-article-url-async
+ * Body: { videoId: string, prompt: string, videoTitle: string, quality?: number, uploadedFiles?: array, accessToken?: string }
+ * Response: { taskId: string }
+ */
+app.post('/api/generate-article-url-async', async (req, res) => {
+  const { videoId, prompt, videoTitle, quality = 2, uploadedFiles = [], accessToken } = req.body;
+
+  if (!videoId || !isValidVideoId(videoId)) {
+    return res.status(400).json({ error: 'Missing or invalid videoId format' });
+  }
+
+  try {
+    // 創建任務
+    const taskId = taskQueue.createTask('generate-article-url', {
+      videoId,
+      prompt,
+      videoTitle,
+      quality,
+      uploadedFiles,
+      accessToken
+    });
+
+    // 立即返回任務 ID
+    res.json({
+      success: true,
+      taskId,
+      message: '任務已建立，請使用 taskId 查詢進度'
+    });
+
+    // 在背景執行任務
+    taskQueue.executeTask(taskId, async (taskId) => {
+      // 速率限制檢查
+      const rateLimitId = accessToken || req.ip;
+      const clientIp = req.ip;
+
+      const tokenRateCheck = checkRateLimit(rateLimitId, downloadRateLimiter, MAX_DOWNLOADS_PER_HOUR);
+      if (!tokenRateCheck.allowed) {
+        throw new Error(`下載次數已達上限，請在 ${tokenRateCheck.waitMinutes} 分鐘後再試`);
+      }
+
+      const ipRateCheck = checkRateLimit(clientIp, ipRateLimiter, MAX_DOWNLOADS_PER_HOUR_PER_IP);
+      if (!ipRateCheck.allowed) {
+        throw new Error(`此 IP 位址下載次數過多，請在 ${ipRateCheck.waitMinutes} 分鐘後再試`);
+      }
+
+      const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+      console.log(`\n========== 📝 [Task ${taskId}] 使用 YouTube URL 生成文章 ==========`);
+      console.log(`[Article URL] Video ID: ${videoId}`);
+      console.log(`[Article URL] YouTube URL: ${youtubeUrl}`);
+      console.log(`[Article URL] Video Title: ${videoTitle}`);
+
+      if (uploadedFiles.length > 0) {
+        console.log(`[Article URL] 📎 上傳的參考檔案: ${uploadedFiles.length} 個`);
+      }
+
+      taskQueue.updateTaskProgress(taskId, 10, '檢查 FFmpeg 安裝狀態...');
+
+      // 檢查 FFmpeg 是否安裝
+      try {
+        const { stdout } = await execAsync('ffmpeg -version');
+        const version = stdout.split('\n')[0];
+        console.log(`[Article URL] ✅ FFmpeg found: ${version}`);
+      } catch (error) {
+        throw new Error('FFmpeg is not installed. Please install it first.');
+      }
+
+      taskQueue.updateTaskProgress(taskId, 20, '初始化 Gemini AI...');
+
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+      // 步驟 1: 使用 YouTube URL 生成文章與截圖時間點
+      taskQueue.updateTaskProgress(taskId, 30, '使用 YouTube URL 分析影片並生成文章...');
+      console.log('[Article URL] 步驟 1/3: 使用 YouTube URL 分析影片並生成文章...');
+
+      // 根據是否有上傳檔案，使用不同的 prompt 生成函數
+      const { generateArticlePromptWithFiles } = await import('./services/articlePromptService.js');
+      const fullPrompt = uploadedFiles.length > 0
+        ? generateArticlePromptWithFiles(videoTitle, prompt, uploadedFiles)
+        : generateArticlePrompt(videoTitle, prompt);
+
+      // 建立 parts 陣列
+      const parts = [
+        { fileData: { fileUri: youtubeUrl } }
+      ];
+
+      // 加入使用者上傳的參考檔案
+      if (uploadedFiles.length > 0) {
+        for (const file of uploadedFiles) {
+          console.log(`[Article URL] 加入參考檔案: ${file.displayName} (${file.mimeType})`);
+          parts.push({
+            fileData: {
+              mimeType: file.mimeType,
+              fileUri: file.uri
+            }
+          });
+        }
+      }
+
+      parts.push({ text: fullPrompt });
+
+      taskQueue.updateTaskProgress(taskId, 50, 'Gemini AI 正在分析影片內容...');
+
+      // 添加重試機制處理 503 錯誤
+      let response;
+      let attempts = 0;
+      const maxAttempts = 3;
+
+      while (attempts < maxAttempts) {
+        try {
+          response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: [
+              {
+                role: 'user',
+                parts: parts
+              }
+            ],
+            config: {
+              responseMimeType: "application/json",
+            },
+          });
+          break;
+        } catch (error) {
+          attempts++;
+          if (error.status === 503 && attempts < maxAttempts) {
+            const waitTime = attempts * 5;
+            console.log(`[Article URL] ⚠️  Gemini API 過載，${waitTime} 秒後重試（第 ${attempts}/${maxAttempts} 次）...`);
+            taskQueue.updateTaskProgress(taskId, 50 + attempts * 5, `Gemini API 過載，${waitTime} 秒後重試...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      taskQueue.updateTaskProgress(taskId, 80, '解析 Gemini AI 回應...');
+
+      let result;
+      try {
+        const responseText = response.text;
+        console.log(`[Article URL] ✅ Gemini 回應長度: ${responseText.length} 字元`);
+        result = JSON.parse(responseText);
+
+        if (!result.titleA || !result.titleB || !result.titleC || !result.article_text || !result.screenshots) {
+          throw new Error('Missing required fields in response');
+        }
+
+        console.log(`[Article URL] ✅ 文章生成成功! 找到 ${result.screenshots.length} 個截圖時間點`);
+        console.log(`[Article URL] 標題 A: ${result.titleA}`);
+      } catch (parseError) {
+        console.error('[Article URL] ❌ JSON parsing error:', parseError.message);
+        throw new Error(`無法解析 Gemini 回應為 JSON 格式。錯誤：${parseError.message}`);
+      }
+
+      taskQueue.updateTaskProgress(taskId, 100, '文章生成完成！');
+      console.log('[Article URL] ✅ 文章生成完成！截圖時間點已規劃');
+      console.log(`========== 文章生成完成 ==========\n`);
+
+      return {
+        success: true,
+        titleA: result.titleA,
+        titleB: result.titleB,
+        titleC: result.titleC,
+        article: result.article_text,
+        seo_description: result.seo_description,
+        image_urls: [],
+        screenshots: result.screenshots,
+        usedYouTubeUrl: true,
+        needsScreenshots: true,
+        videoId: videoId
+      };
+    });
+
+  } catch (error) {
+    console.error('Task creation error:', error);
+    res.status(500).json({
+      error: 'Failed to create task',
       details: error.message
     });
   }

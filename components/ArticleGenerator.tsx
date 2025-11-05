@@ -113,12 +113,12 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
 
       // 根據隱私狀態選擇不同的策略
       if (privacyStatus === 'public') {
-        // 公開影片：使用 YouTube URL 直接分析
-        console.log('[Article] Using YouTube URL for public video');
+        // 公開影片：使用 YouTube URL 直接分析（異步版本，適合手機端）
+        console.log('[Article] Using YouTube URL for public video (async mode)');
         if (uploadedFiles.length > 0) {
           console.log(`[Article] With ${uploadedFiles.length} reference files`);
         }
-        generateData = await videoApiService.generateArticleWithYouTubeUrl(
+        generateData = await videoApiService.generateArticleWithYouTubeUrlAsync(
           video.id,
           customPrompt,
           video.title,

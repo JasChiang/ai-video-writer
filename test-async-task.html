@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>異步任務系統測試</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+    .test-section {
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 4px;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .output {
+      margin-top: 15px;
+      padding: 15px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 20px;
+      background: #e0e0e0;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 10px 0;
+    }
+    .progress-fill {
+      height: 100%;
+      background: #4CAF50;
+      transition: width 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 12px;
+    }
+    .status {
+      padding: 5px 10px;
+      border-radius: 4px;
+      display: inline-block;
+      margin: 5px 0;
+      font-size: 12px;
+    }
+    .status.pending { background: #ffa726; color: white; }
+    .status.processing { background: #42a5f5; color: white; }
+    .status.completed { background: #4CAF50; color: white; }
+    .status.failed { background: #ef5350; color: white; }
+    .warning {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔬 異步任務系統測試</h1>
+
+    <div class="warning">
+      ⚠️ <strong>注意</strong>：請確保後端伺服器正在運行（預設: http://localhost:3001）
+    </div>
+
+    <!-- Test 1: 查詢任務狀態 -->
+    <div class="test-section">
+      <h3>測試 1: 查詢任務狀態</h3>
+      <p>輸入 Task ID 查詢狀態：</p>
+      <input type="text" id="taskId" placeholder="task_xxxxx" style="width: 300px; padding: 8px;">
+      <button onclick="getTaskStatus()">查詢狀態</button>
+      <div id="statusOutput" class="output" style="display: none;"></div>
+    </div>
+
+    <!-- Test 2: 創建測試任務 -->
+    <div class="test-section">
+      <h3>測試 2: 創建文章生成任務</h3>
+      <p>輸入 YouTube 影片 ID：</p>
+      <input type="text" id="videoId" placeholder="dQw4w9WgXcQ" value="dQw4w9WgXcQ" style="width: 300px; padding: 8px;">
+      <br><br>
+      <button onclick="createTask()" id="createBtn">創建任務</button>
+      <button onclick="stopPolling()" id="stopBtn" disabled>停止輪詢</button>
+
+      <div id="taskProgress" style="display: none; margin-top: 15px;">
+        <p>任務 ID: <strong id="currentTaskId"></strong></p>
+        <p>狀態: <span id="taskStatusBadge" class="status pending">pending</span></p>
+        <div class="progress-bar">
+          <div id="progressFill" class="progress-fill" style="width: 0%">0%</div>
+        </div>
+        <p id="progressMessage" style="color: #666; font-size: 14px;"></p>
+      </div>
+
+      <div id="taskOutput" class="output" style="display: none;"></div>
+    </div>
+
+    <!-- Test 3: 系統信息 -->
+    <div class="test-section">
+      <h3>測試 3: 系統檢查</h3>
+      <button onclick="checkSystem()">檢查系統</button>
+      <div id="systemOutput" class="output" style="display: none;"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:3001/api';
+    let pollingInterval = null;
+
+    // 查詢任務狀態
+    async function getTaskStatus() {
+      const taskId = document.getElementById('taskId').value.trim();
+      if (!taskId) {
+        alert('請輸入 Task ID');
+        return;
+      }
+
+      const output = document.getElementById('statusOutput');
+      output.style.display = 'block';
+      output.textContent = '正在查詢...';
+
+      try {
+        const response = await fetch(`${API_BASE}/task/${taskId}`);
+        const data = await response.json();
+
+        if (response.ok) {
+          output.textContent = JSON.stringify(data, null, 2);
+        } else {
+          output.textContent = `❌ 錯誤: ${data.error}`;
+        }
+      } catch (error) {
+        output.textContent = `❌ 請求失敗: ${error.message}`;
+      }
+    }
+
+    // 創建任務
+    async function createTask() {
+      const videoId = document.getElementById('videoId').value.trim();
+      if (!videoId) {
+        alert('請輸入 YouTube 影片 ID');
+        return;
+      }
+
+      const createBtn = document.getElementById('createBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const output = document.getElementById('taskOutput');
+      const progress = document.getElementById('taskProgress');
+
+      createBtn.disabled = true;
+      stopBtn.disabled = false;
+      output.style.display = 'none';
+      progress.style.display = 'block';
+
+      try {
+        // 創建任務
+        const response = await fetch(`${API_BASE}/generate-article-url-async`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            videoId: videoId,
+            prompt: '測試生成',
+            videoTitle: '測試影片',
+            quality: 2
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || '創建任務失敗');
+        }
+
+        document.getElementById('currentTaskId').textContent = data.taskId;
+        updateProgress(0, '任務已創建，開始執行...');
+
+        // 開始輪詢
+        startPolling(data.taskId);
+
+      } catch (error) {
+        alert(`創建任務失敗: ${error.message}`);
+        createBtn.disabled = false;
+        stopBtn.disabled = true;
+      }
+    }
+
+    // 開始輪詢
+    function startPolling(taskId) {
+      let pollCount = 0;
+      pollingInterval = setInterval(async () => {
+        pollCount++;
+
+        try {
+          const response = await fetch(`${API_BASE}/task/${taskId}`);
+          const task = await response.json();
+
+          if (!response.ok) {
+            throw new Error(task.error || '查詢失敗');
+          }
+
+          // 更新進度
+          updateProgress(task.progress, task.progressMessage);
+          updateStatus(task.status);
+
+          // 檢查是否完成
+          if (task.status === 'completed') {
+            stopPolling();
+            showResult(task.result);
+            alert('✅ 任務完成！');
+          } else if (task.status === 'failed') {
+            stopPolling();
+            alert(`❌ 任務失敗: ${task.error}`);
+          }
+
+          // 超時保護（5分鐘）
+          if (pollCount > 150) {
+            stopPolling();
+            alert('⏱️ 輪詢超時，請手動查詢任務狀態');
+          }
+
+        } catch (error) {
+          console.error('輪詢錯誤:', error);
+        }
+      }, 2000); // 每 2 秒輪詢一次
+    }
+
+    // 停止輪詢
+    function stopPolling() {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+      }
+      document.getElementById('createBtn').disabled = false;
+      document.getElementById('stopBtn').disabled = true;
+    }
+
+    // 更新進度
+    function updateProgress(progress, message) {
+      const fill = document.getElementById('progressFill');
+      const msg = document.getElementById('progressMessage');
+
+      fill.style.width = `${progress}%`;
+      fill.textContent = `${progress}%`;
+      msg.textContent = message || '';
+    }
+
+    // 更新狀態標籤
+    function updateStatus(status) {
+      const badge = document.getElementById('taskStatusBadge');
+      badge.className = `status ${status}`;
+      badge.textContent = status;
+    }
+
+    // 顯示結果
+    function showResult(result) {
+      const output = document.getElementById('taskOutput');
+      output.style.display = 'block';
+      output.textContent = JSON.stringify(result, null, 2);
+    }
+
+    // 系統檢查
+    async function checkSystem() {
+      const output = document.getElementById('systemOutput');
+      output.style.display = 'block';
+      output.textContent = '正在檢查系統...\n\n';
+
+      const tests = [
+        {
+          name: '後端連接',
+          test: async () => {
+            const response = await fetch(`${API_BASE.replace('/api', '')}/`);
+            return response.ok;
+          }
+        },
+        {
+          name: '任務 API',
+          test: async () => {
+            const response = await fetch(`${API_BASE}/task/test_invalid_id`);
+            return response.status === 404; // 預期 404
+          }
+        }
+      ];
+
+      for (const test of tests) {
+        try {
+          const result = await test.test();
+          output.textContent += `✅ ${test.name}: ${result ? '通過' : '失敗'}\n`;
+        } catch (error) {
+          output.textContent += `❌ ${test.name}: 錯誤 - ${error.message}\n`;
+        }
+      }
+
+      output.textContent += '\n檢查完成！';
+    }
+
+    // 頁面卸載時停止輪詢
+    window.addEventListener('beforeunload', stopPolling);
+  </script>
+</body>
+</html>

@@ -55,7 +55,8 @@ export function MetadataGenerator({ video, onClose }: MetadataGeneratorProps) {
     try {
       const privacyStatus = video.privacyStatus || 'public';
 
-      const result = await geminiService.generateVideoMetadata(
+      // 使用異步版本（適合手機端，避免切換分頁時中斷）
+      const result = await geminiService.generateVideoMetadataAsync(
         video.id,
         prompt,
         video.title,
