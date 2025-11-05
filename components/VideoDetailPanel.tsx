@@ -256,37 +256,37 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
               <p className="text-sm opacity-80">請將影片改為「未列出」或「公開」</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               <button
                 onClick={() => setActiveMode('metadata')}
-                className="group relative p-5 md:p-6 rounded-xl transition-all duration-200 transform hover:scale-[1.01] shadow-md text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500 bg-red-600 hover:bg-red-700"
+                className="group flex w-full items-center gap-3 rounded-lg border border-red-100 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500"
               >
-                <div className="flex items-center gap-4">
-                  <div className="bg-white/20 p-3 rounded-lg">
-                    <svg className="w-7 h-7 md:w-8 md:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-red-100 text-red-600">
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                     </svg>
                   </div>
                   <div className="text-left flex-1">
-                    <h5 className="text-lg font-bold text-white mb-1">YouTube Metadata 生成</h5>
-                    <p className="text-sm text-white/80">生成標題、描述、標籤</p>
+                    <h5 className="text-sm font-semibold text-red-600">YouTube Metadata 生成</h5>
+                    <p className="text-xs text-red-500/80">生成標題、描述、標籤</p>
                   </div>
                 </div>
               </button>
 
               <button
                 onClick={() => setActiveMode('article')}
-                className="group relative p-5 md:p-6 rounded-xl transition-all duration-200 transform hover:scale-[1.01] shadow-md text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-neutral-900 bg-neutral-900 hover:bg-neutral-800"
+                className="group flex w-full items-center gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-900 transition hover:border-neutral-300 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-neutral-900"
               >
-                <div className="flex items-center gap-4">
-                  <div className="bg-white/20 p-3 rounded-lg">
-                    <svg className="w-7 h-7 md:w-8 md:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-neutral-900 text-white">
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
                   <div className="text-left flex-1">
-                    <h5 className="text-lg font-bold text-white mb-1">部落格文章生成</h5>
-                    <p className="text-sm text-white/85">生成文章與關鍵截圖</p>
+                    <h5 className="text-sm font-semibold text-neutral-900">部落格文章生成</h5>
+                    <p className="text-xs text-neutral-600">生成文章與關鍵截圖</p>
                   </div>
                 </div>
               </button>
