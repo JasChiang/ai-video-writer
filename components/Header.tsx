@@ -13,60 +13,86 @@ interface HeaderProps {
 
 export function Header({ isLoggedIn, onLogout, activeTab, onTabChange }: HeaderProps) {
   return (
-    <header className="relative z-10 bg-white border-b border-neutral-200 shadow-sm">
-      <div className="absolute inset-x-0 top-0 h-1 bg-red-600" aria-hidden />
+    <header className="sticky top-0 z-30 border-b border-neutral-200 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/75">
+      <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-red-600 via-red-500 to-red-600" aria-hidden />
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <YouTubeIcon />
-            <h1 className="text-xl sm:text-2xl font-semibold text-neutral-900 tracking-tight">
-              <span className="text-red-600">YouTube</span> <span className="hidden sm:inline">Content Assistant</span><span className="sm:hidden">助理</span>
-            </h1>
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-semibold tracking-tight text-neutral-900 sm:text-2xl">
+                <span className="text-red-600">YouTube</span>{' '}
+                <span className="hidden sm:inline">Content Assistant</span>
+                <span className="sm:hidden">內容助理</span>
+              </h1>
+              <p className="text-xs text-neutral-500 sm:text-sm">
+                連結頻道、管理影片、快速生成 SEO 與行銷素材
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
-            {/* 分頁切換按鈕 */}
-            {isLoggedIn && onTabChange && (
-              <div className="flex gap-2 flex-1 sm:flex-none">
-                <button
-                  onClick={() => onTabChange('videos')}
-                  className={`flex-1 sm:flex-none min-w-[100px] px-3 sm:px-4 py-2 rounded-full font-medium text-sm sm:text-base transition-all border whitespace-nowrap ${
-                    activeTab === 'videos'
-                      ? 'bg-red-600 border-red-600 text-white shadow-sm'
-                      : 'bg-neutral-100 border-transparent text-neutral-700 hover:bg-neutral-200'
-                  }`}
-                >
-                  <span className="hidden sm:inline">🎬 影片列表</span>
-                  <span className="sm:hidden">🎬 影片</span>
-                </button>
-                <button
-                  onClick={() => onTabChange('analytics')}
-                  className={`flex-1 sm:flex-none min-w-[100px] px-3 sm:px-4 py-2 rounded-full font-medium text-sm sm:text-base transition-all border whitespace-nowrap ${
-                    activeTab === 'analytics'
-                      ? 'bg-red-600 border-red-600 text-white shadow-sm'
-                      : 'bg-neutral-100 border-transparent text-neutral-700 hover:bg-neutral-200'
-                  }`}
-                >
-                  <span className="hidden sm:inline">📊 影片分析</span>
-                  <span className="sm:hidden">📊 分析</span>
-                </button>
-              </div>
-            )}
-
-            {/* 登出按鈕 */}
-            {isLoggedIn && onLogout && (
+          {isLoggedIn && onLogout && (
+            <div className="flex items-center justify-end gap-2">
               <button
                 onClick={onLogout}
-                className="flex-shrink-0 flex items-center justify-center gap-2 min-w-[80px] px-3 sm:px-4 py-2 rounded-full font-medium text-sm sm:text-base border border-red-600 text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap"
+                className="inline-flex items-center gap-2 rounded-full border border-red-600 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4 sm:h-5 sm:w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                  />
                 </svg>
                 <span className="hidden sm:inline">登出</span>
+                <span className="sm:hidden">離開</span>
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
+
+        {isLoggedIn && onTabChange && (
+          <nav
+            className="mt-3"
+            aria-label="主要導覽"
+          >
+            <div className="flex gap-2 overflow-x-auto rounded-full border border-neutral-200 bg-neutral-50 p-1 text-sm text-neutral-700 shadow-inner sm:text-base">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'videos'}
+                onClick={() => onTabChange('videos')}
+                className={`flex-1 whitespace-nowrap rounded-full px-4 py-2 font-semibold transition ${
+                  activeTab === 'videos'
+                    ? 'bg-white text-red-600 shadow'
+                    : 'hover:bg-white hover:text-neutral-900'
+                }`}
+              >
+                🎬 影片內容
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'analytics'}
+                onClick={() => onTabChange('analytics')}
+                className={`flex-1 whitespace-nowrap rounded-full px-4 py-2 font-semibold transition ${
+                  activeTab === 'analytics'
+                    ? 'bg-white text-red-600 shadow'
+                    : 'hover:bg-white hover:text-neutral-900'
+                }`}
+              >
+                📊 數據洞察
+              </button>
+            </div>
+          </nav>
+        )}
       </div>
     </header>
   );

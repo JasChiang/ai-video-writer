@@ -25,6 +25,8 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
     };
   }>({ checking: true, exists: false });
   const privacyBadge = getPrivacyStatusBadge(video.privacyStatus);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const DESCRIPTION_PREVIEW_LIMIT = 420;
 
   // 檢查檔案是否存在於 Files API
   React.useEffect(() => {
@@ -54,6 +56,18 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
 
     checkFile();
   }, [video.id, video.privacyStatus]);
+
+  React.useEffect(() => {
+    setIsDescriptionExpanded(false);
+  }, [video.id]);
+
+  const shouldTruncateDescription =
+    Boolean(video.description) && video.description.length > DESCRIPTION_PREVIEW_LIMIT;
+
+  const displayedDescription =
+    shouldTruncateDescription && !isDescriptionExpanded
+      ? `${video.description.substring(0, DESCRIPTION_PREVIEW_LIMIT)}…`
+      : video.description;
 
   return (
     <div className="space-y-6 p-6 rounded-2xl bg-white border border-neutral-200 shadow-sm">
@@ -146,10 +160,19 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
           </div>
 
           {video.description && (
-            <div className="rounded-lg p-4 text-sm whitespace-pre-wrap bg-neutral-100 border border-neutral-200 text-neutral-700">
-              {video.description.length > 300
-                ? `${video.description.substring(0, 300)}...`
-                : video.description}
+            <div className="space-y-2">
+              <div className="rounded-lg border border-neutral-200 bg-neutral-100 px-4 py-3 text-sm leading-relaxed text-neutral-700 whitespace-pre-wrap">
+                {displayedDescription}
+              </div>
+              {shouldTruncateDescription && (
+                <button
+                  type="button"
+                  onClick={() => setIsDescriptionExpanded(prev => !prev)}
+                  className="inline-flex items-center gap-1 rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-600 transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                >
+                  {isDescriptionExpanded ? '收合影片說明' : '展開影片說明'}
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -7,6 +7,7 @@ import type { YouTubeVideo } from './types';
 import { YouTubeLogin } from './components/YouTubeLogin';
 import { VideoSelector } from './components/VideoSelector';
 import { VideoAnalytics } from './components/VideoAnalytics';
+import { VideoDetailPanel } from './components/VideoDetailPanel';
 
 type ActiveTab = 'videos' | 'analytics';
 
@@ -22,6 +23,21 @@ export default function App() {
   const [showUnlistedVideos, setShowUnlistedVideos] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeTab, setActiveTab] = useState<ActiveTab>('videos');
+  const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 0));
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleResize = () => {
+      setViewportWidth(window.innerWidth);
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   const init = async () => {
     setIsInitializing(true);
@@ -48,7 +64,7 @@ export default function App() {
   useEffect(() => {
     init();
   }, []);
-  
+
   const handleLogin = async () => {
     try {
       await youtubeService.requestToken();
@@ -84,6 +100,8 @@ export default function App() {
     setShowUnlistedVideos(false);
     setSearchQuery('');
     setError(null);
+    setSelectedVideoId(null);
+    setIsFilterPanelOpen(false);
   };
 
   const fetchVideos = async (reset: boolean = true) => {
@@ -104,29 +122,20 @@ export default function App() {
         showUnlistedVideos
       );
 
-      if (reset) {
-        setVideos(result.videos);
-        setNextPageToken(result.nextPageToken);
-        setHasMore(!!result.nextPageToken);
-      } else {
-        // 去重：過濾掉已經存在的影片
-        setVideos(prev => {
-          const existingIds = new Set(prev.map(v => v.id));
-          const newVideos = result.videos.filter(v => !existingIds.has(v.id));
+      const existingIds = reset ? new Set<string>() : new Set(videos.map(v => v.id));
+      const dedupedVideos = reset
+        ? result.videos
+        : [...videos, ...result.videos.filter(video => !existingIds.has(video.id))];
 
-          // 如果沒有新影片但還有下一頁，自動載入下一頁
-          if (newVideos.length === 0 && result.nextPageToken) {
-            setNextPageToken(result.nextPageToken);
-            // 不要在這裡遞迴調用，讓使用者再按一次
-            setHasMore(true);
-          } else {
-            setNextPageToken(result.nextPageToken);
-            setHasMore(!!result.nextPageToken);
-          }
-
-          return [...prev, ...newVideos];
-        });
-      }
+      setVideos(dedupedVideos);
+      setNextPageToken(result.nextPageToken);
+      setHasMore(!!result.nextPageToken);
+      setSelectedVideoId(prev => {
+        if (prev && dedupedVideos.some(video => video.id === prev)) {
+          return prev;
+        }
+        return isDesktop ? dedupedVideos[0]?.id ?? null : null;
+      });
     } catch (e: any) {
       setError('Could not fetch YouTube videos. The API quota may be exceeded or permissions are missing.');
       console.error(e);
@@ -166,6 +175,153 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  const handleResetFilters = () => {
+    setShowPrivateVideos(false);
+    setShowUnlistedVideos(false);
+    setSearchQuery('');
+  };
+
+  const handleVideoSelect = (videoId: string) => {
+    setSelectedVideoId(videoId);
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      const target = document.getElementById(`video-card-${videoId}`);
+      if (target) {
+        window.requestAnimationFrame(() => {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
+    }
+  };
+
+  const selectedVideo = selectedVideoId
+    ? videos.find(video => video.id === selectedVideoId) ?? null
+    : null;
+
+  const isDesktop = viewportWidth >= 1024;
+  const useInlineDetail = viewportWidth < 1024;
+
+  useEffect(() => {
+    if (isDesktop) {
+      setIsFilterPanelOpen(false);
+      setSelectedVideoId(prev => prev ?? (videos[0]?.id ?? null));
+    }
+  }, [isDesktop, videos]);
+
+  const hasActiveFilters = showPrivateVideos || showUnlistedVideos || Boolean(searchQuery);
+
+  const renderFilterControls = () => (
+    <div className="space-y-5">
+      <div className="relative">
+        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-red-600">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </span>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="搜尋影片標題或描述..."
+          className="w-full rounded-full border border-neutral-300 bg-white pl-12 pr-12 py-3 text-sm text-neutral-900 shadow-sm transition focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 sm:text-base"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400 transition hover:text-neutral-600 focus:outline-none"
+            aria-label="清除搜尋"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={handleToggleUnlistedVideos}
+          aria-pressed={showUnlistedVideos}
+          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 ${
+            showUnlistedVideos
+              ? 'border-red-500 bg-red-50/80 text-red-600 shadow-sm'
+              : 'border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50'
+          }`}
+        >
+          <span className="font-medium">顯示未公開影片</span>
+          <span
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              showUnlistedVideos ? 'bg-red-500' : 'bg-neutral-300'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                showUnlistedVideos ? 'translate-x-5' : 'translate-x-1'
+              }`}
+            />
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleTogglePrivateVideos}
+          aria-pressed={showPrivateVideos}
+          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 ${
+            showPrivateVideos
+              ? 'border-red-500 bg-red-50/80 text-red-600 shadow-sm'
+              : 'border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50'
+          }`}
+        >
+          <span className="font-medium">顯示私人影片</span>
+          <span
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              showPrivateVideos ? 'bg-red-500' : 'bg-neutral-300'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                showPrivateVideos ? 'translate-x-5' : 'translate-x-1'
+              }`}
+            />
+          </span>
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+        <div className="flex items-center gap-2 text-neutral-500">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-100 text-xs font-semibold text-red-600">
+            {videos.length}
+          </span>
+          <span>符合條件的影片</span>
+        </div>
+        <button
+          type="button"
+          onClick={handleResetFilters}
+          disabled={!hasActiveFilters}
+          className={`text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 ${
+            hasActiveFilters
+              ? 'text-red-600 hover:text-red-700'
+              : 'cursor-not-allowed text-neutral-300'
+          }`}
+        >
+          重設篩選
+        </button>
+      </div>
+
+      {searchQuery && !isLoadingVideos && (
+        <div className="rounded-lg border border-red-200 bg-red-50/70 px-3 py-2 text-sm text-red-600">
+          {videos.length > 0 ? (
+            <span>
+              找到 <span className="font-semibold">{videos.length}</span> 個包含「{searchQuery}」的影片
+            </span>
+          ) : (
+            <span>未找到包含「{searchQuery}」的影片，可試試其他關鍵字。</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   const renderContent = () => {
     if (isInitializing) {
       return <div className="flex justify-center items-center h-64"><Loader /></div>;
@@ -181,103 +337,73 @@ export default function App() {
     }
 
     return (
-      <>
-        <div className="mb-6 space-y-4">
-          {/* 搜尋框和篩選選項 */}
-          <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
-            {/* 搜尋框 */}
-            <div className="flex-1 relative">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-red-600">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜尋影片標題或描述..."
-                className="w-full pl-12 pr-10 py-3 rounded-full bg-white border border-neutral-300 text-neutral-900 placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all shadow-sm"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors"
-                  aria-label="清除搜尋"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
-
-            {/* 顯示未公開 / 私人影片開關 */}
-            <div className="flex flex-col sm:flex-row gap-4 sm:items-center justify-end md:justify-start">
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <span className="text-sm text-neutral-600 group-hover:text-neutral-900 transition-colors">
-                  顯示未公開影片
-                </span>
-                <div className="relative">
-                  <input
-                    type="checkbox"
-                    checked={showUnlistedVideos}
-                    onChange={handleToggleUnlistedVideos}
-                    className="sr-only peer"
-                  />
-                  <div
-                    className="w-12 h-6 rounded-full transition-colors peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border after:border-neutral-300 after:rounded-full after:h-5 after:w-5 after:transition-all"
-                    style={{
-                      backgroundColor: showUnlistedVideos ? '#FF0000' : '#E5E5E5',
-                      border: `1px solid ${showUnlistedVideos ? '#CC0000' : '#E5E5E5'}`
-                    }}
-                  ></div>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <span className="text-sm text-neutral-600 group-hover:text-neutral-900 transition-colors">
-                  顯示私人影片
-                </span>
-                <div className="relative">
-                  <input
-                    type="checkbox"
-                    checked={showPrivateVideos}
-                    onChange={handleTogglePrivateVideos}
-                    className="sr-only peer"
-                  />
-                  <div
-                    className="w-12 h-6 rounded-full transition-colors peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border after:border-neutral-300 after:rounded-full after:h-5 after:w-5 after:transition-all"
-                    style={{
-                      backgroundColor: showPrivateVideos ? '#FF0000' : '#E5E5E5',
-                      border: `1px solid ${showPrivateVideos ? '#CC0000' : '#E5E5E5'}`
-                    }}
-                  ></div>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          {/* 搜尋結果提示 */}
-          {searchQuery && !isLoadingVideos && (
-            <div className="text-sm text-red-600">
-              {videos.length > 0 ? (
-                <span>找到 {videos.length} 個包含「{searchQuery}」的影片</span>
-              ) : (
-                <span>未找到包含「{searchQuery}」的影片</span>
-              )}
+      <div className="space-x-0 space-y-6">
+        <div className="lg:hidden">
+          <button
+            type="button"
+            onClick={() => setIsFilterPanelOpen(prev => !prev)}
+            className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+          >
+            <span>搜尋與篩選</span>
+            <svg
+              className={`h-5 w-5 transition-transform ${isFilterPanelOpen ? 'rotate-180 text-red-600' : 'text-neutral-400'}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {isFilterPanelOpen && (
+            <div className="mt-4 rounded-2xl border border-neutral-200 bg-white/95 p-4 shadow-sm">
+              {renderFilterControls()}
             </div>
           )}
         </div>
 
-        <VideoSelector
-          videos={videos}
-          isLoading={isLoadingVideos}
-          error={error}
-          hasMore={hasMore}
-          onLoadMore={loadMoreVideos}
-        />
-      </>
+        <div className="lg:grid lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)_minmax(0,520px)] xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)_minmax(0,620px)] 2xl:grid-cols-[minmax(0,360px)_minmax(0,520px)_minmax(0,760px)] lg:gap-6 xl:gap-8 2xl:gap-10">
+          <aside className="mb-6 hidden lg:block xl:mb-0">
+            <div className="space-y-5 rounded-2xl border border-neutral-200 bg-white/95 p-5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80 lg:sticky lg:top-28">
+              <div className="space-y-1">
+                <h2 className="text-lg font-semibold text-neutral-900">搜尋與篩選</h2>
+                <p className="text-sm text-neutral-500">
+                  依標題、描述或公開設定快速鎖定需要優化的影片。
+                </p>
+              </div>
+              {renderFilterControls()}
+            </div>
+          </aside>
+
+          <section className="space-y-4">
+            <VideoSelector
+              videos={videos}
+              isLoading={isLoadingVideos}
+              error={error}
+              hasMore={hasMore}
+              onLoadMore={loadMoreVideos}
+              selectedVideoId={selectedVideoId}
+              onSelectVideo={handleVideoSelect}
+              inlineDetail={useInlineDetail}
+              selectedVideo={selectedVideo}
+            />
+          </section>
+
+          <aside className="hidden lg:block">
+            {selectedVideo ? (
+              <div className="lg:sticky lg:top-28">
+                <VideoDetailPanel video={selectedVideo} />
+              </div>
+            ) : (
+              <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-6 py-10 text-center text-neutral-500">
+                <div>
+                  <h3 className="text-lg font-semibold text-neutral-700">選擇左側影片以檢視內容</h3>
+                  <p className="mt-2 text-sm">包含影片預覽、近期數據與 Gemini 建議。</p>
+                </div>
+              </div>
+            )}
+          </aside>
+        </div>
+      </div>
     );
   };
   
@@ -293,7 +419,7 @@ export default function App() {
         onTabChange={setActiveTab}
       />
       <main className="flex-grow p-4 md:p-8">
-        <div className="container mx-auto max-w-7xl">
+        <div className="container mx-auto max-w-[1400px]">
           {error && !isLoadingVideos && (
             <div
               className="p-4 rounded-lg mb-4 text-center"
