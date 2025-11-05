@@ -1,3 +1,7 @@
+// 載入 .env.local 檔案 - 必須在所有 import 之前執行！
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
+
 import express from 'express';
 import cors from 'cors';
 import { exec } from 'child_process';
@@ -6,7 +10,6 @@ import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';
 import { GoogleGenAI } from '@google/genai';
-import dotenv from 'dotenv';
 import multer from 'multer';
 import { generateFullPrompt } from './services/promptService.js';
 import { generateArticlePrompt } from './services/articlePromptService.js';
@@ -25,9 +28,6 @@ import {
 } from './services/geminiFilesService.js';
 import * as taskQueue from './services/taskQueue.js';
 import { publishArticleToNotion, listNotionDatabases, getNotionDatabase } from './services/notionService.js';
-
-// 載入 .env.local 檔案
-dotenv.config({ path: '.env.local' });
 
 const execAsync = promisify(exec);
 const app = express();

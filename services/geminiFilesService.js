@@ -1,9 +1,17 @@
 import { GoogleGenAI } from '@google/genai';
 import fs from 'fs';
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY
-});
+/**
+ * 取得 Gemini AI 客戶端（使用 lazy initialization 確保環境變數已載入）
+ */
+function getGeminiClient() {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY is not set in environment variables');
+  }
+  return new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY
+  });
+}
 
 /**
  * 上傳檔案到 Gemini Files API
@@ -18,6 +26,7 @@ export async function uploadToGeminiFilesAPI(filePath, mimeType, displayName) {
     console.log(`  路徑: ${filePath}`);
     console.log(`  類型: ${mimeType}`);
 
+    const ai = getGeminiClient();
     const uploadedFile = await ai.files.upload({
       file: filePath,
       config: {
@@ -51,6 +60,7 @@ export async function uploadToGeminiFilesAPI(filePath, mimeType, displayName) {
 export async function deleteGeminiFile(fileName) {
   try {
     console.log(`[Gemini Files API] 刪除檔案: ${fileName}`);
+    const ai = getGeminiClient();
     await ai.files.delete({ name: fileName });
     console.log(`✅ 檔案已刪除`);
   } catch (error) {
@@ -67,6 +77,7 @@ export async function deleteGeminiFile(fileName) {
 export async function listGeminiFiles(pageSize = 100) {
   try {
     const files = [];
+    const ai = getGeminiClient();
     const listResponse = ai.files.list({ config: { pageSize } });
 
     for await (const file of listResponse) {
@@ -97,6 +108,7 @@ export async function listGeminiFiles(pageSize = 100) {
  */
 export async function getGeminiFile(fileName) {
   try {
+    const ai = getGeminiClient();
     const file = await ai.files.get({ name: fileName });
     return {
       name: file.name,
