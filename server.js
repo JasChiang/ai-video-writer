@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { exec } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -23,6 +24,7 @@ import {
   getGeminiFile
 } from './services/geminiFilesService.js';
 import * as taskQueue from './services/taskQueue.js';
+import notionRoutes from './routes/notionRoutes.js';
 
 // 載入 .env.local 檔案
 dotenv.config({ path: '.env.local' });
@@ -88,6 +90,10 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(cookieParser());
+
+// 註冊 Notion API 路由
+app.use('/api/notion', notionRoutes);
 
 // 確保下載目錄存在
 const DOWNLOAD_DIR = path.join(process.cwd(), 'temp_videos');

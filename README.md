@@ -100,7 +100,7 @@ docker compose up --build
 
 ## ✨ 專案特色
 
-### 🎯 三大核心功能
+### 🎯 四大核心功能
 
 1. **SEO 中繼資料自動生成**
    - 三種風格的標題選項（關鍵字導向、懸念導向、效益導向）
@@ -115,7 +115,15 @@ docker compose up --build
    - 支援 Markdown 和 HTML 格式輸出
    - 可附加自訂參考檔案（圖片、PDF、Markdown、音訊等）強化文章內容
 
-3. **影片表現分析與改善建議**
+3. **Notion 整合與一鍵歸檔** ⭐ 新功能
+   - OAuth 2.0 安全授權連接 Notion 工作區
+   - 一鍵將生成的文章儲存到 Notion 資料庫
+   - 自動轉換 Markdown 為 Notion blocks
+   - 自動嵌入文章截圖和 SEO 描述
+   - 支援自訂資料庫和頁面屬性
+   - 只對已授權使用者顯示功能（條件式 UI）
+
+4. **影片表現分析與改善建議**
    - 智慧分析頻道影片表現數據
    - 提供優先級排序的改善建議
    - AI 驅動的關鍵字分析與改善方案
@@ -130,6 +138,9 @@ docker compose up --build
 - **智慧輸入驗證**：防止 Command Injection 等安全風險
 - **自動清理機制**：啟動時自動清理過期檔案，節省磁碟空間
 - **多模態參考素材**：支援上傳圖片、PDF、Markdown、音訊等檔案，提供 Gemini Files API 進一步分析
+- **Notion OAuth 整合**：安全的 OAuth 2.0 授權流程，httpOnly cookies 保護 access token
+- **智慧 Markdown 轉換**：自動將 Markdown 轉換為 Notion blocks，處理 API 限制（100 blocks/request, 2000 chars/block）
+- **Rate Limit 保護**：批次請求自動延遲，避免超過 Notion API 限制（3 req/s）
 
 ### 🧹 自動清理機制
 
@@ -494,6 +505,13 @@ YOUTUBE_CLIENT_ID=你的_用戶端_ID.apps.googleusercontent.com
 # 註：本專案使用 OAuth 2.0 認證存取 YouTube Data API v3
 # 因為需要存取使用者的私人影片並更新影片資訊，不需要 API Key
 # YOUTUBE_API_KEY=你的_YouTube_API_金鑰
+
+# Notion OAuth 設定（可選，如需使用 Notion 整合功能）
+# 請先到 https://www.notion.so/my-integrations 建立 OAuth integration
+# 詳細設定步驟請參考 NOTION_SETUP_GUIDE.md
+NOTION_CLIENT_ID=
+NOTION_CLIENT_SECRET=
+NOTION_REDIRECT_URI=http://localhost:3001/api/notion/callback
 ```
 
 **環境變數一覽**
@@ -502,16 +520,20 @@ YOUTUBE_CLIENT_ID=你的_用戶端_ID.apps.googleusercontent.com
 | ---- | ---- | ---- | ---------- |
 | `GEMINI_API_KEY` | ✅ | 後端呼叫 Gemini 內容生成與 Files API | （無預設）`AIzaSy...` |
 | `YOUTUBE_CLIENT_ID` | ✅ | 前端 OAuth 2.0 登入與 Token 交換 | （無預設）`123456.apps.googleusercontent.com` |
+| `NOTION_CLIENT_ID` | ⏱️ | Notion OAuth 2.0 client ID（啟用 Notion 整合時必填） | （無預設）需從 Notion Integration 取得 |
+| `NOTION_CLIENT_SECRET` | ⏱️ | Notion OAuth 2.0 client secret（啟用 Notion 整合時必填） | （無預設）需從 Notion Integration 取得 |
+| `NOTION_REDIRECT_URI` | ⏱️ | Notion OAuth 2.0 回調 URL | `http://localhost:3001/api/notion/callback` |
 | `PORT` | ⏱️ | 後端 Express 監聽埠號 | `3001` |
 | `VITE_API_URL` | ⏱️ | 前端呼叫後端 API 的 base URL | `http://localhost:3001/api` |
 | `FRONTEND_URL` | ⏱️ | CORS 允許的前端來源 | `http://localhost:3000` |
 | `FILE_RETENTION_DAYS` | ⏱️ | 暫存影片與截圖的保留天數 | `7` |
 
-> ⏱️：可選設定，若未設定則採用系統預設值。
+> ⏱️：可選設定，若未設定則採用系統預設值。Notion 相關設定只在需要使用 Notion 整合功能時必填。
 
 **重要提醒**：
 - 請將上面的「你的_XXX」替換為實際的金鑰
-- 只需填寫 `GEMINI_API_KEY` 和 `YOUTUBE_CLIENT_ID`，不需要填寫 `YOUTUBE_API_KEY`
+- 基本功能只需填寫 `GEMINI_API_KEY` 和 `YOUTUBE_CLIENT_ID`
+- 如需使用 Notion 整合功能，請額外填寫 `NOTION_CLIENT_ID` 和 `NOTION_CLIENT_SECRET`（參考 [NOTION_SETUP_GUIDE.md](NOTION_SETUP_GUIDE.md)）
 - `.env.local` 已被 `.gitignore` 忽略，不會提交到版本控制
 - **切勿**將此檔案公開分享或上傳到 GitHub
 
@@ -1356,8 +1378,15 @@ git filter-branch --force --index-filter \
 - [Google Cloud Console](https://console.cloud.google.com/)
 - [Gemini API 文件](https://ai.google.dev/docs)
 - [YouTube Data API 文件](https://developers.google.com/youtube/v3)
+- [Notion API 文件](https://developers.notion.com/)
 - [yt-dlp GitHub](https://github.com/yt-dlp/yt-dlp)
 - [FFmpeg 官網](https://ffmpeg.org/)
+
+### 專案文件
+- [Notion 整合設定指南](NOTION_SETUP_GUIDE.md) - Notion OAuth 設定與使用說明
+- [Notion API 限制說明](NOTION_API_LIMITS.md) - API 限制與最佳實踐
+- [Notion 整合架構](NOTION_INTEGRATION_PLAN.md) - 完整技術架構文件
+- [Docker 部署指南](DOCKER_DESKTOP.md) - Docker Desktop 使用說明
 
 ### 學習資源
 - [YouTube Creator Academy](https://creatoracademy.youtube.com/)
@@ -1384,6 +1413,7 @@ git filter-branch --force --index-filter \
 - **[FFmpeg](https://ffmpeg.org/)** - 多媒體處理工具
 - **[Google Gemini AI](https://ai.google.dev/)** - AI 模型
 - **[YouTube Data API](https://developers.google.com/youtube)** - YouTube API
+- **[Notion API](https://developers.notion.com/)** - Notion 整合
 - **[Express](https://expressjs.com/)** - Node.js 框架
 - **[TypeScript](https://www.typescriptlang.org/)** - 類型安全的 JavaScript
 
