@@ -280,7 +280,8 @@ export function VideoAnalytics() {
       console.log(`[Analytics] 開始獲取分析數據（${yearsToFetch} 年）...`);
 
       // 調用後端 API
-      const baseUrl = import.meta.env?.VITE_SERVER_BASE_URL || 'http://localhost:3001';
+      // 開發模式使用 localhost:3001，生產模式使用空字符串（相對路徑）
+      const baseUrl = import.meta.env?.VITE_SERVER_BASE_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
       const response = await fetch(`${baseUrl}/api/analytics/channel`, {
         method: 'POST',
         headers: {
@@ -374,7 +375,8 @@ export function VideoAnalytics() {
       }
 
       // 調用後端 API
-      const baseUrl = import.meta.env?.VITE_SERVER_BASE_URL || 'http://localhost:3001';
+      // 開發模式使用 localhost:3001，生產模式使用空字符串（相對路徑）
+      const baseUrl = import.meta.env?.VITE_SERVER_BASE_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
       const response = await fetch(`${baseUrl}/api/analytics/keyword-analysis`, {
         method: 'POST',
         headers: {

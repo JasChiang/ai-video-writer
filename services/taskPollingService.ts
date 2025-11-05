@@ -3,7 +3,9 @@
  * 用於處理異步任務的狀態查詢和結果獲取
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// 從環境變數獲取 API 基址
+// 開發模式使用 localhost:3001，生產模式使用相對路徑（與前端同域）
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
 
 export interface TaskStatus {
   id: string;

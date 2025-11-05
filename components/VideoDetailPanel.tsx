@@ -36,7 +36,8 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
 
     const checkFile = async () => {
       try {
-        const baseUrl = import.meta.env?.VITE_SERVER_BASE_URL || 'http://localhost:3001';
+        // 開發模式使用 localhost:3001，生產模式使用空字符串（相對路徑）
+        const baseUrl = import.meta.env?.VITE_SERVER_BASE_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
         const response = await fetch(`${baseUrl}/api/check-file/${video.id}`);
         const data = await response.json();
         setFileStatus({

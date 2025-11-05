@@ -18,7 +18,13 @@ interface UploadedFile {
 }
 
 // 取得伺服器基礎 URL
-const getServerBaseUrl = () => import.meta.env?.VITE_SERVER_BASE_URL || 'http://localhost:3001';
+// 開發模式使用 localhost:3001，生產模式使用空字符串（相對路徑，與前端同域）
+const getServerBaseUrl = () => {
+  if (import.meta.env?.VITE_SERVER_BASE_URL) {
+    return import.meta.env.VITE_SERVER_BASE_URL;
+  }
+  return import.meta.env.DEV ? 'http://localhost:3001' : '';
+};
 
 export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false);

@@ -2,8 +2,9 @@ import type { GeneratedContentType } from '../types';
 import * as youtubeService from './youtubeService';
 import { executeAsyncTask, pollTaskUntilComplete } from './taskPollingService';
 
-// 從環境變數獲取 API 基址，如果沒有設定則使用預設值
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// 從環境變數獲取 API 基址
+// 開發模式使用 localhost:3001，生產模式使用相對路徑（與前端同域）
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
 
 // 進度回調函數類型
 export type ProgressCallback = (step: string) => void;
