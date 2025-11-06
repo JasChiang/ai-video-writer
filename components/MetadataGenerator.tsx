@@ -28,7 +28,7 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
   const [geminiFileName, setGeminiFileName] = useState<string | undefined>(undefined);
 
   // 原始影片資料，作為比較的基準
-  const [originalContent] = useState({
+  const [originalContent, setOriginalContent] = useState({
     title: video.title,
     description: video.description,
     tags: video.tags || [],
@@ -44,6 +44,7 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
   // 追蹤變更的狀態
   const [isDirty, setIsDirty] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle');
+  const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false);
 
   // 載入快取內容
   useEffect(() => {
@@ -54,15 +55,22 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
 
   // 當影片切換時，重設所有狀態
   useEffect(() => {
+    const originalTags = video.tags || [];
+    setOriginalContent({
+      title: video.title,
+      description: video.description,
+      tags: originalTags,
+    });
     setDraftContent({
       title: video.title,
       description: video.description,
-      tags: video.tags.join(', '),
+      tags: originalTags.join(', '),
     });
     setGeneratedContent(cachedContent || null);
     setError(null);
     setIsLoading(false);
     setUpdateStatus('idle');
+    setIsConfirmingUpdate(false);
   }, [video, cachedContent]);
 
   // 檢查草稿與原始資料是否有差異
@@ -112,18 +120,12 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
     }
   };
 
-  const handleUpdateAll = async () => {
+  const executeUpdate = async () => {
     if (!isDirty) return;
 
-    const isConfirmed = window.confirm(
-      "您確定要將變更更新到 YouTube 嗎？\n\n此操作將花費 50 點 API 配額。"
-    );
-
-    if (!isConfirmed) {
-      return;
-    }
-
     setUpdateStatus('loading');
+    setIsConfirmingUpdate(false);
+
     try {
       const tagsToUpdate = draftContent.tags.split(',').map(t => t.trim()).filter(t => t.length > 0);
 
@@ -320,16 +322,37 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
 
           {/* Action Buttons */}
           <div className="border-t border-neutral-200 pt-4 space-y-4">
-            <button
-              onClick={handleUpdateAll}
-              disabled={!isDirty || updateStatus === 'loading'}
-              className="w-full flex items-center justify-center gap-2 text-white font-bold py-3 px-4 rounded-full transition-all duration-200 transform hover:scale-105 bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-md disabled:bg-neutral-400 disabled:cursor-not-allowed disabled:scale-100"
-            >
-              {getButtonContent(updateStatus)}
-            </button>
+            {!isConfirmingUpdate ? (
+              <button
+                onClick={() => setIsConfirmingUpdate(true)}
+                disabled={!isDirty || updateStatus === 'loading'}
+                className="w-full flex items-center justify-center gap-2 text-white font-bold py-3 px-4 rounded-full transition-all duration-200 transform hover:scale-105 bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-md disabled:bg-neutral-400 disabled:cursor-not-allowed disabled:scale-100"
+              >
+                {getButtonContent(updateStatus)}
+              </button>
+            ) : (
+              <div className="rounded-lg border-2 border-amber-400 bg-amber-50 p-4 space-y-3 text-center">
+                <p className="text-sm font-semibold text-amber-800">此操作將更新 YouTube 上的影片，並消耗 50 點 API 配額。</p>
+                <div className="flex justify-center gap-3">
+                  <button 
+                    onClick={() => setIsConfirmingUpdate(false)}
+                    className="px-6 py-2 rounded-full text-sm font-semibold bg-neutral-200 text-neutral-700 hover:bg-neutral-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500"
+                  >
+                    取消
+                  </button>
+                  <button 
+                    onClick={executeUpdate}
+                    className="px-6 py-2 rounded-full text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  >
+                    確認更新
+                  </button>
+                </div>
+              </div>
+            )}
+
             <button
               onClick={handleGenerate}
-              disabled={isLoading}
+              disabled={isLoading || isConfirmingUpdate}
               className="w-full text-center text-sm py-2 font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
             >
               {isLoading ? '🔄 生成中...' : '🔄 重新生成（讓 AI 提供不同的建議）'}
