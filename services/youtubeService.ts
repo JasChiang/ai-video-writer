@@ -4,6 +4,7 @@ declare const google: any;
 
 import { YOUTUBE_CLIENT_ID, YOUTUBE_SCOPES } from '../config';
 import type { YouTubeVideo } from '../types';
+import { recordQuota } from '../utils/quotaTracker';
 
 let tokenClient: any = null;
 let isGapiInitialized = false;
@@ -12,6 +13,8 @@ let gapiInitializationPromise: Promise<void> | null = null;
 let gisInitializationPromise: Promise<void> | null = null;
 const TOKEN_STORAGE_KEY = 'youtubeContentAssistant.oauthToken';
 let storedTokenExpiry: number | null = null;
+let uploadsPlaylistId: string | null = null;
+let uploadsPlaylistPromise: Promise<string> | null = null;
 
 function persistToken(token: any, expiresIn?: number) {
     if (typeof window === 'undefined') return;
@@ -171,6 +174,182 @@ export function requestToken(): Promise<void> {
     });
 }
 
+async function resolveUploadsPlaylistId(): Promise<string> {
+    if (uploadsPlaylistId) {
+        return uploadsPlaylistId;
+    }
+
+    if (uploadsPlaylistPromise) {
+        return uploadsPlaylistPromise;
+    }
+
+    uploadsPlaylistPromise = new Promise(async (resolve, reject) => {
+        try {
+            const response = await gapi.client.youtube.channels.list({
+                part: 'contentDetails',
+                mine: true,
+            });
+            recordQuota('youtube.channels.list', 1, { part: 'contentDetails', context: 'resolveUploadsPlaylistId' });
+
+            const uploadsId = response.result?.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+            if (!uploadsId) {
+                throw new Error('Could not resolve uploads playlist ID');
+            }
+
+            uploadsPlaylistId = uploadsId;
+            resolve(uploadsId);
+        } catch (error) {
+            uploadsPlaylistPromise = null;
+            reject(error);
+        }
+    });
+
+    return uploadsPlaylistPromise;
+}
+
+function mapVideoItem(item: any): YouTubeVideo {
+    return {
+        id: item.id,
+        title: item.snippet.title,
+        description: item.snippet.description,
+        thumbnailUrl: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.default?.url,
+        tags: item.snippet.tags || [],
+        categoryId: item.snippet.categoryId,
+        privacyStatus: item.status?.privacyStatus || 'public',
+        duration: item.contentDetails?.duration,
+        viewCount: item.statistics?.viewCount,
+        likeCount: item.statistics?.likeCount,
+        publishedAt: item.snippet?.publishedAt,
+    };
+}
+
+async function listVideosBySearch(
+    maxResults: number,
+    pageToken: string | undefined,
+    showPrivateVideos: boolean,
+    searchQuery: string | undefined,
+    showUnlistedVideos: boolean
+): Promise<{ videos: YouTubeVideo[]; nextPageToken: string | null }> {
+    const searchParams: any = {
+        part: 'snippet',
+        forMine: true,
+        type: 'video',
+        maxResults,
+        order: 'date',
+    };
+
+    if (searchQuery && searchQuery.trim()) {
+        searchParams.q = searchQuery.trim();
+    }
+
+    if (pageToken) {
+        searchParams.pageToken = pageToken;
+    }
+
+    const searchResponse = await gapi.client.youtube.search.list(searchParams);
+    recordQuota('youtube.search.list', 100, { hasQuery: Boolean(searchParams.q), maxResults });
+
+    if (!searchResponse.result.items || searchResponse.result.items.length === 0) {
+        return { videos: [], nextPageToken: null };
+    }
+
+    const nextPageToken = searchResponse.result.nextPageToken || null;
+
+    const videoIds = searchResponse.result.items.map((item: any) => item.id.videoId).join(',');
+
+    const videosResponse = await gapi.client.youtube.videos.list({
+        part: 'snippet,status,statistics,contentDetails',
+        id: videoIds,
+    });
+    recordQuota('youtube.videos.list', 8, { part: 'snippet,status,statistics,contentDetails', source: 'search' });
+
+    if (!videosResponse.result.items) {
+        return { videos: [], nextPageToken: null };
+    }
+
+    const videos = videosResponse.result.items
+        .filter((item: any) => {
+            const privacyStatus = item.status?.privacyStatus || 'public';
+
+            if (privacyStatus === 'public') {
+                return true;
+            }
+
+            if (privacyStatus === 'unlisted') {
+                return showUnlistedVideos;
+            }
+
+            if (privacyStatus === 'private') {
+                return showPrivateVideos;
+            }
+
+            return false;
+        })
+        .map(mapVideoItem);
+
+    return { videos, nextPageToken };
+}
+
+async function listVideosFromUploadsPlaylist(
+    maxResults: number,
+    pageToken: string | undefined,
+    showPrivateVideos: boolean,
+    showUnlistedVideos: boolean
+): Promise<{ videos: YouTubeVideo[]; nextPageToken: string | null }> {
+    const playlistId = await resolveUploadsPlaylistId();
+
+    const playlistResponse = await gapi.client.youtube.playlistItems.list({
+        part: 'snippet,contentDetails,status',
+        playlistId,
+        maxResults: Math.min(maxResults, 50),
+        pageToken,
+    });
+    recordQuota('youtube.playlistItems.list', 3, { part: 'snippet,contentDetails,status', maxResults: Math.min(maxResults, 50) });
+
+    const items = playlistResponse.result.items || [];
+    if (items.length === 0) {
+        return { videos: [], nextPageToken: null };
+    }
+
+    const nextPageToken = playlistResponse.result.nextPageToken || null;
+    const videoIds = items
+        .map((item: any) => item.contentDetails?.videoId)
+        .filter(Boolean);
+
+    if (videoIds.length === 0) {
+        return { videos: [], nextPageToken };
+    }
+
+    const videosResponse = await gapi.client.youtube.videos.list({
+        part: 'snippet,status,statistics,contentDetails',
+        id: videoIds.join(','),
+    });
+    recordQuota('youtube.videos.list', 8, { part: 'snippet,status,statistics,contentDetails', source: 'uploadsPlaylist' });
+
+    const detailedItems = videosResponse.result.items || [];
+    const itemMap = new Map<string, any>();
+    detailedItems.forEach((item: any) => {
+        if (item.id) {
+            itemMap.set(item.id, item);
+        }
+    });
+
+    const orderedVideos = videoIds
+        .map((id: string) => itemMap.get(id))
+        .filter((item: any) => {
+            if (!item) return false;
+
+            const privacyStatus = item.status?.privacyStatus || 'public';
+            if (privacyStatus === 'public') return true;
+            if (privacyStatus === 'unlisted') return showUnlistedVideos;
+            if (privacyStatus === 'private') return showPrivateVideos;
+            return false;
+        })
+        .map(mapVideoItem);
+
+    return { videos: orderedVideos, nextPageToken };
+}
+
 export async function listVideos(
     maxResults = 12,
     pageToken?: string,
@@ -181,78 +360,15 @@ export async function listVideos(
     if (!isGapiInitialized || !isTokenValid()) {
         throw new Error("Authentication required.");
     }
+
     try {
-        // 使用 search.list API 搭配 forMine: true 來取得用戶的所有影片
-        // 這個方法可以正確返回 public、unlisted 和 private 影片
-        const searchParams: any = {
-            part: 'snippet',
-            forMine: true,
-            type: 'video',
-            maxResults: maxResults,
-            order: 'date', // 按日期排序，最新的在前面
-        };
+        const hasSearchQuery = Boolean(searchQuery && searchQuery.trim());
 
-        // 如果有搜尋關鍵字，加入 q 參數
-        if (searchQuery && searchQuery.trim()) {
-            searchParams.q = searchQuery.trim();
+        if (hasSearchQuery) {
+            return await listVideosBySearch(maxResults, pageToken, showPrivateVideos, searchQuery, showUnlistedVideos);
         }
 
-        if (pageToken) {
-            searchParams.pageToken = pageToken;
-        }
-
-        const searchResponse = await gapi.client.youtube.search.list(searchParams);
-
-        if (!searchResponse.result.items || searchResponse.result.items.length === 0) {
-            return { videos: [], nextPageToken: null };
-        }
-
-        const nextPageToken = searchResponse.result.nextPageToken || null;
-
-        // 取得影片的完整詳細資訊（包含 tags、status、statistics、contentDetails）
-        const videoIds = searchResponse.result.items.map((item: any) => item.id.videoId).join(',');
-
-        const videosResponse = await gapi.client.youtube.videos.list({
-            part: 'snippet,status,statistics,contentDetails',
-            id: videoIds,
-        });
-
-        if (!videosResponse.result.items) return { videos: [], nextPageToken: null };
-
-        // 根據使用者偏好過濾影片
-        const videos = videosResponse.result.items
-            .filter((item: any) => {
-                const privacyStatus = item.status?.privacyStatus || 'public';
-
-                if (privacyStatus === 'public') {
-                    return true;
-                }
-
-                if (privacyStatus === 'unlisted') {
-                    return showUnlistedVideos;
-                }
-
-                if (privacyStatus === 'private') {
-                    return showPrivateVideos;
-                }
-
-                return false;
-            })
-            .map((item: any) => ({
-                id: item.id,
-                title: item.snippet.title,
-                description: item.snippet.description,
-                thumbnailUrl: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.default?.url,
-                tags: item.snippet.tags || [],
-                categoryId: item.snippet.categoryId,
-                privacyStatus: item.status?.privacyStatus || 'public',
-                duration: item.contentDetails?.duration,
-                viewCount: item.statistics?.viewCount,
-                likeCount: item.statistics?.likeCount,
-                publishedAt: item.snippet?.publishedAt,
-            }));
-
-        return { videos, nextPageToken };
+        return await listVideosFromUploadsPlaylist(maxResults, pageToken, showPrivateVideos, showUnlistedVideos);
     } catch (error: any) {
         console.error("Error listing videos:", error);
         const status = error?.status || error?.result?.error?.code;
@@ -278,6 +394,7 @@ export async function getVideoMetadata(videoId: string): Promise<{ title: string
             part: 'snippet',
             id: videoId,
         });
+        recordQuota('youtube.videos.list', 2, { part: 'snippet', context: 'getVideoMetadata' });
 
         const item = response.result.items?.[0];
         if (!item) {
@@ -315,6 +432,7 @@ export async function updateVideo(video: Partial<YouTubeVideo> & { id: string; c
         const response = await gapi.client.youtube.videos.update({
             part: 'snippet',
         }, resource);
+        recordQuota('youtube.videos.update', 50, { part: 'snippet', fields: Object.keys(resource.snippet ?? {}) });
 
         return response.result;
 
@@ -335,6 +453,8 @@ export function logout(): void {
 
     // 重置內部狀態
     storedTokenExpiry = null;
+    uploadsPlaylistId = null;
+    uploadsPlaylistPromise = null;
 
     // 如果有 Google Identity Services 的 token client，可以調用 revoke
     // 但這不是必需的，因為我們已經清除了本地 token
@@ -371,6 +491,7 @@ export async function getChannelId(): Promise<string> {
             part: 'id',
             mine: true,
         });
+        recordQuota('youtube.channels.list', 1, { part: 'id', context: 'getChannelId' });
 
         if (!response.result.items || response.result.items.length === 0) {
             throw new Error('No channel found for this user');
