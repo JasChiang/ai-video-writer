@@ -88,23 +88,24 @@ export function VideoCard({ video, isActive, onSelect, cardId }: VideoCardProps)
             )}
           </div>
         </div>
-
-        <div className="flex items-center justify-between text-xs text-neutral-500 sm:text-sm">
-          {video.tags && video.tags.length > 0 ? (
-            <span className="line-clamp-1">
-              #{video.tags.slice(0, 2).join(' #')}
-              {video.tags.length > 2 ? ' ...' : ''}
-            </span>
-          ) : (
-            <span className="flex items-center gap-1 text-neutral-400">
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              尚未設定標籤
-            </span>
-          )}
+        <div className="flex items-center justify-between gap-3 text-xs text-neutral-500 sm:text-sm">
+          <div className="min-w-0 flex-1">
+            {video.tags && video.tags.length > 0 ? (
+              <span className="block truncate">
+                #{video.tags.slice(0, 2).join(' #')}
+                {video.tags.length > 2 ? ' ...' : ''}
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-neutral-400">
+                <svg className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span className="truncate">尚未設定標籤</span>
+              </span>
+            )}
+          </div>
           <span
-            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition ${
+            className={`inline-flex flex-shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition whitespace-nowrap ${
               isActive ? 'bg-red-100 text-red-600' : 'bg-neutral-100 text-neutral-500 group-hover:bg-neutral-200'
             }`}
           >
