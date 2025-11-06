@@ -26,6 +26,9 @@ export default function App() {
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 0));
+  const isDesktop = viewportWidth >= 1024;
+  const showDetailSidebar = viewportWidth >= 1280;
+  const useInlineDetail = !showDetailSidebar;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -134,7 +137,7 @@ export default function App() {
         if (prev && dedupedVideos.some(video => video.id === prev)) {
           return prev;
         }
-        return isDesktop ? dedupedVideos[0]?.id ?? null : null;
+        return showDetailSidebar ? dedupedVideos[0]?.id ?? null : null;
       });
     } catch (e: any) {
       setError('Could not fetch YouTube videos. The API quota may be exceeded or permissions are missing.');
@@ -183,7 +186,7 @@ export default function App() {
 
   const handleVideoSelect = (videoId: string) => {
     setSelectedVideoId(videoId);
-    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+    if (typeof window !== 'undefined' && window.innerWidth < 1280) {
       const target = document.getElementById(`video-card-${videoId}`);
       if (target) {
         window.requestAnimationFrame(() => {
@@ -197,15 +200,17 @@ export default function App() {
     ? videos.find(video => video.id === selectedVideoId) ?? null
     : null;
 
-  const isDesktop = viewportWidth >= 1024;
-  const useInlineDetail = viewportWidth < 1024;
-
   useEffect(() => {
     if (isDesktop) {
       setIsFilterPanelOpen(false);
+    }
+  }, [isDesktop]);
+
+  useEffect(() => {
+    if (showDetailSidebar) {
       setSelectedVideoId(prev => prev ?? (videos[0]?.id ?? null));
     }
-  }, [isDesktop, videos]);
+  }, [showDetailSidebar, videos]);
 
   const hasActiveFilters = showPrivateVideos || showUnlistedVideos || Boolean(searchQuery);
 
@@ -361,7 +366,7 @@ export default function App() {
           )}
         </div>
 
-        <div className="lg:grid lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)_minmax(0,520px)] xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)_minmax(0,620px)] 2xl:grid-cols-[minmax(0,360px)_minmax(0,520px)_minmax(0,760px)] lg:gap-6 xl:gap-8 2xl:gap-10">
+        <div className="lg:grid lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)_minmax(0,620px)] 2xl:grid-cols-[minmax(0,360px)_minmax(0,520px)_minmax(0,760px)] lg:gap-6 xl:gap-8 2xl:gap-10">
           <aside className="mb-6 hidden lg:block xl:mb-0">
             <div className="space-y-5 rounded-2xl border border-neutral-200 bg-white/95 p-5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80 lg:sticky lg:top-28">
               <div className="space-y-1">
@@ -388,7 +393,7 @@ export default function App() {
             />
           </section>
 
-          <aside className="hidden lg:block">
+          <aside className="hidden xl:block">
             {selectedVideo ? (
               <div className="lg:sticky lg:top-28">
                 <VideoDetailPanel video={selectedVideo} />
