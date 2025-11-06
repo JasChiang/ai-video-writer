@@ -38,3 +38,12 @@ temp_videos/
 # Claude Code local settings
 .claude/*.local.json
 ai-video-writer.tar.gz
+
+# Portable app builds
+portable-builds/
+
+# Binary files (users need to download separately)
+binaries/**/*
+!binaries/.gitkeep
+!binaries/README.md
+!binaries/*/.gitkeep

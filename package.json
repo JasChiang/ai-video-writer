@@ -1,7 +1,7 @@
 {
   "name": "ai-video-writer",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "author": {
     "name": "jaschiang",
@@ -12,7 +12,25 @@
     "server": "node server.js",
     "dev:all": "concurrently \"npm run dev\" \"npm run server\"",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:portable": "node build-portable.js",
+    "package": "npm run build && npm run build:portable"
+  },
+  "bin": "server-wrapper.js",
+  "pkg": {
+    "assets": [
+      "services/**/*",
+      "gemini_api/**/*",
+      "node_modules/@google/genai/**/*",
+      "dist/**/*",
+      "public/**/*"
+    ],
+    "targets": [
+      "node18-win-x64",
+      "node18-macos-x64",
+      "node18-linux-x64"
+    ],
+    "outputPath": "portable-builds"
   },
   "dependencies": {
     "@google/genai": "^1.26.0",
@@ -26,6 +44,7 @@
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "concurrently": "^8.2.2",
+    "pkg": "^5.8.1",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

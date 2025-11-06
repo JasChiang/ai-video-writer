@@ -4,10 +4,15 @@ import { exec } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { generateFullPrompt } from './services/promptService.js';
 import { generateArticlePrompt } from './services/articlePromptService.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // 載入 .env.local 檔案
 dotenv.config({ path: '.env.local' });
@@ -15,6 +20,14 @@ dotenv.config({ path: '.env.local' });
 const execAsync = promisify(exec);
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Detect if running in packaged mode
+const isPkg = typeof process.pkg !== 'undefined';
+const APP_ROOT = process.env.APP_ROOT || (isPkg ? dirname(process.execPath) : process.cwd());
+
+// Get binary paths from environment or use system defaults
+const YT_DLP_CMD = process.env.YT_DLP_PATH || 'yt-dlp';
+const FFMPEG_CMD = process.env.FFMPEG_PATH || 'ffmpeg';
 
 // 檔案保留天數設定（預設 7 天）
 const FILE_RETENTION_DAYS = parseInt(process.env.FILE_RETENTION_DAYS || '7', 10);
@@ -32,13 +45,13 @@ app.use(cors());
 app.use(express.json());
 
 // 確保下載目錄存在
-const DOWNLOAD_DIR = path.join(process.cwd(), 'temp_videos');
+const DOWNLOAD_DIR = path.join(APP_ROOT, 'temp_videos');
 if (!fs.existsSync(DOWNLOAD_DIR)) {
   fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
 }
 
 // 確保圖片目錄存在
-const IMAGES_DIR = path.join(process.cwd(), 'public', 'images');
+const IMAGES_DIR = path.join(APP_ROOT, 'public', 'images');
 if (!fs.existsSync(IMAGES_DIR)) {
   fs.mkdirSync(IMAGES_DIR, { recursive: true });
 }
@@ -112,7 +125,7 @@ async function captureScreenshot(videoPath, timeInSeconds, outputPath, quality =
   // -vframes 1: 只截取一幀
   // -q:v: JPEG 品質（2=最高品質，31=最低品質）
   // -y: 覆蓋已存在的檔案
-  const command = `ffmpeg -ss ${timeInSeconds} -i "${videoPath}" -vframes 1 -q:v ${validQuality} "${outputPath}" -y`;
+  const command = `"${FFMPEG_CMD}" -ss ${timeInSeconds} -i "${videoPath}" -vframes 1 -q:v ${validQuality} "${outputPath}" -y`;
   await execAsync(command);
 }
 
@@ -161,12 +174,12 @@ app.post('/api/download-video', async (req, res) => {
     // 檢查 yt-dlp 是否安裝
     console.log(`[Download] Checking yt-dlp installation...`);
     try {
-      const { stdout } = await execAsync('yt-dlp --version');
+      const { stdout } = await execAsync(`"${YT_DLP_CMD}" --version`);
       console.log(`[Download] ✅ yt-dlp version: ${stdout.trim()}`);
     } catch (error) {
-      console.error(`[Download] ❌ yt-dlp not found`);
+      console.error(`[Download] ❌ yt-dlp not found at: ${YT_DLP_CMD}`);
       return res.status(500).json({
-        error: 'yt-dlp is not installed. Please install it: https://github.com/yt-dlp/yt-dlp#installation'
+        error: 'yt-dlp is not installed or not found. Please ensure yt-dlp binary is in the binaries folder.'
       });
     }
 
@@ -191,7 +204,7 @@ app.post('/api/download-video', async (req, res) => {
     // 注意：不使用 android client，因為它限制只能下載 360p
     // 對於未列出的影片，現代 yt-dlp 可以不需要 cookies 直接下載
     const commandParts = [
-      'yt-dlp',
+      `"${YT_DLP_CMD}"`,
       // 根據品質選擇格式
       '-f', formatSelector,
       // 如果下載分離的音視頻流，合併為 mp4
@@ -583,14 +596,13 @@ app.post('/api/generate-article-url', async (req, res) => {
     // 檢查 FFmpeg 是否安裝
     console.log('[Article URL] Checking FFmpeg installation...');
     try {
-      const { stdout } = await execAsync('ffmpeg -version');
+      const { stdout } = await execAsync(`"${FFMPEG_CMD}" -version`);
       const version = stdout.split('\n')[0];
       console.log(`[Article URL] ✅ FFmpeg found: ${version}`);
     } catch (error) {
-      console.error('[Article URL] ❌ FFmpeg not found');
+      console.error(`[Article URL] ❌ FFmpeg not found at: ${FFMPEG_CMD}`);
       return res.status(500).json({
-        error: 'FFmpeg is not installed. Please install it first.',
-        details: 'Install FFmpeg: brew install ffmpeg (macOS) or sudo apt install ffmpeg (Ubuntu)'
+        error: 'FFmpeg is not installed or not found. Please ensure ffmpeg binary is in the binaries folder.'
       });
     }
 
@@ -652,7 +664,7 @@ app.post('/api/generate-article-url', async (req, res) => {
     }
 
     const commandParts = [
-      'yt-dlp',
+      `"${YT_DLP_CMD}"`,
       '-f', formatSelector,
       '--merge-output-format', 'mp4',
       '-o', `"${outputPath}"`,
@@ -763,14 +775,13 @@ app.post('/api/generate-article', async (req, res) => {
     // 檢查 FFmpeg 是否安裝
     console.log('[Article] Checking FFmpeg installation...');
     try {
-      const { stdout } = await execAsync('ffmpeg -version');
+      const { stdout } = await execAsync(`"${FFMPEG_CMD}" -version`);
       const version = stdout.split('\n')[0];
       console.log(`[Article] ✅ FFmpeg found: ${version}`);
     } catch (error) {
-      console.error('[Article] ❌ FFmpeg not found');
+      console.error(`[Article] ❌ FFmpeg not found at: ${FFMPEG_CMD}`);
       return res.status(500).json({
-        error: 'FFmpeg is not installed. Please install it first.',
-        details: 'Install FFmpeg: brew install ffmpeg (macOS) or sudo apt install ffmpeg (Ubuntu)'
+        error: 'FFmpeg is not installed or not found. Please ensure ffmpeg binary is in the binaries folder.'
       });
     }
 
@@ -1298,11 +1309,11 @@ app.delete('/api/cleanup/:videoId', (req, res) => {
 });
 
 // 服務前端靜態檔案（Vite build 輸出的 dist）
-app.use(express.static(path.join(process.cwd(), 'dist')));
+app.use(express.static(path.join(APP_ROOT, 'dist')));
 
 // 單頁應用程式路由 fallback（最後註冊，避免吃掉 /api/*）
 app.get('*', (_req, res) => {
-  const indexPath = path.join(process.cwd(), 'dist', 'index.html');
+  const indexPath = path.join(APP_ROOT, 'dist', 'index.html');
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
