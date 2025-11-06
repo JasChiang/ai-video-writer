@@ -8,6 +8,8 @@ import { SparklesIcon, CheckIcon } from './Icons';
 interface MetadataGeneratorProps {
   video: YouTubeVideo;
   onClose: () => void;
+  cachedContent?: GeneratedContentType | null;
+  onContentUpdate?: (content: GeneratedContentType | null) => void;
 }
 
 type UpdateStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -17,8 +19,8 @@ interface UpdateState {
   tags: UpdateStatus;
 }
 
-export function MetadataGenerator({ video, onClose }: MetadataGeneratorProps) {
-  const [generatedContent, setGeneratedContent] = useState<GeneratedContentType | null>(null);
+export function MetadataGenerator({ video, onClose, cachedContent, onContentUpdate }: MetadataGeneratorProps) {
+  const [generatedContent, setGeneratedContent] = useState<GeneratedContentType | null>(cachedContent || null);
   const [selectedTitle, setSelectedTitle] = useState<'titleA' | 'titleB' | 'titleC'>('titleA');
   const [editableContent, setEditableContent] = useState({
     title: video.title,
@@ -36,6 +38,13 @@ export function MetadataGenerator({ video, onClose }: MetadataGeneratorProps) {
   const [prompt, setPrompt] = useState('');
   const [updateState, setUpdateState] = useState<UpdateState>({ title: 'idle', description: 'idle', tags: 'idle' });
   const [geminiFileName, setGeminiFileName] = useState<string | undefined>(undefined);
+
+  // 載入快取內容
+  useEffect(() => {
+    if (cachedContent) {
+      setGeneratedContent(cachedContent);
+    }
+  }, [cachedContent]);
 
   useEffect(() => {
     if (generatedContent) {
@@ -74,6 +83,10 @@ export function MetadataGenerator({ video, onClose }: MetadataGeneratorProps) {
       }
 
       setGeneratedContent(result.content);
+      // 更新快取
+      if (onContentUpdate) {
+        onContentUpdate(result.content);
+      }
     } catch (e: any) {
       console.error(e);
       setError(`生成失敗：${e.message}`);

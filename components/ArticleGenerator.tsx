@@ -8,6 +8,8 @@ import { CopyButton } from './CopyButton';
 interface ArticleGeneratorProps {
   video: YouTubeVideo;
   onClose: () => void;
+  cachedContent?: ArticleGenerationResult | null;
+  onContentUpdate?: (content: ArticleGenerationResult | null) => void;
 }
 
 interface UploadedFile {
@@ -31,12 +33,12 @@ const getServerBaseUrl = () => {
   return import.meta.env.DEV ? 'http://localhost:3001' : '';
 };
 
-export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
+export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdate }: ArticleGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRegeneratingScreenshots, setIsRegeneratingScreenshots] = useState(false);
   const [isCapturingScreenshots, setIsCapturingScreenshots] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ArticleGenerationResult | null>(null);
+  const [result, setResult] = useState<ArticleGenerationResult | null>(cachedContent || null);
   const [customPrompt, setCustomPrompt] = useState('');
   const [screenshotQuality, setScreenshotQuality] = useState<number>(2); // 預設高畫質
   const [loadingStep, setLoadingStep] = useState<string>('');
@@ -86,6 +88,13 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
   }, []);
 
   const [manualDatabaseIdInput, setManualDatabaseIdInput] = useState('');
+
+  // 載入快取內容
+  useEffect(() => {
+    if (cachedContent) {
+      setResult(cachedContent);
+    }
+  }, [cachedContent]);
 
   const handleDatabaseIdUpdate = useCallback((value: string) => {
     setNotionDatabaseId(value);
@@ -404,7 +413,7 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
 
       console.log('[Article] Article generated successfully');
 
-      setResult({
+      const newResult = {
         titleA: generateData.titleA,
         titleB: generateData.titleB,
         titleC: generateData.titleC,
@@ -414,7 +423,14 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
         screenshots: generateData.screenshots,
         needsScreenshots: generateData.needsScreenshots,
         videoId: generateData.videoId || video.id
-      });
+      };
+
+      setResult(newResult);
+
+      // 更新快取
+      if (onContentUpdate) {
+        onContentUpdate(newResult);
+      }
 
     } catch (err: any) {
       console.error('[Article] Article generation error:', err);
@@ -447,7 +463,7 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
       console.log('[Article] Screenshots regenerated successfully');
 
       // 更新結果，保持其他內容不變，只更新截圖相關資料
-      setResult({
+      const newResult = {
         titleA: regeneratedData.titleA,
         titleB: regeneratedData.titleB,
         titleC: regeneratedData.titleC,
@@ -455,7 +471,14 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
         seo_description: regeneratedData.seo_description,
         image_urls: regeneratedData.image_urls,
         screenshots: regeneratedData.screenshots
-      });
+      };
+
+      setResult(newResult);
+
+      // 更新快取
+      if (onContentUpdate) {
+        onContentUpdate(newResult);
+      }
 
     } catch (err: any) {
       console.error('[Article] Screenshot regeneration error:', err);
@@ -500,11 +523,18 @@ export function ArticleGenerator({ video, onClose }: ArticleGeneratorProps) {
       console.log('[Article] Screenshots captured successfully');
 
       // 更新結果，添加截圖 URLs
-      setResult({
+      const newResult = {
         ...result,
         image_urls: data.image_urls,
         needsScreenshots: false, // 截圖完成，不再需要
-      });
+      };
+
+      setResult(newResult);
+
+      // 更新快取
+      if (onContentUpdate) {
+        onContentUpdate(newResult);
+      }
 
       setLoadingStep('');
 

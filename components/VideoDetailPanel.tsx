@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import type { YouTubeVideo } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import type { YouTubeVideo, GeneratedContentType, ArticleGenerationResult } from '../types';
 import { MetadataGenerator } from './MetadataGenerator';
 import { ArticleGenerator } from './ArticleGenerator';
 import { formatDuration, formatViewCount, formatPublishedDate, getPrivacyStatusBadge } from '../utils/formatters';
@@ -10,9 +10,18 @@ interface VideoDetailPanelProps {
 
 type ActiveMode = 'none' | 'metadata' | 'article';
 
+interface VideoContentCache {
+  metadata: GeneratedContentType | null;
+  article: ArticleGenerationResult | null;
+  activeMode: ActiveMode;
+}
+
 export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
   const [activeMode, setActiveMode] = useState<ActiveMode>('none');
   const [showPlayer, setShowPlayer] = useState(false);
+  const contentCacheRef = useRef<Map<string, VideoContentCache>>(new Map());
+  const [cachedMetadata, setCachedMetadata] = useState<GeneratedContentType | null>(null);
+  const [cachedArticle, setCachedArticle] = useState<ArticleGenerationResult | null>(null);
   const [fileStatus, setFileStatus] = useState<{
     checking: boolean;
     exists: boolean;
@@ -58,7 +67,26 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
     checkFile();
   }, [video.id, video.privacyStatus]);
 
-  React.useEffect(() => {
+  // 當影片切換時，載入新影片的快取
+  useEffect(() => {
+    // 載入新影片的快取
+    const cache = contentCacheRef.current.get(video.id);
+    if (cache) {
+      setCachedMetadata(cache.metadata);
+      setCachedArticle(cache.article);
+      setActiveMode(cache.activeMode);
+    } else {
+      // 第一次訪問這個影片，創建空快取並重置狀態
+      contentCacheRef.current.set(video.id, {
+        metadata: null,
+        article: null,
+        activeMode: 'none',
+      });
+      setCachedMetadata(null);
+      setCachedArticle(null);
+      setActiveMode('none');
+    }
+
     setIsDescriptionExpanded(false);
   }, [video.id]);
 
@@ -69,6 +97,28 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
   const shouldTruncateDescription =
     Boolean(video.description) &&
     (video.description.length > DESCRIPTION_PREVIEW_CHAR_THRESHOLD || newlineCount >= NEWLINE_THRESHOLD);
+
+  // 更新 Metadata 快取
+  const handleMetadataUpdate = (content: GeneratedContentType | null) => {
+    setCachedMetadata(content);
+    const currentCache = contentCacheRef.current.get(video.id);
+    contentCacheRef.current.set(video.id, {
+      metadata: content,
+      article: currentCache?.article || null,
+      activeMode: currentCache?.activeMode || 'metadata',
+    });
+  };
+
+  // 更新 Article 快取
+  const handleArticleUpdate = (content: ArticleGenerationResult | null) => {
+    setCachedArticle(content);
+    const currentCache = contentCacheRef.current.get(video.id);
+    contentCacheRef.current.set(video.id, {
+      metadata: currentCache?.metadata || null,
+      article: content,
+      activeMode: currentCache?.activeMode || 'article',
+    });
+  };
 
   const descriptionClasses = [
     'rounded-lg border border-neutral-200 bg-neutral-100 px-4 py-3 text-sm leading-relaxed text-neutral-700 whitespace-pre-line',
@@ -306,6 +356,8 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
           <MetadataGenerator
             video={video}
             onClose={() => setActiveMode('none')}
+            cachedContent={cachedMetadata}
+            onContentUpdate={handleMetadataUpdate}
           />
         </div>
       )}
@@ -321,6 +373,8 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
           <ArticleGenerator
             video={video}
             onClose={() => setActiveMode('none')}
+            cachedContent={cachedArticle}
+            onContentUpdate={handleArticleUpdate}
           />
         </div>
       )}
