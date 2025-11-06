@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { Loader } from './components/Loader';
@@ -186,7 +186,7 @@ export default function App() {
 
   const handleVideoSelect = (videoId: string) => {
     setSelectedVideoId(videoId);
-    if (typeof window !== 'undefined' && window.innerWidth < 1280) {
+    if (!showDetailSidebar) {
       const target = document.getElementById(`video-card-${videoId}`);
       if (target) {
         window.requestAnimationFrame(() => {
@@ -211,6 +211,18 @@ export default function App() {
       setSelectedVideoId(prev => prev ?? (videos[0]?.id ?? null));
     }
   }, [showDetailSidebar, videos]);
+
+  const layoutTemplateColumns = useMemo(() => {
+    if (!isDesktop) {
+      return 'minmax(0, 1fr)';
+    }
+
+    if (showDetailSidebar) {
+      return 'minmax(280px, 340px) minmax(0, 1fr) clamp(320px, 30vw, 560px)';
+    }
+
+    return 'minmax(280px, 340px) minmax(0, 1fr)';
+  }, [isDesktop, showDetailSidebar]);
 
   const hasActiveFilters = showPrivateVideos || showUnlistedVideos || Boolean(searchQuery);
 
@@ -366,7 +378,10 @@ export default function App() {
           )}
         </div>
 
-        <div className="lg:grid lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)_minmax(0,620px)] 2xl:grid-cols-[minmax(0,360px)_minmax(0,520px)_minmax(0,760px)] lg:gap-6 xl:gap-8 2xl:gap-10">
+        <div
+          className="grid gap-6 lg:gap-6 xl:gap-8 2xl:gap-10"
+          style={{ gridTemplateColumns: layoutTemplateColumns }}
+        >
           <aside className="mb-6 hidden lg:block xl:mb-0">
             <div className="space-y-5 rounded-2xl border border-neutral-200 bg-white/95 p-5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80 lg:sticky lg:top-28">
               <div className="space-y-1">
