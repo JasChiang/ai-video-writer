@@ -112,7 +112,10 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
         thumbnailUrl: video.thumbnailUrl,
       };
 
-      await youtubeService.updateVideo(videoDataToUpdate);
+      await youtubeService.updateVideo(videoDataToUpdate, {
+        source: 'MetadataGenerator',
+        trigger: `metadata-update-${field}`,
+      });
 
       if (field === 'title') {
         setYoutubeCurrentValues(prev => ({ ...prev, title: editableContent.title }));

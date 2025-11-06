@@ -4,6 +4,13 @@
  */
 
 import { google } from 'googleapis';
+import { recordQuota as recordQuotaServer } from './quotaTracker.js';
+
+const YOUTUBE_QUOTA_COST = {
+  channelsList: 1,
+  playlistItemsSnippet: 2,
+  analyticsReportsQuery: 1,
+};
 
 /**
  * 判斷流量來源細節是否為 Google 搜尋
@@ -102,6 +109,11 @@ async function getAllChannelVideos(youtube, channelId, cutoffDate) {
     part: 'contentDetails',
     id: channelId,
   });
+  recordQuotaServer('youtube.channels.list', YOUTUBE_QUOTA_COST.channelsList, {
+    part: 'contentDetails',
+    context: 'analytics:getAllChannelVideos',
+    caller: 'analyticsService.getAllChannelVideos',
+  });
 
   if (!channelResponse.data.items || channelResponse.data.items.length === 0) {
     throw new Error('找不到頻道資訊');
@@ -128,6 +140,11 @@ async function getAllChannelVideos(youtube, channelId, cutoffDate) {
         playlistId: uploadsPlaylistId,
         maxResults: 50,
         pageToken: pageToken,
+      });
+      recordQuotaServer('youtube.playlistItems.list', YOUTUBE_QUOTA_COST.playlistItemsSnippet, {
+        part: 'snippet',
+        page: pageCount,
+        caller: 'analyticsService.getAllChannelVideos',
       });
 
       const items = response.data.items || [];
@@ -222,6 +239,13 @@ async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, start
       filters: `video==${videoIds}`,
       sort: '-views',
     });
+    recordQuotaServer('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
+      metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,comments,shares,subscribersGained',
+      dimensions: 'video',
+      context: 'basicMetrics',
+      filterVideos: videos.length,
+      caller: 'analyticsService.getVideosAnalyticsData',
+    });
 
     // 查詢 2: 流量來源數據（依流量來源類型）
     const trafficSources = await youtubeAnalytics.reports.query({
@@ -231,6 +255,13 @@ async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, start
       metrics: 'views',
       dimensions: 'video,insightTrafficSourceType',
       filters: `video==${videoIds}`,
+    });
+    recordQuotaServer('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
+      metrics: 'views',
+      dimensions: 'video,insightTrafficSourceType',
+      context: 'trafficSources',
+      filterVideos: videos.length,
+      caller: 'analyticsService.getVideosAnalyticsData',
     });
 
     // 查詢 3: 曝光與點擊數據（CTR）
@@ -243,6 +274,13 @@ async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, start
         metrics: 'cardImpressions,cardClicks,cardClickRate',
         dimensions: 'video',
         filters: `video==${videoIds}`,
+      });
+      recordQuotaServer('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
+        metrics: 'cardImpressions,cardClicks,cardClickRate',
+        dimensions: 'video',
+        context: 'impressions',
+        filterVideos: videos.length,
+        caller: 'analyticsService.getVideosAnalyticsData',
       });
     } catch (error) {
       console.log('[Analytics] 曝光數據不可用（正常，部分頻道沒有此數據）');
@@ -478,6 +516,13 @@ export async function getVideoSearchTerms(accessToken, channelId, videoId, daysT
       sort: '-views',
       maxResults: maxResults,
     });
+    recordQuotaServer('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
+      metrics: 'views',
+      dimensions: 'insightTrafficSourceDetail',
+      context: 'searchTerms',
+      videoId,
+      caller: 'analyticsService.getVideoSearchTerms',
+    });
 
     let searchTerms = [];
 
@@ -548,6 +593,13 @@ export async function getVideoExternalTrafficDetails(
       filters: `video==${videoId};insightTrafficSourceType==EXT_URL`,
       sort: '-views',
       maxResults,
+    });
+    recordQuotaServer('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
+      metrics: 'views',
+      dimensions: 'insightTrafficSourceDetail',
+      context: 'externalTraffic',
+      videoId,
+      caller: 'analyticsService.getVideoExternalTrafficDetails',
     });
 
     const topExternalSources = [];

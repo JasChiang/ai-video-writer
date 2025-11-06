@@ -179,7 +179,10 @@ export function VideoAnalyticsExpandedView({
       let channelId = localStorage.getItem(ACTIVE_CHANNEL_STORAGE_KEY) || localStorage.getItem('channelId');
       if (!channelId) {
         try {
-          channelId = await youtubeService.getChannelId();
+          channelId = await youtubeService.getChannelId({
+            source: 'VideoAnalyticsExpandedView',
+            trigger: 'fetch-search-terms',
+          });
           localStorage.setItem(ACTIVE_CHANNEL_STORAGE_KEY, channelId);
           localStorage.setItem('channelId', channelId);
         } catch (channelError: any) {
@@ -238,7 +241,10 @@ export function VideoAnalyticsExpandedView({
 
       let channelId = localStorage.getItem(ACTIVE_CHANNEL_STORAGE_KEY) || localStorage.getItem('channelId');
       if (!channelId) {
-        channelId = await youtubeService.getChannelId();
+        channelId = await youtubeService.getChannelId({
+          source: 'VideoAnalyticsExpandedView',
+          trigger: 'fetch-external-traffic',
+        });
         localStorage.setItem(ACTIVE_CHANNEL_STORAGE_KEY, channelId);
         localStorage.setItem('channelId', channelId);
       }
@@ -449,7 +455,10 @@ export function VideoAnalyticsExpandedView({
         thumbnailUrl: fullVideoData.thumbnailUrl,
       };
 
-      await youtubeService.updateVideo(videoDataToUpdate);
+      await youtubeService.updateVideo(videoDataToUpdate, {
+        source: 'VideoAnalyticsExpandedView',
+        trigger: `metadata-update-${field}`,
+      });
 
       if (field === 'title') {
         setYoutubeCurrentValues(prev => ({ ...prev, title: editableContent.title }));

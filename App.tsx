@@ -8,6 +8,7 @@ import { YouTubeLogin } from './components/YouTubeLogin';
 import { VideoSelector } from './components/VideoSelector';
 import { VideoAnalytics } from './components/VideoAnalytics';
 import { VideoDetailPanel } from './components/VideoDetailPanel';
+import { QuotaDebugger } from './components/QuotaDebugger';
 
 type ActiveTab = 'videos' | 'analytics';
 
@@ -51,7 +52,7 @@ export default function App() {
 
       if (youtubeService.isTokenValid()) {
         setIsLoggedIn(true);
-        await fetchVideos();
+        await fetchVideos({ reset: true, trigger: 'initial-load' });
       } else if (restored) {
         // 如果已恢復舊 token 但立即失效，清除狀態避免無限循環
         console.warn('Stored YouTube token expired; user needs to re-authenticate.');
@@ -77,7 +78,7 @@ export default function App() {
         if (youtubeService.isTokenValid()) {
           clearInterval(interval);
           setIsLoggedIn(true);
-          fetchVideos();
+          fetchVideos({ reset: true, trigger: 'post-login' });
         }
       }, 1000);
 
@@ -107,7 +108,7 @@ export default function App() {
     setIsFilterPanelOpen(false);
   };
 
-  const fetchVideos = async (reset: boolean = true) => {
+  const fetchVideos = async ({ reset = true, trigger }: { reset?: boolean; trigger?: string } = {}) => {
     setIsLoadingVideos(true);
     setError(null);
     try {
@@ -117,12 +118,18 @@ export default function App() {
         setNextPageToken(null);
       }
 
+      const actionTrigger = trigger ?? (reset ? 'initial-load' : 'load-more');
       const result = await youtubeService.listVideos(
         12,
         reset ? undefined : nextPageToken || undefined,
         showPrivateVideos,
         searchQuery,
-        showUnlistedVideos
+        showUnlistedVideos,
+        {
+          trigger: actionTrigger,
+          source: 'App.fetchVideos',
+          reset,
+        }
       );
 
       const existingIds = reset ? new Set<string>() : new Set(videos.map(v => v.id));
@@ -149,7 +156,7 @@ export default function App() {
 
   const loadMoreVideos = async () => {
     if (!hasMore || isLoadingVideos) return;
-    await fetchVideos(false);
+    await fetchVideos({ reset: false, trigger: 'load-more' });
   };
 
   const handleTogglePrivateVideos = () => {
@@ -163,7 +170,7 @@ export default function App() {
   // Re-fetch videos when showPrivateVideos changes
   useEffect(() => {
     if (isLoggedIn) {
-      fetchVideos(true);
+      fetchVideos({ reset: true, trigger: 'privacy-filter-change' });
     }
   }, [showPrivateVideos, showUnlistedVideos]);
 
@@ -172,7 +179,7 @@ export default function App() {
     if (!isLoggedIn) return;
 
     const timer = setTimeout(() => {
-      fetchVideos(true);
+      fetchVideos({ reset: true, trigger: 'search-query' });
     }, 500); // 500ms debounce
 
     return () => clearTimeout(timer);
@@ -453,6 +460,7 @@ export default function App() {
         </div>
       </main>
       <Footer />
+      <QuotaDebugger />
     </div>
   );
 }

@@ -170,7 +170,10 @@ export function VideoAnalytics() {
 
     const resolveChannelId = async () => {
       try {
-        const channelId = await youtubeService.getChannelId();
+        const channelId = await youtubeService.getChannelId({
+          source: 'VideoAnalytics',
+          trigger: 'resolve-active-channel',
+        });
         if (!isMounted || !channelId) return;
 
         setActiveChannelId(prev => (prev === channelId ? prev : channelId));
@@ -262,7 +265,10 @@ export function VideoAnalytics() {
     try {
       // 獲取當前用戶的 access token 和 channel ID
       const accessToken = youtubeService.getAccessToken();
-      const channelId = await youtubeService.getChannelId();
+      const channelId = await youtubeService.getChannelId({
+        source: 'VideoAnalytics',
+        trigger: append ? 'load-more-analytics' : 'fetch-analytics',
+      });
 
       if (!accessToken || !channelId) {
         throw new Error('請先登入 YouTube 帳號');
@@ -367,7 +373,10 @@ export function VideoAnalytics() {
       let tags: string[] = [];
 
       try {
-        const metadata = await youtubeService.getVideoMetadata(video.videoId);
+        const metadata = await youtubeService.getVideoMetadata(video.videoId, {
+          source: 'VideoAnalytics',
+          trigger: 'keyword-analysis',
+        });
         description = metadata.description || '';
         tags = metadata.tags || [];
       } catch (metaError: any) {

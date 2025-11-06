@@ -16,6 +16,37 @@ let storedTokenExpiry: number | null = null;
 let uploadsPlaylistId: string | null = null;
 let uploadsPlaylistPromise: Promise<string> | null = null;
 
+type QuotaTriggerOptions = {
+    trigger?: string;
+    source?: string;
+    reset?: boolean;
+};
+
+const YT_QUOTA_COST = {
+    searchList: 100,
+    channelsList: 1,
+    playlistItemsPartCost: {
+        snippet: 2,
+        contentDetails: 2,
+        status: 2,
+    } as Record<string, number>,
+    videosListPartCost: {
+        snippet: 2,
+        status: 2,
+        statistics: 2,
+        contentDetails: 2,
+    } as Record<string, number>,
+    videosUpdate: 50,
+};
+
+function calculatePartCost(parts: string, mapping: Record<string, number>): number {
+    return parts
+        .split(',')
+        .map(part => part.trim())
+        .filter(Boolean)
+        .reduce((total, part) => total + (mapping[part] ?? 0), 0);
+}
+
 function persistToken(token: any, expiresIn?: number) {
     if (typeof window === 'undefined') return;
 
@@ -189,7 +220,11 @@ async function resolveUploadsPlaylistId(): Promise<string> {
                 part: 'contentDetails',
                 mine: true,
             });
-            recordQuota('youtube.channels.list', 1, { part: 'contentDetails', context: 'resolveUploadsPlaylistId' });
+            recordQuota('youtube.channels.list', YT_QUOTA_COST.channelsList, {
+                part: 'contentDetails',
+                context: 'resolveUploadsPlaylistId',
+                caller: 'youtubeService.resolveUploadsPlaylistId',
+            });
 
             const uploadsId = response.result?.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
             if (!uploadsId) {
@@ -228,7 +263,8 @@ async function listVideosBySearch(
     pageToken: string | undefined,
     showPrivateVideos: boolean,
     searchQuery: string | undefined,
-    showUnlistedVideos: boolean
+    showUnlistedVideos: boolean,
+    options: QuotaTriggerOptions
 ): Promise<{ videos: YouTubeVideo[]; nextPageToken: string | null }> {
     const searchParams: any = {
         part: 'snippet',
@@ -247,7 +283,13 @@ async function listVideosBySearch(
     }
 
     const searchResponse = await gapi.client.youtube.search.list(searchParams);
-    recordQuota('youtube.search.list', 100, { hasQuery: Boolean(searchParams.q), maxResults });
+    recordQuota('youtube.search.list', YT_QUOTA_COST.searchList, {
+        hasQuery: Boolean(searchParams.q),
+        maxResults,
+        trigger: options.trigger,
+        caller: options.source,
+        reset: options.reset,
+    });
 
     if (!searchResponse.result.items || searchResponse.result.items.length === 0) {
         return { videos: [], nextPageToken: null };
@@ -261,7 +303,19 @@ async function listVideosBySearch(
         part: 'snippet,status,statistics,contentDetails',
         id: videoIds,
     });
-    recordQuota('youtube.videos.list', 8, { part: 'snippet,status,statistics,contentDetails', source: 'search' });
+    const searchParts = 'snippet,status,statistics,contentDetails';
+    recordQuota(
+        'youtube.videos.list',
+        calculatePartCost(searchParts, YT_QUOTA_COST.videosListPartCost),
+        {
+            part: searchParts,
+            apiSource: 'search',
+            trigger: options.trigger,
+            caller: options.source,
+            reset: options.reset,
+            searchQuery: searchQuery?.trim() || null,
+        }
+    );
 
     if (!videosResponse.result.items) {
         return { videos: [], nextPageToken: null };
@@ -294,7 +348,8 @@ async function listVideosFromUploadsPlaylist(
     maxResults: number,
     pageToken: string | undefined,
     showPrivateVideos: boolean,
-    showUnlistedVideos: boolean
+    showUnlistedVideos: boolean,
+    options: QuotaTriggerOptions
 ): Promise<{ videos: YouTubeVideo[]; nextPageToken: string | null }> {
     const playlistId = await resolveUploadsPlaylistId();
 
@@ -304,7 +359,18 @@ async function listVideosFromUploadsPlaylist(
         maxResults: Math.min(maxResults, 50),
         pageToken,
     });
-    recordQuota('youtube.playlistItems.list', 3, { part: 'snippet,contentDetails,status', maxResults: Math.min(maxResults, 50) });
+    const playlistParts = 'snippet,contentDetails,status';
+    recordQuota(
+        'youtube.playlistItems.list',
+        calculatePartCost(playlistParts, YT_QUOTA_COST.playlistItemsPartCost),
+        {
+            part: playlistParts,
+            maxResults: Math.min(maxResults, 50),
+            trigger: options.trigger,
+            caller: options.source,
+            reset: options.reset,
+        }
+    );
 
     const items = playlistResponse.result.items || [];
     if (items.length === 0) {
@@ -324,7 +390,20 @@ async function listVideosFromUploadsPlaylist(
         part: 'snippet,status,statistics,contentDetails',
         id: videoIds.join(','),
     });
-    recordQuota('youtube.videos.list', 8, { part: 'snippet,status,statistics,contentDetails', source: 'uploadsPlaylist' });
+    const playlistVideoParts = 'snippet,status,statistics,contentDetails';
+    recordQuota(
+        'youtube.videos.list',
+        calculatePartCost(playlistVideoParts, YT_QUOTA_COST.videosListPartCost),
+        {
+            part: playlistVideoParts,
+            apiSource: 'uploadsPlaylist',
+            trigger: options.trigger,
+            caller: options.source,
+            reset: options.reset,
+            showPrivateVideos,
+            showUnlistedVideos,
+        }
+    );
 
     const detailedItems = videosResponse.result.items || [];
     const itemMap = new Map<string, any>();
@@ -355,7 +434,8 @@ export async function listVideos(
     pageToken?: string,
     showPrivateVideos = false,
     searchQuery?: string,
-    showUnlistedVideos = false
+    showUnlistedVideos = false,
+    options: QuotaTriggerOptions = {}
 ): Promise<{ videos: YouTubeVideo[], nextPageToken: string | null }> {
     if (!isGapiInitialized || !isTokenValid()) {
         throw new Error("Authentication required.");
@@ -365,10 +445,23 @@ export async function listVideos(
         const hasSearchQuery = Boolean(searchQuery && searchQuery.trim());
 
         if (hasSearchQuery) {
-            return await listVideosBySearch(maxResults, pageToken, showPrivateVideos, searchQuery, showUnlistedVideos);
+            return await listVideosBySearch(
+                maxResults,
+                pageToken,
+                showPrivateVideos,
+                searchQuery,
+                showUnlistedVideos,
+                options
+            );
         }
 
-        return await listVideosFromUploadsPlaylist(maxResults, pageToken, showPrivateVideos, showUnlistedVideos);
+        return await listVideosFromUploadsPlaylist(
+            maxResults,
+            pageToken,
+            showPrivateVideos,
+            showUnlistedVideos,
+            options
+        );
     } catch (error: any) {
         console.error("Error listing videos:", error);
         const status = error?.status || error?.result?.error?.code;
@@ -384,7 +477,10 @@ export function resetPagination(): void {
     // 目前 pageToken 由 App.tsx 管理，這裡保留函數以保持 API 一致性
 }
 
-export async function getVideoMetadata(videoId: string): Promise<{ title: string; description: string; tags: string[]; categoryId: string }> {
+export async function getVideoMetadata(
+    videoId: string,
+    options: QuotaTriggerOptions = {}
+): Promise<{ title: string; description: string; tags: string[]; categoryId: string }> {
     if (!isGapiInitialized || !isTokenValid()) {
         throw new Error("Authentication required.");
     }
@@ -394,7 +490,17 @@ export async function getVideoMetadata(videoId: string): Promise<{ title: string
             part: 'snippet',
             id: videoId,
         });
-        recordQuota('youtube.videos.list', 2, { part: 'snippet', context: 'getVideoMetadata' });
+        recordQuota(
+            'youtube.videos.list',
+            calculatePartCost('snippet', YT_QUOTA_COST.videosListPartCost),
+            {
+                part: 'snippet',
+                context: 'getVideoMetadata',
+                trigger: options.trigger,
+                caller: options.source,
+                videoId,
+            }
+        );
 
         const item = response.result.items?.[0];
         if (!item) {
@@ -414,7 +520,10 @@ export async function getVideoMetadata(videoId: string): Promise<{ title: string
 }
 
 
-export async function updateVideo(video: Partial<YouTubeVideo> & { id: string; categoryId: string }): Promise<any> {
+export async function updateVideo(
+    video: Partial<YouTubeVideo> & { id: string; categoryId: string },
+    options: QuotaTriggerOptions = {}
+): Promise<any> {
      if (!isGapiInitialized || !isTokenValid()) {
         throw new Error("Authentication required.");
     }
@@ -432,7 +541,13 @@ export async function updateVideo(video: Partial<YouTubeVideo> & { id: string; c
         const response = await gapi.client.youtube.videos.update({
             part: 'snippet',
         }, resource);
-        recordQuota('youtube.videos.update', 50, { part: 'snippet', fields: Object.keys(resource.snippet ?? {}) });
+        recordQuota('youtube.videos.update', YT_QUOTA_COST.videosUpdate, {
+            part: 'snippet',
+            fields: Object.keys(resource.snippet ?? {}),
+            trigger: options.trigger,
+            caller: options.source,
+            videoId: video.id,
+        });
 
         return response.result;
 
@@ -481,7 +596,7 @@ export function getAccessToken(): string | null {
  * 取得當前用戶的頻道 ID
  * @returns {Promise<string>} 頻道 ID
  */
-export async function getChannelId(): Promise<string> {
+export async function getChannelId(options: QuotaTriggerOptions = {}): Promise<string> {
     if (!isGapiInitialized) {
         throw new Error('GAPI not initialized');
     }
@@ -491,7 +606,12 @@ export async function getChannelId(): Promise<string> {
             part: 'id',
             mine: true,
         });
-        recordQuota('youtube.channels.list', 1, { part: 'id', context: 'getChannelId' });
+        recordQuota('youtube.channels.list', YT_QUOTA_COST.channelsList, {
+            part: 'id',
+            context: 'getChannelId',
+            trigger: options.trigger,
+            caller: options.source,
+        });
 
         if (!response.result.items || response.result.items.length === 0) {
             throw new Error('No channel found for this user');

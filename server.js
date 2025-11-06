@@ -19,6 +19,7 @@ import {
   getVideoSearchTerms,
   getVideoExternalTrafficDetails,
 } from './services/analyticsService.js';
+import { getQuotaSnapshot as getServerQuotaSnapshot, resetQuotaSnapshot as resetServerQuotaSnapshot } from './services/quotaTracker.js';
 import { generateKeywordAnalysisPrompt } from './services/keywordAnalysisPromptService.js';
 import {
   uploadToGeminiFilesAPI,
@@ -172,6 +173,15 @@ app.get('/app-config.js', (_req, res) => {
     YOUTUBE_SCOPES: 'https://www.googleapis.com/auth/youtube',
   };
   res.type('application/javascript').send(`window.__APP_CONFIG__ = ${JSON.stringify(cfg)};`);
+});
+
+app.get('/api/quota/server', (_req, res) => {
+  res.json(getServerQuotaSnapshot());
+});
+
+app.post('/api/quota/server/reset', (_req, res) => {
+  resetServerQuotaSnapshot();
+  res.json({ success: true });
 });
 
 /**

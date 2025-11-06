@@ -29,7 +29,8 @@ class QuotaTracker {
       details,
     });
 
-    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    const mode = typeof import.meta !== 'undefined' ? import.meta.env?.MODE : undefined;
+    if (typeof window !== 'undefined' && mode !== 'production') {
       console.debug(
         `[YouTube Quota] +${units} units via ${action}`,
         details ? JSON.stringify(details) : ''
@@ -69,22 +70,24 @@ declare global {
   }
 }
 
-const globalTracker =
-  (typeof window !== 'undefined' && window.__youtubeQuotaTracker) ||
-  (() => {
-    const tracker = new QuotaTracker();
-    const api = {
-      record: tracker.record.bind(tracker),
-      snapshot: tracker.snapshot.bind(tracker),
-      reset: tracker.reset.bind(tracker),
-    };
+const globalTracker = (() => {
+  if (typeof window !== 'undefined' && window.__youtubeQuotaTracker) {
+    return window.__youtubeQuotaTracker;
+  }
 
-    if (typeof window !== 'undefined') {
-      window.__youtubeQuotaTracker = api;
-    }
+  const tracker = new QuotaTracker();
+  const api = {
+    record: tracker.record.bind(tracker),
+    snapshot: tracker.snapshot.bind(tracker),
+    reset: tracker.reset.bind(tracker),
+  };
 
-    return api;
-  })();
+  if (typeof window !== 'undefined') {
+    window.__youtubeQuotaTracker = api;
+  }
+
+  return api;
+})();
 
 export function recordQuota(
   action: string,
