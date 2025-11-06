@@ -748,7 +748,6 @@ app.post('/api/download-video', async (req, res) => {
     // 建構命令（使用陣列避免換行問題）
     const commandParts = [
       'yt-dlp',
-      // ⚠️ OAuth 認證已被 yt-dlp 移除，改用反偵測參數
       // 反偵測參數：模擬真實瀏覽器
       '--user-agent', '"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"',
       '--referer', '"https://www.youtube.com/"',
@@ -766,9 +765,15 @@ app.post('/api/download-video', async (req, res) => {
       '--retries', '15',
       '--fragment-retries', '15',
       '--socket-timeout', '30',
-      // 添加影片 URL
-      `"${videoUrl}"`,
     ];
+
+    if (accessToken) {
+      console.log('[Download] Using access token for authentication.');
+      commandParts.push('--add-header', `Authorization: Bearer ${accessToken}`);
+    }
+
+    // 添加影片 URL
+    commandParts.push(`"${videoUrl}"`);
 
     const command = commandParts.join(' ');
 
@@ -1584,7 +1589,7 @@ app.post('/api/generate-article-url', async (req, res) => {
  * Body: { videoId: string, screenshots: array, quality?: number }
  */
 app.post('/api/capture-screenshots', async (req, res) => {
-  const { videoId, screenshots, quality = 2 } = req.body;
+  const { videoId, screenshots, quality = 2, accessToken } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
@@ -1658,8 +1663,14 @@ app.post('/api/capture-screenshots', async (req, res) => {
         '--retries', '15',
         '--fragment-retries', '15',
         '--socket-timeout', '30',
-        `"${youtubeUrl}"`,
       ];
+
+      if (accessToken) {
+        console.log('[Capture] Using access token for authentication.');
+        commandParts.push('--add-header', `Authorization: Bearer ${accessToken}`);
+      }
+
+      commandParts.push(`"${youtubeUrl}"`);
 
       const command = commandParts.join(' ');
       console.log(`[Capture] Executing: ${command}`);
