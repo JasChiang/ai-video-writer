@@ -22,6 +22,7 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
   const contentCacheRef = useRef<Map<string, VideoContentCache>>(new Map());
   const [cachedMetadata, setCachedMetadata] = useState<GeneratedContentType | null>(null);
   const [cachedArticle, setCachedArticle] = useState<ArticleGenerationResult | null>(null);
+  const [isCacheLoaded, setIsCacheLoaded] = useState(false);
   const [fileStatus, setFileStatus] = useState<{
     checking: boolean;
     exists: boolean;
@@ -37,6 +38,44 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const DESCRIPTION_PREVIEW_CHAR_THRESHOLD = 180;
   const NEWLINE_THRESHOLD = 3;
+
+  // 從 localStorage 載入快取
+  useEffect(() => {
+    const CACHE_KEY = 'videoContentCache';
+    try {
+      const savedCache = localStorage.getItem(CACHE_KEY);
+      if (savedCache) {
+        const parsed = JSON.parse(savedCache);
+        // 將物件轉換回 Map
+        const cacheMap = new Map<string, VideoContentCache>(
+          Object.entries(parsed).map(([key, value]) => [key, value as VideoContentCache])
+        );
+        contentCacheRef.current = cacheMap;
+        console.log(`[Cache] 從 localStorage 載入了 ${cacheMap.size} 個影片的快取`);
+      }
+    } catch (error) {
+      console.error('[Cache] 載入快取失敗:', error);
+    } finally {
+      setIsCacheLoaded(true);
+    }
+  }, []);
+
+  // 儲存快取到 localStorage
+  const saveCache = () => {
+    const CACHE_KEY = 'videoContentCache';
+    try {
+      // 將 Map 轉換為普通物件以便儲存
+      const cacheObject = Object.fromEntries(contentCacheRef.current);
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cacheObject));
+      console.log(`[Cache] 已儲存 ${contentCacheRef.current.size} 個影片的快取到 localStorage`);
+    } catch (error) {
+      console.error('[Cache] 儲存快取失敗:', error);
+      // 如果儲存失敗（例如 quota 超過），可以選擇清理舊資料
+      if (error instanceof Error && error.name === 'QuotaExceededError') {
+        console.warn('[Cache] LocalStorage 空間不足，建議清理舊快取');
+      }
+    }
+  };
 
   // 檢查檔案是否存在於 Files API
   React.useEffect(() => {
@@ -67,11 +106,14 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
     checkFile();
   }, [video.id, video.privacyStatus]);
 
-  // 當影片切換時，載入新影片的快取
+  // 當影片切換時，載入新影片的快取（需等待 localStorage 載入完成）
   useEffect(() => {
+    if (!isCacheLoaded) return; // 等待快取載入完成
+
     // 載入新影片的快取
     const cache = contentCacheRef.current.get(video.id);
     if (cache) {
+      console.log(`[Cache] 載入影片 ${video.id} 的快取內容`);
       setCachedMetadata(cache.metadata);
       setCachedArticle(cache.article);
       setActiveMode(cache.activeMode);
@@ -88,7 +130,7 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
     }
 
     setIsDescriptionExpanded(false);
-  }, [video.id]);
+  }, [video.id, isCacheLoaded]);
 
   const newlineCount = video.description
     ? (video.description.match(/\r?\n/g) || []).length
@@ -107,6 +149,9 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
       article: currentCache?.article || null,
       activeMode: currentCache?.activeMode || 'metadata',
     });
+    // 同步到 localStorage
+    saveCache();
+    console.log(`[Cache] 已更新影片 ${video.id} 的 Metadata 快取`);
   };
 
   // 更新 Article 快取
@@ -118,6 +163,9 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
       article: content,
       activeMode: currentCache?.activeMode || 'article',
     });
+    // 同步到 localStorage
+    saveCache();
+    console.log(`[Cache] 已更新影片 ${video.id} 的 Article 快取`);
   };
 
   const descriptionClasses = [
