@@ -35,6 +35,8 @@ interface Impressions {
 interface VideoAnalyticsData {
   videoId: string;
   title: string;
+  description: string;
+  tags: string[];
   publishedAt: string;
   thumbnail: string;
   metrics: AnalyticsMetrics;
@@ -369,19 +371,8 @@ export function VideoAnalytics() {
     try {
       console.log('[Keyword Analysis] 開始分析關鍵字...');
 
-      let description = '';
-      let tags: string[] = [];
-
-      try {
-        const metadata = await youtubeService.getVideoMetadata(video.videoId, {
-          source: 'VideoAnalytics',
-          trigger: 'keyword-analysis',
-        });
-        description = metadata.description || '';
-        tags = metadata.tags || [];
-      } catch (metaError: any) {
-        console.warn('[Keyword Analysis] 無法取得影片中繼資料，將使用預設值:', metaError?.message || metaError);
-      }
+      const description = video.description || '';
+      const tags = video.tags || [];
 
       // 調用後端 API
       // 開發模式使用 localhost:3001，生產模式使用空字符串（相對路徑）

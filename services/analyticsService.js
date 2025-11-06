@@ -158,25 +158,52 @@ async function getAllChannelVideos(youtube, channelId, cutoffDate) {
       let addedCount = 0;
       let stoppedByDate = false;
 
+      const videosInPage = [];
       for (const item of items) {
         const publishDate = new Date(item.snippet.publishedAt);
-
-        // 檢查是否超過截止日期
         if (publishDate < cutoffDate) {
           console.log(`[Analytics]       ⚠ 發現超過截止日期的影片 (${publishDate.toLocaleDateString()})，停止獲取`);
           shouldContinue = false;
           stoppedByDate = true;
           break;
         }
+        videosInPage.push(item);
+      }
 
-        // 在範圍內，加入列表
-        videos.push({
-          videoId: item.snippet.resourceId.videoId,
-          title: item.snippet.title,
-          publishedAt: item.snippet.publishedAt,
-          thumbnail: item.snippet.thumbnails?.medium?.url || '',
+      if (videosInPage.length > 0) {
+        const videoIds = videosInPage.map(item => item.snippet.resourceId.videoId).join(',');
+        const videoDetailsResponse = await youtube.videos.list({
+          part: 'snippet',
+          id: videoIds,
         });
-        addedCount++;
+        recordQuotaServer('youtube.videos.list', YOUTUBE_QUOTA_COST.playlistItemsSnippet, { // Cost is similar to playlistItems
+          part: 'snippet',
+          context: 'analytics:getAllChannelVideos:details',
+          caller: 'analyticsService.getAllChannelVideos',
+        });
+
+        const videoDetailsMap = new Map();
+        if (videoDetailsResponse.data.items) {
+          videoDetailsResponse.data.items.forEach(video => {
+            videoDetailsMap.set(video.id, video.snippet);
+          });
+        }
+
+        for (const item of videosInPage) {
+          const videoId = item.snippet.resourceId.videoId;
+          const details = videoDetailsMap.get(videoId);
+          if (details) {
+            videos.push({
+              videoId: videoId,
+              title: details.title,
+              description: details.description,
+              tags: details.tags || [],
+              publishedAt: details.publishedAt,
+              thumbnail: details.thumbnails?.medium?.url || '',
+            });
+            addedCount++;
+          }
+        }
       }
 
       if (addedCount > 0) {

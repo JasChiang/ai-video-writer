@@ -21,23 +21,29 @@ interface UpdateState {
 
 export function MetadataGenerator({ video, onClose, cachedContent, onContentUpdate }: MetadataGeneratorProps) {
   const [generatedContent, setGeneratedContent] = useState<GeneratedContentType | null>(cachedContent || null);
-  const [selectedTitle, setSelectedTitle] = useState<'titleA' | 'titleB' | 'titleC'>('titleA');
-  const [editableContent, setEditableContent] = useState({
-    title: video.title,
-    description: video.description,
-    tags: video.tags.join(', '),
-  });
-  const [youtubeCurrentValues, setYoutubeCurrentValues] = useState({
-    title: video.title,
-    description: video.description,
-    tags: video.tags,
-  });
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [prompt, setPrompt] = useState('');
-  const [updateState, setUpdateState] = useState<UpdateState>({ title: 'idle', description: 'idle', tags: 'idle' });
   const [geminiFileName, setGeminiFileName] = useState<string | undefined>(undefined);
+
+  // 原始影片資料，作為比較的基準
+  const [originalContent] = useState({
+    title: video.title,
+    description: video.description,
+    tags: video.tags || [],
+  });
+
+  // 用於使用者編輯的草稿狀態
+  const [draftContent, setDraftContent] = useState({
+    title: video.title,
+    description: video.description,
+    tags: video.tags.join(', '),
+  });
+
+  // 追蹤變更的狀態
+  const [isDirty, setIsDirty] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle');
 
   // 載入快取內容
   useEffect(() => {
@@ -46,15 +52,28 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
     }
   }, [cachedContent]);
 
+  // 當影片切換時，重設所有狀態
   useEffect(() => {
-    if (generatedContent) {
-      setEditableContent({
-        title: generatedContent[selectedTitle],
-        description: generatedContent.description,
-        tags: generatedContent.tags.join(', '),
-      });
-    }
-  }, [generatedContent, selectedTitle]);
+    setDraftContent({
+      title: video.title,
+      description: video.description,
+      tags: video.tags.join(', '),
+    });
+    setGeneratedContent(cachedContent || null);
+    setError(null);
+    setIsLoading(false);
+    setUpdateStatus('idle');
+  }, [video, cachedContent]);
+
+  // 檢查草稿與原始資料是否有差異
+  useEffect(() => {
+    const tagsHaveChanged = draftContent.tags.split(',').map(t => t.trim()).filter(Boolean).join(',') !== originalContent.tags.join(',');
+    const hasChanges = draftContent.title !== originalContent.title ||
+                       draftContent.description !== originalContent.description ||
+                       tagsHaveChanged;
+    setIsDirty(hasChanges);
+  }, [draftContent, originalContent]);
+
 
   const handleGenerate = async () => {
     setIsLoading(true);
@@ -63,8 +82,6 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
 
     try {
       const privacyStatus = video.privacyStatus || 'public';
-
-      // 使用異步版本（適合手機端，避免切換分頁時中斷）
       const result = await geminiService.generateVideoMetadataAsync(
         video.id,
         prompt,
@@ -83,7 +100,6 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
       }
 
       setGeneratedContent(result.content);
-      // 更新快取
       if (onContentUpdate) {
         onContentUpdate(result.content);
       }
@@ -96,54 +112,71 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
     }
   };
 
-  const handleUpdate = async (field: 'title' | 'description' | 'tags') => {
-    setUpdateState(prev => ({ ...prev, [field]: 'loading' }));
+  const handleUpdateAll = async () => {
+    if (!isDirty) return;
+
+    const isConfirmed = window.confirm(
+      "您確定要將變更更新到 YouTube 嗎？\n\n此操作將花費 50 點 API 配額。"
+    );
+
+    if (!isConfirmed) {
+      return;
+    }
+
+    setUpdateStatus('loading');
     try {
-      const tagsToUpdate = field === 'tags'
-        ? editableContent.tags.split(',').map(t => t.trim()).filter(t => t.length > 0)
-        : youtubeCurrentValues.tags;
+      const tagsToUpdate = draftContent.tags.split(',').map(t => t.trim()).filter(t => t.length > 0);
 
       const videoDataToUpdate: YouTubeVideo = {
         id: video.id,
         categoryId: video.categoryId,
-        title: field === 'title' ? editableContent.title : youtubeCurrentValues.title,
-        description: field === 'description' ? editableContent.description : youtubeCurrentValues.description,
+        title: draftContent.title,
+        description: draftContent.description,
         tags: tagsToUpdate,
-        thumbnailUrl: video.thumbnailUrl,
+        thumbnailUrl: video.thumbnailUrl, // Not updated, but part of the type
       };
 
       await youtubeService.updateVideo(videoDataToUpdate, {
         source: 'MetadataGenerator',
-        trigger: `metadata-update-${field}`,
+        trigger: 'metadata-update-all',
       });
 
-      if (field === 'title') {
-        setYoutubeCurrentValues(prev => ({ ...prev, title: editableContent.title }));
-      } else if (field === 'description') {
-        setYoutubeCurrentValues(prev => ({ ...prev, description: editableContent.description }));
-      } else if (field === 'tags') {
-        setYoutubeCurrentValues(prev => ({ ...prev, tags: tagsToUpdate }));
-      }
+      setUpdateStatus('success');
+      // 更新成功後，將當前的草稿設為新的原始基準
+      setOriginalContent({
+        title: draftContent.title,
+        description: draftContent.description,
+        tags: tagsToUpdate,
+      });
 
-      setUpdateState(prev => ({ ...prev, [field]: 'success' }));
     } catch (e: any) {
       console.error('Update failed', e);
-      setUpdateState(prev => ({ ...prev, [field]: 'error' }));
+      setError(`更新失敗: ${e.message}`);
+      setUpdateStatus('error');
     } finally {
-      setTimeout(() => setUpdateState(prev => ({ ...prev, [field]: 'idle' })), 2000);
+      setTimeout(() => setUpdateStatus('idle'), 2000);
+    }
+  };
+
+  // 採用建議的函式
+  const handleApplySuggestion = (field: 'title' | 'description' | 'tags', value: string | string[]) => {
+    if (field === 'title') {
+      setDraftContent(prev => ({ ...prev, title: value as string }));
+    } else if (field === 'description') {
+      setDraftContent(prev => ({ ...prev, description: value as string }));
+    } else if (field === 'tags') {
+      setDraftContent(prev => ({ ...prev, tags: (value as string[]).join(', ') }));
     }
   };
 
   const getButtonContent = (status: UpdateStatus) => {
     switch (status) {
       case 'loading':
-        return <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mx-auto"></div>;
+        return <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>;
       case 'success':
         return <CheckIcon />;
-      case 'error':
-        return 'Retry';
       default:
-        return 'Update';
+        return '更新到 YouTube';
     }
   };
 
@@ -204,132 +237,96 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
 
       {/* Generated Content Form */}
       {generatedContent && (
-        <div className="space-y-4 animate-fade-in">
-          {/* Title Options */}
-          <div>
-            <label className="text-sm font-semibold mb-1 block text-neutral-700">建議標題（請選擇一個）</label>
-            <p className="text-xs mb-2 text-neutral-500">
-              💡 Gemini AI 提供三種不同風格的標題，點選即可選擇並編輯
-            </p>
-            <div className="space-y-2 mb-3">
-              <div
-                onClick={() => setSelectedTitle('titleA')}
-                className={`p-3 rounded-lg cursor-pointer transition-all border-2 ${
-                  selectedTitle === 'titleA'
-                    ? 'bg-red-600 border-red-600 text-white shadow-sm'
-                    : 'bg-neutral-100 border-neutral-200 text-neutral-800 hover:bg-neutral-50 hover:border-neutral-300'
-                }`}
-              >
-                <div
-                  className={`text-xs mb-1 ${
-                    selectedTitle === 'titleA' ? 'text-white/80' : 'text-neutral-500'
-                  }`}
-                >
-                  選項 A（關鍵字導向）
+        <div className="space-y-6 animate-fade-in">
+          {/* Title Section */}
+          <div className="space-y-3 rounded-lg border border-neutral-200 p-4">
+            <h3 className="font-semibold text-neutral-800">標題</h3>
+            <div className="space-y-2">
+              {(['titleA', 'titleB', 'titleC'] as const).map((key, index) => (
+                <div key={key} className="flex items-center gap-2">
+                  <div className="flex-grow p-3 rounded-md bg-neutral-100 text-sm text-neutral-700">
+                    <span className="text-xs text-neutral-500">建議 {String.fromCharCode(65 + index)}: </span>
+                    {generatedContent[key]}
+                  </div>
+                  <button 
+                    onClick={() => handleApplySuggestion('title', generatedContent[key])}
+                    className="flex-shrink-0 rounded-md px-3 py-2 text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  >
+                    採用
+                  </button>
                 </div>
-                <div>{generatedContent.titleA}</div>
-              </div>
-              <div
-                onClick={() => setSelectedTitle('titleB')}
-                className={`p-3 rounded-lg cursor-pointer transition-all border-2 ${
-                  selectedTitle === 'titleB'
-                    ? 'bg-red-600 border-red-600 text-white shadow-sm'
-                    : 'bg-neutral-100 border-neutral-200 text-neutral-800 hover:bg-neutral-50 hover:border-neutral-300'
-                }`}
-              >
-                <div
-                  className={`text-xs mb-1 ${
-                    selectedTitle === 'titleB' ? 'text-white/80' : 'text-neutral-500'
-                  }`}
-                >
-                  選項 B（懸念/好奇心導向）
-                </div>
-                <div>{generatedContent.titleB}</div>
-              </div>
-              <div
-                onClick={() => setSelectedTitle('titleC')}
-                className={`p-3 rounded-lg cursor-pointer transition-all border-2 ${
-                  selectedTitle === 'titleC'
-                    ? 'bg-red-600 border-red-600 text-white shadow-sm'
-                    : 'bg-neutral-100 border-neutral-200 text-neutral-800 hover:bg-neutral-50 hover:border-neutral-300'
-                }`}
-              >
-                <div
-                  className={`text-xs mb-1 ${
-                    selectedTitle === 'titleC' ? 'text-white/80' : 'text-neutral-500'
-                  }`}
-                >
-                  選項 C（結果/效益導向）
-                </div>
-                <div>{generatedContent.titleC}</div>
-              </div>
+              ))}
             </div>
-
-            {/* Editable Title */}
-            <label className="text-xs mb-1 block text-neutral-500">編輯選定的標題</label>
-            <div className="flex gap-2 mt-1">
+            <div>
+              <label className="text-xs mb-1 block text-neutral-500">最終預覽 (可編輯)</label>
               <input
                 type="text"
-                value={editableContent.title}
-                onChange={e => setEditableContent(prev => ({ ...prev, title: e.target.value }))}
+                value={draftContent.title}
+                onChange={e => setDraftContent(prev => ({ ...prev, title: e.target.value }))}
                 className="w-full rounded-lg px-3 py-2 bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all shadow-sm"
               />
-              <button
-                onClick={() => handleUpdate('title')}
-                className="text-white font-bold px-3 rounded-full text-sm w-24 flex items-center justify-center bg-red-600 hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-              >
-                {getButtonContent(updateState.title)}
-              </button>
             </div>
           </div>
 
-          {/* Description */}
-          <div>
-            <label className="text-sm font-semibold text-neutral-700">影片說明（包含章節與標籤）</label>
-            <div className="text-xs mb-1 space-y-0.5 text-neutral-500">
-              <p>此欄位包含完整的影片說明、章節導覽和說明用標籤</p>
-              <p className="text-neutral-400">💡 Gemini AI 會自動生成章節時間軸（格式：00:00），並在說明中加入相關標籤以提升搜尋能見度</p>
+          {/* Description Section */}
+          <div className="space-y-3 rounded-lg border border-neutral-200 p-4">
+            <h3 className="font-semibold text-neutral-800">影片說明</h3>
+            <div className="flex items-start gap-2">
+              <div className="flex-grow p-3 rounded-md bg-neutral-100 text-sm text-neutral-700 whitespace-pre-wrap font-mono">{
+                generatedContent.description
+              }</div>
+              <button 
+                onClick={() => handleApplySuggestion('description', generatedContent.description)}
+                className="flex-shrink-0 rounded-md px-3 py-2 text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+              >
+                採用
+              </button>
             </div>
-            <div className="flex gap-2 mt-1">
+            <div>
+              <label className="text-xs mb-1 block text-neutral-500">最終預覽 (可編輯)</label>
               <textarea
-                value={editableContent.description}
-                onChange={e => setEditableContent(prev => ({ ...prev, description: e.target.value }))}
+                value={draftContent.description}
+                onChange={e => setDraftContent(prev => ({ ...prev, description: e.target.value }))}
                 rows={8}
                 className="w-full rounded-lg px-3 py-2 font-mono text-sm bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all shadow-sm"
               />
-              <button
-                onClick={() => handleUpdate('description')}
-                className="text-white font-bold px-3 rounded-full text-sm w-24 flex items-center justify-center bg-red-600 hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-              >
-                {getButtonContent(updateState.description)}
-              </button>
             </div>
           </div>
 
-          {/* Tags */}
-          <div>
-            <label className="text-sm font-semibold text-neutral-700">後台標籤（逗號分隔）</label>
-            <div className="text-xs mb-1 space-y-0.5 text-neutral-500">
-              <p>這些標籤會設定在 YouTube 後台，不含 # 符號</p>
-              <p className="text-neutral-400">💡 Gemini AI 根據影片內容選擇相關關鍵字，幫助 YouTube 演算法推薦您的影片給目標觀眾</p>
+          {/* Tags Section */}
+          <div className="space-y-3 rounded-lg border border-neutral-200 p-4">
+            <h3 className="font-semibold text-neutral-800">後台標籤</h3>
+            <div className="flex items-start gap-2">
+              <div className="flex-grow p-3 rounded-md bg-neutral-100 text-sm text-neutral-700">
+                {generatedContent.tags.join(', ')}
+              </div>
+              <button 
+                onClick={() => handleApplySuggestion('tags', generatedContent.tags)}
+                className="flex-shrink-0 rounded-md px-3 py-2 text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+              >
+                採用
+              </button>
             </div>
-            <div className="flex gap-2 mt-1">
+            <div>
+              <label className="text-xs mb-1 block text-neutral-500">最終預覽 (可編輯，以逗號分隔)</label>
               <input
                 type="text"
-                value={editableContent.tags}
-                onChange={e => setEditableContent(prev => ({ ...prev, tags: e.target.value }))}
+                value={draftContent.tags}
+                onChange={e => setDraftContent(prev => ({ ...prev, tags: e.target.value }))}
                 className="w-full rounded-lg px-3 py-2 bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all shadow-sm"
               />
-              <button
-                onClick={() => handleUpdate('tags')}
-                className="text-white font-bold px-3 rounded-full text-sm w-24 flex items-center justify-center bg-red-600 hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-              >
-                {getButtonContent(updateState.tags)}
-              </button>
             </div>
           </div>
 
-          <div className="border-t border-neutral-200 pt-4 space-y-2">
+          {/* Action Buttons */}
+          <div className="border-t border-neutral-200 pt-4 space-y-4">
+            <button
+              onClick={handleUpdateAll}
+              disabled={!isDirty || updateStatus === 'loading'}
+              className="w-full flex items-center justify-center gap-2 text-white font-bold py-3 px-4 rounded-full transition-all duration-200 transform hover:scale-105 bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-md disabled:bg-neutral-400 disabled:cursor-not-allowed disabled:scale-100"
+            >
+              {getButtonContent(updateStatus)}
+            </button>
             <button
               onClick={handleGenerate}
               disabled={isLoading}
@@ -337,9 +334,6 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
             >
               {isLoading ? '🔄 生成中...' : '🔄 重新生成（讓 AI 提供不同的建議）'}
             </button>
-            <p className="text-xs text-center text-neutral-400">
-              💡 Gemini AI 每次分析都可能產生不同風格的標題和說明，重新生成可獲得更多靈感
-            </p>
           </div>
         </div>
       )}
