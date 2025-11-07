@@ -91,7 +91,7 @@ export function QuotaDebugger() {
       </button>
       {!isOpen ? null : (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="max-h-[85vh] w-[min(960px,90vw)] overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl">
+      <div className="max-h-[85vh] w-[min(960px,90vw)] overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl flex flex-col">
         <header className="flex items-center justify-between border-b border-neutral-200 bg-neutral-50 px-5 py-3">
           <div>
             <h2 className="text-lg font-semibold text-neutral-900">YouTube API 配額偵測面板</h2>
@@ -122,14 +122,15 @@ export function QuotaDebugger() {
           </div>
         </header>
 
-        {error && (
-          <div className="bg-red-50 px-5 py-3 text-sm text-red-600">
-            {error}
-          </div>
-        )}
+        <div className="flex-1 overflow-y-auto">
+          {error && (
+            <div className="bg-red-50 px-5 py-3 text-sm text-red-600">
+              {error}
+            </div>
+          )}
 
-        <div className="grid gap-4 p-5 md:grid-cols-2">
-          <section className="flex flex-col rounded-xl border border-neutral-200">
+          <div className="grid gap-4 p-5 md:grid-cols-2">
+            <section className="flex flex-col rounded-xl border border-neutral-200">
             <header className="border-b border-neutral-200 bg-neutral-100/60 px-4 py-2 text-sm font-semibold text-neutral-700">
               前端（瀏覽器）統計
             </header>
@@ -247,6 +248,7 @@ export function QuotaDebugger() {
             </div>
           </section>
         </div>
+      </div>
       </div>
     </div>
       )}

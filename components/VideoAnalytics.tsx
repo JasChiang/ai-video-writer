@@ -440,10 +440,10 @@ export function VideoAnalytics() {
     <div className="space-y-6">
       {/* 標題與說明 */}
       <div className="text-center space-y-3">
-        <h2 className="text-3xl font-bold" style={{ color: '#1F1F1F' }}>
+        <h2 className="text-3xl font-bold text-neutral-900">
           📊 影片表現分析
         </h2>
-        <p className="text-lg" style={{ color: '#DC2626' }}>
+        <p className="text-lg text-red-600">
           分析你的影片表現，找出需要優化的影片
         </p>
       </div>
@@ -453,7 +453,7 @@ export function VideoAnalytics() {
         <div className="flex flex-col items-center gap-4">
           {/* 年度選擇器 */}
           <div className="flex flex-col items-center gap-2">
-            <label className="text-sm font-semibold" style={{ color: '#DC2626' }}>
+            <label className="text-sm font-semibold text-red-600">
               選擇分析時間範圍
             </label>
             <div className="flex gap-2">
@@ -461,20 +461,17 @@ export function VideoAnalytics() {
                 <button
                   key={years}
                   onClick={() => setSelectedYears(years)}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                    selectedYears === years ? 'shadow-lg transform scale-105' : ''
+                  className={`px-4 py-2 rounded-lg font-semibold transition-all border ${
+                    selectedYears === years
+                      ? 'bg-red-600 text-white shadow-lg scale-105 border-red-600'
+                      : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
                   }`}
-                  style={{
-                    backgroundColor: selectedYears === years ? '#DC2626' : '#FEE2E2',
-                    color: selectedYears === years ? 'white' : '#DC2626',
-                    border: selectedYears === years ? 'none' : '1px solid #FECACA',
-                  }}
                 >
                   {years} 年
                 </button>
               ))}
             </div>
-            <p className="text-xs text-center" style={{ color: '#DC2626', maxWidth: '400px' }}>
+            <p className="text-xs text-center text-red-600 max-w-[400px]">
               💡 建議先選擇 1 年，避免超過 API 配額限制。分析完成後可載入更多年份。
             </p>
           </div>
@@ -482,11 +479,7 @@ export function VideoAnalytics() {
           {/* 開始分析按鈕 */}
           <button
             onClick={() => fetchAnalytics()}
-            className="px-8 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 active:scale-95 shadow-lg"
-            style={{
-              backgroundColor: '#DC2626',
-              color: 'white',
-            }}
+            className="px-8 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 active:scale-95 shadow-lg bg-red-600 text-white"
           >
             🚀 開始分析（近 {selectedYears} 年影片）
           </button>
@@ -497,10 +490,10 @@ export function VideoAnalytics() {
       {isLoading && (
         <div className="flex flex-col items-center justify-center py-12 space-y-4">
           <Loader />
-          <p className="text-lg" style={{ color: '#DC2626' }}>
+          <p className="text-lg text-red-600">
             正在分析影片數據，請稍候...
           </p>
-          <p className="text-sm" style={{ color: '#DC2626' }}>
+          <p className="text-sm text-red-600">
             這可能需要 1-2 分鐘，取決於影片數量
           </p>
         </div>
@@ -508,23 +501,12 @@ export function VideoAnalytics() {
 
       {/* 錯誤訊息 */}
       {error && (
-        <div
-          className="p-4 rounded-lg text-center"
-          style={{
-            backgroundColor: 'rgba(220, 38, 38, 0.1)',
-            border: '1px solid #DC2626',
-            color: '#DC2626',
-          }}
-        >
+        <div className="p-4 rounded-lg text-center bg-red-50 border border-red-200 text-red-700">
           <p className="font-bold">分析失敗</p>
           <p>{error}</p>
           <button
             onClick={fetchAnalytics}
-            className="mt-4 px-6 py-2 rounded-lg font-semibold transition-all"
-            style={{
-              backgroundColor: '#DC2626',
-              color: 'white',
-            }}
+            className="mt-4 px-6 py-2 rounded-lg font-semibold transition-all bg-red-600 text-white hover:bg-red-700"
           >
             重試
           </button>
@@ -535,21 +517,15 @@ export function VideoAnalytics() {
       {analyticsData.length > 0 && !isLoading && (
         <div className="space-y-4">
           {/* 統計摘要 */}
-          <div
-            className="p-6 rounded-lg shadow-md"
-            style={{
-              backgroundColor: 'rgba(254, 202, 202, 0.5)',
-              border: '1px solid #FECACA',
-            }}
-          >
-            <h3 className="text-xl font-bold mb-2" style={{ color: '#1F1F1F' }}>
+          <div className="p-6 rounded-lg shadow-md bg-red-50/70 border border-red-200">
+            <h3 className="text-xl font-bold mb-2 text-neutral-900">
               📈 分析摘要
             </h3>
-            <p style={{ color: '#DC2626' }}>
+            <p className="text-red-600">
               找到 <span className="font-bold">{analyticsData.length}</span> 支建議更新的影片
               <span className="text-sm ml-2">（近 {currentYearRange} 年內發布）</span>
             </p>
-            <p className="text-sm mt-2" style={{ color: '#DC2626' }}>
+            <p className="text-sm mt-2 text-red-600">
               以下影片根據優先級排序（分數越高越建議更新）
             </p>
           </div>
@@ -558,34 +534,20 @@ export function VideoAnalytics() {
           <div className="flex justify-between items-center">
             <button
               onClick={clearCache}
-              className="px-4 py-2 rounded-lg font-semibold transition-all hover:shadow-lg text-sm"
-              style={{
-                backgroundColor: 'rgba(220, 38, 38, 0.1)',
-                color: '#DC2626',
-                border: '1px solid #DC2626',
-              }}
+              className="px-4 py-2 rounded-lg font-semibold transition-all hover:shadow-lg text-sm bg-red-50 text-red-600 border border-red-200"
             >
               🗑️ 清除快取
             </button>
             <div className="flex gap-2">
               <button
                 onClick={loadMoreYears}
-                className="px-6 py-2 rounded-lg font-semibold transition-all hover:shadow-lg"
-                style={{
-                  backgroundColor: '#FEE2E2',
-                  color: '#DC2626',
-                  border: '1px solid #FECACA',
-                }}
+                className="px-6 py-2 rounded-lg font-semibold transition-all hover:shadow-lg bg-red-50 text-red-600 border border-red-200"
               >
                 ⏳ 載入更多（往前 1 年）
               </button>
               <button
                 onClick={() => fetchAnalytics()}
-                className="px-6 py-2 rounded-lg font-semibold transition-all hover:shadow-lg"
-                style={{
-                  backgroundColor: '#DC2626',
-                  color: 'white',
-                }}
+                className="px-6 py-2 rounded-lg font-semibold transition-all hover:shadow-lg bg-red-600 text-white"
               >
                 🔄 重新分析
               </button>
@@ -598,22 +560,14 @@ export function VideoAnalytics() {
               <div key={video.videoId}>
                 {/* 影片卡片 */}
                 <div
-                  className="p-6 rounded-lg shadow-md hover:shadow-xl transition-all cursor-pointer"
-                  style={{
-                    backgroundColor: 'white',
-                    border: `2px solid ${expandedVideoId === video.videoId ? '#DC2626' : '#FECACA'}`,
-                  }}
+                  className={`p-6 rounded-lg shadow-md hover:shadow-xl transition-all cursor-pointer bg-white border-2 ${
+                    expandedVideoId === video.videoId ? 'border-red-600' : 'border-red-200'
+                  }`}
                   onClick={() => toggleVideoExpansion(video.videoId)}
                 >
                 <div className="flex gap-4">
                   {/* 排名徽章 */}
-                  <div
-                    className="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl"
-                    style={{
-                      backgroundColor: index < 10 ? '#DC2626' : '#DC2626',
-                      color: 'white',
-                    }}
-                  >
+                  <div className="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl bg-red-600 text-white">
                     {index + 1}
                   </div>
 
@@ -626,36 +580,36 @@ export function VideoAnalytics() {
 
                   {/* 影片資訊 */}
                   <div className="flex-grow space-y-2">
-                    <h4 className="font-bold text-lg line-clamp-2" style={{ color: '#1F1F1F' }}>
+                    <h4 className="font-bold text-lg line-clamp-2 text-neutral-900">
                       {video.title}
                     </h4>
-                    <p className="text-sm" style={{ color: '#DC2626' }}>
+                    <p className="text-sm text-red-600">
                       發布日期: {formatDate(video.publishedAt)}
                     </p>
 
                     {/* 關鍵指標 */}
                     <div className="flex flex-wrap gap-4 text-sm">
                       <div>
-                        <span style={{ color: '#DC2626' }}>觀看次數: </span>
-                        <span className="font-semibold" style={{ color: '#1F1F1F' }}>
+                        <span className="text-red-600">觀看次數: </span>
+                        <span className="font-semibold text-neutral-900">
                           {formatNumber(video.metrics.views)}
                         </span>
                       </div>
                       <div>
-                        <span style={{ color: '#DC2626' }}>觀看時長: </span>
-                        <span className="font-semibold" style={{ color: '#1F1F1F' }}>
+                        <span className="text-red-600">觀看時長: </span>
+                        <span className="font-semibold text-neutral-900">
                           {video.metrics.averageViewPercentage}%
                         </span>
                       </div>
                       <div>
-                        <span style={{ color: '#DC2626' }}>搜尋流量: </span>
-                        <span className="font-semibold" style={{ color: '#1F1F1F' }}>
+                        <span className="text-red-600">搜尋流量: </span>
+                        <span className="font-semibold text-neutral-900">
                           {video.trafficSources.searchPercentage}%
                         </span>
                       </div>
                       <div>
-                        <span style={{ color: '#DC2626' }}>優先分數: </span>
-                        <span className="font-bold text-lg" style={{ color: '#DC2626' }}>
+                        <span className="text-red-600">優先分數: </span>
+                        <span className="font-bold text-lg text-red-600">
                           {video.priorityScore}
                         </span>
                       </div>
@@ -666,11 +620,7 @@ export function VideoAnalytics() {
                       {video.updateReasons.map((reason, idx) => (
                         <div
                           key={idx}
-                          className="text-sm px-3 py-1 rounded inline-block mr-2"
-                          style={{
-                            backgroundColor: 'rgba(220, 38, 38, 0.1)',
-                            color: '#DC2626',
-                          }}
+                          className="text-sm px-3 py-1 rounded inline-block mr-2 bg-red-50 text-red-600"
                         >
                           💡 {reason}
                         </div>
@@ -679,7 +629,7 @@ export function VideoAnalytics() {
 
                     {/* 展開/收合指示器 */}
                     <div className="flex items-center justify-center mt-2">
-                      <span className="text-sm" style={{ color: '#DC2626' }}>
+                      <span className="text-sm text-red-600">
                         {expandedVideoId === video.videoId ? '▲ 點擊收合' : '▼ 點擊查看詳情'}
                       </span>
                     </div>
@@ -690,13 +640,9 @@ export function VideoAnalytics() {
                 {/* 展開的詳細資訊 */}
                 {expandedVideoId === video.videoId && (
                   <div
-                    className="mt-4 p-6 rounded-lg shadow-inner animate-fade-in"
-                    style={{
-                      backgroundColor: 'rgba(254, 202, 202, 0.2)',
-                      border: '2px solid #DC2626',
-                    }}
+                    className="mt-4 p-6 rounded-lg shadow-inner animate-fade-in bg-red-50 border-2 border-red-200"
                     onClick={(e) => e.stopPropagation()}
-                  >
+                 >
                     <VideoAnalyticsExpandedView
                       video={video}
                       keywordAnalysis={keywordAnalysisCache[video.videoId] || null}
