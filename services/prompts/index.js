@@ -23,6 +23,16 @@ let customTemplatesLoading = null;
 let customTemplatesLastLoaded = null;
 let customTemplatesDisabled = false;
 
+const normalizePromptTemplate = (value) => {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.join('\n');
+  }
+  return null;
+};
+
 function renderTemplatePrompt(promptTemplate, videoTitle, userPrompt = '') {
   let result = promptTemplate.replace(/\$\{videoTitle\}/g, videoTitle);
 
@@ -45,6 +55,13 @@ function pickPromptFromConfig(config, templateId) {
     };
   }
 
+  if (Array.isArray(config)) {
+    return {
+      promptTemplate: normalizePromptTemplate(config),
+      metadataOverride: null,
+    };
+  }
+
   if (config && typeof config === 'object') {
     const {
       prompt,
@@ -56,11 +73,10 @@ function pickPromptFromConfig(config, templateId) {
     } = config;
 
     const promptTemplate =
-      typeof prompt === 'string' ? prompt :
-      typeof template === 'string' ? template :
-      typeof body === 'string' ? body :
-      typeof text === 'string' ? text :
-      null;
+      normalizePromptTemplate(prompt) ??
+      normalizePromptTemplate(template) ??
+      normalizePromptTemplate(body) ??
+      normalizePromptTemplate(text);
 
     if (!promptTemplate) {
       console.warn(`[Prompts] 自訂模板 ${templateId} 缺少 prompt 內容，已略過`);
