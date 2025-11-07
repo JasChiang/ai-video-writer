@@ -20,6 +20,8 @@ const PUBLIC_TEMPLATE_GENERATORS = {
 let customTemplatesCache = null;
 let customTemplatesMetadata = null;
 let customTemplatesLoading = null;
+let customTemplatesLastLoaded = null;
+let customTemplatesDisabled = false;
 
 function renderTemplatePrompt(promptTemplate, videoTitle, userPrompt = '') {
   let result = promptTemplate.replace(/\$\{videoTitle\}/g, videoTitle);
@@ -114,9 +116,13 @@ async function loadCustomTemplates() {
   // 從環境變數取得遠端模板 URL
   const CUSTOM_TEMPLATE_URL = process.env.CUSTOM_TEMPLATE_URL;
 
-  // 沒有設定遠端 URL，使用公開版本
-  if (!CUSTOM_TEMPLATE_URL) {
-    console.log('[Prompts] ℹ️  未設定自訂模板，使用內建模板');
+  // 沒有設定遠端 URL 或者手動停用
+  if (!CUSTOM_TEMPLATE_URL || customTemplatesDisabled) {
+    if (!CUSTOM_TEMPLATE_URL) {
+      console.log('[Prompts] ℹ️  未設定自訂模板，使用內建模板');
+    } else {
+      console.log('[Prompts] ℹ️  自訂模板已停用，使用內建模板');
+    }
     return null;
   }
 
@@ -162,6 +168,7 @@ async function loadCustomTemplates() {
 
       customTemplatesCache = Object.keys(generators).length > 0 ? generators : null;
       customTemplatesMetadata = customTemplatesCache ? metadataList : null;
+      customTemplatesLastLoaded = customTemplatesCache ? new Date().toISOString() : null;
 
       if (!customTemplatesCache) {
         console.warn('[Prompts] 提供的自訂模板為空，將使用內建模板');
@@ -174,6 +181,7 @@ async function loadCustomTemplates() {
     } catch (error) {
       console.error('[Prompts] ❌ 載入專屬模板失敗:', error.message);
       console.log('[Prompts] ℹ️  降級使用內建模板');
+      customTemplatesLastLoaded = null;
       return null;
     } finally {
       customTemplatesLoading = null;
@@ -237,6 +245,14 @@ export function isUsingCustomTemplates() {
   return customTemplatesCache !== null;
 }
 
+export function getCustomTemplatesStatus() {
+  return {
+    usingCustomTemplates: customTemplatesCache !== null,
+    lastLoadedAt: customTemplatesLastLoaded,
+    disabled: customTemplatesDisabled,
+  };
+}
+
 /**
  * 清除專屬模板快取（用於重新載入）
  */
@@ -245,4 +261,19 @@ export function clearCustomTemplatesCache() {
   customTemplatesMetadata = null;
   customTemplatesLoading = null;
   console.log('[Prompts] 🔄 專屬模板快取已清除');
+}
+
+export async function refreshCustomTemplates() {
+  clearCustomTemplatesCache();
+  return loadCustomTemplates();
+}
+
+export function disableCustomTemplates() {
+  customTemplatesDisabled = true;
+  clearCustomTemplatesCache();
+}
+
+export function enableCustomTemplates() {
+  customTemplatesDisabled = false;
+  clearCustomTemplatesCache();
 }

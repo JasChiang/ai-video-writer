@@ -12,7 +12,15 @@ import { promisify } from 'util';
 import { GoogleGenAI } from '@google/genai';
 import multer from 'multer';
 import { generateFullPrompt } from './services/promptService.js';
-import { generateArticlePrompt, isUsingCustomTemplates, listAvailableArticleTemplates } from './services/articlePromptService.js';
+import {
+  generateArticlePrompt,
+  getArticleTemplateStatus,
+  isUsingCustomTemplates,
+  listAvailableArticleTemplates,
+  refreshArticleTemplates,
+  disableArticleTemplates,
+  enableArticleTemplates,
+} from './services/articlePromptService.js';
 import {
   getChannelVideosAnalytics,
   calculateUpdatePriority,
@@ -56,6 +64,7 @@ const ipRateLimiter = new Map(); // key: IP address, value: { count, resetTime }
 const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 小時
 const MAX_DOWNLOADS_PER_HOUR = 10; // 每小時最多 10 次下載（每個帳號）
 const MAX_DOWNLOADS_PER_HOUR_PER_IP = 20; // 每小時最多 20 次下載（每個 IP，防止濫用多帳號）
+const CUSTOM_TEMPLATE_REFRESH_INTERVAL_MS = Number(process.env.CUSTOM_TEMPLATE_REFRESH_INTERVAL_MS || 15 * 60 * 1000);
 
 function checkRateLimit(identifier, limiterMap, maxDownloads) {
   const now = Date.now();
@@ -84,6 +93,18 @@ function checkRateLimit(identifier, limiterMap, maxDownloads) {
     allowed: true,
     remaining: maxDownloads - record.count
   };
+}
+
+if (process.env.CUSTOM_TEMPLATE_URL && !Number.isNaN(CUSTOM_TEMPLATE_REFRESH_INTERVAL_MS) && CUSTOM_TEMPLATE_REFRESH_INTERVAL_MS > 0) {
+  setInterval(() => {
+    refreshArticleTemplates()
+      .then(() => {
+        console.log('[Templates] ⟳ 已自動重新載入遠端模板');
+      })
+      .catch((error) => {
+        console.error('[Templates] 自動重新載入失敗:', error.message);
+      });
+  }, CUSTOM_TEMPLATE_REFRESH_INTERVAL_MS);
 }
 
 // 驗證 API Key
@@ -182,10 +203,13 @@ app.get('/api/quota/server', (_req, res) => {
 app.get('/api/templates', async (_req, res) => {
   try {
     const templates = await listAvailableArticleTemplates();
+    const status = getArticleTemplateStatus();
     res.json({
       success: true,
       templates,
-      usingCustomTemplates: isUsingCustomTemplates(),
+      usingCustomTemplates: status.usingCustomTemplates,
+      lastLoadedAt: status.lastLoadedAt,
+      disabled: status.disabled,
     });
   } catch (error) {
     console.error('[Templates] 無法取得模板清單:', error);
@@ -199,6 +223,46 @@ app.get('/api/templates', async (_req, res) => {
 app.post('/api/quota/server/reset', (_req, res) => {
   resetServerQuotaSnapshot();
   res.json({ success: true });
+});
+
+app.post('/api/templates/refresh', async (_req, res) => {
+  if (!process.env.CUSTOM_TEMPLATE_URL) {
+    return res.status(400).json({ error: '未設定遠端模板，無需重新整理' });
+  }
+
+  try {
+    await refreshArticleTemplates();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[Templates] 重新整理失敗:', error);
+    res.status(500).json({
+      error: 'Failed to refresh templates',
+      details: error.message,
+    });
+  }
+});
+
+app.post('/api/templates/disable', (_req, res) => {
+  disableArticleTemplates();
+  res.json({ success: true });
+});
+
+app.post('/api/templates/enable', async (_req, res) => {
+  if (!process.env.CUSTOM_TEMPLATE_URL) {
+    return res.status(400).json({ error: '未設定遠端模板，無法啟用' });
+  }
+
+  try {
+    enableArticleTemplates();
+    await refreshArticleTemplates();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[Templates] 啟用自訂模板失敗:', error);
+    res.status(500).json({
+      error: 'Failed to enable templates',
+      details: error.message,
+    });
+  }
 });
 
 /**
@@ -574,8 +638,41 @@ function isValidVideoId(videoId) {
  * @returns {number} - 秒數
  */
 function timeToSeconds(timeStr) {
-  const [minutes, seconds] = timeStr.split(':').map(Number);
-  return minutes * 60 + seconds;
+  if (typeof timeStr === 'number' && Number.isFinite(timeStr)) {
+    return Math.max(0, timeStr);
+  }
+
+  if (!timeStr || typeof timeStr !== 'string') {
+    console.warn('[Capture] ⚠️ 無法解析截圖時間點，收到的值：', timeStr);
+    return 0;
+  }
+
+  const normalized = timeStr.trim();
+  if (!normalized) {
+    console.warn('[Capture] ⚠️ 截圖時間點為空字串');
+    return 0;
+  }
+
+  // 純數字（秒）
+  if (/^\d+(\.\d+)?$/.test(normalized)) {
+    return Number(normalized);
+  }
+
+  const parts = normalized.split(':').map(part => part.trim());
+  if (parts.length === 2) {
+    const [minutes, seconds] = parts.map(Number);
+    if ([minutes, seconds].every(value => Number.isFinite(value))) {
+      return Math.max(0, minutes * 60 + seconds);
+    }
+  } else if (parts.length === 3) {
+    const [hours, minutes, seconds] = parts.map(Number);
+    if ([hours, minutes, seconds].every(value => Number.isFinite(value))) {
+      return Math.max(0, hours * 3600 + minutes * 60 + seconds);
+    }
+  }
+
+  console.warn('[Capture] ⚠️ 無法解析截圖時間點格式，收到的值：', timeStr);
+  return 0;
 }
 
 /**

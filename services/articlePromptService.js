@@ -3,7 +3,15 @@
  * 針對科技產品分享與實用教學調整
  */
 
-import { generatePromptFromTemplate, getTemplatesMetadata, isUsingCustomTemplates } from './prompts/index.js';
+import {
+  generatePromptFromTemplate,
+  getTemplatesMetadata,
+  getCustomTemplatesStatus,
+  isUsingCustomTemplates,
+  refreshCustomTemplates,
+  disableCustomTemplates,
+  enableCustomTemplates,
+} from './prompts/index.js';
 
 /**
  * 生成文章與截圖的完整提示詞
@@ -108,3 +116,19 @@ export async function listAvailableArticleTemplates() {
 }
 
 export { isUsingCustomTemplates };
+
+export function getArticleTemplateStatus() {
+  return getCustomTemplatesStatus();
+}
+
+export async function refreshArticleTemplates() {
+  return await refreshCustomTemplates();
+}
+
+export function disableArticleTemplates() {
+  disableCustomTemplates();
+}
+
+export function enableArticleTemplates() {
+  enableCustomTemplates();
+}
