@@ -2195,7 +2195,7 @@ app.post('/api/regenerate-article', async (req, res) => {
  * Body: { videoId: string, videoTitle: string, filePath: string, prompt?: string, quality?: number }
  */
 app.post('/api/regenerate-screenshots', async (req, res) => {
-  const { videoId, videoTitle, filePath, prompt, quality = 2, templateId = 'default' } = req.body;
+  const { videoId, videoTitle, filePath, prompt, quality = 2, templateId = 'default', accessToken } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
@@ -2210,43 +2210,67 @@ app.post('/api/regenerate-screenshots', async (req, res) => {
     console.log(`[Regenerate Screenshots] Video ID: ${videoId}`);
     console.log(`[Regenerate Screenshots] File Path: ${filePath}`);
     console.log(`[Regenerate Screenshots] Video Title: ${videoTitle}`);
+    console.log(`[Regenerate Screenshots] Access Token: ${accessToken ? 'Provided' : 'Not Provided'}`);
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    let response;
 
-    // 步驟 1: 檢查 Files API 中是否有此檔案
-    console.log('[Regenerate Screenshots] 步驟 1/4: 檢查 Files API 中是否已有此檔案...');
-    const filesList = await ai.files.list();
-    const files = filesList.pageInternal || [];
-    const existingFile = files.find(file =>
-      file.displayName === videoId && file.state === 'ACTIVE'
-    );
-
-    if (!existingFile) {
-      return res.status(404).json({ error: 'Video file not found in Files API. Please generate article first.' });
-    }
-
-    console.log(`[Regenerate Screenshots] ✅ 找到已存在的檔案: ${existingFile.uri}`);
-
-    // 步驟 2: 讓 Gemini 重新看影片並生成新的截圖建議
-    console.log('[Regenerate Screenshots] 步驟 2/4: 讓 Gemini 重新分析影片並提供新的截圖建議...');
+    // 生成文章提示詞
     const fullPrompt = await generateArticlePrompt(videoTitle, prompt || '', templateId);
 
-    // 根據最佳實踐：影片應該放在 prompt 之前
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { fileData: { fileUri: existingFile.uri, mimeType: 'video/mp4' } },
-            { text: fullPrompt }
-          ]
-        }
-      ],
-      config: {
-        responseMimeType: "application/json",
-      },
-    });
+    if (accessToken) {
+      // 不公開影片邏輯：檢查 Files API
+      console.log('[Regenerate Screenshots] (Unlisted Video) 步驟 1/4: 檢查 Files API 中是否已有此檔案...');
+      const existingFile = await findFileByDisplayName(ai, videoId);
+
+      if (!existingFile || existingFile.state !== 'ACTIVE') {
+        const state = existingFile ? existingFile.state : 'NOT FOUND';
+        console.error(`[Regenerate Screenshots] ❌ 檔案不存在或狀態不正確: ${state}`);
+        return res.status(404).json({ error: `Video file not found or not active in Files API (state: ${state}). Please generate article for this unlisted video first.` });
+      }
+
+      console.log(`[Regenerate Screenshots] ✅ 找到已存在的檔案: ${existingFile.uri}`);
+      console.log('[Regenerate Screenshots] 步驟 2/4: 讓 Gemini 重新分析影片並提供新的截圖建議...');
+
+      response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { fileData: { fileUri: existingFile.uri, mimeType: 'video/mp4' } },
+              { text: fullPrompt }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: "application/json",
+        },
+      });
+
+    } else {
+      // 公開影片邏輯：使用 YouTube URL
+      console.log('[Regenerate Screenshots] (Public Video) 步驟 1/4: 使用 YouTube URL 進行分析...');
+      const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      
+      console.log('[Regenerate Screenshots] 步驟 2/4: 讓 Gemini 重新分析影片並提供新的截圖建議...');
+
+      response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { fileData: { fileUri: youtubeUrl, mimeType: 'video/mp4' } },
+              { text: fullPrompt }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: "application/json",
+        },
+      });
+    }
 
     let result;
     try {
