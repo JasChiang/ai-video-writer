@@ -472,6 +472,95 @@ export async function listVideos(
     }
 }
 
+export async function fetchVideoDetails(videoId: string): Promise<YouTubeVideo> {
+    if (!isGapiInitialized || !isTokenValid()) {
+        throw new Error('Authentication required.');
+    }
+
+    try {
+        const parts = 'snippet,status,statistics,contentDetails';
+        const response = await gapi.client.youtube.videos.list({
+            part: parts,
+            id: videoId,
+        });
+        recordQuota(
+            'youtube.videos.list',
+            calculatePartCost(parts, YT_QUOTA_COST.videosListPartCost),
+            {
+                part: parts,
+                trigger: 'fetch-video-details',
+                caller: 'youtubeService.fetchVideoDetails',
+                videoId,
+            }
+        );
+
+        const item = response.result.items?.[0];
+        if (!item) {
+            throw new Error('找不到指定影片，請確認連結是否正確或影片權限。');
+        }
+
+        return mapVideoItem(item);
+    } catch (error: any) {
+        console.error('Error fetching video details:', error);
+        throw new Error(error.result?.error?.message || '無法取得影片資訊');
+    }
+}
+
+export async function searchVideosByKeyword(query: string, maxResults = 10): Promise<YouTubeVideo[]> {
+    if (!isGapiInitialized || !isTokenValid()) {
+        throw new Error('Authentication required.');
+    }
+
+    try {
+        const searchResponse = await gapi.client.youtube.search.list({
+            part: 'snippet',
+            q: query,
+            type: 'video',
+            maxResults,
+            order: 'relevance',
+        });
+        recordQuota('youtube.search.list', YT_QUOTA_COST.searchList, {
+            hasQuery: true,
+            maxResults,
+            trigger: 'article-search',
+            caller: 'youtubeService.searchVideosByKeyword',
+        });
+
+        const items = searchResponse.result.items || [];
+        if (items.length === 0) return [];
+
+        const ids = items.map((item: any) => item.id?.videoId).filter(Boolean);
+        if (ids.length === 0) {
+            return [];
+        }
+
+        const parts = 'snippet,status,statistics,contentDetails';
+        const videosResponse = await gapi.client.youtube.videos.list({
+            part: parts,
+            id: ids.join(','),
+        });
+        recordQuota(
+            'youtube.videos.list',
+            calculatePartCost(parts, YT_QUOTA_COST.videosListPartCost),
+            {
+                part: parts,
+                trigger: 'article-search',
+                caller: 'youtubeService.searchVideosByKeyword',
+                searchQuery: query,
+            }
+        );
+
+        const details = videosResponse.result.items || [];
+        const mapById = new Map(details.map((item: any) => [item.id, mapVideoItem(item)]));
+        return ids
+            .map(id => mapById.get(id))
+            .filter((video): video is YouTubeVideo => Boolean(video));
+    } catch (error: any) {
+        console.error('Error searching videos:', error);
+        throw new Error(error.result?.error?.message || '搜尋影片時發生錯誤');
+    }
+}
+
 export function resetPagination(): void {
     // 重置分頁狀態（如果需要的話）
     // 目前 pageToken 由 App.tsx 管理，這裡保留函數以保持 API 一致性

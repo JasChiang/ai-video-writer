@@ -2,7 +2,7 @@
 import React from 'react';
 import { YouTubeIcon } from './Icons';
 
-type ActiveTab = 'videos' | 'analytics';
+type ActiveTab = 'videos' | 'analytics' | 'articles';
 
 interface HeaderProps {
   isLoggedIn?: boolean;
@@ -64,32 +64,26 @@ export function Header({ isLoggedIn, onLogout, activeTab, onTabChange }: HeaderP
             aria-label="主要導覽"
           >
             <div className="flex gap-2 overflow-x-auto rounded-full border border-neutral-200 bg-neutral-50 p-1 text-sm text-neutral-700 shadow-inner sm:text-base">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'videos'}
-                onClick={() => onTabChange('videos')}
-                className={`flex-1 whitespace-nowrap rounded-full px-4 py-2 font-semibold transition ${
-                  activeTab === 'videos'
-                    ? 'bg-white text-red-600 shadow'
-                    : 'hover:bg-white hover:text-neutral-900'
-                }`}
-              >
-                🎬 影片內容
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'analytics'}
-                onClick={() => onTabChange('analytics')}
-                className={`flex-1 whitespace-nowrap rounded-full px-4 py-2 font-semibold transition ${
-                  activeTab === 'analytics'
-                    ? 'bg-white text-red-600 shadow'
-                    : 'hover:bg-white hover:text-neutral-900'
-                }`}
-              >
-                📊 數據洞察
-              </button>
+              {([
+                { key: 'videos', label: '🎬 影片內容' },
+                { key: 'articles', label: '✍️ 文章生成' },
+                { key: 'analytics', label: '📊 數據洞察' },
+              ] as const).map(tab => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.key}
+                  onClick={() => onTabChange(tab.key)}
+                  className={`flex-1 whitespace-nowrap rounded-full px-4 py-2 font-semibold transition ${
+                    activeTab === tab.key
+                      ? 'bg-white text-red-600 shadow'
+                      : 'hover:bg-white hover:text-neutral-900'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </nav>
         )}

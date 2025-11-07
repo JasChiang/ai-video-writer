@@ -9,8 +9,9 @@ import { VideoSelector } from './components/VideoSelector';
 import { VideoAnalytics } from './components/VideoAnalytics';
 import { VideoDetailPanel } from './components/VideoDetailPanel';
 import { QuotaDebugger } from './components/QuotaDebugger';
+import { ArticleWorkspace } from './components/ArticleWorkspace';
 
-type ActiveTab = 'videos' | 'analytics';
+type ActiveTab = 'videos' | 'analytics' | 'articles';
 
 export default function App() {
   const [isInitializing, setIsInitializing] = useState(true);
@@ -358,6 +359,10 @@ export default function App() {
     // 根據 activeTab 渲染不同內容
     if (activeTab === 'analytics') {
       return <VideoAnalytics />;
+    }
+
+    if (activeTab === 'articles') {
+      return <ArticleWorkspace />;
     }
 
     return (
