@@ -1314,193 +1314,196 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
 
   return (
     <div className="rounded-2xl p-6 bg-white border border-neutral-200 shadow-sm">
-          {!result && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-neutral-900">影片標題</h3>
-                <p className="text-neutral-600">{video.title}</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2 text-neutral-700">
-                  自訂提示詞（選填）
-                </label>
-                <textarea
-                  value={customPrompt}
-                  onChange={(e) => setCustomPrompt(e.target.value)}
-                  placeholder="例如：請特別著重技術細節..."
-                  className="w-full px-3 py-2 rounded-lg bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all resize-none shadow-sm"
-                  rows={3}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2 text-neutral-700">
-                  截圖品質
-                </label>
-                <div className="space-y-2">
-                  <label className="flex items-center cursor-pointer text-neutral-600">
-                    <input
-                      type="radio"
-                      name="quality"
-                      value="2"
-                      checked={screenshotQuality === 2}
-                      onChange={() => setScreenshotQuality(2)}
-                      className="mr-2 accent-red-600"
-                    />
-                    <span>高畫質（預設）- 檔案較大，畫質最佳</span>
-                  </label>
-                  <label className="flex items-center cursor-pointer text-neutral-600">
-                    <input
-                      type="radio"
-                      name="quality"
-                      value="20"
-                      checked={screenshotQuality === 20}
-                      onChange={() => setScreenshotQuality(20)}
-                      className="mr-2 accent-red-600"
-                    />
-                    <span>壓縮 - 檔案較小，適合網頁載入</span>
-                  </label>
-                </div>
-                <p className="text-xs mt-2 text-neutral-400">
-                  💡 高畫質適合印刷或高解析度顯示，壓縮適合網頁快速載入
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold mb-2 text-neutral-900">影片標題</h3>
+              <p className="text-neutral-600">{video.title}</p>
+              {result && (
+                <p className="mt-1 text-xs text-neutral-500">
+                  想重新生成文章？調整提示詞或截圖設定後再次執行即可。
                 </p>
-              </div>
-
-              {/* 檔案上傳區域 */}
-              <div>
-                <label className="block text-sm font-medium mb-2 text-neutral-700">
-                  📎 上傳參考資料（選填）
-                </label>
-
-                {/* 檔案拖放區域 */}
-                <div
-                  onDrop={handleDrop}
-                  onDragOver={(e) => e.preventDefault()}
-                  className="border-2 border-dashed border-neutral-300 rounded-lg p-6 text-center cursor-pointer hover:border-red-500 hover:bg-neutral-50 transition"
-                >
-                  <input
-                    type="file"
-                    multiple
-                    onChange={(e) => handleFileUpload(e.target.files)}
-                    className="hidden"
-                    id="file-upload"
-                    accept="image/*,.pdf,.txt,.csv,.md"
-                    disabled={isUploading || isGenerating}
-                  />
-                  <label htmlFor="file-upload" className="cursor-pointer">
-                    <div className="text-neutral-600">
-                      <svg className="mx-auto h-12 w-12 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                      </svg>
-                      <p className="mt-2">
-                        拖放檔案到這裡，或點擊選擇檔案
-                      </p>
-                      <p className="text-xs text-neutral-500 mt-1">
-                        支援：圖片（JPG, PNG, GIF, WEBP）、PDF、Markdown、文字檔（最大 100MB）
-                      </p>
-                    </div>
-                  </label>
-                </div>
-
-                {/* 上傳進度提示 */}
-                {isUploading && (
-                  <div className="mt-3 flex items-center gap-2 text-neutral-600">
-                    <Loader />
-                    <span className="text-sm">正在上傳檔案...</span>
-                  </div>
-                )}
-
-                {/* 已上傳檔案列表 */}
-                {uploadedFiles.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    <p className="text-sm font-medium text-neutral-700">已上傳的檔案：</p>
-                    {uploadedFiles.map((file, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between bg-neutral-50 px-3 py-2 rounded-lg border border-neutral-200"
-                      >
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <span className="text-neutral-600">
-                            {file.mimeType.startsWith('image/') ? '🖼️' :
-                             file.mimeType === 'application/pdf' ? '📄' :
-                             file.displayName.endsWith('.md') ? '📝' : '📎'}
-                          </span>
-                          <span className="text-sm text-neutral-700 truncate">
-                            {file.displayName}
-                          </span>
-                          <span className="text-xs text-neutral-500">
-                            ({(file.sizeBytes / 1024).toFixed(1)} KB)
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => handleRemoveFile(index)}
-                          className="text-red-600 hover:text-red-800 ml-2 flex-shrink-0"
-                          disabled={isUploading || isGenerating}
-                          title="移除檔案"
-                        >
-                          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <p className="text-xs mt-2 text-neutral-400">
-                  💡 上傳相關文件、圖片或 Markdown 檔案，AI 會參考這些資料來生成更精準的文章內容
-                </p>
-              </div>
-
-              {error && (
-                <div className="px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600">
-                  <p className="font-semibold">錯誤</p>
-                  <p className="text-sm">{error}</p>
-                </div>
               )}
-
-              {isGenerating && loadingStep && (
-                <div className="px-4 py-3 rounded-lg mb-4 bg-neutral-100 border border-neutral-200 text-neutral-600">
-                  <div className="flex items-center gap-3">
-                    <Loader />
-                    <span className="text-sm">{loadingStep}</span>
-                  </div>
-                </div>
-              )}
-
-              <button
-                onClick={handleGenerate}
-                disabled={isGenerating}
-                className="w-full h-[48px] text-white font-semibold px-6 rounded-full transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-              >
-                {isGenerating ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
-                    <span>生成中...</span>
-                  </>
-                ) : (
-                  '開始生成文章'
-                )}
-              </button>
-
-              <div className="space-y-2">
-                <p className="text-sm text-center text-neutral-600">
-                  此過程包含：AI 分析影片 → 生成文章內容 → 擷取關鍵畫面
-                </p>
-                <p className="text-xs text-center text-neutral-400">
-                  💡 完整流程：下載影片（如需要） → Gemini AI 深度分析 → 生成三種標題風格 → 撰寫文章內容 → 規劃截圖時間點 → FFmpeg 擷取關鍵畫面
-                </p>
-                <p className="text-xs text-center text-neutral-300">
-                  ⏱️ 預計時間：公開影片約 1-2 分鐘，未列出影片首次需下載約 3-8 分鐘（視影片大小而定）
-                </p>
-              </div>
-
-              <div className="pt-2">
-                {renderNotionPanel(false)}
-              </div>
             </div>
-          )}
+
+            <div>
+              <label className="block text-sm font-medium mb-2 text-neutral-700">
+                自訂提示詞（選填）
+              </label>
+              <textarea
+                value={customPrompt}
+                onChange={(e) => setCustomPrompt(e.target.value)}
+                placeholder="例如：請特別著重技術細節..."
+                className="w-full px-3 py-2 rounded-lg bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all resize-none shadow-sm"
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2 text-neutral-700">
+                截圖品質
+              </label>
+              <div className="space-y-2">
+                <label className="flex items-center cursor-pointer text-neutral-600">
+                  <input
+                    type="radio"
+                    name="quality"
+                    value="2"
+                    checked={screenshotQuality === 2}
+                    onChange={() => setScreenshotQuality(2)}
+                    className="mr-2 accent-red-600"
+                  />
+                  <span>高畫質（預設）- 檔案較大，畫質最佳</span>
+                </label>
+                <label className="flex items-center cursor-pointer text-neutral-600">
+                  <input
+                    type="radio"
+                    name="quality"
+                    value="20"
+                    checked={screenshotQuality === 20}
+                    onChange={() => setScreenshotQuality(20)}
+                    className="mr-2 accent-red-600"
+                  />
+                  <span>壓縮 - 檔案較小，適合網頁載入</span>
+                </label>
+              </div>
+              <p className="text-xs mt-2 text-neutral-400">
+                💡 高畫質適合印刷或高解析度顯示，壓縮適合網頁快速載入
+              </p>
+            </div>
+
+            {/* 檔案上傳區域 */}
+            <div>
+              <label className="block text-sm font-medium mb-2 text-neutral-700">
+                📎 上傳參考資料（選填）
+              </label>
+
+              {/* 檔案拖放區域 */}
+              <div
+                onDrop={handleDrop}
+                onDragOver={(e) => e.preventDefault()}
+                className="border-2 border-dashed border-neutral-300 rounded-lg p-6 text-center cursor-pointer hover:border-red-500 hover:bg-neutral-50 transition"
+              >
+                <input
+                  type="file"
+                  multiple
+                  onChange={(e) => handleFileUpload(e.target.files)}
+                  className="hidden"
+                  id="file-upload"
+                  accept="image/*,.pdf,.txt,.csv,.md"
+                  disabled={isUploading || isGenerating}
+                />
+                <label htmlFor="file-upload" className="cursor-pointer">
+                  <div className="text-neutral-600">
+                    <svg className="mx-auto h-12 w-12 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p className="mt-2">
+                      拖放檔案到這裡，或點擊選擇檔案
+                    </p>
+                    <p className="text-xs text-neutral-500 mt-1">
+                      支援：圖片（JPG, PNG, GIF, WEBP）、PDF、Markdown、文字檔（最大 100MB）
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* 上傳進度提示 */}
+              {isUploading && (
+                <div className="mt-3 flex items-center gap-2 text-neutral-600">
+                  <Loader />
+                  <span className="text-sm">正在上傳檔案...</span>
+                </div>
+              )}
+
+              {/* 已上傳檔案列表 */}
+              {uploadedFiles.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-sm font-medium text-neutral-700">已上傳的檔案：</p>
+                  {uploadedFiles.map((file, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between bg-neutral-50 px-3 py-2 rounded-lg border border-neutral-200"
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-neutral-600">
+                          {file.mimeType.startsWith('image/') ? '🖼️' :
+                           file.mimeType === 'application/pdf' ? '📄' :
+                           file.displayName.endsWith('.md') ? '📝' : '📎'}
+                        </span>
+                        <span className="text-sm text-neutral-700 truncate">
+                          {file.displayName}
+                        </span>
+                        <span className="text-xs text-neutral-500">
+                          ({(file.sizeBytes / 1024).toFixed(1)} KB)
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveFile(index)}
+                        className="text-red-600 hover:text-red-800 ml-2 flex-shrink-0"
+                        disabled={isUploading || isGenerating}
+                        title="移除檔案"
+                      >
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-xs mt-2 text-neutral-400">
+                💡 上傳相關文件、圖片或 Markdown 檔案，AI 會參考這些資料來生成更精準的文章內容
+              </p>
+            </div>
+
+            {error && (
+              <div className="px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600">
+                <p className="font-semibold">錯誤</p>
+                <p className="text-sm">{error}</p>
+              </div>
+            )}
+
+            {isGenerating && loadingStep && (
+              <div className="px-4 py-3 rounded-lg mb-4 bg-neutral-100 border border-neutral-200 text-neutral-600">
+                <div className="flex items-center gap-3">
+                  <Loader />
+                  <span className="text-sm">{loadingStep}</span>
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              className="w-full h-[48px] text-white font-semibold px-6 rounded-full transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            >
+              {isGenerating ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+                  <span>{result ? '重新生成中...' : '生成中...'}</span>
+                </>
+              ) : (
+                <span>{result ? '重新生成文章內容' : '開始生成文章'}</span>
+              )}
+            </button>
+
+            <div className="space-y-2">
+              <p className="text-sm text-center text-neutral-600">
+                此過程包含：AI 分析影片 → 生成文章內容 → 擷取關鍵畫面
+              </p>
+              <p className="text-xs text-center text-neutral-400">
+                💡 完整流程：下載影片（如需要） → Gemini AI 深度分析 → 生成三種標題風格 → 撰寫文章內容 → 規劃截圖時間點 → FFmpeg 擷取關鍵畫面
+              </p>
+              <p className="text-xs text-center text-neutral-300">
+                ⏱️ 預計時間：公開影片約 1-2 分鐘，未列出影片首次需下載約 3-8 分鐘（視影片大小而定）
+              </p>
+            </div>
+
+            <div className="pt-2">
+              {!result && renderNotionPanel(false)}
+            </div>
+          </div>
 
           {result && (
             <div className="space-y-6">
