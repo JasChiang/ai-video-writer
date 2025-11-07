@@ -65,6 +65,7 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
   const [notionDatabaseCursor, setNotionDatabaseCursor] = useState<string | null>(null);
   const [notionDatabaseError, setNotionDatabaseError] = useState<string | null>(null);
   const [isLaunchingNotionOAuth, setIsLaunchingNotionOAuth] = useState(false);
+  const [isNotionPanelOpen, setIsNotionPanelOpen] = useState(false);
   const [isFetchingDatabaseInfo, setIsFetchingDatabaseInfo] = useState(false);
   const [fetchedDatabaseInfo, setFetchedDatabaseInfo] = useState<notionClient.NotionDatabaseInfo | null>(null);
   const storedScreenshotPlanPreferenceRef = useRef<boolean | null>(null);
@@ -973,9 +974,34 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
 
     return (
       <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <button
+          type="button"
+          aria-expanded={isNotionPanelOpen}
+          onClick={() => setIsNotionPanelOpen(prev => !prev)}
+          className="mb-3 flex w-full items-center justify-between gap-3 rounded-lg px-1 py-1 text-left focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+        >
           <div>
             <h3 className="text-lg font-semibold text-neutral-900">Notion 匯出</h3>
+            <p className="text-xs text-neutral-500">
+              將生成的文章、SEO 描述與截圖內容同步到指定的 Notion 資料庫
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-medium text-neutral-500">
+            <span>{isNotionPanelOpen ? '收合' : '展開'}</span>
+            <svg
+              className={`h-4 w-4 transition-transform ${isNotionPanelOpen ? 'rotate-180' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </button>
+        {isNotionPanelOpen && (
+          <>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
             <p className="text-xs text-neutral-500">
               連結 Notion 帳號後，可從授權的資料庫中選擇目標，將生成的文章與 SEO 資訊匯入。
             </p>
@@ -1312,6 +1338,8 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
             生成文章後即可啟用「傳送到 Notion」功能。
           </p>
         )}
+          </>
+        )}
       </div>
     );
   };
@@ -1503,10 +1531,6 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                 ⏱️ 預計時間：公開影片約 1-2 分鐘，未列出影片首次需下載約 3-8 分鐘（視影片大小而定）
               </p>
             </div>
-
-            <div className="pt-2">
-              {!result && renderNotionPanel(false)}
-            </div>
           </div>
 
           {result && (
@@ -1599,9 +1623,6 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                   </pre>
                 </div>
               </div>
-
-              {renderNotionPanel(true)}
-
               {result.screenshots && result.screenshots.length > 0 && (
                 <div>
                   <div className="flex justify-between items-center mb-3">
@@ -1723,6 +1744,9 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
 
             </div>
           )}
+          <div className="mt-6">
+            {renderNotionPanel(Boolean(result))}
+          </div>
     </div>
   );
 }
