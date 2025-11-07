@@ -173,6 +173,13 @@ GitHub Secret Gist 是存放私密內容的理想選擇。
 4. 貼上你的自訂模板 JSON
 5. 選擇 **「Create secret gist」**（重要！）
 
+> #### ⚠️ 貼上 JSON 的注意事項
+>
+> - 只使用純文字編輯器，不要在 Markdown Preview 或 Rich Text 模式下貼上。
+> - 如果模板字串有 `\n`，務必保持為字面上的 `\n`，不要被轉成實際換行；可先貼到純文字緩衝區確認。
+> - macOS 可使用 `pbcopy < custom-templates.local.json`；Windows 可用 `type custom-templates.local.json | clip`，確保複製的是原始內容。
+> - 儲存後點 **Raw**，用 `curl <raw-url> | python3 -m json.tool`（或 `jq '.'`）檢查一次，確認 JSON 合法。
+
 ### 2. 取得 Raw URL
 
 建立完成後，點選右上角的 **「Raw」** 按鈕，複製網址。

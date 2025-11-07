@@ -12,7 +12,7 @@ import { promisify } from 'util';
 import { GoogleGenAI } from '@google/genai';
 import multer from 'multer';
 import { generateFullPrompt } from './services/promptService.js';
-import { generateArticlePrompt } from './services/articlePromptService.js';
+import { generateArticlePrompt, isUsingCustomTemplates, listAvailableArticleTemplates } from './services/articlePromptService.js';
 import {
   getChannelVideosAnalytics,
   calculateUpdatePriority,
@@ -177,6 +177,23 @@ app.get('/app-config.js', (_req, res) => {
 
 app.get('/api/quota/server', (_req, res) => {
   res.json(getServerQuotaSnapshot());
+});
+
+app.get('/api/templates', async (_req, res) => {
+  try {
+    const templates = await listAvailableArticleTemplates();
+    res.json({
+      success: true,
+      templates,
+      usingCustomTemplates: isUsingCustomTemplates(),
+    });
+  } catch (error) {
+    console.error('[Templates] 無法取得模板清單:', error);
+    res.status(500).json({
+      error: 'Failed to load templates',
+      details: error.message,
+    });
+  }
 });
 
 app.post('/api/quota/server/reset', (_req, res) => {

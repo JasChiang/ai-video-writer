@@ -3,7 +3,7 @@
  * 針對科技產品分享與實用教學調整
  */
 
-import { generatePromptFromTemplate } from './prompts/index.js';
+import { generatePromptFromTemplate, getTemplatesMetadata, isUsingCustomTemplates } from './prompts/index.js';
 
 /**
  * 生成文章與截圖的完整提示詞
@@ -102,3 +102,9 @@ export async function generateArticlePromptWithFiles(videoTitle, userPrompt, upl
 
   return prompt;
 }
+
+export async function listAvailableArticleTemplates() {
+  return await getTemplatesMetadata();
+}
+
+export { isUsingCustomTemplates };

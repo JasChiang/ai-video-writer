@@ -32,7 +32,24 @@ interface TemplateOption {
   icon?: string;
   targetAudience?: string;
   category?: string;
+  platforms?: string[];
+  keywords?: string[];
+  source?: 'built-in' | 'custom';
 }
+
+const getDefaultTemplateOptions = (): TemplateOption[] => {
+  return Object.values(TEMPLATE_METADATA as Record<string, any>).map((template) => ({
+    id: template.id,
+    name: template.name,
+    description: template.description,
+    icon: template.icon,
+    category: template.category,
+    targetAudience: template.targetAudience,
+    platforms: template.platforms,
+    keywords: template.keywords,
+    source: 'built-in',
+  }));
+};
 
 // 取得伺服器基礎 URL
 // 開發模式使用 localhost:3001，生產模式使用空字符串（相對路徑，與前端同域）
@@ -86,9 +103,9 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
   const [fetchedDatabaseInfo, setFetchedDatabaseInfo] = useState<notionClient.NotionDatabaseInfo | null>(null);
   const storedScreenshotPlanPreferenceRef = useRef<boolean | null>(null);
   const storedScreenshotImagesPreferenceRef = useRef<boolean | null>(null);
-  const templateOptions = useMemo<TemplateOption[]>(() => {
-    return Object.values(TEMPLATE_METADATA as Record<string, TemplateOption>);
-  }, []);
+  const [templateOptions, setTemplateOptions] = useState<TemplateOption[]>(() => getDefaultTemplateOptions());
+  const [isFetchingTemplates, setIsFetchingTemplates] = useState(false);
+  const [templateFetchError, setTemplateFetchError] = useState<string | null>(null);
   const serverOrigin = useMemo(() => {
     if (typeof window === 'undefined') {
       return '';
@@ -115,6 +132,48 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
       setResult(cachedContent);
     }
   }, [cachedContent]);
+
+  useEffect(() => {
+    let isCancelled = false;
+    const fetchTemplates = async () => {
+      setIsFetchingTemplates(true);
+      setTemplateFetchError(null);
+      try {
+        const response = await fetch(`${getServerBaseUrl()}/api/templates`);
+        if (!response.ok) {
+          throw new Error('無法載入模板清單');
+        }
+        const data = await response.json();
+        if (isCancelled) {
+          return;
+        }
+        if (Array.isArray(data.templates) && data.templates.length > 0) {
+          const normalized = (data.templates as TemplateOption[]).map((template) => ({
+            ...template,
+            source: template.source || (data.usingCustomTemplates ? 'custom' : 'built-in'),
+          }));
+          setTemplateOptions(normalized);
+        } else {
+          console.warn('[Templates] API 回傳空模板清單，維持內建模板');
+        }
+      } catch (error: any) {
+        if (isCancelled) {
+          return;
+        }
+        console.error('[Templates] 載入失敗:', error);
+        setTemplateFetchError(error.message || '無法載入模板清單');
+      } finally {
+        if (!isCancelled) {
+          setIsFetchingTemplates(false);
+        }
+      }
+    };
+
+    fetchTemplates();
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (templateOptions.length === 0) {
@@ -1416,6 +1475,19 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
               <p className="mt-1 text-xs text-neutral-500">
                 選擇對應的讀者角色或風格，Gemini 會以該模板生成文章架構與語氣。
               </p>
+              <div className="mt-2 space-y-1">
+                {isFetchingTemplates && (
+                  <div className="flex items-center gap-2 text-xs text-neutral-400">
+                    <Loader />
+                    <span>正在同步遠端模板...</span>
+                  </div>
+                )}
+                {templateFetchError && (
+                  <p className="text-xs text-red-600">
+                    ⚠️ 未載入遠端模板，系統已自動使用內建模板，您可稍後再試。
+                  </p>
+                )}
+              </div>
               {templateOptions.length > 0 ? (
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   {templateOptions.map((template) => {
@@ -1441,15 +1513,29 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                           </span>
                           <div>
                             <p className="text-sm font-semibold text-neutral-900">{template.name}</p>
-                            {template.category && (
-                              <p className="text-xs text-neutral-400">{template.category}</p>
-                            )}
+                            <div className="flex flex-wrap items-center gap-2">
+                              {template.category && (
+                                <span className="text-[11px] uppercase tracking-wide text-neutral-400">
+                                  {template.category}
+                                </span>
+                              )}
+                              {template.source === 'custom' && (
+                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                                  自訂模板
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <p className="mt-2 text-sm text-neutral-600">{template.description}</p>
                         {template.targetAudience && (
                           <p className="mt-2 text-xs text-neutral-500">
                             🎯 {template.targetAudience}
+                          </p>
+                        )}
+                        {template.platforms && template.platforms.length > 0 && (
+                          <p className="mt-1 text-xs text-neutral-400">
+                            📍 {template.platforms.join(' / ')}
                           </p>
                         )}
                         {isSelected && (

@@ -18,7 +18,83 @@ const PUBLIC_TEMPLATE_GENERATORS = {
 
 // 專屬模板快取
 let customTemplatesCache = null;
+let customTemplatesMetadata = null;
 let customTemplatesLoading = null;
+
+function renderTemplatePrompt(promptTemplate, videoTitle, userPrompt = '') {
+  let result = promptTemplate.replace(/\$\{videoTitle\}/g, videoTitle);
+
+  if (userPrompt && userPrompt.trim()) {
+    const userPromptSection = `\n\n## 使用者額外要求\n${userPrompt}\n`;
+    result = result.replace(/\$\{userPrompt\}/g, userPromptSection);
+  } else {
+    result = result.replace(/\$\{userPrompt \? [`'].*?[`'] : ['"']\}/g, '');
+    result = result.replace(/\$\{userPrompt\}/g, '');
+  }
+
+  return result;
+}
+
+function pickPromptFromConfig(config, templateId) {
+  if (typeof config === 'string') {
+    return {
+      promptTemplate: config,
+      metadataOverride: null,
+    };
+  }
+
+  if (config && typeof config === 'object') {
+    const {
+      prompt,
+      template,
+      body,
+      text,
+      metadata,
+      ...inlineMetadata
+    } = config;
+
+    const promptTemplate =
+      typeof prompt === 'string' ? prompt :
+      typeof template === 'string' ? template :
+      typeof body === 'string' ? body :
+      typeof text === 'string' ? text :
+      null;
+
+    if (!promptTemplate) {
+      console.warn(`[Prompts] 自訂模板 ${templateId} 缺少 prompt 內容，已略過`);
+      return null;
+    }
+
+    const metadataFromBlock = metadata && typeof metadata === 'object' ? metadata : {};
+    const metadataOverride = Object.keys(inlineMetadata).length > 0
+      ? { ...inlineMetadata, ...metadataFromBlock }
+      : metadataFromBlock;
+
+    return {
+      promptTemplate,
+      metadataOverride,
+    };
+  }
+
+  console.warn(`[Prompts] 自訂模板 ${templateId} 格式不正確，已略過`);
+  return null;
+}
+
+function resolveTemplateMetadata(templateId, metadataOverride = {}) {
+  const base = TEMPLATE_METADATA[templateId] || {};
+
+  return {
+    id: templateId,
+    name: metadataOverride.name || base.name || templateId,
+    description: metadataOverride.description || base.description || '自訂模板',
+    icon: metadataOverride.icon || base.icon || '📝',
+    category: metadataOverride.category || base.category || 'custom',
+    targetAudience: metadataOverride.targetAudience || base.targetAudience,
+    platforms: metadataOverride.platforms || base.platforms,
+    keywords: metadataOverride.keywords || base.keywords,
+    source: metadataOverride.source || 'custom',
+  };
+}
 
 /**
  * 從遠端載入專屬模板
@@ -66,29 +142,32 @@ async function loadCustomTemplates() {
 
       const customTemplates = await response.json();
 
-      // 轉換為生成函數
+      // 轉換為生成函數與 metadata
       const generators = {};
-      for (const [templateId, promptTemplate] of Object.entries(customTemplates)) {
-        generators[templateId] = (videoTitle, userPrompt = '') => {
-          // 支援模板變數替換
-          let result = promptTemplate
-            .replace(/\$\{videoTitle\}/g, videoTitle);
+      const metadataList = [];
 
-          // 處理 userPrompt（如果有的話）
-          if (userPrompt && userPrompt.trim()) {
-            const userPromptSection = `\n\n## 使用者額外要求\n${userPrompt}\n`;
-            result = result.replace(/\$\{userPrompt\}/g, userPromptSection);
-          } else {
-            // 如果沒有 userPrompt，移除相關的條件區塊
-            result = result.replace(/\$\{userPrompt \? [`'].*?[`'] : ['"']\}/g, '');
-            result = result.replace(/\$\{userPrompt\}/g, '');
-          }
+      for (const [templateId, promptConfig] of Object.entries(customTemplates)) {
+        const normalized = pickPromptFromConfig(promptConfig, templateId);
+        if (!normalized) {
+          continue;
+        }
 
-          return result;
-        };
+        const { promptTemplate, metadataOverride } = normalized;
+
+        generators[templateId] = (videoTitle, userPrompt = '') =>
+          renderTemplatePrompt(promptTemplate, videoTitle, userPrompt);
+
+        metadataList.push(resolveTemplateMetadata(templateId, metadataOverride || {}));
       }
 
-      customTemplatesCache = generators;
+      customTemplatesCache = Object.keys(generators).length > 0 ? generators : null;
+      customTemplatesMetadata = customTemplatesCache ? metadataList : null;
+
+      if (!customTemplatesCache) {
+        console.warn('[Prompts] 提供的自訂模板為空，將使用內建模板');
+        return null;
+      }
+
       console.log('[Prompts] ✅ 載入專屬模板成功');
       return generators;
 
@@ -133,6 +212,19 @@ export function getAllTemplates() {
   return getAllTemplateMetadata();
 }
 
+export async function getTemplatesMetadata() {
+  const customTemplates = await loadCustomTemplates();
+
+  if (customTemplates && customTemplatesMetadata && customTemplatesMetadata.length > 0) {
+    return customTemplatesMetadata;
+  }
+
+  return getAllTemplateMetadata().map(template => ({
+    ...template,
+    source: 'built-in'
+  }));
+}
+
 export function getTemplate(templateId) {
   return getTemplateMetadata(templateId);
 }
@@ -150,6 +242,7 @@ export function isUsingCustomTemplates() {
  */
 export function clearCustomTemplatesCache() {
   customTemplatesCache = null;
+  customTemplatesMetadata = null;
   customTemplatesLoading = null;
   console.log('[Prompts] 🔄 專屬模板快取已清除');
 }

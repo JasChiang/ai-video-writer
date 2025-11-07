@@ -38,6 +38,7 @@ temp_videos/
 # Custom templates (organization-specific)
 services/prompts/templates-custom/
 custom-templates.json
+custom-templates.local.json
 
 # Claude Code local settings
 .claude/*.local.json
