@@ -516,7 +516,8 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || '截圖失敗');
+        const serverReason = deriveScreenshotErrorReason(errorData);
+        throw new Error(serverReason);
       }
 
       const data = await response.json();
@@ -540,7 +541,10 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
 
     } catch (err: any) {
       console.error('[Article] Screenshot capture error:', err);
-      setError(err.message || '截圖時發生錯誤');
+      const friendlyMessage = err?.message
+        ? `目前 YouTube 截圖功能暫時無法使用，原因：${err.message}。請依建議時間點前後自行手動截圖。`
+        : '目前 YouTube 截圖功能暫時無法使用，請依建議時間點前後自行手動截圖。';
+      setError(friendlyMessage);
       setLoadingStep('');
     } finally {
       setIsCapturingScreenshots(false);
@@ -1727,4 +1731,28 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
           )}
     </div>
   );
+}
+
+function deriveScreenshotErrorReason(data: any): string {
+  const candidates = [data?.error, data?.details, data?.hint]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .map(value => value.toLowerCase());
+
+  if (candidates.some(text => text.includes('ffmpeg'))) {
+    return '伺服器尚未安裝 FFmpeg';
+  }
+  if (candidates.some(text => text.includes('yt-dlp'))) {
+    return '伺服器缺少 yt-dlp';
+  }
+  if (candidates.some(text => text.includes('local environment'))) {
+    return '目前執行環境無法下載 YouTube 影片';
+  }
+  if (candidates.some(text => text.includes('authorization') || text.includes('token'))) {
+    return 'YouTube 權杖失效或無法存取影片';
+  }
+  if (candidates.some(text => text.includes('sign in') || text.includes('bot') || text.includes('cookies'))) {
+    return 'YouTube 需要登入驗證';
+  }
+
+  return '系統需求尚未就緒';
 }
