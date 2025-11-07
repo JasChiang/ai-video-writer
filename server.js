@@ -1231,7 +1231,15 @@ app.post('/api/reanalyze-with-existing-file', async (req, res) => {
  * Response: { taskId: string }
  */
 app.post('/api/generate-article-url-async', async (req, res) => {
-  const { videoId, prompt, videoTitle, quality = 2, uploadedFiles = [], accessToken } = req.body;
+  const {
+    videoId,
+    prompt,
+    videoTitle,
+    quality = 2,
+    uploadedFiles = [],
+    accessToken,
+    templateId = 'default'
+  } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
@@ -1245,7 +1253,8 @@ app.post('/api/generate-article-url-async', async (req, res) => {
       videoTitle,
       quality,
       uploadedFiles,
-      accessToken
+      accessToken,
+      templateId
     });
 
     // 立即返回任務 ID
@@ -1277,6 +1286,7 @@ app.post('/api/generate-article-url-async', async (req, res) => {
       console.log(`[Article URL] Video ID: ${videoId}`);
       console.log(`[Article URL] YouTube URL: ${youtubeUrl}`);
       console.log(`[Article URL] Video Title: ${videoTitle}`);
+      console.log(`[Article URL] Template: ${templateId}`);
 
       if (uploadedFiles.length > 0) {
         console.log(`[Article URL] 📎 上傳的參考檔案: ${uploadedFiles.length} 個`);
@@ -1304,8 +1314,8 @@ app.post('/api/generate-article-url-async', async (req, res) => {
       // 根據是否有上傳檔案，使用不同的 prompt 生成函數
       const { generateArticlePromptWithFiles } = await import('./services/articlePromptService.js');
       const fullPrompt = uploadedFiles.length > 0
-        ? generateArticlePromptWithFiles(videoTitle, prompt, uploadedFiles)
-        : generateArticlePrompt(videoTitle, prompt);
+        ? await generateArticlePromptWithFiles(videoTitle, prompt, uploadedFiles, templateId)
+        : await generateArticlePrompt(videoTitle, prompt, templateId);
 
       // 建立 parts 陣列
       const parts = [
@@ -1415,7 +1425,15 @@ app.post('/api/generate-article-url-async', async (req, res) => {
  * Body: { videoId: string, prompt: string, videoTitle: string, quality?: number }
  */
 app.post('/api/generate-article-url', async (req, res) => {
-  const { videoId, prompt, videoTitle, quality = 2, uploadedFiles = [], accessToken } = req.body;
+  const {
+    videoId,
+    prompt,
+    videoTitle,
+    quality = 2,
+    uploadedFiles = [],
+    accessToken,
+    templateId = 'default'
+  } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
@@ -1457,6 +1475,7 @@ app.post('/api/generate-article-url', async (req, res) => {
     console.log(`[Article URL] Video ID: ${videoId}`);
     console.log(`[Article URL] YouTube URL: ${youtubeUrl}`);
     console.log(`[Article URL] Video Title: ${videoTitle}`);
+    console.log(`[Article URL] Template: ${templateId}`);
     console.log(`[Article URL] OAuth Token: ${accessToken ? '✅ 已提供（使用 OAuth 認證）' : '❌ 未提供（匿名下載）'}`);
     if (uploadedFiles.length > 0) {
       console.log(`[Article URL] 📎 上傳的參考檔案: ${uploadedFiles.length} 個`);
@@ -1484,8 +1503,8 @@ app.post('/api/generate-article-url', async (req, res) => {
     // 根據是否有上傳檔案，使用不同的 prompt 生成函數
     const { generateArticlePromptWithFiles } = await import('./services/articlePromptService.js');
     const fullPrompt = uploadedFiles.length > 0
-      ? generateArticlePromptWithFiles(videoTitle, prompt, uploadedFiles)
-      : generateArticlePrompt(videoTitle, prompt);
+      ? await generateArticlePromptWithFiles(videoTitle, prompt, uploadedFiles, templateId)
+      : await generateArticlePrompt(videoTitle, prompt, templateId);
 
     // 建立 parts 陣列，包含影片和 prompt
     const parts = [
@@ -1769,7 +1788,7 @@ app.post('/api/capture-screenshots', async (req, res) => {
  * 截圖功能已分離到 /api/capture-screenshots 端點
  */
 app.post('/api/generate-article', async (req, res) => {
-  const { videoId, filePath, prompt, videoTitle } = req.body;
+  const { videoId, filePath, prompt, videoTitle, templateId = 'default' } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
@@ -1869,7 +1888,7 @@ app.post('/api/generate-article', async (req, res) => {
 
     // 生成文章提示詞
     console.log(reusedFile ? '[Article] 步驟 3/4: 正在生成文章內容與截圖時間點...' : '[Article] 步驟 4/5: 正在生成文章內容與截圖時間點...');
-    const fullPrompt = generateArticlePrompt(videoTitle, prompt);
+    const fullPrompt = await generateArticlePrompt(videoTitle, prompt, templateId);
 
     // 呼叫 Gemini API 生成文章與截圖時間點
     // 根據最佳實踐：影片應該放在 prompt 之前
@@ -1952,7 +1971,7 @@ app.post('/api/generate-article', async (req, res) => {
  * Body: { videoId: string, geminiFileName: string, prompt: string, videoTitle: string }
  */
 app.post('/api/regenerate-article', async (req, res) => {
-  const { videoId, geminiFileName, prompt, videoTitle } = req.body;
+  const { videoId, geminiFileName, prompt, videoTitle, templateId = 'default' } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
@@ -1964,6 +1983,7 @@ app.post('/api/regenerate-article', async (req, res) => {
 
   try {
     console.log(`Regenerating article using existing file: ${geminiFileName}`);
+    console.log(`[Regenerate Article] Template: ${templateId}`);
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -1989,7 +2009,7 @@ app.post('/api/regenerate-article', async (req, res) => {
     console.log(`✅ File found and active: ${fileInfo.uri}`);
 
     // 生成文章提示詞
-    const fullPrompt = generateArticlePrompt(videoTitle, prompt);
+    const fullPrompt = await generateArticlePrompt(videoTitle, prompt, templateId);
 
     // 呼叫 Gemini API
     // 根據最佳實踐：影片應該放在 prompt 之前
@@ -2061,7 +2081,7 @@ app.post('/api/regenerate-article', async (req, res) => {
  * Body: { videoId: string, videoTitle: string, filePath: string, prompt?: string, quality?: number }
  */
 app.post('/api/regenerate-screenshots', async (req, res) => {
-  const { videoId, videoTitle, filePath, prompt, quality = 2 } = req.body;
+  const { videoId, videoTitle, filePath, prompt, quality = 2, templateId = 'default' } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
@@ -2095,7 +2115,7 @@ app.post('/api/regenerate-screenshots', async (req, res) => {
 
     // 步驟 2: 讓 Gemini 重新看影片並生成新的截圖建議
     console.log('[Regenerate Screenshots] 步驟 2/4: 讓 Gemini 重新分析影片並提供新的截圖建議...');
-    const fullPrompt = generateArticlePrompt(videoTitle, prompt || '');
+    const fullPrompt = await generateArticlePrompt(videoTitle, prompt || '', templateId);
 
     // 根據最佳實踐：影片應該放在 prompt 之前
     const response = await ai.models.generateContent({

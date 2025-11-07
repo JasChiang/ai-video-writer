@@ -290,11 +290,12 @@ export async function generateArticleWithYouTubeUrlAsync(
   videoTitle: string,
   screenshotQuality: number = 2,
   onProgress?: ProgressCallback,
-  uploadedFiles?: any[]
+  uploadedFiles: any[] = [],
+  templateId: string = 'default'
 ): Promise<any> {
   try {
     console.log(`[API Async] Generating article via YouTube URL (async mode): ${videoId}`);
-    if (uploadedFiles && uploadedFiles.length > 0) {
+    if (uploadedFiles.length > 0) {
       console.log(`[API Async] With ${uploadedFiles.length} uploaded reference files`);
     }
 
@@ -315,8 +316,9 @@ export async function generateArticleWithYouTubeUrlAsync(
             prompt: userPrompt,
             videoTitle,
             quality: screenshotQuality,
-            uploadedFiles: uploadedFiles || [],
+            uploadedFiles,
             accessToken,
+            templateId,
           }),
         });
 
@@ -360,11 +362,12 @@ export async function generateArticleWithYouTubeUrl(
   videoTitle: string,
   screenshotQuality: number = 2,
   onProgress?: ProgressCallback,
-  uploadedFiles?: any[]
+  uploadedFiles: any[] = [],
+  templateId: string = 'default'
 ): Promise<any> {
   try {
     console.log(`[API] Generating article via YouTube URL: ${videoId}`);
-    if (uploadedFiles && uploadedFiles.length > 0) {
+    if (uploadedFiles.length > 0) {
       console.log(`[API] With ${uploadedFiles.length} uploaded reference files`);
     }
     onProgress?.('📝 步驟 1/3：透過 YouTube URL 讓 Gemini AI 分析影片內容...');
@@ -380,8 +383,9 @@ export async function generateArticleWithYouTubeUrl(
         prompt: userPrompt,
         videoTitle,
         quality: screenshotQuality,
-        uploadedFiles: uploadedFiles || [],
+        uploadedFiles,
         accessToken,
+        templateId,
       }),
     });
 
@@ -417,11 +421,12 @@ export async function generateArticleWithDownload(
   videoTitle: string,
   screenshotQuality: number = 2,
   onProgress?: ProgressCallback,
-  uploadedFiles?: any[]
+  uploadedFiles: any[] = [],
+  templateId: string = 'default'
 ): Promise<any> {
   try {
     console.log(`[API] Generating article with video download: ${videoId}`);
-    if (uploadedFiles && uploadedFiles.length > 0) {
+    if (uploadedFiles.length > 0) {
       console.log(`[API] With ${uploadedFiles.length} uploaded reference files`);
     }
 
@@ -451,7 +456,8 @@ export async function generateArticleWithDownload(
             prompt: userPrompt,
             videoTitle,
             quality: screenshotQuality,
-            uploadedFiles: uploadedFiles || [],
+            uploadedFiles,
+            templateId,
           }),
         });
 
@@ -511,7 +517,8 @@ export async function generateArticleWithDownload(
         prompt: userPrompt,
         videoTitle,
         quality: screenshotQuality,
-        uploadedFiles: uploadedFiles || [],
+        uploadedFiles,
+        templateId,
       }),
     });
 
@@ -563,7 +570,8 @@ export async function regenerateScreenshots(
   videoTitle: string,
   userPrompt: string,
   screenshotQuality: number = 2,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  templateId: string = 'default'
 ): Promise<any> {
   try {
     console.log(`[API] Regenerating screenshots for video: ${videoId}`);
@@ -609,6 +617,7 @@ export async function regenerateScreenshots(
         filePath,
         prompt: userPrompt,
         quality: screenshotQuality,
+        templateId,
       }),
     });
 

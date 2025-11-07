@@ -4,6 +4,7 @@ import * as videoApiService from '../services/videoApiService';
 import * as notionClient from '../services/notionClient';
 import { Loader } from './Loader';
 import { CopyButton } from './CopyButton';
+import { TEMPLATE_METADATA } from '../services/prompts/templateMetadata.js';
 
 interface ArticleGeneratorProps {
   video: YouTubeVideo;
@@ -24,6 +25,15 @@ type NotionStatus =
   | { type: 'success'; message: string; url?: string }
   | { type: 'error'; message: string; url?: string };
 
+interface TemplateOption {
+  id: string;
+  name: string;
+  description: string;
+  icon?: string;
+  targetAudience?: string;
+  category?: string;
+}
+
 // 取得伺服器基礎 URL
 // 開發模式使用 localhost:3001，生產模式使用空字符串（相對路徑，與前端同域）
 const getServerBaseUrl = () => {
@@ -40,6 +50,12 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ArticleGenerationResult | null>(cachedContent || null);
   const [customPrompt, setCustomPrompt] = useState('');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(() => {
+    if (typeof window === 'undefined') {
+      return 'default';
+    }
+    return window.localStorage.getItem('articleTemplateId') || 'default';
+  });
   const [screenshotQuality, setScreenshotQuality] = useState<number>(2); // 預設高畫質
   const [loadingStep, setLoadingStep] = useState<string>('');
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
@@ -70,6 +86,9 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
   const [fetchedDatabaseInfo, setFetchedDatabaseInfo] = useState<notionClient.NotionDatabaseInfo | null>(null);
   const storedScreenshotPlanPreferenceRef = useRef<boolean | null>(null);
   const storedScreenshotImagesPreferenceRef = useRef<boolean | null>(null);
+  const templateOptions = useMemo<TemplateOption[]>(() => {
+    return Object.values(TEMPLATE_METADATA as Record<string, TemplateOption>);
+  }, []);
   const serverOrigin = useMemo(() => {
     if (typeof window === 'undefined') {
       return '';
@@ -96,6 +115,23 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
       setResult(cachedContent);
     }
   }, [cachedContent]);
+
+  useEffect(() => {
+    if (templateOptions.length === 0) {
+      return;
+    }
+
+    if (!templateOptions.some((template) => template.id === selectedTemplateId)) {
+      setSelectedTemplateId(templateOptions[0].id);
+    }
+  }, [templateOptions, selectedTemplateId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    window.localStorage.setItem('articleTemplateId', selectedTemplateId);
+  }, [selectedTemplateId]);
 
   const handleDatabaseIdUpdate = useCallback((value: string) => {
     setNotionDatabaseId(value);
@@ -391,7 +427,8 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
             setLoadingStep(step);
             console.log(`[Progress] ${step}`);
           },
-          uploadedFiles
+          uploadedFiles,
+          selectedTemplateId
         );
       } else {
         // 非公開影片：先下載再分析
@@ -408,7 +445,8 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
             setLoadingStep(step);
             console.log(`[Progress] ${step}`);
           },
-          uploadedFiles
+          uploadedFiles,
+          selectedTemplateId
         );
       }
 
@@ -458,7 +496,8 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
         (step: string) => {
           setLoadingStep(step);
           console.log(`[Progress] ${step}`);
-        }
+        },
+        selectedTemplateId
       );
 
       console.log('[Article] Screenshots regenerated successfully');
@@ -1368,6 +1407,65 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                 className="w-full px-3 py-2 rounded-lg bg-white border border-neutral-300 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all resize-none shadow-sm"
                 rows={3}
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-neutral-700">
+                文章模板
+              </label>
+              <p className="mt-1 text-xs text-neutral-500">
+                選擇對應的讀者角色或風格，Gemini 會以該模板生成文章架構與語氣。
+              </p>
+              {templateOptions.length > 0 ? (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {templateOptions.map((template) => {
+                    const isSelected = template.id === selectedTemplateId;
+                    return (
+                      <label
+                        key={template.id}
+                        className={`relative flex h-full cursor-pointer flex-col rounded-xl border p-4 text-left transition ${
+                          isSelected ? 'border-red-500 bg-red-50 ring-2 ring-red-100' : 'border-neutral-200 hover:border-red-300'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="article-template"
+                          value={template.id}
+                          checked={isSelected}
+                          onChange={() => setSelectedTemplateId(template.id)}
+                          className="sr-only"
+                        />
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl" aria-hidden="true">
+                            {template.icon || '📝'}
+                          </span>
+                          <div>
+                            <p className="text-sm font-semibold text-neutral-900">{template.name}</p>
+                            {template.category && (
+                              <p className="text-xs text-neutral-400">{template.category}</p>
+                            )}
+                          </div>
+                        </div>
+                        <p className="mt-2 text-sm text-neutral-600">{template.description}</p>
+                        {template.targetAudience && (
+                          <p className="mt-2 text-xs text-neutral-500">
+                            🎯 {template.targetAudience}
+                          </p>
+                        )}
+                        {isSelected && (
+                          <span className="absolute right-4 top-4 rounded-full bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">
+                            已選擇
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="mt-3 rounded-lg border border-dashed border-neutral-300 px-4 py-3 text-sm text-neutral-500">
+                  找不到可用的模板設定，系統將使用預設風格。
+                </p>
+              )}
             </div>
 
             <div>
