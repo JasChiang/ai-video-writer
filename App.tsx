@@ -247,7 +247,7 @@ export default function App() {
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="搜尋影片標題或描述..."
+          placeholder="搜尋影片標題..."
           className="w-full rounded-full border border-neutral-300 bg-white pl-12 pr-12 py-3 text-sm text-neutral-900 shadow-sm transition focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 sm:text-base"
         />
         {searchQuery && (
@@ -341,7 +341,7 @@ export default function App() {
               找到 <span className="font-semibold">{videos.length}</span> 個包含「{searchQuery}」的影片
             </span>
           ) : (
-            <span>未找到包含「{searchQuery}」的影片，可試試其他關鍵字。</span>
+            <span>未找到包含「{searchQuery}」的影片，可試試其他標題關鍵字。</span>
           )}
         </div>
       )}
