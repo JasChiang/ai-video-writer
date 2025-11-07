@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import type { GeneratedContentType, YouTubeVideo } from '../types';
+import type { GeneratedContentType, ProgressMessage, YouTubeVideo } from '../types';
 import * as geminiService from '../services/geminiService';
 import * as youtubeService from '../services/youtubeService';
 import { Loader } from './Loader';
 import { SparklesIcon, CheckIcon } from './Icons';
+import { AppIcon } from './AppIcon';
 
 interface MetadataGeneratorProps {
   video: YouTubeVideo;
@@ -22,7 +23,7 @@ interface UpdateState {
 export function MetadataGenerator({ video, onClose, cachedContent, onContentUpdate }: MetadataGeneratorProps) {
   const [generatedContent, setGeneratedContent] = useState<GeneratedContentType | null>(cachedContent || null);
   const [isLoading, setIsLoading] = useState(false);
-  const [loadingStep, setLoadingStep] = useState<string>('');
+  const [loadingStep, setLoadingStep] = useState<ProgressMessage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [prompt, setPrompt] = useState('');
   const [geminiFileName, setGeminiFileName] = useState<string | undefined>(undefined);
@@ -97,9 +98,9 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
         privacyStatus,
         video.thumbnailUrl,
         geminiFileName,
-        (step: string) => {
+        (step: ProgressMessage) => {
           setLoadingStep(step);
-          console.log(`[Progress] ${step}`);
+          console.log(`[Progress] ${step.text}`);
         }
       );
 
@@ -116,7 +117,7 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
       setError(`生成失敗：${e.message}`);
     } finally {
       setIsLoading(false);
-      setLoadingStep('');
+      setLoadingStep(null);
     }
   };
 
@@ -213,8 +214,9 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
             <p className="text-xs text-center text-neutral-600">
               Gemini AI 將分析影片內容，自動生成三種風格標題、章節時間軸及 SEO 標籤
             </p>
-            <p className="text-xs text-center text-neutral-400">
-              💡 處理流程：檢查雲端檔案 → 分析影片內容 → 生成 SEO 強化建議（公開影片約 30 秒，未列出影片首次需下載約 2-5 分鐘）
+            <p className="text-xs text-center text-neutral-400 flex items-center justify-center gap-1">
+              <AppIcon name="idea" size={14} className="text-amber-500" />
+              處理流程：檢查雲端檔案 → 分析影片內容 → 生成 SEO 強化建議（公開影片約 30 秒，未列出影片首次需下載約 2-5 分鐘）
             </p>
           </div>
         </div>
@@ -225,7 +227,16 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
         <div className="p-4 rounded-lg bg-neutral-100 border border-neutral-200">
           <div className="flex items-center gap-3">
             <Loader />
-            <span className="text-sm text-neutral-600">{loadingStep}</span>
+            <span className="text-sm text-neutral-600 inline-flex items-center gap-1">
+              {loadingStep ? (
+                <>
+                  <AppIcon name={loadingStep.icon} size={16} className="text-red-500" />
+                  {loadingStep.text}
+                </>
+              ) : (
+                '正在分析影片...'
+              )}
+            </span>
           </div>
         </div>
       )}
@@ -355,7 +366,10 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
               disabled={isLoading || isConfirmingUpdate}
               className="w-full text-center text-sm py-2 font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
             >
-              {isLoading ? '🔄 生成中...' : '🔄 重新生成（讓 AI 提供不同的建議）'}
+              <span className="inline-flex items-center justify-center gap-1">
+                <AppIcon name="refresh" size={14} className="text-red-600" />
+                {isLoading ? '生成中...' : '重新生成（讓 AI 提供不同的建議）'}
+              </span>
             </button>
           </div>
         </div>

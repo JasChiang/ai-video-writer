@@ -3,7 +3,8 @@ import { Loader } from './Loader';
 import { SparklesIcon, CheckIcon } from './Icons';
 import * as youtubeService from '../services/youtubeService';
 import * as geminiService from '../services/geminiService';
-import type { GeneratedContentType, YouTubeVideo } from '../types';
+import type { GeneratedContentType, ProgressMessage, YouTubeVideo } from '../types';
+import { AppIcon } from './AppIcon';
 
 const ACTIVE_CHANNEL_STORAGE_KEY = 'videoAnalytics.activeChannelId';
 
@@ -129,7 +130,7 @@ export function VideoAnalyticsExpandedView({
     tags: [] as string[],
   });
   const [isGenerating, setIsGenerating] = useState(false);
-  const [loadingStep, setLoadingStep] = useState<string>('');
+  const [loadingStep, setLoadingStep] = useState<ProgressMessage | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [prompt, setPrompt] = useState('');
   const [updateState, setUpdateState] = useState<UpdateState>({ title: 'idle', description: 'idle', tags: 'idle' });
@@ -417,9 +418,9 @@ export function VideoAnalyticsExpandedView({
         fullVideoData.privacyStatus || 'public',
         fullVideoData.thumbnailUrl,
         geminiFileName,
-        (step: string) => {
+        (step: ProgressMessage) => {
           setLoadingStep(step);
-          console.log(`[Progress] ${step}`);
+          console.log(`[Progress] ${step.text}`);
         }
       );
 
@@ -433,7 +434,7 @@ export function VideoAnalyticsExpandedView({
       setGenerationError(`生成失敗：${e.message}`);
     } finally {
       setIsGenerating(false);
-      setLoadingStep('');
+      setLoadingStep(null);
     }
   };
 
@@ -519,14 +520,16 @@ export function VideoAnalyticsExpandedView({
           className="text-sm underline hover:opacity-70 inline-flex items-center gap-2"
           style={{ color: '#DC2626' }}
         >
-          🎬 在 YouTube 上查看
+          <AppIcon name="video" size={16} className="text-red-600" />
+          在 YouTube 上查看
         </a>
       </div>
 
       {/* 核心指標 */}
       <div>
-        <h5 className="font-bold mb-3 text-lg" style={{ color: '#1F1F1F' }}>
-          📊 核心指標
+        <h5 className="font-bold mb-3 text-lg flex items-center gap-2" style={{ color: '#1F1F1F' }}>
+          <AppIcon name="analytics" size={18} className="text-red-600" />
+          核心指標
         </h5>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div className="p-3 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)' }}>
@@ -570,8 +573,9 @@ export function VideoAnalyticsExpandedView({
 
       {/* 流量來源 */}
       <div>
-        <h5 className="font-bold mb-3 text-lg" style={{ color: '#1F1F1F' }}>
-          🚦 流量來源
+        <h5 className="font-bold mb-3 text-lg flex items-center gap-2" style={{ color: '#1F1F1F' }}>
+          <AppIcon name="traffic" size={18} className="text-red-600" />
+          流量來源
         </h5>
         <div className="space-y-2">
           <div className="flex justify-between items-center p-2 rounded" style={{ backgroundColor: 'rgba(254, 202, 202, 0.3)' }}>
@@ -632,8 +636,9 @@ export function VideoAnalyticsExpandedView({
 
       {/* 搜尋字詞 */}
       <div>
-        <h5 className="font-bold mb-3 text-lg" style={{ color: '#1F1F1F' }}>
-          🔍 YouTube 搜尋字詞（近 1 年）
+        <h5 className="font-bold mb-3 text-lg flex items-center gap-2" style={{ color: '#1F1F1F' }}>
+          <AppIcon name="search" size={18} className="text-red-600" />
+          YouTube 搜尋字詞（近 1 年）
         </h5>
 
         {isLoadingSearchTerms && (
@@ -715,7 +720,22 @@ export function VideoAnalyticsExpandedView({
             color: 'white',
           }}
         >
-          {isAnalyzing ? '分析中...' : (keywordAnalysis ? '✓ 已分析 - 重新分析' : '🤖 AI 關鍵字分析')}
+          {isAnalyzing ? (
+            <span className="inline-flex items-center justify-center gap-2">
+              <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+              分析中...
+            </span>
+          ) : keywordAnalysis ? (
+            <span className="inline-flex items-center justify-center gap-2">
+              <AppIcon name="check" size={16} className="text-white" />
+              已分析 - 重新分析
+            </span>
+          ) : (
+            <span className="inline-flex items-center justify-center gap-2">
+              <AppIcon name="bot" size={16} className="text-white" />
+              AI 關鍵字分析
+            </span>
+          )}
         </button>
         <button
           onClick={() => setShowMetadataGenerator(!showMetadataGenerator)}
@@ -725,7 +745,14 @@ export function VideoAnalyticsExpandedView({
             color: '#1F1F1F',
           }}
         >
-          {showMetadataGenerator ? '✕ 關閉中繼資料生成' : '✨ 生成中繼資料'}
+          <span className="inline-flex items-center justify-center gap-2">
+            <AppIcon
+              name={showMetadataGenerator ? 'close' : 'sparkles'}
+              size={16}
+              className={showMetadataGenerator ? 'text-red-600' : 'text-red-500'}
+            />
+            {showMetadataGenerator ? '關閉中繼資料生成' : '生成中繼資料'}
+          </span>
         </button>
       </div>
 
@@ -766,8 +793,9 @@ export function VideoAnalyticsExpandedView({
             </div>
             <div className="grid md:grid-cols-2 gap-4 mt-3">
               <div>
-                <p className="font-semibold mb-2" style={{ color: '#10B981' }}>
-                  ✅ 優勢
+                <p className="font-semibold mb-2 flex items-center gap-1" style={{ color: '#10B981' }}>
+                  <AppIcon name="check" size={16} className="text-green-500" />
+                  優勢
                 </p>
                 <ul className="list-disc list-inside space-y-1 text-sm">
                   {keywordAnalysis.currentKeywords.strengths.map((s, idx) => (
@@ -778,8 +806,9 @@ export function VideoAnalyticsExpandedView({
                 </ul>
               </div>
               <div>
-                <p className="font-semibold mb-2" style={{ color: '#DC2626' }}>
-                  ⚠️ 需改善
+                <p className="font-semibold mb-2 flex items-center gap-1" style={{ color: '#DC2626' }}>
+                  <AppIcon name="info" size={16} className="text-red-600" />
+                  需改善
                 </p>
                 <ul className="list-disc list-inside space-y-1 text-sm">
                   {keywordAnalysis.currentKeywords.weaknesses.map((w, idx) => (
@@ -794,8 +823,9 @@ export function VideoAnalyticsExpandedView({
 
           {/* 建議關鍵字 */}
           <div>
-            <p className="font-bold mb-2" style={{ color: '#1F1F1F' }}>
-              🎯 建議關鍵字
+            <p className="font-bold mb-2 flex items-center gap-1" style={{ color: '#1F1F1F' }}>
+              <AppIcon name="target" size={16} className="text-red-600" />
+              建議關鍵字
             </p>
             <div className="space-y-2">
               <div>
@@ -871,8 +901,9 @@ export function VideoAnalyticsExpandedView({
               }}
             >
               <div className="flex items-center justify-between">
-                <p className="font-bold" style={{ color: '#1F1F1F' }}>
-                  ✨ 中繼資料提示
+                <p className="font-bold flex items-center gap-1" style={{ color: '#1F1F1F' }}>
+                  <AppIcon name="sparkles" size={16} className="text-red-600" />
+                  中繼資料提示
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -880,14 +911,20 @@ export function VideoAnalyticsExpandedView({
                     className="px-3 py-1 text-sm rounded border"
                     style={{ borderColor: '#DC2626', color: '#DC2626' }}
                   >
-                    📋 複製
+                    <span className="inline-flex items-center gap-1">
+                      <AppIcon name="clipboardCopy" size={14} className="text-red-600" />
+                      複製
+                    </span>
                   </button>
                   <button
                     onClick={handleApplyMetadataHints}
                     className="px-3 py-1 text-sm rounded border"
                     style={{ borderColor: '#DC2626', color: '#DC2626' }}
                   >
-                    ➕ 套用到生成器
+                    <span className="inline-flex items-center gap-1">
+                      <AppIcon name="wand" size={14} className="text-red-600" />
+                      套用到生成器
+                    </span>
                   </button>
                 </div>
               </div>
@@ -934,8 +971,9 @@ export function VideoAnalyticsExpandedView({
 
           {/* 標題建議 */}
           <div>
-            <p className="font-bold mb-2" style={{ color: '#1F1F1F' }}>
-              📝 標題優化建議
+            <p className="font-bold mb-2 flex items-center gap-1" style={{ color: '#1F1F1F' }}>
+              <AppIcon name="notepad" size={16} className="text-red-600" />
+              標題優化建議
             </p>
             <div className="space-y-2">
               {keywordAnalysis.titleSuggestions.map((title, idx) => (
@@ -956,8 +994,9 @@ export function VideoAnalyticsExpandedView({
 
           {/* 說明優化提示 */}
           <div>
-            <p className="font-bold mb-2" style={{ color: '#1F1F1F' }}>
-              📄 說明優化提示
+            <p className="font-bold mb-2 flex items-center gap-1" style={{ color: '#1F1F1F' }}>
+              <AppIcon name="document" size={16} className="text-red-600" />
+              說明優化提示
             </p>
             <ul className="list-disc list-inside space-y-1">
               {keywordAnalysis.descriptionTips.map((tip, idx) => (
@@ -987,8 +1026,9 @@ export function VideoAnalyticsExpandedView({
               }`,
             }}
           >
-            <h6 className="font-bold mb-2" style={{ color: '#1F1F1F' }}>
-              📋 行動計畫
+            <h6 className="font-bold mb-2 flex items-center gap-1" style={{ color: '#1F1F1F' }}>
+              <AppIcon name="clipboard" size={16} className="text-red-600" />
+              行動計畫
             </h6>
             <div className="space-y-2 text-sm">
               <p>
@@ -1040,8 +1080,9 @@ export function VideoAnalyticsExpandedView({
             border: '2px solid #DC2626',
           }}
         >
-          <h5 className="font-bold mb-4 text-lg" style={{ color: '#1F1F1F' }}>
-            ✨ Gemini AI 中繼資料生成器
+          <h5 className="font-bold mb-4 text-lg flex items-center gap-2" style={{ color: '#1F1F1F' }}>
+            <AppIcon name="sparkles" size={18} className="text-red-600" />
+            Gemini AI 中繼資料生成器
           </h5>
 
           {/* 載入影片資訊中 */}
@@ -1090,8 +1131,9 @@ export function VideoAnalyticsExpandedView({
                     <p className="text-xs text-center" style={{ color: '#DC2626' }}>
                       Gemini AI 將分析影片內容，自動生成三種風格標題、章節時間軸及 SEO 標籤
                     </p>
-                    <p className="text-xs text-center" style={{ color: '#FECACA' }}>
-                      💡 處理流程：檢查雲端檔案 → 分析影片內容 → 生成 SEO 強化建議（公開影片約 30 秒，未列出影片首次需下載約 2-5 分鐘）
+                    <p className="text-xs text-center flex items-center justify-center gap-1" style={{ color: '#FECACA' }}>
+                      <AppIcon name="idea" size={14} className="text-amber-300" />
+                      處理流程：檢查雲端檔案 → 分析影片內容 → 生成 SEO 強化建議（公開影片約 30 秒，未列出影片首次需下載約 2-5 分鐘）
                     </p>
                   </div>
                 </div>
@@ -1102,7 +1144,16 @@ export function VideoAnalyticsExpandedView({
                 <div className="p-4 rounded-lg" style={{ backgroundColor: 'rgba(220, 38, 38, 0.1)', border: '1px solid #B91C1C' }}>
                   <div className="flex items-center gap-3">
                     <Loader />
-                    <span className="text-sm" style={{ color: '#DC2626' }}>{loadingStep}</span>
+                    <span className="text-sm inline-flex items-center gap-1" style={{ color: '#DC2626' }}>
+                      {loadingStep ? (
+                        <>
+                          <AppIcon name={loadingStep.icon} size={16} className="text-red-600" />
+                          {loadingStep.text}
+                        </>
+                      ) : (
+                        '正在產生中...'
+                      )}
+                    </span>
                   </div>
                 </div>
               )}
@@ -1127,8 +1178,9 @@ export function VideoAnalyticsExpandedView({
                   {/* Title Options */}
                   <div>
                     <label className="text-sm font-semibold mb-1 block" style={{ color: '#1F1F1F' }}>建議標題（請選擇一個）</label>
-                    <p className="text-xs mb-2" style={{ color: '#FECACA' }}>
-                      💡 Gemini AI 提供三種不同風格的標題，點選即可選擇並編輯
+                    <p className="text-xs mb-2 flex items-center gap-1" style={{ color: '#FECACA' }}>
+                      <AppIcon name="idea" size={14} className="text-amber-300" />
+                      Gemini AI 提供三種不同風格的標題，點選即可選擇並編輯
                     </p>
                     <div className="space-y-2 mb-3">
                       <div
@@ -1194,7 +1246,10 @@ export function VideoAnalyticsExpandedView({
                     <label className="text-sm font-semibold" style={{ color: '#1F1F1F' }}>影片說明（包含章節與標籤）</label>
                     <div className="text-xs mb-1 space-y-0.5" style={{ color: '#DC2626' }}>
                       <p>此欄位包含完整的影片說明、章節導覽和說明用標籤</p>
-                      <p style={{ color: '#FECACA' }}>💡 Gemini AI 會自動生成章節時間軸（格式：00:00），並在說明中加入相關標籤以提升搜尋能見度</p>
+                      <p className="flex items-start gap-1" style={{ color: '#FECACA' }}>
+                        <AppIcon name="idea" size={14} className="text-amber-300" />
+                        <span>Gemini AI 會自動生成章節時間軸（格式：00:00），並在說明中加入相關標籤以提升搜尋能見度</span>
+                      </p>
                     </div>
                     <div className="flex gap-2 mt-1">
                       <textarea
@@ -1217,8 +1272,9 @@ export function VideoAnalyticsExpandedView({
                   {/* Tags */}
                   <div>
                     <label className="text-sm font-semibold" style={{ color: '#1F1F1F' }}>SEO 標籤（逗號分隔）</label>
-                    <p className="text-xs mb-1" style={{ color: '#DC2626' }}>
-                      💡 這些標籤將用於 YouTube 的標籤欄位，幫助搜尋演算法理解影片內容
+                    <p className="text-xs mb-1 flex items-center gap-1" style={{ color: '#DC2626' }}>
+                      <AppIcon name="idea" size={14} className="text-red-500" />
+                      這些標籤將用於 YouTube 的標籤欄位，幫助搜尋演算法理解影片內容
                     </p>
                     <div className="flex gap-2 mt-1">
                       <input

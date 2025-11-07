@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { YouTubeIcon } from './Icons';
+import { AppIcon } from './AppIcon';
 
 type ActiveTab = 'videos' | 'analytics' | 'articles';
 
@@ -65,9 +66,9 @@ export function Header({ isLoggedIn, onLogout, activeTab, onTabChange }: HeaderP
           >
             <div className="flex gap-2 overflow-x-auto rounded-full border border-neutral-200 bg-neutral-50 p-1 text-sm text-neutral-700 shadow-inner sm:text-base">
               {([
-                { key: 'videos', label: '🎬 影片內容' },
-                { key: 'articles', label: '✍️ 文章生成' },
-                { key: 'analytics', label: '📊 數據洞察' },
+                { key: 'videos', label: '影片內容', icon: 'video' },
+                { key: 'articles', label: '文章生成', icon: 'article' },
+                { key: 'analytics', label: '數據洞察', icon: 'analytics' },
               ] as const).map(tab => (
                 <button
                   key={tab.key}
@@ -81,7 +82,10 @@ export function Header({ isLoggedIn, onLogout, activeTab, onTabChange }: HeaderP
                       : 'hover:bg-white hover:text-neutral-900'
                   }`}
                 >
-                  {tab.label}
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <AppIcon name={tab.icon} size={16} className="text-red-600" />
+                    {tab.label}
+                  </span>
                 </button>
               ))}
             </div>

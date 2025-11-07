@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader } from './Loader';
 import * as youtubeService from '../services/youtubeService';
 import { VideoAnalyticsExpandedView } from './VideoAnalyticsExpandedView';
+import { AppIcon } from './AppIcon';
 
 interface AnalyticsMetrics {
   views: number;
@@ -440,8 +441,9 @@ export function VideoAnalytics() {
     <div className="space-y-6">
       {/* 標題與說明 */}
       <div className="text-center space-y-3">
-        <h2 className="text-3xl font-bold text-neutral-900">
-          📊 影片表現分析
+        <h2 className="text-3xl font-bold text-neutral-900 flex items-center justify-center gap-2">
+          <AppIcon name="analytics" size={28} className="text-red-600" />
+          影片表現分析
         </h2>
         <p className="text-lg text-red-600">
           分析你的影片表現，找出需要優化的影片
@@ -471,8 +473,9 @@ export function VideoAnalytics() {
                 </button>
               ))}
             </div>
-            <p className="text-xs text-center text-red-600 max-w-[400px]">
-              💡 建議先選擇 1 年，避免超過 API 配額限制。分析完成後可載入更多年份。
+            <p className="text-xs text-center text-red-600 max-w-[400px] flex items-center justify-center gap-1">
+              <AppIcon name="idea" size={14} className="text-red-500" />
+              建議先選擇 1 年，避免超過 API 配額限制。分析完成後可載入更多年份。
             </p>
           </div>
 
@@ -481,7 +484,10 @@ export function VideoAnalytics() {
             onClick={() => fetchAnalytics()}
             className="px-8 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 active:scale-95 shadow-lg bg-red-600 text-white"
           >
-            🚀 開始分析（近 {selectedYears} 年影片）
+            <span className="inline-flex items-center gap-2">
+              <AppIcon name="rocket" size={18} className="text-white" />
+              開始分析（近 {selectedYears} 年影片）
+            </span>
           </button>
         </div>
       )}
@@ -518,8 +524,9 @@ export function VideoAnalytics() {
         <div className="space-y-4">
           {/* 統計摘要 */}
           <div className="p-6 rounded-lg shadow-md bg-red-50/70 border border-red-200">
-            <h3 className="text-xl font-bold mb-2 text-neutral-900">
-              📈 分析摘要
+            <h3 className="text-xl font-bold mb-2 text-neutral-900 flex items-center gap-2">
+              <AppIcon name="analytics" size={18} className="text-red-600" />
+              分析摘要
             </h3>
             <p className="text-red-600">
               找到 <span className="font-bold">{analyticsData.length}</span> 支建議更新的影片
@@ -536,20 +543,29 @@ export function VideoAnalytics() {
               onClick={clearCache}
               className="px-4 py-2 rounded-lg font-semibold transition-all hover:shadow-lg text-sm bg-red-50 text-red-600 border border-red-200"
             >
-              🗑️ 清除快取
+              <span className="inline-flex items-center gap-2">
+                <AppIcon name="trash" size={16} className="text-red-600" />
+                清除快取
+              </span>
             </button>
             <div className="flex gap-2">
               <button
                 onClick={loadMoreYears}
                 className="px-6 py-2 rounded-lg font-semibold transition-all hover:shadow-lg bg-red-50 text-red-600 border border-red-200"
               >
-                ⏳ 載入更多（往前 1 年）
+                <span className="inline-flex items-center gap-2">
+                  <AppIcon name="hourglass" size={16} className="text-red-600" />
+                  載入更多（往前 1 年）
+                </span>
               </button>
               <button
                 onClick={() => fetchAnalytics()}
                 className="px-6 py-2 rounded-lg font-semibold transition-all hover:shadow-lg bg-red-600 text-white"
               >
-                🔄 重新分析
+                <span className="inline-flex items-center gap-2">
+                  <AppIcon name="refresh" size={16} className="text-white" />
+                  重新分析
+                </span>
               </button>
             </div>
           </div>
@@ -622,7 +638,10 @@ export function VideoAnalytics() {
                           key={idx}
                           className="text-sm px-3 py-1 rounded inline-block mr-2 bg-red-50 text-red-600"
                         >
-                          💡 {reason}
+                          <span className="inline-flex items-center gap-1">
+                            <AppIcon name="idea" size={14} className="text-red-500" />
+                            {reason}
+                          </span>
                         </div>
                       ))}
                     </div>

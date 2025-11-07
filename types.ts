@@ -20,6 +20,53 @@ export interface YouTubeVideo {
   publishedAt?: string; // ISO 8601 date format
 }
 
+export type AppIconName =
+  | 'analytics'
+  | 'article'
+  | 'award'
+  | 'bolt'
+  | 'bot'
+  | 'camera'
+  | 'check'
+  | 'clipboard'
+  | 'clipboardCopy'
+  | 'close'
+  | 'cloudUpload'
+  | 'document'
+  | 'download'
+  | 'gallery'
+  | 'home'
+  | 'hourglass'
+  | 'idea'
+  | 'image'
+  | 'info'
+  | 'list'
+  | 'mapPin'
+  | 'notepad'
+  | 'paperclip'
+  | 'pen'
+  | 'refresh'
+  | 'rocket'
+  | 'search'
+  | 'shield'
+  | 'sparkles'
+  | 'tag'
+  | 'target'
+  | 'timer'
+  | 'traffic'
+  | 'trash'
+  | 'trophy'
+  | 'video'
+  | 'wand'
+  | 'fileImage';
+
+export interface ProgressMessage {
+  icon: AppIconName;
+  text: string;
+}
+
+export type ProgressCallback = (message: ProgressMessage) => void;
+
 // 文章生成相關型別
 export interface Screenshot {
   timestamp_seconds: string; // 格式：mm:ss

@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ArticleGenerationResult, YouTubeVideo } from '../types';
+import type { ArticleGenerationResult, ProgressMessage, YouTubeVideo } from '../types';
 import * as videoApiService from '../services/videoApiService';
 import * as notionClient from '../services/notionClient';
 import { Loader } from './Loader';
 import { CopyButton } from './CopyButton';
 import { TEMPLATE_METADATA } from '../services/prompts/templateMetadata.js';
+import { AppIcon, resolveIconName } from './AppIcon';
 
 interface ArticleGeneratorProps {
   video: YouTubeVideo;
@@ -74,7 +75,7 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
     return window.localStorage.getItem('articleTemplateId') || 'default';
   });
   const [screenshotQuality, setScreenshotQuality] = useState<number>(2); // 預設高畫質
-  const [loadingStep, setLoadingStep] = useState<string>('');
+  const [loadingStep, setLoadingStep] = useState<ProgressMessage | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [notionToken, setNotionToken] = useState('');
@@ -532,7 +533,7 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
   const handleGenerate = async () => {
     setIsGenerating(true);
     setError(null);
-    setLoadingStep('');
+    setLoadingStep(null);
 
     try {
       const privacyStatus = video.privacyStatus || 'public';
@@ -550,9 +551,9 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
           customPrompt,
           video.title,
           screenshotQuality,
-          (step: string) => {
+          (step: ProgressMessage) => {
             setLoadingStep(step);
-            console.log(`[Progress] ${step}`);
+            console.log(`[Progress] ${step.text}`);
           },
           uploadedFiles,
           selectedTemplateId
@@ -568,9 +569,9 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
           customPrompt,
           video.title,
           screenshotQuality,
-          (step: string) => {
+          (step: ProgressMessage) => {
             setLoadingStep(step);
-            console.log(`[Progress] ${step}`);
+            console.log(`[Progress] ${step.text}`);
           },
           uploadedFiles,
           selectedTemplateId
@@ -603,14 +604,14 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
       setError(err.message || 'An unexpected error occurred');
     } finally {
       setIsGenerating(false);
-      setLoadingStep('');
+      setLoadingStep(null);
     }
   };
 
   const handleRegenerateScreenshots = async () => {
     setIsRegeneratingScreenshots(true);
     setError(null);
-    setLoadingStep('');
+    setLoadingStep(null);
 
     try {
       console.log('[Article] Regenerating screenshots...');
@@ -620,9 +621,9 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
         video.title,
         customPrompt,
         screenshotQuality,
-        (step: string) => {
+        (step: ProgressMessage) => {
           setLoadingStep(step);
-          console.log(`[Progress] ${step}`);
+          console.log(`[Progress] ${step.text}`);
         },
         selectedTemplateId
       );
@@ -652,7 +653,7 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
       setError(err.message || 'An unexpected error occurred');
     } finally {
       setIsRegeneratingScreenshots(false);
-      setLoadingStep('');
+      setLoadingStep(null);
     }
   };
 
@@ -664,7 +665,7 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
 
     setIsCapturingScreenshots(true);
     setError(null);
-    setLoadingStep('準備截圖...');
+    setLoadingStep({ icon: 'info', text: '準備截圖...' });
 
     try {
       console.log('[Article] Capturing screenshots...');
@@ -704,7 +705,7 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
         onContentUpdate(newResult);
       }
 
-      setLoadingStep('');
+      setLoadingStep(null);
 
     } catch (err: any) {
       console.error('[Article] Screenshot capture error:', err);
@@ -712,7 +713,7 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
         ? `目前 YouTube 截圖功能暫時無法使用，原因：${err.message}。請依建議時間點前後自行手動截圖。`
         : '目前 YouTube 截圖功能暫時無法使用，請依建議時間點前後自行手動截圖。';
       setError(friendlyMessage);
-      setLoadingStep('');
+      setLoadingStep(null);
     } finally {
       setIsCapturingScreenshots(false);
     }
@@ -1171,8 +1172,9 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
             <p className="text-xs text-neutral-500">
               連結 Notion 帳號後，可從授權的資料庫中選擇目標，將生成的文章與 SEO 資訊匯入。
             </p>
-            <p className="text-xs text-neutral-400">
-              ⚠️ 登入後請在目標資料庫的 Share 設定中加入此整合，才能寫入內容。
+            <p className="text-xs text-neutral-400 flex items-start gap-1">
+              <AppIcon name="info" size={14} className="text-red-500" />
+              <span>登入後請在目標資料庫的 Share 設定中加入此整合，才能寫入內容。</span>
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
@@ -1607,8 +1609,8 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                           className="sr-only"
                         />
                         <div className="flex items-center gap-2">
-                          <span className="text-xl" aria-hidden="true">
-                            {template.icon || '📝'}
+                          <span className="text-xl text-red-600" aria-hidden="true">
+                            <AppIcon name={resolveIconName(template.icon)} size={20} />
                           </span>
                           <div>
                             <p className="text-sm font-semibold text-neutral-900">{template.name}</p>
@@ -1628,13 +1630,15 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                         </div>
                         <p className="mt-2 text-sm text-neutral-600">{template.description}</p>
                         {template.targetAudience && (
-                          <p className="mt-2 text-xs text-neutral-500">
-                            🎯 {template.targetAudience}
+                          <p className="mt-2 text-xs text-neutral-500 flex items-center gap-1">
+                            <AppIcon name="target" size={14} className="text-red-500" />
+                            {template.targetAudience}
                           </p>
                         )}
                         {template.platforms && template.platforms.length > 0 && (
-                          <p className="mt-1 text-xs text-neutral-400">
-                            📍 {template.platforms.join(' / ')}
+                          <p className="mt-1 text-xs text-neutral-400 flex items-center gap-1">
+                            <AppIcon name="mapPin" size={14} className="text-red-500" />
+                            {template.platforms.join(' / ')}
                           </p>
                         )}
                         {isSelected && (
@@ -1681,15 +1685,19 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                   <span>壓縮 - 檔案較小，適合網頁載入</span>
                 </label>
               </div>
-              <p className="text-xs mt-2 text-neutral-400">
-                💡 高畫質適合印刷或高解析度顯示，壓縮適合網頁快速載入
+              <p className="text-xs mt-2 text-neutral-400 flex items-center gap-1">
+                <AppIcon name="idea" size={14} className="text-amber-500" />
+                高畫質適合印刷或高解析度顯示，壓縮適合網頁快速載入
               </p>
             </div>
 
             {/* 檔案上傳區域 */}
             <div>
               <label className="block text-sm font-medium mb-2 text-neutral-700">
-                📎 上傳參考資料（選填）
+                <span className="inline-flex items-center gap-1">
+                  <AppIcon name="paperclip" size={16} className="text-red-500" />
+                  上傳參考資料（選填）
+                </span>
               </label>
 
               {/* 檔案拖放區域 */}
@@ -1741,9 +1749,15 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <span className="text-neutral-600">
-                          {file.mimeType.startsWith('image/') ? '🖼️' :
-                           file.mimeType === 'application/pdf' ? '📄' :
-                           file.displayName.endsWith('.md') ? '📝' : '📎'}
+                          <AppIcon
+                            name={
+                              file.mimeType.startsWith('image/') ? 'image' :
+                              file.mimeType === 'application/pdf' ? 'document' :
+                              file.displayName.endsWith('.md') ? 'notepad' : 'paperclip'
+                            }
+                            size={18}
+                            className="text-red-500"
+                          />
                         </span>
                         <span className="text-sm text-neutral-700 truncate">
                           {file.displayName}
@@ -1767,8 +1781,9 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                 </div>
               )}
 
-              <p className="text-xs mt-2 text-neutral-400">
-                💡 上傳相關文件、圖片或 Markdown 檔案，AI 會參考這些資料來生成更精準的文章內容
+              <p className="text-xs mt-2 text-neutral-400 flex items-center gap-1">
+                <AppIcon name="idea" size={14} className="text-amber-500" />
+                上傳相關文件、圖片或 Markdown 檔案，AI 會參考這些資料來生成更精準的文章內容
               </p>
             </div>
 
@@ -1783,7 +1798,10 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
               <div className="px-4 py-3 rounded-lg mb-4 bg-neutral-100 border border-neutral-200 text-neutral-600">
                 <div className="flex items-center gap-3">
                   <Loader />
-                  <span className="text-sm">{loadingStep}</span>
+                  <span className="text-sm inline-flex items-center gap-1 text-neutral-700">
+                    <AppIcon name={loadingStep.icon} className="text-red-500" size={16} />
+                    {loadingStep.text}
+                  </span>
                 </div>
               </div>
             )}
@@ -1807,11 +1825,13 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
               <p className="text-sm text-center text-neutral-600">
                 此過程包含：AI 分析影片 → 生成文章內容 → 擷取關鍵畫面
               </p>
-              <p className="text-xs text-center text-neutral-400">
-                💡 完整流程：下載影片（如需要） → Gemini AI 深度分析 → 生成三種標題風格 → 撰寫文章內容 → 規劃截圖時間點 → FFmpeg 擷取關鍵畫面
+              <p className="text-xs text-center text-neutral-400 flex items-center justify-center gap-1">
+                <AppIcon name="idea" size={14} className="text-amber-500" />
+                完整流程：下載影片（如需要） → Gemini AI 深度分析 → 生成三種標題風格 → 撰寫文章內容 → 規劃截圖時間點 → FFmpeg 擷取關鍵畫面
               </p>
-              <p className="text-xs text-center text-neutral-300">
-                ⏱️ 預計時間：公開影片約 1-2 分鐘，未列出影片首次需下載約 3-8 分鐘（視影片大小而定）
+              <p className="text-xs text-center text-neutral-300 flex items-center justify-center gap-1">
+                <AppIcon name="timer" size={14} className="text-neutral-400" />
+                預計時間：公開影片約 1-2 分鐘，未列出影片首次需下載約 3-8 分鐘（視影片大小而定）
               </p>
             </div>
           </div>
@@ -1820,25 +1840,34 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
             <div className="space-y-6">
               {result.needsScreenshots ? (
                 <div className="px-4 py-3 rounded-lg space-y-1 bg-blue-50 border border-blue-200 text-blue-700">
-                  <p className="font-semibold">✓ 文章生成成功（部分完成）</p>
+                  <p className="font-semibold flex items-center gap-1">
+                    <AppIcon name="check" size={16} className="text-blue-600" />
+                    文章生成成功（部分完成）
+                  </p>
                   <p className="text-sm">
                     已規劃 {result.screenshots?.length || 0} 個截圖時間點，可點擊「截圖」按鈕執行截圖（需要本地環境）
                   </p>
-                  <p className="text-xs text-blue-600/80">
-                    💡 內容包含：三種標題風格、SEO 描述、完整文章（Markdown 格式）、截圖時間點規劃
+                  <p className="text-xs text-blue-600/80 flex items-start gap-1">
+                    <AppIcon name="idea" size={14} className="text-blue-500" />
+                    <span>內容包含：三種標題風格、SEO 描述、完整文章（Markdown 格式）、截圖時間點規劃</span>
                   </p>
-                  <p className="text-xs text-blue-600/80">
-                    ℹ️ 截圖功能需要 FFmpeg 和 yt-dlp，請在本地環境中執行
+                  <p className="text-xs text-blue-600/80 flex items-start gap-1">
+                    <AppIcon name="info" size={14} className="text-blue-500" />
+                    <span>截圖功能需要 FFmpeg 和 yt-dlp，請在本地環境中執行</span>
                   </p>
                 </div>
               ) : (
                 <div className="px-4 py-3 rounded-lg space-y-1 bg-green-50 border border-green-200 text-green-700">
-                  <p className="font-semibold">✓ 文章生成成功</p>
+                  <p className="font-semibold flex items-center gap-1">
+                    <AppIcon name="check" size={16} className="text-green-600" />
+                    文章生成成功
+                  </p>
                   <p className="text-sm">
                     已擷取 {result.image_urls.length} 組關鍵畫面（每組 3 張，共 {result.image_urls.reduce((acc, group) => acc + group.length, 0)} 張）
                   </p>
-                  <p className="text-xs text-green-600/80">
-                    💡 內容包含：三種標題風格、SEO 描述、完整文章（Markdown 格式）、關鍵畫面截圖（可複製使用）
+                  <p className="text-xs text-green-600/80 flex items-start gap-1">
+                    <AppIcon name="idea" size={14} className="text-green-600" />
+                    <span>內容包含：三種標題風格、SEO 描述、完整文章（Markdown 格式）、關鍵畫面截圖（可複製使用）</span>
                   </p>
                 </div>
               )}
@@ -1846,8 +1875,9 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
               <div>
                 <div className="mb-3">
                   <h3 className="text-lg font-semibold text-neutral-900">建議標題（三種風格）</h3>
-                  <p className="text-xs mt-1 text-neutral-500">
-                    💡 Gemini AI 根據影片內容生成三種不同風格的標題，可直接複製使用或作為靈感參考
+                  <p className="text-xs mt-1 text-neutral-500 flex items-start gap-1">
+                    <AppIcon name="idea" size={14} className="text-amber-500" />
+                    <span>Gemini AI 根據影片內容生成三種不同風格的標題，可直接複製使用或作為靈感參考</span>
                   </p>
                 </div>
                 <div className="space-y-3">
@@ -1881,8 +1911,9 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                     <h3 className="text-lg font-semibold text-neutral-900">SEO 描述</h3>
                     <CopyButton textToCopy={result.seo_description} />
                   </div>
-                  <p className="text-xs mt-1 text-neutral-500">
-                    💡 適合用於部落格文章的 meta description，已調整關鍵字以提升搜尋排名
+                  <p className="text-xs mt-1 text-neutral-500 flex items-start gap-1">
+                    <AppIcon name="idea" size={14} className="text-amber-500" />
+                    <span>適合用於部落格文章的 meta description，已調整關鍵字以提升搜尋排名</span>
                   </p>
                 </div>
                 <div className="rounded-lg p-4 bg-neutral-50 border border-neutral-200">
@@ -1896,8 +1927,9 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                     <h3 className="text-lg font-semibold text-neutral-900">文章內容（Markdown）</h3>
                     <CopyButton textToCopy={result.article} />
                   </div>
-                  <p className="text-xs mt-1 text-neutral-500">
-                    💡 Gemini AI 根據影片內容撰寫的完整文章，使用 Markdown 格式，可直接複製到部落格或內容管理系統
+                  <p className="text-xs mt-1 text-neutral-500 flex items-start gap-1">
+                    <AppIcon name="idea" size={14} className="text-amber-500" />
+                    <span>Gemini AI 根據影片內容撰寫的完整文章，使用 Markdown 格式，可直接複製到部落格或內容管理系統</span>
                   </p>
                 </div>
                 <div className="rounded-lg p-4 max-h-96 overflow-y-auto bg-neutral-50 border border-neutral-200">
@@ -1925,7 +1957,10 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                               <span>截圖中...</span>
                             </>
                           ) : (
-                            '📸 截圖'
+                            <>
+                              <AppIcon name="camera" size={16} className="text-white" />
+                              <span>截圖</span>
+                            </>
                           )}
                         </button>
                       ) : (
@@ -1940,7 +1975,10 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                               <span>重新截圖中...</span>
                             </>
                           ) : (
-                            '🔄 重新截圖'
+                            <>
+                              <AppIcon name="refresh" size={16} className="text-white" />
+                              <span>重新截圖</span>
+                            </>
                           )}
                         </button>
                       )}
@@ -1951,7 +1989,10 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                     <div className="px-4 py-3 rounded-lg mb-4 bg-neutral-100 border border-neutral-200 text-neutral-600">
                       <div className="flex items-center gap-3">
                         <Loader />
-                        <span className="text-sm">{loadingStep}</span>
+                        <span className="text-sm inline-flex items-center gap-1">
+                          <AppIcon name={loadingStep.icon} className="text-red-500" size={16} />
+                          {loadingStep.text}
+                        </span>
                       </div>
                     </div>
                   )}
@@ -1960,20 +2001,24 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                     <div className="space-y-1 mb-4">
                       {result.needsScreenshots ? (
                         <>
-                          <p className="text-xs text-blue-600">
-                            💡 AI 已規劃好截圖時間點，點擊「截圖」按鈕開始擷取畫面
+                          <p className="text-xs text-blue-600 flex items-start gap-1">
+                            <AppIcon name="idea" size={14} className="text-blue-500" />
+                            <span>AI 已規劃好截圖時間點，點擊「截圖」按鈕開始擷取畫面</span>
                           </p>
-                          <p className="text-xs text-neutral-400">
-                            ⚠️ 截圖功能需要 FFmpeg 和 yt-dlp，僅在本地環境可用
+                          <p className="text-xs text-neutral-400 flex items-start gap-1">
+                            <AppIcon name="info" size={14} className="text-neutral-500" />
+                            <span>截圖功能需要 FFmpeg 和 yt-dlp，僅在本地環境可用</span>
                           </p>
                         </>
                       ) : (
                         <>
-                          <p className="text-xs text-neutral-500">
-                            💡 提示：如果截圖時間點不理想，可使用「重新截圖」功能，讓 Gemini AI 重新分析並選擇更合適的畫面
+                          <p className="text-xs text-neutral-500 flex items-start gap-1">
+                            <AppIcon name="idea" size={14} className="text-amber-500" />
+                            <span>提示：如果截圖時間點不理想，可使用「重新截圖」功能，讓 Gemini AI 重新分析並選擇更合適的畫面</span>
                           </p>
-                          <p className="text-xs text-neutral-400">
-                            🔄 重新截圖流程：檢查本地檔案 → 下載影片（如需要） → Gemini AI 重新觀看影片 → 規劃新的截圖時間點 → FFmpeg 擷取畫面（約 1-3 分鐘）
+                          <p className="text-xs text-neutral-400 flex items-start gap-1">
+                            <AppIcon name="refresh" size={14} className="text-neutral-500" />
+                            <span>重新截圖流程：檢查本地檔案 → 下載影片（如需要） → Gemini AI 重新觀看影片 → 規劃新的截圖時間點 → FFmpeg 擷取畫面（約 1-3 分鐘）</span>
                           </p>
                         </>
                       )}
@@ -1981,8 +2026,9 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                   )}
 
                   {!result.needsScreenshots && (
-                    <p className="text-xs mb-3 text-neutral-400">
-                      📸 每個關鍵時間點提供 3 張截圖（當前畫面 ± 2 秒），讓您選擇最佳構圖
+                    <p className="text-xs mb-3 text-neutral-400 flex items-start gap-1">
+                      <AppIcon name="camera" size={14} className="text-neutral-500" />
+                      <span>每個關鍵時間點提供 3 張截圖（當前畫面 ± 2 秒），讓您選擇最佳構圖</span>
                     </p>
                   )}
 

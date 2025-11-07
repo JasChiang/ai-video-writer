@@ -1,4 +1,4 @@
-import type { GeneratedContentType } from "../types";
+import type { GeneratedContentType, ProgressCallback } from "../types";
 import * as videoApiService from './videoApiService';
 import * as youtubeService from './youtubeService';
 
@@ -8,10 +8,7 @@ export interface GenerateMetadataResult {
   geminiFileUri?: string;
 }
 
-// 進度回調函數類型
-export type ProgressCallback = (step: string) => void;
-
-/**
+/** 
  * Calls the Gemini API to generate video metadata (異步版本，適合手機端).
  * Uses YouTube URL for public videos, or thumbnail for unlisted/private videos.
  * @param videoId The YouTube video ID.
@@ -68,7 +65,7 @@ export async function generateVideoMetadataAsync(
 
   // 公開影片：使用 YouTube URL 直接分析（異步版本）
   console.log(`[Gemini Async] Analyzing public video via YouTube URL (async mode)`);
-  onProgress?.('使用 YouTube URL 分析公開影片（異步模式）...');
+  onProgress?.({ icon: 'video', text: '使用 YouTube URL 分析公開影片（異步模式）...' });
 
   const result = await videoApiService.analyzePublicVideoAsync(
     videoId,
@@ -138,7 +135,7 @@ export async function generateVideoMetadata(
 
   // 公開影片：使用 YouTube URL 直接分析（不需下載）
   console.log(`[Gemini] Analyzing public video via YouTube URL`);
-  onProgress?.('使用 YouTube URL 分析公開影片...');
+  onProgress?.({ icon: 'video', text: '使用 YouTube URL 分析公開影片...' });
 
   const result = await videoApiService.analyzePublicVideo(
     videoId,
