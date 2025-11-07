@@ -425,9 +425,54 @@ export async function generateArticleWithDownload(
       console.log(`[API] With ${uploadedFiles.length} uploaded reference files`);
     }
 
-    // 步驟 1: 下載影片（生成文章需要本地檔案來截圖）
-    onProgress?.('📥 步驟 1/12：準備從 YouTube 下載影片（文章生成需要本地檔案進行截圖）...');
-    onProgress?.('⬇️ 步驟 2/12：正在從 YouTube 下載影片（可能需要數分鐘，視影片大小而定）...');
+    // 步驟 1: 先檢查 Files API 中是否已有此檔案
+    onProgress?.('🔍 步驟 1/12：檢查 Gemini 雲端是否已有此影片檔案...');
+    console.log(`[API] Checking Files API for existing file: ${videoId}`);
+
+    const checkResponse = await fetch(`${API_BASE_URL}/check-file/${videoId}`);
+    if (checkResponse.ok) {
+      const checkData = await checkResponse.json();
+      if (checkData.exists && !checkData.processing) {
+        // 檔案存在且為 ACTIVE 狀態，直接使用
+        console.log(`[API] ✅ File exists in Files API, skipping download`);
+        onProgress?.('✨ 步驟 2/12：找到已上傳的影片，跳過下載與上傳（節省時間）...');
+        onProgress?.('🤖 步驟 3/12：準備讓 Gemini AI 分析影片內容...');
+        onProgress?.('📊 步驟 4/12：Gemini AI 正在深度分析影片（理解內容、識別重點）...');
+        onProgress?.('✍️ 步驟 5/12：Gemini AI 正在生成文章標題與 SEO 描述...');
+        onProgress?.('📝 步驟 6/12：Gemini AI 正在撰寫文章內容...');
+        onProgress?.('🎯 步驟 7/12：Gemini AI 正在規劃關鍵畫面截圖時間點...');
+
+        // 直接調用生成文章 API（不需要 filePath）
+        const response = await fetch(`${API_BASE_URL}/generate-article`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            videoId,
+            prompt: userPrompt,
+            videoTitle,
+            quality: screenshotQuality,
+            uploadedFiles: uploadedFiles || [],
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to generate article');
+        }
+
+        onProgress?.('📸 步驟 8/12：正在使用 FFmpeg 擷取關鍵畫面（每個時間點截取 3 張圖片）...');
+        onProgress?.('🖼️ 步驟 9/12：截圖處理中...');
+        const data = await response.json();
+        console.log(`[API] Article generated successfully (reused existing file)`);
+        onProgress?.('✅ 步驟 10/12：文章生成完成！已產生標題、SEO 描述、文章內容及關鍵畫面截圖');
+        return data;
+      }
+    }
+
+    // 檔案不存在或檢查失敗，需要下載
+    console.log(`[API] File not found in Files API, will download`);
+    onProgress?.('📥 步驟 2/12：Gemini 雲端無此影片，準備從 YouTube 下載...');
+    onProgress?.('⬇️ 步驟 3/12：正在從 YouTube 下載影片（首次需要下載，可能需要數分鐘）...');
     console.log(`[API] Downloading video for screenshots: ${videoId}`);
 
     // 取得 access token 用於下載未公開影片
@@ -448,15 +493,15 @@ export async function generateArticleWithDownload(
     const { filePath } = downloadData;
 
     console.log(`[API] Video downloaded: ${filePath}`);
-    onProgress?.('✅ 步驟 3/12：影片下載完成！');
-    onProgress?.('🔍 步驟 4/12：檢查 Gemini 雲端是否已有此影片...');
-    onProgress?.('🤖 步驟 5/12：準備讓 Gemini AI 分析影片內容...');
-    onProgress?.('📊 步驟 6/12：Gemini AI 正在深度分析影片（理解內容、識別重點）...');
-    onProgress?.('✍️ 步驟 7/12：Gemini AI 正在生成文章標題與 SEO 描述...');
-    onProgress?.('📝 步驟 8/12：Gemini AI 正在撰寫文章內容...');
-    onProgress?.('🎯 步驟 9/12：Gemini AI 正在規劃關鍵畫面截圖時間點...');
+    onProgress?.('✅ 步驟 4/12：影片下載完成！');
+    onProgress?.('☁️ 步驟 5/12：正在上傳影片到 Gemini 雲端（首次上傳，之後可重複使用）...');
+    onProgress?.('🤖 步驟 6/12：準備讓 Gemini AI 分析影片內容...');
+    onProgress?.('📊 步驟 7/12：Gemini AI 正在深度分析影片（理解內容、識別重點）...');
+    onProgress?.('✍️ 步驟 8/12：Gemini AI 正在生成文章標題與 SEO 描述...');
+    onProgress?.('📝 步驟 9/12：Gemini AI 正在撰寫文章內容...');
+    onProgress?.('🎯 步驟 10/12：Gemini AI 正在規劃關鍵畫面截圖時間點...');
 
-    // 步驟 2-5: 生成文章（後端會檢查 Files API 是否需要重新上傳）
+    // 生成文章（後端會檢查 Files API 是否需要重新上傳）
     const response = await fetch(`${API_BASE_URL}/generate-article`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -475,8 +520,8 @@ export async function generateArticleWithDownload(
       throw new Error(error.error || 'Failed to generate article');
     }
 
-    onProgress?.('📸 步驟 10/12：正在使用 FFmpeg 擷取關鍵畫面（每個時間點截取 3 張圖片）...');
-    onProgress?.('🖼️ 步驟 11/12：截圖處理中...');
+    onProgress?.('📸 步驟 11/12：正在使用 FFmpeg 擷取關鍵畫面（每個時間點截取 3 張圖片）...');
+    onProgress?.('🖼️ 步驟 12/12：截圖處理中...');
     const data = await response.json();
     console.log(`[API] Article generated successfully`);
     onProgress?.('✅ 步驟 12/12：文章生成完成！已產生標題、SEO 描述、文章內容及關鍵畫面截圖');

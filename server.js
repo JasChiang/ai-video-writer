@@ -708,7 +708,9 @@ app.post('/api/download-video', async (req, res) => {
   console.log(`[Download] Rate limit - Token: ${tokenRateCheck.remaining} remaining, IP: ${ipRateCheck.remaining} remaining`);
 
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  const outputPath = path.join(DOWNLOAD_DIR, `${videoId}.mp4`);
+  // 不指定副檔名，讓 yt-dlp 根據 --merge-output-format 自動處理
+  const outputTemplate = path.join(DOWNLOAD_DIR, videoId);
+  const outputPath = `${outputTemplate}.mp4`;
 
   try {
     console.log(`\n========== 🎬 開始下載影片 ==========`);
@@ -745,45 +747,47 @@ app.post('/api/download-video', async (req, res) => {
       console.log(`[Download] 截圖品質: ${quality}（壓縮）→ 目標影片解析度: 720p (退回 480p)`);
     }
 
-    // 建構命令（使用陣列避免換行問題）
+    // 建構命令（簡化版本）
     const commandParts = [
       'yt-dlp',
-      // 反偵測參數：模擬真實瀏覽器
-      '--user-agent', '"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"',
-      '--referer', '"https://www.youtube.com/"',
-      // 減慢請求速度，避免觸發反機器人機制
-      '--sleep-requests', '1',
-      '--sleep-interval', '1',
-      // 強制使用 IPv4
-      '--force-ipv4',
       // 根據品質選擇格式
       '-f', formatSelector,
       // 如果下載分離的音視頻流，合併為 mp4
       '--merge-output-format', 'mp4',
-      '-o', `"${outputPath}"`,
-      // 增加重試次數和超時設定
-      '--retries', '15',
-      '--fragment-retries', '15',
-      '--socket-timeout', '30',
+      // 使用模板而非最終路徑，讓 yt-dlp 正確處理合併
+      '-o', `"${outputTemplate}.%(ext)s"`,
+      // 添加影片 URL
+      `"${videoUrl}"`
     ];
 
+    // 注意：yt-dlp 不支援透過 Authorization header 下載 YouTube 影片
+    // 對於非公開影片，應該先上傳到 Gemini Files API 再使用
     if (accessToken) {
-      console.log('[Download] Using access token for authentication.');
-      commandParts.push('--add-header', `Authorization: Bearer ${accessToken}`);
+      console.log('[Download] ⚠️  Access token provided but not used (yt-dlp does not support Authorization header for YouTube)');
+      console.log('[Download] ℹ️  For unlisted videos, please ensure the video is already uploaded to Gemini Files API');
     }
-
-    // 添加影片 URL
-    commandParts.push(`"${videoUrl}"`);
 
     const command = commandParts.join(' ');
 
     console.log(`[Download] Executing command:\n${command}`);
     console.log(`[Download] 正在下載影片,請稍候...`);
 
-    const { stdout, stderr } = await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
+    try {
+      const { stdout, stderr } = await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
+      if (stdout) console.log('[Download] yt-dlp output:', stdout);
+      if (stderr) console.log('[Download] yt-dlp warnings:', stderr);
+    } catch (execError) {
+      // 即使命令失敗，如果檔案存在就繼續處理（可能是警告導致的非零退出碼）
+      console.log('[Download] Command returned error, checking if file exists...');
+      if (execError.stdout) console.log('[Download] yt-dlp output:', execError.stdout);
+      if (execError.stderr) console.log('[Download] yt-dlp warnings:', execError.stderr);
 
-    if (stdout) console.log('[Download] yt-dlp output:', stdout);
-    if (stderr) console.log('[Download] yt-dlp warnings:', stderr);
+      if (!fs.existsSync(outputPath)) {
+        // 檔案不存在，真的失敗了
+        throw execError;
+      }
+      console.log('[Download] File exists despite error, continuing...');
+    }
 
     if (!fs.existsSync(outputPath)) {
       throw new Error('Video download failed - file not found');
@@ -1600,7 +1604,9 @@ app.post('/api/capture-screenshots', async (req, res) => {
   }
 
   const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  const outputPath = path.join(DOWNLOAD_DIR, `${videoId}.mp4`);
+  // 不指定副檔名，讓 yt-dlp 根據 --merge-output-format 自動處理
+  const outputTemplate = path.join(DOWNLOAD_DIR, videoId);
+  const outputPath = `${outputTemplate}.mp4`;
 
   try {
     console.log(`\n========== 📸 開始截圖 ==========`);
@@ -1650,24 +1656,19 @@ app.post('/api/capture-screenshots', async (req, res) => {
         console.log(`[Capture] 截圖品質: ${quality}（壓縮）→ 目標影片解析度: 720p`);
       }
 
+      // 建構命令（簡化版本）
       const commandParts = [
         'yt-dlp',
-        '--user-agent', '"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"',
-        '--referer', '"https://www.youtube.com/"',
-        '--sleep-requests', '1',
-        '--sleep-interval', '1',
-        '--force-ipv4',
         '-f', formatSelector,
         '--merge-output-format', 'mp4',
-        '-o', `"${outputPath}"`,
-        '--retries', '15',
-        '--fragment-retries', '15',
-        '--socket-timeout', '30',
+        // 使用模板而非最終路徑，讓 yt-dlp 正確處理合併
+        '-o', `"${outputTemplate}.%(ext)s"`,
       ];
 
       if (accessToken) {
         console.log('[Capture] Using access token for authentication.');
-        commandParts.push('--add-header', `Authorization: Bearer ${accessToken}`);
+        // 整個 header 需要用引號包起來，避免被拆成多個參數
+        commandParts.push('--add-header', `"Authorization: Bearer ${accessToken}"`);
       }
 
       commandParts.push(`"${youtubeUrl}"`);
@@ -1675,7 +1676,19 @@ app.post('/api/capture-screenshots', async (req, res) => {
       const command = commandParts.join(' ');
       console.log(`[Capture] Executing: ${command}`);
 
-      await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
+      try {
+        await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
+      } catch (execError) {
+        // 即使命令失敗，如果檔案存在就繼續處理
+        console.log('[Capture] Command returned error, checking if file exists...');
+        if (execError.stdout) console.log('[Capture] yt-dlp output:', execError.stdout);
+        if (execError.stderr) console.log('[Capture] yt-dlp warnings:', execError.stderr);
+
+        if (!fs.existsSync(outputPath)) {
+          throw execError;
+        }
+        console.log('[Capture] File exists despite error, continuing...');
+      }
 
       if (!fs.existsSync(outputPath)) {
         throw new Error('Video download failed - file not found');
@@ -1751,8 +1764,8 @@ app.post('/api/capture-screenshots', async (req, res) => {
 /**
  * 生成文章（用於非公開影片，不包含截圖）
  * POST /api/generate-article
- * Body: { videoId: string, filePath: string, prompt: string, videoTitle: string }
- * 注意：filePath 是必需的，用於上傳到 Gemini
+ * Body: { videoId: string, filePath?: string, prompt: string, videoTitle: string }
+ * 注意：filePath 是可選的，如果 Files API 中已有檔案則不需要
  * 截圖功能已分離到 /api/capture-screenshots 端點
  */
 app.post('/api/generate-article', async (req, res) => {
@@ -1762,20 +1775,16 @@ app.post('/api/generate-article', async (req, res) => {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
   }
 
-  if (!filePath) {
-    return res.status(400).json({ error: 'Missing required parameter: filePath' });
-  }
-
   try {
     console.log(`\n========== 📝 開始生成文章（未公開影片）==========`);
     console.log(`[Article] Video ID: ${videoId}`);
-    console.log(`[Article] File Path: ${filePath}`);
+    console.log(`[Article] File Path: ${filePath || '(not provided, will check Files API)'}`);
     console.log(`[Article] Video Title: ${videoTitle}`);
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
     // 先檢查檔案是否已存在於 Files API
-    console.log('[Article] 步驟 2/5: 檢查 Files API 中是否已有此檔案...');
+    console.log('[Article] 步驟 1/5: 檢查 Files API 中是否已有此檔案...');
     const existingFile = await findFileByDisplayName(ai, videoId);
 
     let uploadedFile;
@@ -1787,12 +1796,24 @@ app.post('/api/generate-article', async (req, res) => {
       console.log(`[Article] Display Name: ${existingFile.displayName}`);
       console.log(`[Article] File URI: ${existingFile.uri}`);
       console.log(`[Article] 跳過上傳步驟，節省時間和流量！`);
-      console.log(`[Article] 本地檔案保留用於 FFmpeg 截圖`);
       uploadedFile = existingFile;
       reusedFile = true;
+
+      // 刪除本地已下載的暫存檔案（如果有提供的話）
+      if (filePath && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log(`[Article] 🗑️  已刪除不需要的暫存檔案: ${filePath}`);
+      }
     } else {
+      // 檔案不存在於 Files API
+      if (!filePath) {
+        return res.status(400).json({
+          error: 'File not found in Files API and no filePath provided for upload'
+        });
+      }
+
       console.log('[Article] 檔案不存在於 Files API，需要上傳...');
-      console.log('[Article] 步驟 3/5: 正在上傳影片到 Gemini...');
+      console.log('[Article] 步驟 2/5: 正在上傳影片到 Gemini...');
 
       // 上傳影片到 Gemini（使用 videoId 作為 displayName）
       uploadedFile = await ai.files.upload({
