@@ -1,0 +1,39 @@
+name: Sync Channel Videos
+
+on:
+  schedule:
+    - cron: '0 1 * * *' # 每天 09:00 (UTC+8)
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --omit=dev
+
+      - name: Sync channel videos
+        env:
+          YT_CHANNEL_ID: ${{ secrets.YT_CHANNEL_ID }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          CHANNEL_VIDEOS_OUTPUT: cache/channelVideos.json
+        run: node scripts/syncChannelVideos.js
+
+      - name: Upload cache to Gist
+        env:
+          GIST_ID: ${{ secrets.GIST_ID }}
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+          CHANNEL_VIDEOS_OUTPUT: cache/channelVideos.json
+        run: node scripts/updateGist.js

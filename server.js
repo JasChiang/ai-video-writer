@@ -2944,8 +2944,9 @@ app.post('/api/channel-analytics/clear-cache', (_req, res) => {
     const result = clearAnalyticsCache();
     res.json({
       success: true,
-      message: `已清除 ${result.cleared} 筆快取`,
+      message: `已清除 ${result.cleared} 筆分析快取與 ${result.keywordCleared} 筆關鍵字快取`,
       cleared: result.cleared,
+      keywordCleared: result.keywordCleared,
     });
   } catch (error) {
     console.error('[API] 清除快取錯誤:', error);

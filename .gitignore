@@ -44,3 +44,4 @@ custom-templates.local.json
 .claude/*.local.json
 ai-video-writer.tar.gz
 ai-video-writer.tar
+cache/
