@@ -3,7 +3,7 @@ import React from 'react';
 import { YouTubeIcon } from './Icons';
 import { AppIcon } from './AppIcon';
 
-type ActiveTab = 'videos' | 'analytics' | 'articles';
+type ActiveTab = 'videos' | 'analytics' | 'articles' | 'channel-analytics';
 
 interface HeaderProps {
   isLoggedIn?: boolean;
@@ -69,6 +69,7 @@ export function Header({ isLoggedIn, onLogout, activeTab, onTabChange }: HeaderP
                 { key: 'videos', label: '影片內容', icon: 'video' },
                 { key: 'articles', label: '文章生成', icon: 'article' },
                 { key: 'analytics', label: '數據洞察', icon: 'analytics' },
+                { key: 'channel-analytics', label: '頻道分析', icon: 'analytics' },
               ] as const).map(tab => (
                 <button
                   key={tab.key}

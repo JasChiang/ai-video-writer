@@ -10,8 +10,9 @@ import { VideoAnalytics } from './components/VideoAnalytics';
 import { VideoDetailPanel } from './components/VideoDetailPanel';
 import { QuotaDebugger } from './components/QuotaDebugger';
 import { ArticleWorkspace } from './components/ArticleWorkspace';
+import { ChannelAnalytics } from './components/ChannelAnalytics';
 
-type ActiveTab = 'videos' | 'analytics' | 'articles';
+type ActiveTab = 'videos' | 'analytics' | 'articles' | 'channel-analytics';
 
 export default function App() {
   const [isInitializing, setIsInitializing] = useState(true);
@@ -363,6 +364,10 @@ export default function App() {
 
     if (activeTab === 'articles') {
       return <ArticleWorkspace />;
+    }
+
+    if (activeTab === 'channel-analytics') {
+      return <ChannelAnalytics />;
     }
 
     return (

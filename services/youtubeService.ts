@@ -266,6 +266,15 @@ async function listVideosBySearch(
     showUnlistedVideos: boolean,
     options: QuotaTriggerOptions
 ): Promise<{ videos: YouTubeVideo[]; nextPageToken: string | null }> {
+    console.log('[YouTubeService] listVideosBySearch:start', {
+        searchQuery,
+        pageToken,
+        maxResults,
+        showPrivateVideos,
+        showUnlistedVideos,
+        trigger: options.trigger,
+    });
+
     const searchParams: any = {
         part: 'snippet',
         forMine: true,
@@ -292,6 +301,10 @@ async function listVideosBySearch(
     });
 
     if (!searchResponse.result.items || searchResponse.result.items.length === 0) {
+        console.log('[YouTubeService] listVideosBySearch:empty', {
+            searchQuery,
+            pageToken,
+        });
         return { videos: [], nextPageToken: null };
     }
 
@@ -318,6 +331,11 @@ async function listVideosBySearch(
     );
 
     if (!videosResponse.result.items) {
+        console.log('[YouTubeService] listVideosBySearch:noDetails', {
+            searchQuery,
+            pageToken,
+            requestedIds: videoIds.split(',').length,
+        });
         return { videos: [], nextPageToken: null };
     }
 
@@ -340,6 +358,13 @@ async function listVideosBySearch(
             return false;
         })
         .map(mapVideoItem);
+
+    console.log('[YouTubeService] listVideosBySearch:done', {
+        searchQuery,
+        pageToken,
+        returned: videos.length,
+        nextPageToken,
+    });
 
     return { videos, nextPageToken };
 }
@@ -512,6 +537,7 @@ export async function searchVideosByKeyword(query: string, maxResults = 10): Pro
     }
 
     try {
+        console.log('[YouTubeService] searchVideosByKeyword:start', { query, maxResults });
         const searchResponse = await gapi.client.youtube.search.list({
             part: 'snippet',
             q: query,
@@ -552,9 +578,15 @@ export async function searchVideosByKeyword(query: string, maxResults = 10): Pro
 
         const details = videosResponse.result.items || [];
         const mapById = new Map(details.map((item: any) => [item.id, mapVideoItem(item)]));
-        return ids
+        const videos = ids
             .map(id => mapById.get(id))
             .filter((video): video is YouTubeVideo => Boolean(video));
+        console.log('[YouTubeService] searchVideosByKeyword:done', {
+            query,
+            requested: ids.length,
+            resolved: videos.length,
+        });
+        return videos;
     } catch (error: any) {
         console.error('Error searching videos:', error);
         throw new Error(error.result?.error?.message || '搜尋影片時發生錯誤');
