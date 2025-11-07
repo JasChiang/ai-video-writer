@@ -258,6 +258,13 @@ function mapVideoItem(item: any): YouTubeVideo {
     };
 }
 
+function titleMatchesQuery(title: string | undefined, query?: string): boolean {
+    if (!query) return true;
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return true;
+    return (title || '').toLowerCase().includes(normalizedQuery);
+}
+
 async function listVideosBySearch(
     maxResults: number,
     pageToken: string | undefined,
@@ -359,14 +366,16 @@ async function listVideosBySearch(
         })
         .map(mapVideoItem);
 
+    const filteredVideos = videos.filter(video => titleMatchesQuery(video.title, searchQuery));
+
     console.log('[YouTubeService] listVideosBySearch:done', {
         searchQuery,
         pageToken,
-        returned: videos.length,
+        returned: filteredVideos.length,
         nextPageToken,
     });
 
-    return { videos, nextPageToken };
+    return { videos: filteredVideos, nextPageToken };
 }
 
 async function listVideosFromUploadsPlaylist(
@@ -581,12 +590,13 @@ export async function searchVideosByKeyword(query: string, maxResults = 10): Pro
         const videos = ids
             .map(id => mapById.get(id))
             .filter((video): video is YouTubeVideo => Boolean(video));
+        const filteredVideos = videos.filter(video => titleMatchesQuery(video.title, query));
         console.log('[YouTubeService] searchVideosByKeyword:done', {
             query,
             requested: ids.length,
-            resolved: videos.length,
+            resolved: filteredVideos.length,
         });
-        return videos;
+        return filteredVideos;
     } catch (error: any) {
         console.error('Error searching videos:', error);
         throw new Error(error.result?.error?.message || '搜尋影片時發生錯誤');
