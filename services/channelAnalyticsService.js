@@ -17,6 +17,8 @@ const YOUTUBE_QUOTA_COST = {
 // 快取結構：{ key: { data, timestamp } }
 const analyticsCache = new Map();
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 分鐘快取
+const MAX_ANALYTICS_VIDEO_FILTER = 200;
+const DEFAULT_MAX_VIDEOS = 10000;
 
 /**
  * 根據關鍵字過濾影片（客戶端過濾）
@@ -32,21 +34,9 @@ function filterVideosByKeywordClient(videos, keyword) {
   const normalizedKeyword = keyword.toLowerCase().trim();
 
   return videos.filter(video => {
-    // 檢查標題
     if (video.title && video.title.toLowerCase().includes(normalizedKeyword)) {
       return true;
     }
-
-    // 檢查描述
-    if (video.description && video.description.toLowerCase().includes(normalizedKeyword)) {
-      return true;
-    }
-
-    // 檢查標籤
-    if (video.tags && Array.isArray(video.tags)) {
-      return video.tags.some(tag => tag.toLowerCase().includes(normalizedKeyword));
-    }
-
     return false;
   });
 }
@@ -59,8 +49,6 @@ function filterVideosByKeywordClient(videos, keyword) {
  * @param {number} maxVideos - 最大影片數量
  * @returns {Promise<Array>} 影片列表
  */
-const DEFAULT_MAX_VIDEOS = 10000;
-
 async function searchChannelVideos(youtube, channelId, keyword, maxVideos = DEFAULT_MAX_VIDEOS) {
   const normalizedKeyword = keyword?.trim() || '';
 
@@ -74,10 +62,16 @@ async function searchChannelVideos(youtube, channelId, keyword, maxVideos = DEFA
       );
 
       if (searchResults.length > 0) {
+        const filteredSearch = filterVideosByKeywordClient(searchResults, normalizedKeyword);
+        if (filteredSearch.length > 0) {
+          console.log(
+            `[ChannelAnalytics] ✅ Search API 找到 ${filteredSearch.length}/${searchResults.length} 支符合 "${normalizedKeyword}" 的影片`
+          );
+          return filteredSearch;
+        }
         console.log(
-          `[ChannelAnalytics] ✅ 使用 Search API 找到 ${searchResults.length} 支影片（關鍵字: "${normalizedKeyword}"）`
+          `[ChannelAnalytics] ⚠️ Search API 返回 ${searchResults.length} 支影片，但無法匹配 "${normalizedKeyword}"，改用播放清單全量掃描`
         );
-        return searchResults;
       }
 
       console.log(
@@ -363,29 +357,65 @@ async function getAggregatedAnalytics(youtubeAnalytics, channelId, videoIds, sta
     return emptyData;
   }
 
-  const videoIdsStr = videoIds.join(',');
-
   try {
-    // 查詢基本指標（聚合所有影片）
-    const basicMetrics = await youtubeAnalytics.reports.query({
-      ids: `channel==${channelId}`,
-      startDate: startDate,
-      endDate: endDate,
-      metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,comments,shares,subscribersGained',
-      filters: `video==${videoIdsStr}`,
-    });
-    recordQuotaServer('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
-      metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,comments,shares,subscribersGained',
-      context: 'channelAnalytics:aggregated',
-      filterVideos: videoIds.length,
-      dateRange: `${startDate} ~ ${endDate}`,
-      caller: 'channelAnalyticsService.getAggregatedAnalytics',
-    });
+    const chunks = [];
+    for (let i = 0; i < videoIds.length; i += MAX_ANALYTICS_VIDEO_FILTER) {
+      chunks.push(videoIds.slice(i, i + MAX_ANALYTICS_VIDEO_FILTER));
+    }
 
-    const rows = basicMetrics.data.rows || [];
+    let totalViews = 0;
+    let totalEstimatedMinutesWatched = 0;
+    let totalLikes = 0;
+    let totalComments = 0;
+    let totalShares = 0;
+    let totalSubscribersGained = 0;
+    let weightedDuration = 0;
+    let weightedPercentage = 0;
+    let hasData = false;
 
-    // 如果沒有數據，返回零值
-    if (rows.length === 0) {
+    for (const chunk of chunks) {
+      const chunkIds = chunk.join(',');
+      const chunkMetrics = await youtubeAnalytics.reports.query({
+        ids: `channel==${channelId}`,
+        startDate: startDate,
+        endDate: endDate,
+        metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,comments,shares,subscribersGained',
+        filters: `video==${chunkIds}`,
+      });
+      recordQuotaServer('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
+        metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,comments,shares,subscribersGained',
+        context: 'channelAnalytics:aggregated',
+        filterVideos: chunk.length,
+        dateRange: `${startDate} ~ ${endDate}`,
+        caller: 'channelAnalyticsService.getAggregatedAnalytics',
+      });
+
+      const rows = chunkMetrics.data.rows || [];
+      if (rows.length === 0) {
+        continue;
+      }
+
+      hasData = true;
+      const views = parseInt(rows[0][0] || 0, 10);
+      const estimatedMinutesWatched = parseFloat(rows[0][1] || 0);
+      const avgDuration = parseFloat(rows[0][2] || 0);
+      const avgPercentage = parseFloat(rows[0][3] || 0);
+      const likes = parseInt(rows[0][4] || 0, 10);
+      const comments = parseInt(rows[0][5] || 0, 10);
+      const shares = parseInt(rows[0][6] || 0, 10);
+      const subscribersGained = parseInt(rows[0][7] || 0, 10);
+
+      totalViews += views;
+      totalEstimatedMinutesWatched += estimatedMinutesWatched;
+      totalLikes += likes;
+      totalComments += comments;
+      totalShares += shares;
+      totalSubscribersGained += subscribersGained;
+      weightedDuration += views * avgDuration;
+      weightedPercentage += views * avgPercentage;
+    }
+
+    if (!hasData) {
       const emptyData = {
         views: 0,
         estimatedMinutesWatched: 0,
@@ -401,17 +431,15 @@ async function getAggregatedAnalytics(youtubeAnalytics, channelId, videoIds, sta
       return emptyData;
     }
 
-    // YouTube Analytics 會將所有影片的數據聚合在一起
-    // 注意：averageViewDuration 和 averageViewPercentage 是平均值
     const data = {
-      views: parseInt(rows[0][0] || 0, 10),
-      estimatedMinutesWatched: parseFloat(rows[0][1] || 0),
-      averageViewDuration: parseFloat(rows[0][2] || 0),
-      averageViewPercentage: parseFloat(rows[0][3] || 0),
-      likes: parseInt(rows[0][4] || 0, 10),
-      comments: parseInt(rows[0][5] || 0, 10),
-      shares: parseInt(rows[0][6] || 0, 10),
-      subscribersGained: parseInt(rows[0][7] || 0, 10),
+      views: totalViews,
+      estimatedMinutesWatched: totalEstimatedMinutesWatched,
+      averageViewDuration: totalViews > 0 ? weightedDuration / totalViews : 0,
+      averageViewPercentage: totalViews > 0 ? weightedPercentage / totalViews : 0,
+      likes: totalLikes,
+      comments: totalComments,
+      shares: totalShares,
+      subscribersGained: totalSubscribersGained,
       videoCount: videoIds.length,
     };
 

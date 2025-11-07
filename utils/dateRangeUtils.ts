@@ -9,6 +9,15 @@ export interface DateRange {
   endDate: string;   // YYYY-MM-DD
 }
 
+function isLeapYear(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+function getDaysInMonth(year: number, month: number): number {
+  const daysPerMonth = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return daysPerMonth[month - 1];
+}
+
 /**
  * 獲取 GMT+8 時區的當前日期
  */
@@ -171,7 +180,7 @@ export function parseAbsoluteDateRange(dateStr: string): DateRange | null {
       return null;
     }
 
-    const lastDay = new Date(year, month, 0).getDate();
+    const lastDay = getDaysInMonth(year, month);
     return {
       startDate: `${year}-${String(month).padStart(2, '0')}-01`,
       endDate: `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
@@ -188,7 +197,7 @@ export function parseAbsoluteDateRange(dateStr: string): DateRange | null {
       return null;
     }
 
-    const lastDay = new Date(year, month, 0).getDate();
+    const lastDay = getDaysInMonth(year, month);
     return {
       startDate: `${year}-${monthStr}-01`,
       endDate: `${year}-${monthStr}-${String(lastDay).padStart(2, '0')}`
