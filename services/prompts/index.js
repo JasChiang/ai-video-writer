@@ -30,7 +30,7 @@ function renderTemplatePrompt(promptTemplate, videoTitle, userPrompt = '') {
     const userPromptSection = `\n\n## 使用者額外要求\n${userPrompt}\n`;
     result = result.replace(/\$\{userPrompt\}/g, userPromptSection);
   } else {
-    result = result.replace(/\$\{userPrompt \? [`'].*?[`'] : ['"']\}/g, '');
+    result = result.replace(/\$\{userPrompt \? .*? : .*?\}/g, '');
     result = result.replace(/\$\{userPrompt\}/g, '');
   }
 
@@ -129,15 +129,20 @@ async function loadCustomTemplates() {
   // 開始載入
   customTemplatesLoading = (async () => {
     try {
-      console.log('[Prompts] 🔄 正在載入專屬模板...');
+      // 附加時間戳以強制繞過快取
+      const cacheBustedUrl = `${CUSTOM_TEMPLATE_URL}${CUSTOM_TEMPLATE_URL.includes('?') ? '&' : '?'}v=${Date.now()}`;
 
-      const response = await fetch(CUSTOM_TEMPLATE_URL, {
+      console.log(`[Prompts] 正在從 ${cacheBustedUrl} 載入...`);
+
+      const response = await fetch(cacheBustedUrl, {
         headers: {
           // 如果需要認證（例如使用 GitHub Private Gist）
           ...(process.env.CUSTOM_TEMPLATE_TOKEN && {
             'Authorization': `Bearer ${process.env.CUSTOM_TEMPLATE_TOKEN}`
           })
         },
+        // 繞過快取，確保每次都取得最新版本
+        cache: 'no-cache',
         // 設定超時
         signal: AbortSignal.timeout(10000) // 10 秒超時
       });

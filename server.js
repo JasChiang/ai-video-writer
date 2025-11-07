@@ -1839,7 +1839,10 @@ app.post('/api/capture-screenshots', async (req, res) => {
     const imageUrls = [];
     for (let i = 0; i < screenshots.length; i++) {
       const screenshot = screenshots[i];
-      const timestamp = screenshot.timestamp_seconds;
+      // 增加彈性，接受 time 或 timestamp_seconds
+      const timestamp = screenshot.timestamp_seconds || screenshot.time;
+      // 增加彈性，接受 caption 或 reason_for_screenshot
+      const reason = screenshot.reason_for_screenshot || screenshot.caption;
       const currentSeconds = timeToSeconds(timestamp);
 
       const screenshotGroup = [];
@@ -1849,7 +1852,7 @@ app.post('/api/capture-screenshots', async (req, res) => {
         { offset: 2, label: 'after' }
       ];
 
-      console.log(`[Capture] 截圖組 ${i + 1}/${screenshots.length} - 時間點: ${timestamp} - 原因: ${screenshot.reason_for_screenshot}`);
+      console.log(`[Capture] 截圖組 ${i + 1}/${screenshots.length} - 時間點: ${timestamp} - 原因: ${reason}`);
 
       for (const { offset, label } of offsets) {
         const targetSeconds = Math.max(0, currentSeconds + offset);
@@ -2026,10 +2029,9 @@ app.post('/api/generate-article', async (req, res) => {
     try {
       const responseText = response.text;
       console.log(`[Article] ✅ Gemini 回應長度: ${responseText.length} 字元`);
-      console.log(`[Article] 回應預覽: ${responseText.substring(0, 150)}...`);
-
-      result = JSON.parse(responseText);
-
+                console.log(`[Article] 回應預覽: ${responseText.substring(0, 150)}...`);
+      
+                result = JSON.parse(responseText);
       // 驗證必要欄位
       if (!result.titleA || !result.titleB || !result.titleC || !result.article_text || !result.screenshots) {
         throw new Error('Missing required fields in response');
@@ -2276,6 +2278,7 @@ app.post('/api/regenerate-screenshots', async (req, res) => {
     try {
       const responseText = response.text;
       result = JSON.parse(responseText);
+      console.log('[Debug] Screenshots array from Gemini:', JSON.stringify(result.screenshots, null, 2));
     } catch (parseError) {
       console.error('[Regenerate Screenshots] ❌ JSON parsing error:', parseError.message);
       throw new Error(`無法解析 Gemini 回應為 JSON 格式。錯誤：${parseError.message}`);
