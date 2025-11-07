@@ -152,6 +152,16 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
     }
   }, [cachedContent]);
 
+  const applyDefaultTemplates = useCallback((overrides: Partial<typeof templatesStatus> = {}) => {
+    setTemplateOptions(getDefaultTemplateOptions());
+    setTemplatesStatus({
+      usingCustomTemplates: false,
+      lastLoadedAt: null,
+      disabled: false,
+      ...overrides,
+    });
+  }, [setTemplateOptions, setTemplatesStatus]);
+
   const loadTemplates = useCallback(async () => {
     setIsFetchingTemplates(true);
     setTemplateFetchError(null);
@@ -169,6 +179,7 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
         setTemplateOptions(normalized);
       } else {
         console.warn('[Templates] API 回傳空模板清單，維持內建模板');
+        applyDefaultTemplates();
       }
       setTemplatesStatus({
         usingCustomTemplates: Boolean(data.usingCustomTemplates),
@@ -178,15 +189,11 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
     } catch (error) {
       console.error('[Templates] 載入失敗:', error);
       setTemplateFetchError('目前無法下載遠端模板，已暫時使用內建模板。');
-      setTemplatesStatus({ usingCustomTemplates: false, lastLoadedAt: null, disabled: false });
+      applyDefaultTemplates();
     } finally {
       setIsFetchingTemplates(false);
     }
-  }, []);
-
-  useEffect(() => {
-    loadTemplates();
-  }, [loadTemplates]);
+  }, [applyDefaultTemplates]);
 
   const handleRefreshTemplates = useCallback(async () => {
     setIsRefreshingTemplates(true);
@@ -216,14 +223,15 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
       if (!response.ok) {
         throw new Error('停用自訂模板失敗');
       }
-      await loadTemplates();
+      applyDefaultTemplates({ disabled: true });
+      setTemplateFetchError(null);
     } catch (error) {
       console.error('[Templates] 停用失敗:', error);
       setTemplateFetchError('無法停用遠端模板，請稍後再試。');
     } finally {
       setIsTogglingTemplates(false);
     }
-  }, [loadTemplates]);
+  }, [applyDefaultTemplates]);
 
   const handleEnableCustomTemplates = useCallback(async () => {
     setIsTogglingTemplates(true);
@@ -1587,7 +1595,19 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                       {isTogglingTemplates ? '切換中...' : '退出自訂模板'}
                     </button>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+                    <span>目前使用內建模板。</span>
+                    <button
+                      type="button"
+                      onClick={handleEnableCustomTemplates}
+                      disabled={isTogglingTemplates}
+                      className="inline-flex items-center gap-1 rounded-full border border-neutral-300 px-2 py-0.5 font-medium text-neutral-600 transition hover:border-green-500 hover:text-green-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isTogglingTemplates ? '啟用中...' : '啟用遠端模板'}
+                    </button>
+                  </div>
+                )}
               </div>
               {templateOptions.length > 0 ? (
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">

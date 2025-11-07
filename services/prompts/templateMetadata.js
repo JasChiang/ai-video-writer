@@ -1,12 +1,12 @@
 export const TEMPLATE_METADATA = {
   default: {
     id: 'default',
-    name: '通用讀者',
-    description: '適合一般大眾閱讀的文章風格',
+    name: '預設模板',
+    description: '通用型的文章模板',
     icon: '📝',
     category: 'general',
     targetAudience: '一般網路使用者',
-    platforms: ['生活誌', 'YouTube']
+    platforms: ['部落格']
   },
 
   'ecosystem-loyalist': {
