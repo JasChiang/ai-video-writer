@@ -29,9 +29,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Start server in background
+      - name: Start API server in background
         run: |
-          npm run dev &
+          npm run server &
           echo $! > server.pid
         env:
           PORT: 3001
