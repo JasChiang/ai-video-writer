@@ -11,7 +11,6 @@ const YOUTUBE_QUOTA_COST = {
   playlistItemsList: 2,
   videosList: 2,
   analyticsReportsQuery: 1,
-  searchList: 100, // YouTube Search API 成本較高
 };
 
 // 快取結構：{ key: { data, timestamp } }
@@ -43,6 +42,7 @@ function filterVideosByKeywordClient(videos, keyword) {
 
 /**
  * 獲取並過濾頻道影片（包含公開、未列出、私人影片）
+ * 使用 playlistItems.list API + 客戶端篩選，比 search.list 便宜 96% 配額且更可靠
  * @param {Object} youtube - YouTube API 客戶端
  * @param {string} channelId - 頻道 ID
  * @param {string} keyword - 關鍵字（可為空，表示所有影片）
@@ -52,149 +52,23 @@ function filterVideosByKeywordClient(videos, keyword) {
 async function searchChannelVideos(youtube, channelId, keyword, maxVideos = DEFAULT_MAX_VIDEOS) {
   const normalizedKeyword = keyword?.trim() || '';
 
-  if (normalizedKeyword) {
-    try {
-      const searchResults = await searchVideosViaSearchApi(
-        youtube,
-        channelId,
-        normalizedKeyword,
-        maxVideos
-      );
-
-      if (searchResults.length > 0) {
-        const filteredSearch = filterVideosByKeywordClient(searchResults, normalizedKeyword);
-        if (filteredSearch.length > 0) {
-          console.log(
-            `[ChannelAnalytics] ✅ Search API 找到 ${filteredSearch.length}/${searchResults.length} 支符合 "${normalizedKeyword}" 的影片`
-          );
-          return filteredSearch;
-        }
-        console.log(
-          `[ChannelAnalytics] ⚠️ Search API 返回 ${searchResults.length} 支影片，但無法匹配 "${normalizedKeyword}"，改用播放清單全量掃描`
-        );
-      }
-
-      console.log(
-        `[ChannelAnalytics] ⚠️ Search API 找不到符合 "${normalizedKeyword}" 的影片，改用播放清單全量掃描`
-      );
-    } catch (error) {
-      console.warn(
-        `[ChannelAnalytics] ⚠️ Search API 搜尋失敗（${error.message}），改用播放清單全量掃描`
-      );
-    }
-  }
-
-  // 若無關鍵字或 Search API 失敗則改為掃描全部影片
+  // 獲取頻道所有影片（使用 playlistItems.list API，每 50 支影片僅需 2 配額點數）
   console.log(`[ChannelAnalytics] 🔍 獲取頻道所有影片（公開/未列出/私人）...`);
   const allVideos = await getAllChannelVideos(youtube, channelId, maxVideos);
 
+  // 如果沒有指定關鍵字，返回所有影片
   if (!normalizedKeyword) {
     console.log(`[ChannelAnalytics] ✅ 未指定關鍵字，返回所有 ${allVideos.length} 支影片`);
     return allVideos;
   }
 
+  // 客戶端關鍵字過濾
   const filteredVideos = filterVideosByKeywordClient(allVideos, normalizedKeyword);
 
   console.log(
     `[ChannelAnalytics] ✅ 關鍵字 "${normalizedKeyword}" 過濾後: ${filteredVideos.length} 支影片（總共 ${allVideos.length} 支影片）`
   );
   return filteredVideos;
-}
-
-/**
- * 透過 YouTube Search API 搜尋影片（支援私人與未列出）
- */
-async function searchVideosViaSearchApi(youtube, channelId, keyword, maxVideos = DEFAULT_MAX_VIDEOS) {
-  console.log(
-    `[ChannelAnalytics] 🔎 使用 Search API 搜尋關鍵字 "${keyword}"（最多 ${maxVideos} 支）`
-  );
-
-  const videos = [];
-  const seenVideoIds = new Set();
-  let pageToken = null;
-  let page = 0;
-
-  do {
-    page++;
-    const searchResponse = await youtube.search.list({
-      part: 'id,snippet',
-      forMine: true,
-      type: 'video',
-      maxResults: 50,
-      order: 'date',
-      q: keyword,
-      pageToken,
-    });
-    recordQuotaServer('youtube.search.list', YOUTUBE_QUOTA_COST.searchList, {
-      keyword,
-      page,
-      context: 'channelAnalytics:search',
-      caller: 'channelAnalyticsService.searchVideosViaSearchApi',
-    });
-
-    const searchItems = searchResponse.data.items || [];
-    if (searchItems.length === 0) {
-      break;
-    }
-
-    const videoIds = [];
-    for (const item of searchItems) {
-      const videoId = item.id?.videoId;
-      if (!videoId || seenVideoIds.has(videoId)) {
-        continue;
-      }
-
-      const snippetChannelId = item.snippet?.channelId;
-      if (snippetChannelId && snippetChannelId !== channelId) {
-        continue;
-      }
-
-      seenVideoIds.add(videoId);
-      videoIds.push(videoId);
-    }
-
-    if (videoIds.length === 0) {
-      pageToken = searchResponse.data.nextPageToken || null;
-      continue;
-    }
-
-    const detailsResponse = await youtube.videos.list({
-      part: 'snippet,status',
-      id: videoIds.join(','),
-    });
-    recordQuotaServer('youtube.videos.list', YOUTUBE_QUOTA_COST.videosList * 2, {
-      part: 'snippet,status',
-      context: 'channelAnalytics:search:details',
-      caller: 'channelAnalyticsService.searchVideosViaSearchApi',
-    });
-
-    const detailItems = detailsResponse.data.items || [];
-    for (const video of detailItems) {
-      videos.push({
-        videoId: video.id,
-        title: video.snippet?.title || '',
-        description: video.snippet?.description || '',
-        tags: video.snippet?.tags || [],
-        publishedAt: video.snippet?.publishedAt,
-        thumbnail: video.snippet?.thumbnails?.medium?.url || '',
-        privacyStatus: video.status?.privacyStatus || 'public',
-      });
-
-      if (videos.length >= maxVideos) {
-        console.log(
-          `[ChannelAnalytics] 🔎 Search API 已達最大數量限制 (${maxVideos})，停止搜尋`
-        );
-        return videos;
-      }
-    }
-
-    pageToken = searchResponse.data.nextPageToken || null;
-  } while (pageToken);
-
-  console.log(
-    `[ChannelAnalytics] 🔎 Search API 搜尋完成，找到 ${videos.length} 支影片（關鍵字: "${keyword}"）`
-  );
-  return videos;
 }
 
 /**
