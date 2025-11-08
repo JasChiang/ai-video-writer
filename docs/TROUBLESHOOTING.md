@@ -224,8 +224,8 @@ npm run test-gist
 - `YOUTUBE_CLIENT_ID`
 - `YOUTUBE_CLIENT_SECRET`
 - `YOUTUBE_CHANNEL_ID`
-- `GITHUB_GIST_TOKEN`
-- `GITHUB_GIST_ID`
+- `VIDEO_CACHE_GIST_TOKEN`（workflow 會注入為 `GITHUB_GIST_TOKEN`）
+- `VIDEO_CACHE_GIST_ID`（workflow 會注入為 `GITHUB_GIST_ID`）
 
 #### 重新取得 Refresh Token
 

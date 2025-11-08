@@ -117,8 +117,8 @@ jobs:
         env:
           YOUTUBE_ACCESS_TOKEN: ${{ secrets.YOUTUBE_ACCESS_TOKEN }}
           YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
-          GITHUB_GIST_TOKEN: ${{ secrets.GITHUB_GIST_TOKEN }}
-          GITHUB_GIST_ID: ${{ secrets.GITHUB_GIST_ID }}
+          GITHUB_GIST_TOKEN: ${{ secrets.VIDEO_CACHE_GIST_TOKEN }}
+          GITHUB_GIST_ID: ${{ secrets.VIDEO_CACHE_GIST_ID }}
         run: |
           curl -X POST http://localhost:3001/api/video-cache/generate \
             -H "Content-Type: application/json" \

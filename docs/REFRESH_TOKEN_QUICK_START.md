@@ -71,15 +71,16 @@ npm run update-cache
 
 前往 GitHub repo → Settings → Secrets → Actions
 
-新增或更新以下 secrets：
+新增或更新以下 secrets（GitHub 不接受 `GITHUB_` 前綴，因此使用 `VIDEO_CACHE_*`，workflow 會映射成對應的 `GITHUB_GIST_*` 環境變數）：
 
 ```
 YOUTUBE_REFRESH_TOKEN=1//xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 YOUTUBE_CLIENT_ID=xxxxx.apps.googleusercontent.com
 YOUTUBE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxxxxxxx
 YOUTUBE_CHANNEL_ID=UCxxxxxxxxxxxxxxxxxx
-GITHUB_GIST_TOKEN=ghp_xxxxxxxxxxxxxx
-GITHUB_GIST_ID=abc123...
+VIDEO_CACHE_GIST_TOKEN=ghp_xxxxxxxxxxxxxx
+VIDEO_CACHE_GIST_ID=abc123...
+VIDEO_CACHE_GIST_FILENAME=youtube-videos-cache.json (選填)
 ```
 
 ---

@@ -18,6 +18,8 @@
 2. 點擊 `Secrets and variables` → `Actions`
 3. 點擊 `New repository secret`
 
+> ⚠️ 注意：GitHub 禁止 secrets 名稱以 `GITHUB_` 開頭。以下 secrets 使用 `VIDEO_CACHE_*` 命名，workflow 會在執行時自動映射為程式碼中使用的 `GITHUB_GIST_*` 環境變數。
+
 需要設定以下 Secrets：
 
 #### 必要的 Secrets
@@ -28,14 +30,14 @@
 | `YOUTUBE_CLIENT_ID` | YouTube OAuth Client ID | 從 Google Cloud Console 取得 |
 | `YOUTUBE_CLIENT_SECRET` | YouTube OAuth Client Secret | 從 Google Cloud Console 取得 |
 | `YOUTUBE_CHANNEL_ID` | 你的 YouTube 頻道 ID | 格式：`UCxxxxxxxxxxxxxxxxxx` |
-| `GITHUB_GIST_TOKEN` | GitHub Personal Access Token | 參考下方說明 |
-| `GITHUB_GIST_ID` | Gist ID（首次執行後取得） | 參考下方說明 |
+| `VIDEO_CACHE_GIST_TOKEN` | GitHub Personal Access Token（gist 權限） | 參考下方說明 |
+| `VIDEO_CACHE_GIST_ID` | Gist ID（首次執行後取得） | 參考下方說明 |
 
 #### 選填的 Secrets
 
 | Secret 名稱 | 說明 | 預設值 |
 |------------|------|--------|
-| `GITHUB_GIST_FILENAME` | Gist 檔案名稱 | `youtube-videos-cache.json` |
+| `VIDEO_CACHE_GIST_FILENAME` | Gist 檔案名稱 | `youtube-videos-cache.json` |
 
 ### 步驟 2：取得 GitHub Personal Access Token
 
@@ -59,7 +61,7 @@
 5. 等待執行完成（約 1-2 分鐘）
 6. 點擊執行的 workflow，下載 `cache-update-info` artifact
 7. 解壓縮後打開 `cache-update-info.json`，找到 `gistId`
-8. 將 `gistId` 加入到 GitHub Secrets（名稱：`GITHUB_GIST_ID`）
+8. 將 `gistId` 加入到 GitHub Secrets（名稱：`VIDEO_CACHE_GIST_ID`）
 
 #### 方式 B：本地執行腳本
 
@@ -68,7 +70,7 @@
 npm run update-cache
 ```
 
-執行後會輸出 Gist ID，將它加入到 GitHub Secrets。
+執行後會輸出 Gist ID，將它加入到 GitHub Secrets（名稱：`VIDEO_CACHE_GIST_ID`）。
 
 ### 步驟 4：驗證設定
 
@@ -159,9 +161,9 @@ gh workflow run "Update Video Cache to Gist" -f force_update=true
 **原因**：Gist ID 不存在或無法訪問
 
 **解決方法**：
-1. 檢查 `GITHUB_GIST_ID` 是否正確
+1. 檢查 `VIDEO_CACHE_GIST_ID`（workflow 會注入為 `GITHUB_GIST_ID`）是否正確
 2. 確認 Gist 沒有被刪除
-3. 檢查 `GITHUB_GIST_TOKEN` 權限
+3. 檢查 `VIDEO_CACHE_GIST_TOKEN`（提供 `GITHUB_GIST_TOKEN` 環境變數）是否有 gist 權限
 
 ### ❌ 執行失敗：Server not ready
 
@@ -176,7 +178,7 @@ gh workflow run "Update Video Cache to Gist" -f force_update=true
 **原因**：舊的 Gist 使用不同的檔案名稱
 
 **解決方法**：
-1. 設定 `GITHUB_GIST_FILENAME` secret（例如：`youtube-videos-cache.json`）
+1. 設定 `VIDEO_CACHE_GIST_FILENAME` secret（例如：`youtube-videos-cache.json`）
 2. 或者建立新的 Gist（移除 `GITHUB_GIST_ID`，讓它自動建立新的）
 
 ## 📈 配額使用情況
@@ -235,7 +237,7 @@ on:
 
 - [ ] 所有必要的 GitHub Secrets 都已設定
 - [ ] 第一次手動執行成功
-- [ ] 取得並設定了 `GITHUB_GIST_ID`
+- [ ] 取得並設定了 `VIDEO_CACHE_GIST_ID`
 - [ ] Gist 可以正常訪問
 - [ ] 前端 `.env.local` 也有設定 `GITHUB_GIST_ID`
 - [ ] 前端搜尋功能正常使用快取

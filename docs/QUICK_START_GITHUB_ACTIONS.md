@@ -45,12 +45,15 @@ npm run update-cache  # 終端 2
 
 前往 GitHub repo → Settings → Secrets → New secret
 
-新增 4 個 secrets：
+> ⚠️ GitHub 禁止 secrets 以 `GITHUB_` 開頭，這裡改用 `VIDEO_CACHE_*`，workflow 會自動映射為 `GITHUB_GIST_*` 環境變數。
+
+新增 secrets：
 ```
 YOUTUBE_ACCESS_TOKEN
 YOUTUBE_CHANNEL_ID
-GITHUB_GIST_TOKEN
-GITHUB_GIST_ID
+VIDEO_CACHE_GIST_TOKEN
+VIDEO_CACHE_GIST_ID
+VIDEO_CACHE_GIST_FILENAME (選填)
 ```
 
 ### 5️⃣ 推送並測試（30 秒）

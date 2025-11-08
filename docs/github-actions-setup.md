@@ -113,14 +113,15 @@ curl -X POST http://localhost:3001/api/video-cache/generate \
 1. 前往你的 GitHub repository
 2. 點擊「Settings」→「Secrets and variables」→「Actions」
 3. 點擊「New repository secret」
-4. 依序新增以下 secrets：
+4. 依序新增以下 secrets（GitHub 禁止 `GITHUB_` 前綴，因此 workflow 會把 `VIDEO_CACHE_*` 映射為程式碼需要的 `GITHUB_GIST_*` 環境變數）：
 
 | Secret 名稱 | 值 | 說明 |
 |------------|-----|------|
 | `YOUTUBE_ACCESS_TOKEN` | `ya29.a0...` 或完整 token 物件 | YouTube OAuth token |
 | `YOUTUBE_CHANNEL_ID` | `UCxxxxxxxxxxxxxxxxxx` | 你的頻道 ID |
-| `GITHUB_GIST_TOKEN` | `ghp_xxxxxxxxxxxxxx` | GitHub Personal Access Token |
-| `GITHUB_GIST_ID` | `abc123...` | 步驟 4 取得的 Gist ID |
+| `VIDEO_CACHE_GIST_TOKEN` | `ghp_xxxxxxxxxxxxxx` | GitHub Personal Access Token（gist scope） |
+| `VIDEO_CACHE_GIST_ID` | `abc123...` | 步驟 4 取得的 Gist ID |
+| `VIDEO_CACHE_GIST_FILENAME`（選填） | `youtube-videos-cache.json` | 自訂快取檔名 |
 
 ---
 
@@ -170,12 +171,12 @@ curl -X POST http://localhost:3001/api/video-cache/generate \
 
 ❌ **Gist ID 不存在**
 ```
-解決方式：檢查 GITHUB_GIST_ID 是否正確
+解決方式：檢查 `VIDEO_CACHE_GIST_ID`（workflow 會轉成 `GITHUB_GIST_ID` 環境變數）是否正確
 ```
 
 ❌ **GitHub token 權限不足**
 ```
-解決方式：確認 GITHUB_GIST_TOKEN 有 gist 權限
+解決方式：確認 `VIDEO_CACHE_GIST_TOKEN`（供應 `GITHUB_GIST_TOKEN` 環境變數）有 gist 權限
 ```
 
 ---

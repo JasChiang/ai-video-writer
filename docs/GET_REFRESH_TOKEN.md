@@ -232,8 +232,8 @@ npm run update-cache
 | `YOUTUBE_CLIENT_ID` | `xxxxx.apps.googleusercontent.com` | OAuth Client ID |
 | `YOUTUBE_CLIENT_SECRET` | `GOCSPX-xxxxx` | OAuth Client Secret |
 | `YOUTUBE_CHANNEL_ID` | `UCxxxxxxxxxxxxxxxxxx` | 你的頻道 ID |
-| `GITHUB_GIST_TOKEN` | `ghp_xxxxxx` | GitHub Token |
-| `GITHUB_GIST_ID` | `abc123...` | Gist ID |
+| `VIDEO_CACHE_GIST_TOKEN` | `ghp_xxxxxx` | GitHub Token（gist scope，workflow 會映射成 `GITHUB_GIST_TOKEN` 環境變數） |
+| `VIDEO_CACHE_GIST_ID` | `abc123...` | Gist ID（workflow 會映射成 `GITHUB_GIST_ID` 環境變數） |
 
 ---
 
