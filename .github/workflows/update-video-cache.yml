@@ -56,9 +56,9 @@ jobs:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
-          GITHUB_GIST_TOKEN: ${{ secrets.GITHUB_GIST_TOKEN }}
-          GITHUB_GIST_ID: ${{ secrets.GITHUB_GIST_ID }}
-          GITHUB_GIST_FILENAME: ${{ secrets.GITHUB_GIST_FILENAME }}
+          GITHUB_GIST_TOKEN: ${{ secrets.VIDEO_CACHE_GIST_TOKEN }}
+          GITHUB_GIST_ID: ${{ secrets.VIDEO_CACHE_GIST_ID }}
+          GITHUB_GIST_FILENAME: ${{ secrets.VIDEO_CACHE_GIST_FILENAME }}
           FORCE_UPDATE: ${{ github.event.inputs.force_update }}
 
       - name: Stop server
