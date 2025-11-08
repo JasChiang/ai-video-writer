@@ -35,6 +35,8 @@ jobs:
           echo $! > server.pid
         env:
           PORT: 3001
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FRONTEND_URL: http://localhost:3000
 
       - name: Wait for server to be ready
         run: |
