@@ -3,7 +3,6 @@
  * 提供關鍵字搜尋、日期範圍篩選和數據聚合功能
  */
 
-import https from 'https';
 import { google } from 'googleapis';
 import { recordQuota as recordQuotaServer } from './quotaTracker.js';
 
@@ -17,21 +16,9 @@ const YOUTUBE_QUOTA_COST = {
 
 // 快取結構：{ key: { data, timestamp } }
 const analyticsCache = new Map();
-const keywordVideoCache = new Map();
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 分鐘快取
-const KEYWORD_CACHE_TTL_MS = 30 * 60 * 1000; // 30 分鐘快取
 const MAX_ANALYTICS_VIDEO_FILTER = 200;
 const DEFAULT_MAX_VIDEOS = 10000;
-const PREFETCH_CACHE_TTL_MS = parseInt(process.env.GIST_CHANNEL_VIDEOS_TTL_MS || '', 10) || (15 * 60 * 1000);
-
-const GIST_VIDEO_CACHE_CONFIG = {
-  id: process.env.GIST_CHANNEL_VIDEOS_ID,
-  token: process.env.GIST_CHANNEL_VIDEOS_TOKEN,
-  filename: process.env.GIST_CHANNEL_VIDEOS_FILENAME || 'channelVideos.json',
-};
-
-let prefetchedVideoStore = null;
-let prefetchedVideoTimestamp = 0;
 
 /**
  * 根據關鍵字過濾影片（客戶端過濾）
@@ -54,93 +41,6 @@ function filterVideosByKeywordClient(videos, keyword) {
   });
 }
 
-function hasGistConfig() {
-  return Boolean(GIST_VIDEO_CACHE_CONFIG.id && GIST_VIDEO_CACHE_CONFIG.token);
-}
-
-function httpRequest(urlString, { method = 'GET', headers = {}, body } = {}) {
-  return new Promise((resolve, reject) => {
-    const url = new URL(urlString);
-    const options = {
-      method,
-      headers,
-    };
-    const req = https.request(url, options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-      res.on('end', () => {
-        resolve({
-          statusCode: res.statusCode || 0,
-          body: data,
-        });
-      });
-    });
-    req.on('error', reject);
-    if (body) {
-      req.write(body);
-    }
-    req.end();
-  });
-}
-
-async function fetchPrefetchedVideosFromGist() {
-  if (!hasGistConfig()) {
-    return null;
-  }
-
-  try {
-    const { statusCode, body } = await httpRequest(`https://api.github.com/gists/${GIST_VIDEO_CACHE_CONFIG.id}`, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'ai-video-writer/channel-analytics',
-        Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${GIST_VIDEO_CACHE_CONFIG.token}`,
-      },
-    });
-
-    if (statusCode >= 400) {
-      console.warn(`[ChannelAnalytics] 讀取 Gist (${GIST_VIDEO_CACHE_CONFIG.id}) 失敗，狀態碼 ${statusCode}`);
-      return null;
-    }
-
-    const json = JSON.parse(body);
-    const file = json.files?.[GIST_VIDEO_CACHE_CONFIG.filename];
-    if (!file?.content) {
-      console.warn(`[ChannelAnalytics] Gist 中找不到檔案 ${GIST_VIDEO_CACHE_CONFIG.filename}`);
-      return null;
-    }
-
-    const parsedContent = JSON.parse(file.content);
-    const videos = Array.isArray(parsedContent?.videos) ? parsedContent.videos : parsedContent;
-    if (!Array.isArray(videos)) {
-      console.warn('[ChannelAnalytics] Gist 內容格式不符合預期');
-      return null;
-    }
-
-    prefetchedVideoStore = videos;
-    prefetchedVideoTimestamp = Date.now();
-    console.log(`[ChannelAnalytics] 🌐 從 Gist 取得 ${videos.length} 支影片（同步時間：${parsedContent?.updatedAt || 'unknown'}）`);
-    return prefetchedVideoStore;
-  } catch (error) {
-    console.error('[ChannelAnalytics] 讀取 Gist 快取失敗:', error.message);
-    return null;
-  }
-}
-
-async function getPrefetchedVideos() {
-  if (!hasGistConfig()) {
-    return null;
-  }
-
-  if (prefetchedVideoStore && (Date.now() - prefetchedVideoTimestamp) < PREFETCH_CACHE_TTL_MS) {
-    return prefetchedVideoStore;
-  }
-
-  return fetchPrefetchedVideosFromGist();
-}
-
 /**
  * 獲取並過濾頻道影片（包含公開、未列出、私人影片）
  * @param {Object} youtube - YouTube API 客戶端
@@ -149,53 +49,10 @@ async function getPrefetchedVideos() {
  * @param {number} maxVideos - 最大影片數量
  * @returns {Promise<Array>} 影片列表
  */
-function buildKeywordCacheKey(channelId, keyword) {
-  return `${channelId}:${keyword}`;
-}
-
-function getCachedKeywordVideos(channelId, keyword, maxVideos) {
-  const cacheKey = buildKeywordCacheKey(channelId, keyword);
-  const cached = keywordVideoCache.get(cacheKey);
-  if (!cached) return null;
-  if (Date.now() - cached.timestamp > KEYWORD_CACHE_TTL_MS) {
-    keywordVideoCache.delete(cacheKey);
-    return null;
-  }
-  const videos = cached.videos.slice(0, maxVideos);
-  console.log(`[ChannelAnalytics] 💾 使用關鍵字快取 (${keyword})，取得 ${videos.length} 支影片`);
-  return videos;
-}
-
-function setCachedKeywordVideos(channelId, keyword, videos) {
-  const cacheKey = buildKeywordCacheKey(channelId, keyword);
-  keywordVideoCache.set(cacheKey, {
-    videos,
-    timestamp: Date.now(),
-  });
-}
-
 async function searchChannelVideos(youtube, channelId, keyword, maxVideos = DEFAULT_MAX_VIDEOS) {
   const normalizedKeyword = keyword?.trim() || '';
-  const prefetchedVideos = await getPrefetchedVideos();
 
   if (normalizedKeyword) {
-    if (prefetchedVideos?.length) {
-      const preFiltered = filterVideosByKeywordClient(prefetchedVideos, normalizedKeyword);
-      if (preFiltered.length > 0) {
-        const limited = preFiltered.slice(0, maxVideos);
-        console.log(
-          `[ChannelAnalytics] 🗂 使用預同步影片列表，找到 ${limited.length}/${preFiltered.length} 支符合 "${normalizedKeyword}" 的影片`
-        );
-        setCachedKeywordVideos(channelId, normalizedKeyword, limited);
-        return limited;
-      }
-    }
-
-    const cachedVideos = getCachedKeywordVideos(channelId, normalizedKeyword, maxVideos);
-    if (cachedVideos) {
-      return cachedVideos;
-    }
-
     try {
       const searchResults = await searchVideosViaSearchApi(
         youtube,
@@ -210,9 +67,7 @@ async function searchChannelVideos(youtube, channelId, keyword, maxVideos = DEFA
           console.log(
             `[ChannelAnalytics] ✅ Search API 找到 ${filteredSearch.length}/${searchResults.length} 支符合 "${normalizedKeyword}" 的影片`
           );
-          const limited = filteredSearch.slice(0, maxVideos);
-          setCachedKeywordVideos(channelId, normalizedKeyword, limited);
-          return limited;
+          return filteredSearch;
         }
         console.log(
           `[ChannelAnalytics] ⚠️ Search API 返回 ${searchResults.length} 支影片，但無法匹配 "${normalizedKeyword}"，改用播放清單全量掃描`
@@ -230,11 +85,6 @@ async function searchChannelVideos(youtube, channelId, keyword, maxVideos = DEFA
   }
 
   // 若無關鍵字或 Search API 失敗則改為掃描全部影片
-  if (!normalizedKeyword && prefetchedVideos?.length) {
-    console.log(`[ChannelAnalytics] 🗂 使用預同步影片列表，共 ${prefetchedVideos.length} 支`);
-    return prefetchedVideos.slice(0, maxVideos);
-  }
-
   console.log(`[ChannelAnalytics] 🔍 獲取頻道所有影片（公開/未列出/私人）...`);
   const allVideos = await getAllChannelVideos(youtube, channelId, maxVideos);
 
@@ -244,13 +94,11 @@ async function searchChannelVideos(youtube, channelId, keyword, maxVideos = DEFA
   }
 
   const filteredVideos = filterVideosByKeywordClient(allVideos, normalizedKeyword);
-  const limitedVideos = filteredVideos.slice(0, maxVideos);
 
   console.log(
-    `[ChannelAnalytics] ✅ 關鍵字 "${normalizedKeyword}" 過濾後: ${limitedVideos.length}/${filteredVideos.length} 支影片（總共 ${allVideos.length} 支影片）`
+    `[ChannelAnalytics] ✅ 關鍵字 "${normalizedKeyword}" 過濾後: ${filteredVideos.length} 支影片（總共 ${allVideos.length} 支影片）`
   );
-  setCachedKeywordVideos(channelId, normalizedKeyword, limitedVideos);
-  return limitedVideos;
+  return filteredVideos;
 }
 
 /**
@@ -749,15 +597,8 @@ export async function aggregateChannelData(accessToken, channelId, keywordGroups
  * 清除快取（用於強制刷新）
  */
 export function clearAnalyticsCache() {
-  const analyticsSize = analyticsCache.size;
+  const size = analyticsCache.size;
   analyticsCache.clear();
-
-  const keywordSize = keywordVideoCache.size;
-  keywordVideoCache.clear();
-
-  prefetchedVideoStore = null;
-  prefetchedVideoTimestamp = 0;
-
-  console.log(`[ChannelAnalytics] 已清除 ${analyticsSize} 筆分析快取與 ${keywordSize} 筆關鍵字快取`);
-  return { cleared: analyticsSize, keywordCleared: keywordSize };
+  console.log(`[ChannelAnalytics] 已清除 ${size} 筆快取`);
+  return { cleared: size };
 }
