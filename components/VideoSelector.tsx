@@ -14,6 +14,7 @@ interface VideoSelectorProps {
   onSelectVideo: (videoId: string) => void;
   inlineDetail?: boolean;
   selectedVideo?: YouTubeVideo | null;
+  onVideoUpdate?: (updatedVideo: Partial<YouTubeVideo> & { id: string }) => void;
 }
 
 export function VideoSelector({
@@ -26,6 +27,7 @@ export function VideoSelector({
   onSelectVideo,
   inlineDetail = false,
   selectedVideo = null,
+  onVideoUpdate,
 }: VideoSelectorProps) {
   const canShowInlineDetail = inlineDetail && Boolean(selectedVideo);
 
@@ -83,7 +85,7 @@ export function VideoSelector({
                 />
                 {canShowInlineDetail && isActive && selectedVideo && (
                   <div className="pt-2">
-                    <VideoDetailPanel video={selectedVideo} />
+                    <VideoDetailPanel video={selectedVideo} onVideoUpdate={onVideoUpdate} />
                   </div>
                 )}
               </div>

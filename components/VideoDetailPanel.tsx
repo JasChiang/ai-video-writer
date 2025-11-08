@@ -6,6 +6,7 @@ import { formatDuration, formatViewCount, formatPublishedDate, getPrivacyStatusB
 
 interface VideoDetailPanelProps {
   video: YouTubeVideo;
+  onVideoUpdate?: (updatedVideo: Partial<YouTubeVideo> & { id: string }) => void;
 }
 
 type ActiveMode = 'none' | 'metadata' | 'article';
@@ -16,7 +17,7 @@ interface VideoContentCache {
   activeMode: ActiveMode;
 }
 
-export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
+export function VideoDetailPanel({ video, onVideoUpdate }: VideoDetailPanelProps) {
   const [activeMode, setActiveMode] = useState<ActiveMode>('none');
   const [showPlayer, setShowPlayer] = useState(false);
   const contentCacheRef = useRef<Map<string, VideoContentCache>>(new Map());
@@ -406,6 +407,7 @@ export function VideoDetailPanel({ video }: VideoDetailPanelProps) {
             onClose={() => setActiveMode('none')}
             cachedContent={cachedMetadata}
             onContentUpdate={handleMetadataUpdate}
+            onVideoUpdate={onVideoUpdate}
           />
         </div>
       )}

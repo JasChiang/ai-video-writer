@@ -11,6 +11,7 @@ interface MetadataGeneratorProps {
   onClose: () => void;
   cachedContent?: GeneratedContentType | null;
   onContentUpdate?: (content: GeneratedContentType | null) => void;
+  onVideoUpdate?: (updatedVideo: Partial<YouTubeVideo> & { id: string }) => void;
 }
 
 type UpdateStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -20,7 +21,7 @@ interface UpdateState {
   tags: UpdateStatus;
 }
 
-export function MetadataGenerator({ video, onClose, cachedContent, onContentUpdate }: MetadataGeneratorProps) {
+export function MetadataGenerator({ video, onClose, cachedContent, onContentUpdate, onVideoUpdate }: MetadataGeneratorProps) {
   const [generatedContent, setGeneratedContent] = useState<GeneratedContentType | null>(cachedContent || null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState<ProgressMessage | null>(null);
@@ -130,9 +131,21 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
     try {
       const tagsToUpdate = draftContent.tags.split(',').map(t => t.trim()).filter(t => t.length > 0);
 
+      // 如果 categoryId 無效（空字串或未定義），先獲取影片的完整資訊
+      let categoryId = video.categoryId;
+      if (!categoryId || categoryId.trim() === '') {
+        console.log('[MetadataGenerator] categoryId 無效，正在獲取影片完整資訊...');
+        const metadata = await youtubeService.getVideoMetadata(video.id, {
+          source: 'MetadataGenerator',
+          trigger: 'fetch-categoryId',
+        });
+        categoryId = metadata.categoryId;
+        console.log('[MetadataGenerator] 已獲取 categoryId:', categoryId);
+      }
+
       const videoDataToUpdate: YouTubeVideo = {
         id: video.id,
-        categoryId: video.categoryId,
+        categoryId: categoryId,
         title: draftContent.title,
         description: draftContent.description,
         tags: tagsToUpdate,
@@ -151,6 +164,35 @@ export function MetadataGenerator({ video, onClose, cachedContent, onContentUpda
         description: draftContent.description,
         tags: tagsToUpdate,
       });
+
+      // 保存本地更新到 localStorage（用於覆蓋 Gist 快取）
+      try {
+        const updatesJson = localStorage.getItem('videoMetadataUpdates');
+        const updates = updatesJson ? JSON.parse(updatesJson) : {};
+
+        updates[video.id] = {
+          title: draftContent.title,
+          description: draftContent.description,
+          tags: tagsToUpdate,
+          categoryId: categoryId,
+          updatedAt: new Date().toISOString(),
+        };
+
+        localStorage.setItem('videoMetadataUpdates', JSON.stringify(updates));
+        console.log(`[MetadataGenerator] 已保存本地更新: ${video.id}`);
+      } catch (error) {
+        console.error('[MetadataGenerator] 保存本地更新失敗:', error);
+      }
+
+      // 通知父組件更新影片列表
+      if (onVideoUpdate) {
+        onVideoUpdate({
+          id: video.id,
+          title: draftContent.title,
+          description: draftContent.description,
+          tags: tagsToUpdate,
+        });
+      }
 
     } catch (e: any) {
       console.error('Update failed', e);

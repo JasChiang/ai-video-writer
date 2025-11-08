@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import type { ArticleGenerationResult, YouTubeVideo } from '../types';
 import * as youtubeService from '../services/youtubeService';
+import { GITHUB_GIST_ID } from '../config';
 import { ArticleGenerator } from './ArticleGenerator';
 import { Loader } from './Loader';
 
@@ -71,8 +72,42 @@ export function ArticleWorkspace() {
     setError(null);
     setIsSearching(true);
     try {
-      const videos = await youtubeService.searchVideosByKeyword(searchQuery.trim(), 8);
-      setSearchResults(videos);
+      // 優先使用 Gist 快取搜尋（配額成本 0）
+      if (GITHUB_GIST_ID) {
+        console.log('[ArticleWorkspace] 使用 Gist 快取搜尋');
+        const response = await fetch(
+          `/api/video-cache/search?gistId=${encodeURIComponent(GITHUB_GIST_ID)}&query=${encodeURIComponent(searchQuery.trim())}&maxResults=8`
+        );
+
+        if (!response.ok) {
+          throw new Error(`搜尋失敗: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (!data.success) {
+          throw new Error(data.error || '搜尋失敗');
+        }
+
+        // 將快取資料格式轉換為 YouTubeVideo 格式
+        const videos: YouTubeVideo[] = data.videos.map((v: any) => ({
+          id: v.videoId,
+          title: v.title,
+          description: '',
+          thumbnailUrl: v.thumbnail,
+          tags: [],
+          categoryId: '',
+          privacyStatus: v.privacyStatus || 'public',
+          publishedAt: v.publishedAt,
+        }));
+
+        setSearchResults(videos);
+      } else {
+        // 如果沒有 GIST_ID，退回到使用 YouTube API（配額成本 100）
+        console.warn('[ArticleWorkspace] 未設定 GIST_ID，使用 YouTube API 搜尋（配額成本 100）');
+        const videos = await youtubeService.searchVideosByKeyword(searchQuery.trim(), 8);
+        setSearchResults(videos);
+      }
     } catch (err: any) {
       setError(err?.message || '搜尋失敗，請稍後再試');
     } finally {

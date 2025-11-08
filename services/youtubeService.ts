@@ -407,26 +407,14 @@ async function searchInPlaylist(
     const matchedVideos: YouTubeVideo[] = [];
     let currentPageToken: string | null | undefined = pageToken;
     let pagesScanned = 0;
-    let pagesWithoutMatch = 0; // 追蹤連續沒有匹配影片的頁數
 
-    // 配額控制：最多掃描 3 頁（42 配額），遠低於 search.list 的 100 配額
-    // 這樣可以確保不會超過 search.list 的成本
-    const MAX_PAGES_PER_REQUEST = 3;
-    const MAX_PAGES_WITHOUT_MATCH = 2; // 連續 2 頁沒找到就停止
+    // 配額控制：不限制掃描頁數，確保能找到所有匹配的影片
+    // 即使配額成本較高，也要保證搜尋的完整性
+    console.log('[YouTubeService] searchInPlaylist: 將掃描所有頁面直到找到足夠的結果');
 
-    // 持續掃描直到找到足夠的匹配影片或達到上限
-    while (matchedVideos.length < maxResults && pagesScanned < MAX_PAGES_PER_REQUEST) {
+    // 持續掃描直到找到足夠的匹配影片或沒有更多頁面
+    while (matchedVideos.length < maxResults) {
         pagesScanned++;
-
-        // 如果連續太多頁沒找到匹配影片，提前停止避免浪費配額
-        if (pagesWithoutMatch >= MAX_PAGES_WITHOUT_MATCH) {
-            console.log('[YouTubeService] searchInPlaylist:early-stop', {
-                reason: '連續多頁未找到匹配影片',
-                pagesWithoutMatch,
-                totalMatched: matchedVideos.length,
-            });
-            break;
-        }
 
         const playlistResponse = await gapi.client.youtube.playlistItems.list({
             part: 'snippet,contentDetails,status',
@@ -502,14 +490,12 @@ async function searchInPlaylist(
                 .map(mapVideoItem)
                 .filter(video => titleMatchesQuery(video.title, searchQuery));
 
-            // 更新連續沒有匹配影片的計數器
-            if (pageVideos.length > 0) {
-                pagesWithoutMatch = 0; // 找到匹配影片，重置計數器
-            } else {
-                pagesWithoutMatch++; // 沒找到，增加計數器
-            }
-
             matchedVideos.push(...pageVideos);
+
+            // 顯示目前進度
+            if (pagesScanned % 5 === 0 || pageVideos.length > 0) {
+                console.log(`[YouTubeService] searchInPlaylist: 已掃描 ${pagesScanned} 頁，找到 ${matchedVideos.length} 支匹配影片`);
+            }
         }
 
         currentPageToken = playlistResponse.result.nextPageToken || null;

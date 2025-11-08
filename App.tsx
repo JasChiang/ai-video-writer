@@ -11,6 +11,7 @@ import { VideoDetailPanel } from './components/VideoDetailPanel';
 import { QuotaDebugger } from './components/QuotaDebugger';
 import { ArticleWorkspace } from './components/ArticleWorkspace';
 import { ChannelAnalytics } from './components/ChannelAnalytics';
+import { GITHUB_GIST_ID } from './config';
 
 type ActiveTab = 'videos' | 'analytics' | 'articles' | 'channel-analytics';
 
@@ -110,6 +111,28 @@ export default function App() {
     setIsFilterPanelOpen(false);
   };
 
+  // 從 localStorage 合併本地更新
+  const mergeLocalUpdates = (videos: YouTubeVideo[]): YouTubeVideo[] => {
+    try {
+      const updatesJson = localStorage.getItem('videoMetadataUpdates');
+      if (!updatesJson) return videos;
+
+      const updates = JSON.parse(updatesJson);
+
+      return videos.map(video => {
+        const localUpdate = updates[video.id];
+        if (localUpdate) {
+          console.log(`[App] 合併本地更新: ${video.id}`, localUpdate);
+          return { ...video, ...localUpdate };
+        }
+        return video;
+      });
+    } catch (error) {
+      console.error('[App] 合併本地更新失敗:', error);
+      return videos;
+    }
+  };
+
   const fetchVideos = async ({ reset = true, trigger }: { reset?: boolean; trigger?: string } = {}) => {
     setIsLoadingVideos(true);
     setError(null);
@@ -121,35 +144,108 @@ export default function App() {
       }
 
       const actionTrigger = trigger ?? (reset ? 'initial-load' : 'load-more');
-      // 增加單次載入數量到 24，減少 loadmore 次數
-      // 這樣可以在有搜尋關鍵字時，減少總配額消耗
-      const result = await youtubeService.listVideos(
-        24,
-        reset ? undefined : nextPageToken || undefined,
-        showPrivateVideos,
-        searchQuery,
-        showUnlistedVideos,
-        {
-          trigger: actionTrigger,
-          source: 'App.fetchVideos',
-          reset,
-        }
-      );
 
-      const existingIds = reset ? new Set<string>() : new Set(videos.map(v => v.id));
-      const dedupedVideos = reset
-        ? result.videos
-        : [...videos, ...result.videos.filter(video => !existingIds.has(video.id))];
+      // 如果有搜尋關鍵字且有 GIST_ID，優先使用 Gist 快取搜尋（配額成本 0）
+      if (searchQuery && searchQuery.trim() && GITHUB_GIST_ID) {
+        console.log('[App] 使用 Gist 快取搜尋，關鍵字:', searchQuery);
 
-      setVideos(dedupedVideos);
-      setNextPageToken(result.nextPageToken);
-      setHasMore(!!result.nextPageToken);
-      setSelectedVideoId(prev => {
-        if (prev && dedupedVideos.some(video => video.id === prev)) {
-          return prev;
+        const response = await fetch(
+          `/api/video-cache/search?gistId=${encodeURIComponent(GITHUB_GIST_ID)}&query=${encodeURIComponent(searchQuery.trim())}&maxResults=10000`
+        );
+
+        if (!response.ok) {
+          throw new Error(`快取搜尋失敗: ${response.status}`);
         }
-        return showDetailSidebar ? dedupedVideos[0]?.id ?? null : null;
-      });
+
+        const data = await response.json();
+
+        if (!data.success) {
+          throw new Error(data.error || '快取搜尋失敗');
+        }
+
+        // 將快取資料格式轉換為 YouTubeVideo 格式
+        const cacheVideos: YouTubeVideo[] = data.videos.map((v: any) => ({
+          id: v.videoId,
+          title: v.title,
+          description: '', // 描述未包含在快取中，需要時才抓取
+          thumbnailUrl: v.thumbnail,
+          tags: v.tags || [],
+          categoryId: v.categoryId || '',
+          privacyStatus: v.privacyStatus || 'public',
+          publishedAt: v.publishedAt,
+          viewCount: v.viewCount,
+          likeCount: v.likeCount,
+          commentCount: v.commentCount,
+        }));
+
+        // 過濾影片狀態
+        const filteredVideos = cacheVideos.filter(video => {
+          if (video.privacyStatus === 'public') return true;
+          if (video.privacyStatus === 'unlisted') return showUnlistedVideos;
+          if (video.privacyStatus === 'private') return showPrivateVideos;
+          return false;
+        });
+
+        console.log(`[App] 快取搜尋結果: ${filteredVideos.length} 支影片`);
+
+        // 去重：確保每個影片 ID 只出現一次
+        const uniqueVideos = Array.from(
+          new Map(filteredVideos.map(video => [video.id, video])).values()
+        );
+
+        // 合併本地更新（覆蓋 Gist 快取中的舊資料）
+        const mergedVideos = mergeLocalUpdates(uniqueVideos);
+
+        setVideos(mergedVideos);
+        setNextPageToken(null);
+        setHasMore(false); // 快取搜尋一次返回所有結果
+        setSelectedVideoId(prev => {
+          if (prev && mergedVideos.some(video => video.id === prev)) {
+            return prev;
+          }
+          return showDetailSidebar ? mergedVideos[0]?.id ?? null : null;
+        });
+      } else {
+        // 無搜尋關鍵字或沒有 GIST_ID，使用 YouTube API
+        if (searchQuery && searchQuery.trim() && !GITHUB_GIST_ID) {
+          console.warn('[App] 未設定 GIST_ID，使用 YouTube API 搜尋（配額成本較高）');
+        }
+
+        // 增加單次載入數量到 24，減少 loadmore 次數
+        // 這樣可以在有搜尋關鍵字時，減少總配額消耗
+        const result = await youtubeService.listVideos(
+          24,
+          reset ? undefined : nextPageToken || undefined,
+          showPrivateVideos,
+          searchQuery,
+          showUnlistedVideos,
+          {
+            trigger: actionTrigger,
+            source: 'App.fetchVideos',
+            reset,
+          }
+        );
+
+        const existingIds = reset ? new Set<string>() : new Set(videos.map(v => v.id));
+        const dedupedVideos = reset
+          ? result.videos
+          : [...videos, ...result.videos.filter(video => !existingIds.has(video.id))];
+
+        // 額外確保去重：使用 Map 確保每個 ID 只出現一次
+        const uniqueVideos = Array.from(
+          new Map(dedupedVideos.map(video => [video.id, video])).values()
+        );
+
+        setVideos(uniqueVideos);
+        setNextPageToken(result.nextPageToken);
+        setHasMore(!!result.nextPageToken);
+        setSelectedVideoId(prev => {
+          if (prev && uniqueVideos.some(video => video.id === prev)) {
+            return prev;
+          }
+          return showDetailSidebar ? uniqueVideos[0]?.id ?? null : null;
+        });
+      }
     } catch (e: any) {
       setError('Could not fetch YouTube videos. The API quota may be exceeded or permissions are missing.');
       console.error(e);
@@ -178,16 +274,19 @@ export default function App() {
     }
   }, [showPrivateVideos, showUnlistedVideos]);
 
-  // Re-fetch videos when searchQuery changes (with debounce)
-  useEffect(() => {
-    if (!isLoggedIn) return;
-
-    const timer = setTimeout(() => {
+  // 手動搜尋處理函數
+  const handleSearch = () => {
+    if (isLoggedIn) {
       fetchVideos({ reset: true, trigger: 'search-query' });
-    }, 500); // 500ms debounce
+    }
+  };
 
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+  // 處理 Enter 鍵搜尋
+  const handleSearchKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
 
   const handleResetFilters = () => {
     setShowPrivateVideos(false);
@@ -205,6 +304,17 @@ export default function App() {
         });
       }
     }
+  };
+
+  // 更新影片列表中的特定影片資料
+  const handleVideoUpdate = (updatedVideo: Partial<YouTubeVideo> & { id: string }) => {
+    setVideos(prevVideos =>
+      prevVideos.map(video =>
+        video.id === updatedVideo.id
+          ? { ...video, ...updatedVideo }
+          : video
+      )
+    );
   };
 
   const selectedVideo = selectedVideoId
@@ -249,20 +359,32 @@ export default function App() {
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="搜尋影片標題..."
-          className="w-full rounded-full border border-neutral-300 bg-white pl-12 pr-12 py-3 text-sm text-neutral-900 shadow-sm transition focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 sm:text-base"
+          onKeyPress={handleSearchKeyPress}
+          placeholder="搜尋影片標題（按 Enter 搜尋）..."
+          className="w-full rounded-full border border-neutral-300 bg-white pl-12 pr-24 py-3 text-sm text-neutral-900 shadow-sm transition focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 sm:text-base"
         />
-        {searchQuery && (
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="text-neutral-400 transition hover:text-neutral-600 focus:outline-none"
+              aria-label="清除搜尋"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
           <button
-            onClick={() => setSearchQuery('')}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400 transition hover:text-neutral-600 focus:outline-none"
-            aria-label="清除搜尋"
+            onClick={handleSearch}
+            className="text-red-600 transition hover:text-red-700 focus:outline-none"
+            aria-label="搜尋"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </button>
-        )}
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -424,13 +546,14 @@ export default function App() {
               onSelectVideo={handleVideoSelect}
               inlineDetail={useInlineDetail}
               selectedVideo={selectedVideo}
+              onVideoUpdate={handleVideoUpdate}
             />
           </section>
 
           <aside className="hidden xl:block">
             {selectedVideo ? (
               <div className="lg:sticky lg:top-28">
-                <VideoDetailPanel video={selectedVideo} />
+                <VideoDetailPanel video={selectedVideo} onVideoUpdate={handleVideoUpdate} />
               </div>
             ) : (
               <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-6 py-10 text-center text-neutral-500">
