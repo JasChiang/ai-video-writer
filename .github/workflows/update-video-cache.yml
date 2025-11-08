@@ -1,0 +1,99 @@
+name: Update Video Cache to Gist
+
+on:
+  schedule:
+    # 每天台灣時間凌晨 2 點執行（UTC 18:00 = 台灣時間 02:00）
+    - cron: '0 18 * * *'
+
+  workflow_dispatch:  # 允許手動觸發
+    inputs:
+      force_update:
+        description: '強制更新（忽略快取）'
+        required: false
+        default: 'false'
+
+jobs:
+  update-cache:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start server in background
+        run: |
+          npm run dev &
+          echo $! > server.pid
+        env:
+          PORT: 3001
+
+      - name: Wait for server to be ready
+        run: |
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:3001/api/quota/snapshot > /dev/null; then
+              echo "Server is ready!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 2
+          done
+
+      - name: Update video cache
+        id: update-cache
+        run: node scripts/update-video-cache.js
+        env:
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+          GITHUB_GIST_TOKEN: ${{ secrets.GITHUB_GIST_TOKEN }}
+          GITHUB_GIST_ID: ${{ secrets.GITHUB_GIST_ID }}
+          FORCE_UPDATE: ${{ github.event.inputs.force_update }}
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then
+            kill $(cat server.pid) || true
+            rm server.pid
+          fi
+
+      - name: Upload cache info as artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cache-update-info
+          path: cache-update-info.json
+          retention-days: 7
+
+      - name: Comment on commit (if available)
+        if: success() && github.event_name == 'push'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const info = JSON.parse(fs.readFileSync('cache-update-info.json', 'utf8'));
+
+            github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: `✅ 影片快取已更新\n\n- 總影片數：${info.totalVideos}\n- Gist ID：${info.gistId}\n- 更新時間：${info.updatedAt}`
+            });
+
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.setFailed('影片快取更新失敗，請檢查 GitHub Secrets 設定和 YouTube token 是否有效');

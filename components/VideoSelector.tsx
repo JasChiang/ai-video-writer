@@ -59,49 +59,62 @@ export function VideoSelector({
         </div>
       )}
 
-      {isLoading && (
+      {/* 初次載入時顯示完整的 Loader */}
+      {isLoading && videos.length === 0 && (
         <div className="rounded-2xl border border-neutral-200 bg-white/90">
           <Loader />
         </div>
       )}
 
-      <div className="space-y-4">
-        {videos.map((video) => {
-          const isActive = video.id === selectedVideoId;
-          const cardId = `video-card-${video.id}`;
+      {/* 影片列表 */}
+      {videos.length > 0 && (
+        <div className="space-y-4">
+          {videos.map((video) => {
+            const isActive = video.id === selectedVideoId;
+            const cardId = `video-card-${video.id}`;
 
-          return (
-            <div key={video.id} className="space-y-3">
-              <VideoCard
-                video={video}
-                isActive={isActive}
-                onSelect={onSelectVideo}
-                cardId={cardId}
-              />
-              {canShowInlineDetail && isActive && selectedVideo && (
-                <div className="pt-2">
-                  <VideoDetailPanel video={selectedVideo} />
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {!isLoading && hasMore && videos.length > 0 && (
-        <div className="flex justify-center pt-2">
-          <button
-            onClick={onLoadMore}
-            className="inline-flex items-center gap-2 rounded-full bg-red-600 px-6 py-3 font-semibold text-white shadow-lg transition hover:bg-red-700 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-          >
-            <span className="text-lg">↻</span> 載入更多影片
-          </button>
+            return (
+              <div key={video.id} className="space-y-3">
+                <VideoCard
+                  video={video}
+                  isActive={isActive}
+                  onSelect={onSelectVideo}
+                  cardId={cardId}
+                />
+                {canShowInlineDetail && isActive && selectedVideo && (
+                  <div className="pt-2">
+                    <VideoDetailPanel video={selectedVideo} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {!isLoading && !hasMore && videos.length > 0 && (
-        <div className="text-center text-sm text-neutral-500">
-          已載入所有符合條件的影片
+      {/* 載入更多按鈕或載入中狀態 */}
+      {videos.length > 0 && (
+        <div className="flex justify-center pt-2">
+          {isLoading ? (
+            <div className="flex flex-col items-center gap-3 rounded-2xl border border-neutral-200 bg-white/90 px-8 py-6">
+              <div className="flex items-center gap-3">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-red-600 border-t-transparent"></div>
+                <span className="text-sm font-medium text-neutral-700">正在搜尋更多影片...</span>
+              </div>
+              <span className="text-xs text-neutral-500">掃描頻道影片中，這可能需要一些時間</span>
+            </div>
+          ) : hasMore ? (
+            <button
+              onClick={onLoadMore}
+              className="inline-flex items-center gap-2 rounded-full bg-red-600 px-6 py-3 font-semibold text-white shadow-lg transition hover:bg-red-700 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+            >
+              <span className="text-lg">↻</span> 載入更多影片
+            </button>
+          ) : (
+            <div className="text-center text-sm text-neutral-500">
+              已載入所有符合條件的影片
+            </div>
+          )}
         </div>
       )}
     </div>

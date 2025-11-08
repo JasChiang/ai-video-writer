@@ -121,8 +121,10 @@ export default function App() {
       }
 
       const actionTrigger = trigger ?? (reset ? 'initial-load' : 'load-more');
+      // 增加單次載入數量到 24，減少 loadmore 次數
+      // 這樣可以在有搜尋關鍵字時，減少總配額消耗
       const result = await youtubeService.listVideos(
-        12,
+        24,
         reset ? undefined : nextPageToken || undefined,
         showPrivateVideos,
         searchQuery,

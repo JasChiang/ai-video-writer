@@ -38,6 +38,7 @@ import {
 } from './services/geminiFilesService.js';
 import * as taskQueue from './services/taskQueue.js';
 import { publishArticleToNotion, listNotionDatabases, getNotionDatabase } from './services/notionService.js';
+import { fetchAllVideoTitles, uploadToGist, loadFromGist } from './services/videoCacheService.js';
 
 const execAsync = promisify(exec);
 const app = express();
@@ -2951,6 +2952,79 @@ app.post('/api/channel-analytics/clear-cache', (_req, res) => {
     console.error('[API] 清除快取錯誤:', error);
     res.status(500).json({
       error: error.message || '清除快取失敗',
+    });
+  }
+});
+
+/**
+ * API: 生成並上傳影片快取到 Gist
+ * POST /api/video-cache/generate
+ */
+app.post('/api/video-cache/generate', async (req, res) => {
+  try {
+    const { accessToken, channelId, gistToken, gistId } = req.body;
+
+    if (!accessToken) {
+      return res.status(400).json({ error: '缺少 accessToken' });
+    }
+
+    if (!channelId) {
+      return res.status(400).json({ error: '缺少 channelId' });
+    }
+
+    if (!gistToken) {
+      return res.status(400).json({ error: '缺少 gistToken' });
+    }
+
+    console.log('[API] 開始生成影片快取...');
+
+    // 步驟 1: 從 YouTube 抓取所有影片標題
+    const videos = await fetchAllVideoTitles(accessToken, channelId);
+
+    // 步驟 2: 上傳到 Gist
+    const gistInfo = await uploadToGist(videos, gistToken, gistId || null);
+
+    res.json({
+      success: true,
+      totalVideos: videos.length,
+      gistId: gistInfo.id,
+      gistUrl: gistInfo.url,
+      rawUrl: gistInfo.rawUrl,
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[API] 生成影片快取錯誤:', error);
+    res.status(500).json({
+      error: error.message || '生成影片快取失敗',
+    });
+  }
+});
+
+/**
+ * API: 從 Gist 載入影片快取
+ * GET /api/video-cache/load/:gistId
+ */
+app.get('/api/video-cache/load/:gistId', async (req, res) => {
+  try {
+    const { gistId } = req.params;
+    const { gistToken } = req.query;
+
+    if (!gistId) {
+      return res.status(400).json({ error: '缺少 gistId' });
+    }
+
+    console.log(`[API] 載入 Gist 快取: ${gistId}`);
+
+    const cache = await loadFromGist(gistId, gistToken || null);
+
+    res.json({
+      success: true,
+      ...cache,
+    });
+  } catch (error) {
+    console.error('[API] 載入 Gist 快取錯誤:', error);
+    res.status(500).json({
+      error: error.message || '載入 Gist 快取失敗',
     });
   }
 });

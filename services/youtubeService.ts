@@ -265,15 +265,16 @@ function titleMatchesQuery(title: string | undefined, query?: string): boolean {
     return (title || '').toLowerCase().includes(normalizedQuery);
 }
 
-async function listVideosBySearch(
+
+async function listVideosFromUploadsPlaylist(
     maxResults: number,
     pageToken: string | undefined,
     showPrivateVideos: boolean,
-    searchQuery: string | undefined,
     showUnlistedVideos: boolean,
+    searchQuery: string | undefined,
     options: QuotaTriggerOptions
 ): Promise<{ videos: YouTubeVideo[]; nextPageToken: string | null }> {
-    console.log('[YouTubeService] listVideosBySearch:start', {
+    console.log('[YouTubeService] listVideosFromUploadsPlaylist:start', {
         searchQuery,
         pageToken,
         maxResults,
@@ -282,111 +283,23 @@ async function listVideosBySearch(
         trigger: options.trigger,
     });
 
-    const searchParams: any = {
-        part: 'snippet',
-        forMine: true,
-        type: 'video',
-        maxResults,
-        order: 'date',
-    };
-
-    if (searchQuery && searchQuery.trim()) {
-        searchParams.q = searchQuery.trim();
-    }
-
-    if (pageToken) {
-        searchParams.pageToken = pageToken;
-    }
-
-    const searchResponse = await gapi.client.youtube.search.list(searchParams);
-    recordQuota('youtube.search.list', YT_QUOTA_COST.searchList, {
-        hasQuery: Boolean(searchParams.q),
-        maxResults,
-        trigger: options.trigger,
-        caller: options.source,
-        reset: options.reset,
-    });
-
-    if (!searchResponse.result.items || searchResponse.result.items.length === 0) {
-        console.log('[YouTubeService] listVideosBySearch:empty', {
-            searchQuery,
-            pageToken,
-        });
-        return { videos: [], nextPageToken: null };
-    }
-
-    const nextPageToken = searchResponse.result.nextPageToken || null;
-
-    const videoIds = searchResponse.result.items.map((item: any) => item.id.videoId).join(',');
-
-    const videosResponse = await gapi.client.youtube.videos.list({
-        part: 'snippet,status,statistics,contentDetails',
-        id: videoIds,
-    });
-    const searchParts = 'snippet,status,statistics,contentDetails';
-    recordQuota(
-        'youtube.videos.list',
-        calculatePartCost(searchParts, YT_QUOTA_COST.videosListPartCost),
-        {
-            part: searchParts,
-            apiSource: 'search',
-            trigger: options.trigger,
-            caller: options.source,
-            reset: options.reset,
-            searchQuery: searchQuery?.trim() || null,
-        }
-    );
-
-    if (!videosResponse.result.items) {
-        console.log('[YouTubeService] listVideosBySearch:noDetails', {
-            searchQuery,
-            pageToken,
-            requestedIds: videoIds.split(',').length,
-        });
-        return { videos: [], nextPageToken: null };
-    }
-
-    const videos = videosResponse.result.items
-        .filter((item: any) => {
-            const privacyStatus = item.status?.privacyStatus || 'public';
-
-            if (privacyStatus === 'public') {
-                return true;
-            }
-
-            if (privacyStatus === 'unlisted') {
-                return showUnlistedVideos;
-            }
-
-            if (privacyStatus === 'private') {
-                return showPrivateVideos;
-            }
-
-            return false;
-        })
-        .map(mapVideoItem);
-
-    const filteredVideos = videos.filter(video => titleMatchesQuery(video.title, searchQuery));
-
-    console.log('[YouTubeService] listVideosBySearch:done', {
-        searchQuery,
-        pageToken,
-        returned: filteredVideos.length,
-        nextPageToken,
-    });
-
-    return { videos: filteredVideos, nextPageToken };
-}
-
-async function listVideosFromUploadsPlaylist(
-    maxResults: number,
-    pageToken: string | undefined,
-    showPrivateVideos: boolean,
-    showUnlistedVideos: boolean,
-    options: QuotaTriggerOptions
-): Promise<{ videos: YouTubeVideo[]; nextPageToken: string | null }> {
     const playlistId = await resolveUploadsPlaylistId();
+    const hasSearchQuery = Boolean(searchQuery && searchQuery.trim());
 
+    // 當有搜尋關鍵字時，需要抓取多頁直到找到足夠的匹配影片
+    if (hasSearchQuery) {
+        return await searchInPlaylist(
+            playlistId,
+            maxResults,
+            pageToken,
+            showPrivateVideos,
+            showUnlistedVideos,
+            searchQuery,
+            options
+        );
+    }
+
+    // 無搜尋關鍵字時，使用一般分頁邏輯
     const playlistResponse = await gapi.client.youtube.playlistItems.list({
         part: 'snippet,contentDetails,status',
         playlistId,
@@ -403,11 +316,16 @@ async function listVideosFromUploadsPlaylist(
             trigger: options.trigger,
             caller: options.source,
             reset: options.reset,
+            hasSearchQuery: false,
         }
     );
 
     const items = playlistResponse.result.items || [];
     if (items.length === 0) {
+        console.log('[YouTubeService] listVideosFromUploadsPlaylist:empty', {
+            searchQuery,
+            pageToken,
+        });
         return { videos: [], nextPageToken: null };
     }
 
@@ -436,6 +354,7 @@ async function listVideosFromUploadsPlaylist(
             reset: options.reset,
             showPrivateVideos,
             showUnlistedVideos,
+            searchQuery: null,
         }
     );
 
@@ -460,7 +379,166 @@ async function listVideosFromUploadsPlaylist(
         })
         .map(mapVideoItem);
 
+    console.log('[YouTubeService] listVideosFromUploadsPlaylist:done', {
+        searchQuery,
+        pageToken,
+        total: orderedVideos.length,
+        nextPageToken,
+    });
+
     return { videos: orderedVideos, nextPageToken };
+}
+
+async function searchInPlaylist(
+    playlistId: string,
+    maxResults: number,
+    pageToken: string | undefined,
+    showPrivateVideos: boolean,
+    showUnlistedVideos: boolean,
+    searchQuery: string | undefined,
+    options: QuotaTriggerOptions
+): Promise<{ videos: YouTubeVideo[]; nextPageToken: string | null }> {
+    console.log('[YouTubeService] searchInPlaylist:start', {
+        searchQuery,
+        maxResults,
+        pageToken,
+    });
+
+    const matchedVideos: YouTubeVideo[] = [];
+    let currentPageToken: string | null | undefined = pageToken;
+    let pagesScanned = 0;
+    let pagesWithoutMatch = 0; // 追蹤連續沒有匹配影片的頁數
+
+    // 配額控制：最多掃描 3 頁（42 配額），遠低於 search.list 的 100 配額
+    // 這樣可以確保不會超過 search.list 的成本
+    const MAX_PAGES_PER_REQUEST = 3;
+    const MAX_PAGES_WITHOUT_MATCH = 2; // 連續 2 頁沒找到就停止
+
+    // 持續掃描直到找到足夠的匹配影片或達到上限
+    while (matchedVideos.length < maxResults && pagesScanned < MAX_PAGES_PER_REQUEST) {
+        pagesScanned++;
+
+        // 如果連續太多頁沒找到匹配影片，提前停止避免浪費配額
+        if (pagesWithoutMatch >= MAX_PAGES_WITHOUT_MATCH) {
+            console.log('[YouTubeService] searchInPlaylist:early-stop', {
+                reason: '連續多頁未找到匹配影片',
+                pagesWithoutMatch,
+                totalMatched: matchedVideos.length,
+            });
+            break;
+        }
+
+        const playlistResponse = await gapi.client.youtube.playlistItems.list({
+            part: 'snippet,contentDetails,status',
+            playlistId,
+            maxResults: 50,
+            pageToken: currentPageToken || undefined,
+        });
+        const playlistParts = 'snippet,contentDetails,status';
+        recordQuota(
+            'youtube.playlistItems.list',
+            calculatePartCost(playlistParts, YT_QUOTA_COST.playlistItemsPartCost),
+            {
+                part: playlistParts,
+                maxResults: 50,
+                trigger: options.trigger,
+                caller: options.source,
+                reset: options.reset,
+                hasSearchQuery: true,
+                page: pagesScanned,
+            }
+        );
+
+        const items = playlistResponse.result.items || [];
+        if (items.length === 0) {
+            break;
+        }
+
+        const videoIds = items
+            .map((item: any) => item.contentDetails?.videoId)
+            .filter(Boolean);
+
+        if (videoIds.length > 0) {
+            const videosResponse = await gapi.client.youtube.videos.list({
+                part: 'snippet,status,statistics,contentDetails',
+                id: videoIds.join(','),
+            });
+            const playlistVideoParts = 'snippet,status,statistics,contentDetails';
+            recordQuota(
+                'youtube.videos.list',
+                calculatePartCost(playlistVideoParts, YT_QUOTA_COST.videosListPartCost),
+                {
+                    part: playlistVideoParts,
+                    apiSource: 'uploadsPlaylist',
+                    trigger: options.trigger,
+                    caller: options.source,
+                    reset: options.reset,
+                    showPrivateVideos,
+                    showUnlistedVideos,
+                    searchQuery: searchQuery?.trim() || null,
+                    page: pagesScanned,
+                }
+            );
+
+            const detailedItems = videosResponse.result.items || [];
+            const itemMap = new Map<string, any>();
+            detailedItems.forEach((item: any) => {
+                if (item.id) {
+                    itemMap.set(item.id, item);
+                }
+            });
+
+            const pageVideos = videoIds
+                .map((id: string) => itemMap.get(id))
+                .filter((item: any) => {
+                    if (!item) return false;
+
+                    const privacyStatus = item.status?.privacyStatus || 'public';
+                    if (privacyStatus === 'public') return true;
+                    if (privacyStatus === 'unlisted') return showUnlistedVideos;
+                    if (privacyStatus === 'private') return showPrivateVideos;
+                    return false;
+                })
+                .map(mapVideoItem)
+                .filter(video => titleMatchesQuery(video.title, searchQuery));
+
+            // 更新連續沒有匹配影片的計數器
+            if (pageVideos.length > 0) {
+                pagesWithoutMatch = 0; // 找到匹配影片，重置計數器
+            } else {
+                pagesWithoutMatch++; // 沒找到，增加計數器
+            }
+
+            matchedVideos.push(...pageVideos);
+        }
+
+        currentPageToken = playlistResponse.result.nextPageToken || null;
+
+        // 如果沒有更多影片了，就停止掃描
+        if (!currentPageToken) {
+            break;
+        }
+
+        // 如果已經找到足夠的影片，就停止掃描
+        if (matchedVideos.length >= maxResults) {
+            break;
+        }
+    }
+
+    // 只回傳所需數量的影片
+    const resultVideos = matchedVideos.slice(0, maxResults);
+
+    console.log('[YouTubeService] searchInPlaylist:done', {
+        searchQuery,
+        pagesScanned,
+        totalMatched: matchedVideos.length,
+        returned: resultVideos.length,
+        nextPageToken: currentPageToken,
+    });
+
+    // 回傳 currentPageToken，讓使用者可以繼續 loadmore
+    // 只有在沒有更多影片時才回傳 null
+    return { videos: resultVideos, nextPageToken: currentPageToken };
 }
 
 export async function listVideos(
@@ -476,24 +554,14 @@ export async function listVideos(
     }
 
     try {
-        const hasSearchQuery = Boolean(searchQuery && searchQuery.trim());
-
-        if (hasSearchQuery) {
-            return await listVideosBySearch(
-                maxResults,
-                pageToken,
-                showPrivateVideos,
-                searchQuery,
-                showUnlistedVideos,
-                options
-            );
-        }
-
+        // 統一使用 playlistItems API，並在客戶端進行關鍵字過濾
+        // 這樣可以避免使用成本高昂的 search.list API（配額成本 100）
         return await listVideosFromUploadsPlaylist(
             maxResults,
             pageToken,
             showPrivateVideos,
             showUnlistedVideos,
+            searchQuery,
             options
         );
     } catch (error: any) {
