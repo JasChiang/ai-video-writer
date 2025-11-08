@@ -60,11 +60,8 @@ export function Header({ isLoggedIn, onLogout, activeTab, onTabChange }: HeaderP
         </div>
 
         {isLoggedIn && onTabChange && (
-          <nav
-            className="mt-3"
-            aria-label="主要導覽"
-          >
-            <div className="flex gap-2 overflow-x-auto rounded-full border border-neutral-200 bg-neutral-50 p-1 text-sm text-neutral-700 shadow-inner sm:text-base">
+          <nav className="mt-3" aria-label="主要導覽">
+            <div className="flex flex-nowrap gap-1 overflow-hidden rounded-full border border-neutral-200 bg-neutral-50 p-1 text-xs text-neutral-700 shadow-inner sm:gap-2 sm:text-sm lg:text-base">
               {([
                 { key: 'videos', label: '影片內容', icon: 'video' },
                 { key: 'articles', label: '文章生成', icon: 'article' },
@@ -77,14 +74,14 @@ export function Header({ isLoggedIn, onLogout, activeTab, onTabChange }: HeaderP
                   role="tab"
                   aria-selected={activeTab === tab.key}
                   onClick={() => onTabChange(tab.key)}
-                  className={`flex-1 whitespace-nowrap rounded-full px-4 py-2 font-semibold transition ${
+                  className={`flex-1 min-w-0 whitespace-nowrap rounded-full px-3 py-1.5 font-semibold transition sm:px-4 sm:py-2 ${
                     activeTab === tab.key
                       ? 'bg-white text-red-600 shadow'
                       : 'hover:bg-white hover:text-neutral-900'
                   }`}
                 >
-                  <span className="inline-flex items-center justify-center gap-2">
-                    <AppIcon name={tab.icon} size={16} className="text-red-600" />
+                  <span className="inline-flex items-center justify-center gap-1 sm:gap-2">
+                    <AppIcon name={tab.icon} size={16} className="hidden sm:inline text-red-600" />
                     {tab.label}
                   </span>
                 </button>

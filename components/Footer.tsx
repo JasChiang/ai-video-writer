@@ -4,9 +4,9 @@ export function Footer() {
   return (
     <footer className="mt-auto py-4 bg-white border-t border-neutral-200">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row items-center justify-center gap-2 text-sm text-neutral-500 text-center">
-          <span className="font-medium text-neutral-900">Created by</span>
-          <div className="inline-flex flex-wrap items-center justify-center gap-2 font-medium text-neutral-900">
+        <div className="flex flex-nowrap items-center justify-center gap-2 text-xs text-neutral-500 text-center sm:text-sm">
+          <span className="font-medium text-neutral-900 whitespace-nowrap">Created by</span>
+          <div className="inline-flex flex-nowrap items-center justify-center gap-2 font-medium text-neutral-900">
             <a
               href="https://www.facebook.com/jaschiang/"
               target="_blank"
