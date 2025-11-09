@@ -445,19 +445,7 @@ export function ChannelAnalytics() {
             <div className="text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">
               💡 系統會獲取頻道<strong>所有影片</strong>（公開、未列出、私人），再根據<strong>關鍵字</strong>過濾，並統計您選擇的<strong>時間段內</strong>的數據
             </div>
-            <div className="text-sm text-orange-600 bg-orange-50 px-3 py-2 rounded-lg">
-              ⚠️ <strong>關於數據差異：</strong>
-              <ul className="list-disc list-inside mt-1 space-y-1">
-                <li>本系統日期計算使用 <strong>GMT+8 時區</strong></li>
-                <li>YouTube Analytics API 會使用<strong>您頻道設定的時區</strong>來解釋日期</li>
-                {channelCountry && channelCountry !== 'TW' && (
-                  <li className="text-red-600 font-semibold">
-                    ⚡ 您的頻道國家設為「{channelCountry}」，建議改為「台灣 (TW)」以使用 GMT+8 時區
-                  </li>
-                )}
-                <li>建議：到 YouTube Studio → 設定 → 頻道 → 進階設定，檢查並設為<strong>台灣 (TW)</strong></li>
-              </ul>
-            </div>
+
           </div>
         </div>
         <div className="flex gap-2">
