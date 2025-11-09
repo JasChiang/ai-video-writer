@@ -321,6 +321,28 @@ export default function App() {
     ? videos.find(video => video.id === selectedVideoId) ?? null
     : null;
 
+  // 處理 Detail Panel 的 DOM 位置移動（保持組件實例不變）
+  useEffect(() => {
+    if (!selectedVideo) return;
+
+    const detailPanel = document.getElementById('video-detail-panel-container');
+    if (!detailPanel) return;
+
+    if (useInlineDetail) {
+      // 小螢幕：移動到選中影片的 slot 中
+      const targetSlot = document.getElementById(`detail-slot-${selectedVideo.id}`);
+      if (targetSlot && detailPanel.parentElement !== targetSlot) {
+        targetSlot.appendChild(detailPanel);
+      }
+    } else {
+      // 大螢幕：移動回 sidebar
+      const sidebarContainer = document.getElementById('detail-sidebar-container');
+      if (sidebarContainer && detailPanel.parentElement !== sidebarContainer) {
+        sidebarContainer.appendChild(detailPanel);
+      }
+    }
+  }, [useInlineDetail, selectedVideo]);
+
   useEffect(() => {
     if (isDesktop) {
       setIsFilterPanelOpen(false);
@@ -544,16 +566,15 @@ export default function App() {
               onLoadMore={loadMoreVideos}
               selectedVideoId={selectedVideoId}
               onSelectVideo={handleVideoSelect}
-              inlineDetail={useInlineDetail}
-              selectedVideo={selectedVideo}
-              onVideoUpdate={handleVideoUpdate}
+              showInlineDetail={useInlineDetail}
             />
           </section>
 
+          {/* Desktop sidebar - 容器將由 JavaScript 動態填充 */}
           <aside className="hidden xl:block">
             {selectedVideo ? (
-              <div className="lg:sticky lg:top-28">
-                <VideoDetailPanel video={selectedVideo} onVideoUpdate={handleVideoUpdate} />
+              <div className="lg:sticky lg:top-28" id="detail-sidebar-container">
+                {/* VideoDetailPanel 將由 JavaScript 移動到這裡 */}
               </div>
             ) : (
               <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-6 py-10 text-center text-neutral-500">
@@ -565,6 +586,17 @@ export default function App() {
             )}
           </aside>
         </div>
+
+        {/* Detail Panel - 始終渲染以保持狀態，位置由 JavaScript 控制 */}
+        {selectedVideo && (
+          <div id="video-detail-panel-container" style={{ display: 'contents' }}>
+            <VideoDetailPanel
+              key={selectedVideo.id}
+              video={selectedVideo}
+              onVideoUpdate={handleVideoUpdate}
+            />
+          </div>
+        )}
       </div>
     );
   };

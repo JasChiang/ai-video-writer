@@ -2,7 +2,6 @@ import React from 'react';
 import type { YouTubeVideo } from '../types';
 import { Loader } from './Loader';
 import { VideoCard } from './VideoCard';
-import { VideoDetailPanel } from './VideoDetailPanel';
 
 interface VideoSelectorProps {
   videos: YouTubeVideo[];
@@ -12,9 +11,7 @@ interface VideoSelectorProps {
   onLoadMore: () => void;
   selectedVideoId: string | null;
   onSelectVideo: (videoId: string) => void;
-  inlineDetail?: boolean;
-  selectedVideo?: YouTubeVideo | null;
-  onVideoUpdate?: (updatedVideo: Partial<YouTubeVideo> & { id: string }) => void;
+  showInlineDetail?: boolean;
 }
 
 export function VideoSelector({
@@ -25,11 +22,8 @@ export function VideoSelector({
   onLoadMore,
   selectedVideoId,
   onSelectVideo,
-  inlineDetail = false,
-  selectedVideo = null,
-  onVideoUpdate,
+  showInlineDetail = false,
 }: VideoSelectorProps) {
-  const canShowInlineDetail = inlineDetail && Boolean(selectedVideo);
 
   return (
     <div className="space-y-4">
@@ -83,11 +77,13 @@ export function VideoSelector({
                   onSelect={onSelectVideo}
                   cardId={cardId}
                 />
-                {canShowInlineDetail && isActive && selectedVideo && (
-                  <div className="pt-2">
-                    <VideoDetailPanel video={selectedVideo} onVideoUpdate={onVideoUpdate} />
-                  </div>
-                )}
+                {/* Inline detail 佔位元素 - 由 App.tsx 透過條件渲染或 Portal */}
+                <div
+                  id={`detail-slot-${video.id}`}
+                  className={`pt-2 ${showInlineDetail && isActive ? '' : 'hidden'}`}
+                >
+                  {/* Portal target - VideoDetailPanel 將渲染到這裡 */}
+                </div>
               </div>
             );
           })}
