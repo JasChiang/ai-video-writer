@@ -21,6 +21,25 @@ const YOUTUBE_QUOTA_COST = {
 const GIST_FILENAME = process.env.GITHUB_GIST_FILENAME || 'youtube-videos-cache.json';
 
 /**
+ * 清理文字內容，移除可能造成 JSON 問題的字元
+ * @param {string} text - 原始文字
+ * @returns {string} 清理後的文字
+ */
+function sanitizeText(text) {
+  if (!text || typeof text !== 'string') {
+    return '';
+  }
+
+  return text
+    // 移除控制字元（保留換行、回車、Tab）
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
+    // 正規化空白字元
+    .replace(/\s+/g, ' ')
+    // 移除前後空白
+    .trim();
+}
+
+/**
  * 從 YouTube 抓取所有影片的詳細資訊（含統計數據）
  * @param {string} accessToken - YouTube OAuth access token
  * @param {string} channelId - 頻道 ID
@@ -135,8 +154,8 @@ export async function fetchAllVideoTitles(accessToken, channelId) {
         if (detailItem) {
           videos.push({
             videoId: basicInfo.videoId,
-            title: detailItem.snippet.title,
-            tags: detailItem.snippet.tags || [],
+            title: sanitizeText(detailItem.snippet.title),
+            tags: (detailItem.snippet.tags || []).map(tag => sanitizeText(tag)),
             categoryId: detailItem.snippet.categoryId || '',
             viewCount: parseInt(detailItem.statistics.viewCount || '0'),
             likeCount: parseInt(detailItem.statistics.likeCount || '0'),
@@ -199,12 +218,31 @@ export async function uploadToGist(videos, gistToken, gistId = null) {
       videos: videos,
     };
 
+    // 先序列化 JSON 內容
+    let jsonContent;
+    try {
+      jsonContent = JSON.stringify(gistContent, null, 2);
+    } catch (stringifyError) {
+      console.error('[VideoCache] ❌ JSON 序列化失敗:', stringifyError.message);
+      throw new Error(`無法將影片資料轉換為 JSON: ${stringifyError.message}`);
+    }
+
+    // 驗證 JSON 是否可以正確解析
+    try {
+      JSON.parse(jsonContent);
+      console.log('[VideoCache] ✅ JSON 驗證通過');
+    } catch (validateError) {
+      console.error('[VideoCache] ❌ JSON 驗證失敗:', validateError.message);
+      console.error('[VideoCache] 內容長度:', jsonContent.length);
+      throw new Error(`生成的 JSON 無法正確解析: ${validateError.message}`);
+    }
+
     const gistData = {
       description: `YouTube 頻道影片快取 - ${videos.length} 支影片 - 更新於 ${new Date().toLocaleString('zh-TW')}`,
       public: false, // 私人 Gist
       files: {
         [GIST_FILENAME]: {
-          content: JSON.stringify(gistContent, null, 2),
+          content: jsonContent,
         },
       },
     };
@@ -268,9 +306,13 @@ export async function loadFromGist(gistId, gistToken = null) {
     console.log(`[VideoCache] 🆔 Gist ID: ${gistId}`);
     console.log(`[VideoCache] 🔑 使用 Token: ${gistToken ? '是' : '否'}`);
 
-    const url = `https://api.github.com/gists/${gistId}`;
+    // 添加時間戳避免 GitHub API 快取
+    const timestamp = Date.now();
+    const url = `https://api.github.com/gists/${gistId}?t=${timestamp}`;
     const headers = {
       'Accept': 'application/vnd.github.v3+json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
     };
 
     if (gistToken) {
@@ -291,8 +333,55 @@ export async function loadFromGist(gistId, gistToken = null) {
       throw new Error(`Gist 中找不到檔案: ${GIST_FILENAME}`);
     }
 
-    const fileContent = result.files[GIST_FILENAME].content;
-    const cache = JSON.parse(fileContent);
+    // 使用 raw_url 獲取完整內容（避免大檔案被截斷）
+    const rawUrl = result.files[GIST_FILENAME].raw_url;
+    const isTruncated = result.files[GIST_FILENAME].truncated;
+
+    if (isTruncated) {
+      console.log('[VideoCache] ⚠️  檔案過大，使用 raw_url 獲取完整內容...');
+    }
+
+    console.log(`[VideoCache] 📥 正在下載完整內容... (${isTruncated ? 'truncated' : 'normal'})`);
+
+    // 準備 raw_url 的 headers（私人 Gist 需要 token）
+    const rawHeaders = {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+    };
+
+    if (gistToken) {
+      rawHeaders['Authorization'] = `token ${gistToken}`;
+    }
+
+    const rawResponse = await fetch(rawUrl, { headers: rawHeaders });
+
+    if (!rawResponse.ok) {
+      throw new Error(`下載 raw 內容失敗: ${rawResponse.status}`);
+    }
+
+    const fileContent = await rawResponse.text();
+
+    let cache;
+    try {
+      cache = JSON.parse(fileContent);
+    } catch (parseError) {
+      console.error('[VideoCache] ========================================');
+      console.error('[VideoCache] ❌ JSON 解析錯誤');
+      console.error('[VideoCache] ========================================');
+      console.error(`[VideoCache] 錯誤訊息: ${parseError.message}`);
+      console.error(`[VideoCache] Gist ID: ${gistId}`);
+      console.error(`[VideoCache] 檔案名稱: ${GIST_FILENAME}`);
+      console.error(`[VideoCache] 內容長度: ${fileContent.length} 字元`);
+      console.error('[VideoCache] ========================================');
+      console.error('[VideoCache] 💡 可能的解決方案：');
+      console.error('[VideoCache] 1. Gist 快取已損壞，需要重新生成');
+      console.error('[VideoCache] 2. 執行以下指令重新生成快取：');
+      console.error('[VideoCache]    npm run update-cache');
+      console.error('[VideoCache] 3. 或檢查 Gist 內容是否手動修改過');
+      console.error('[VideoCache] ========================================');
+
+      throw new Error(`JSON 解析失敗: ${parseError.message}。請重新生成快取。`);
+    }
 
     console.log('[VideoCache] ========================================');
     console.log('[VideoCache] ✅ 載入成功！');
