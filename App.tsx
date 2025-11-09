@@ -335,10 +335,12 @@ export default function App() {
         targetSlot.appendChild(detailPanel);
       }
     } else {
-      // 大螢幕：移動回 sidebar
-      const sidebarContainer = document.getElementById('detail-sidebar-container');
-      if (sidebarContainer && detailPanel.parentElement !== sidebarContainer) {
-        sidebarContainer.appendChild(detailPanel);
+      // 大螢幕：移動回 sidebar 的滾動容器中
+      const sidebarScroll = document.getElementById('detail-sidebar-scroll');
+      if (sidebarScroll && detailPanel.parentElement !== sidebarScroll) {
+        sidebarScroll.appendChild(detailPanel);
+        // 移動後滾動到頂部
+        sidebarScroll.scrollTop = 0;
       }
     }
   }, [useInlineDetail, selectedVideo]);
@@ -570,10 +572,18 @@ export default function App() {
             />
           </section>
 
-          {/* Desktop sidebar - 容器將由 JavaScript 動態填充 */}
+          {/* Desktop sidebar - 獨立滾動容器 */}
           <aside className="hidden xl:block">
             {selectedVideo ? (
-              <div className="lg:sticky lg:top-28" id="detail-sidebar-container">
+              <div
+                className="lg:sticky lg:top-28 overflow-y-auto"
+                style={{
+                  maxHeight: 'calc(100vh - 8rem)',
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: '#d4d4d4 transparent',
+                }}
+                id="detail-sidebar-scroll"
+              >
                 {/* VideoDetailPanel 將由 JavaScript 移動到這裡 */}
               </div>
             ) : (

@@ -20,10 +20,12 @@ interface VideoContentCache {
 export function VideoDetailPanel({ video, onVideoUpdate }: VideoDetailPanelProps) {
   const [activeMode, setActiveMode] = useState<ActiveMode>('none');
   const [showPlayer, setShowPlayer] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const contentCacheRef = useRef<Map<string, VideoContentCache>>(new Map());
   const [cachedMetadata, setCachedMetadata] = useState<GeneratedContentType | null>(null);
   const [cachedArticle, setCachedArticle] = useState<ArticleGenerationResult | null>(null);
   const [isCacheLoaded, setIsCacheLoaded] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
   const [fileStatus, setFileStatus] = useState<{
     checking: boolean;
     exists: boolean;
@@ -39,6 +41,28 @@ export function VideoDetailPanel({ video, onVideoUpdate }: VideoDetailPanelProps
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const DESCRIPTION_PREVIEW_CHAR_THRESHOLD = 180;
   const NEWLINE_THRESHOLD = 3;
+
+  // 監聽滾動容器的滾動事件
+  useEffect(() => {
+    const scrollContainer = document.getElementById('detail-sidebar-scroll');
+    if (!scrollContainer) return;
+
+    const handleScroll = () => {
+      // 當滾動超過 300px 時顯示"回到頂部"按鈕
+      setShowScrollTop(scrollContainer.scrollTop > 300);
+    };
+
+    scrollContainer.addEventListener('scroll', handleScroll);
+    return () => scrollContainer.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // 滾動到頂部
+  const scrollToTop = () => {
+    const scrollContainer = document.getElementById('detail-sidebar-scroll');
+    if (scrollContainer) {
+      scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   // 從 localStorage 載入快取
   useEffect(() => {
@@ -177,7 +201,7 @@ export function VideoDetailPanel({ video, onVideoUpdate }: VideoDetailPanelProps
     .join(' ');
 
   return (
-    <div className="space-y-6 p-6 rounded-2xl bg-white border border-neutral-200 shadow-sm">
+    <div ref={panelRef} className="relative space-y-6 p-6 rounded-2xl bg-white border border-neutral-200 shadow-sm">
       {/* Video Preview */}
       <div className="space-y-4">
         {showPlayer ? (
@@ -427,6 +451,19 @@ export function VideoDetailPanel({ video, onVideoUpdate }: VideoDetailPanelProps
             onContentUpdate={handleArticleUpdate}
           />
         </div>
+      )}
+
+      {/* 回到頂部按鈕 - 只在大螢幕滾動時顯示 */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-8 right-8 xl:absolute xl:bottom-4 xl:right-4 z-10 flex items-center justify-center w-12 h-12 rounded-full bg-red-600 text-white shadow-lg hover:bg-red-700 hover:shadow-xl transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+          aria-label="回到頂部"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+          </svg>
+        </button>
       )}
     </div>
   );
