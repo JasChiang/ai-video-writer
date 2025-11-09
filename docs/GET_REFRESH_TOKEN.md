@@ -1,322 +1,190 @@
-# 如何取得 YouTube Refresh Token（永久有效）
+# 🔑 取得 YouTube Refresh Token (永久有效)
 
-Refresh Token 可以讓系統自動刷新 Access Token，不需要每次手動更新，是自動化更新快取的最佳方案。
-
----
-
-## 🎯 方法 1：從應用程式本地儲存取得（最簡單）
-
-這是最簡單的方法，直接從你已經登入的應用程式中取得。
-
-### 步驟：
-
-1. **啟動應用程式並登入**
-   ```bash
-   npm run dev:all
-   ```
-
-   這會同時啟動：
-   - 前端 Vite 伺服器（端口 3000）
-   - 後端 Express 伺服器（端口 3001）
-
-2. **在瀏覽器開啟應用程式**
-   ```
-   http://localhost:3000
-   ```
-
-   **注意**：
-   - 前端 UI：http://localhost:3000（在 vite.config.ts 中配置）
-   - 後端 API：http://localhost:3001
-
-3. **登入 YouTube 帳號**
-   - 點擊「登入 YouTube」按鈕
-   - 完成 OAuth 認證
-
-4. **開啟瀏覽器開發者工具**
-   - 按 `F12` 或右鍵 →「檢查」
-   - 切換到「Console」分頁
-
-5. **執行以下指令取得 Refresh Token**
-   ```javascript
-   // 取得完整的 token 資訊
-   const tokenData = JSON.parse(localStorage.getItem('youtubeContentAssistant.oauthToken'));
-   console.log('===== YouTube OAuth Token Info =====');
-   console.log('Refresh Token:', tokenData.token.refresh_token);
-   console.log('Access Token:', tokenData.token.access_token);
-   console.log('Expires At:', new Date(tokenData.expiresAt).toLocaleString());
-   console.log('===================================');
-
-   // 複製 Refresh Token
-   copy(tokenData.token.refresh_token);
-   console.log('✅ Refresh Token 已複製到剪貼簿！');
-   ```
-
-6. **Refresh Token 已複製**
-   - 格式：`1//xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
-   - 貼到記事本保存
-
-7. **取得 Client Secret**
-
-   你的應用程式已經有 `YOUTUBE_CLIENT_ID`，現在需要取得對應的 `Client Secret`：
-
-   a. 前往 [Google Cloud Console](https://console.cloud.google.com/)
-
-   b. 選擇你的專案
-
-   c. 左側選單：「APIs & Services」→「Credentials」
-
-   d. 找到你的 OAuth 2.0 Client ID（就是你的 `YOUTUBE_CLIENT_ID`）
-
-   e. 點擊進入查看詳情
-
-   f. 複製 `Client Secret`
-      - 格式：`GOCSPX-xxxxxxxxxxxxxxxxxxxxx`
-
-8. **設定環境變數**
-
-   在 `.env.local` 新增：
-   ```bash
-   YOUTUBE_REFRESH_TOKEN=1//xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-   YOUTUBE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxxxxxxx
-   ```
-
-9. **測試**
-   ```bash
-   npm run update-cache
-   ```
-
-   應該會看到：
-   ```
-   🔄 使用 refresh token 取得 access token...
-   ✅ Access token 取得成功（有效期限: 3599 秒）
-   ```
+本指南將詳細說明如何取得 YouTube Refresh Token，這是實現 YouTube API 自動化（例如 GitHub Actions 自動更新影片快取）的關鍵。Refresh Token 允許系統自動刷新 Access Token，無需手動介入，確保您的自動化流程永久有效。
 
 ---
 
-## 🎯 方法 2：使用 OAuth 2.0 Playground（進階）
+## 💡 為什麼需要 Refresh Token？
 
-如果方法 1 不適用，可以使用 Google 提供的 OAuth Playground。
-
-### 步驟：
-
-1. **前往 OAuth 2.0 Playground**
-
-   https://developers.google.com/oauthplayground
-
-2. **設定自己的 OAuth Client**
-
-   點擊右上角齒輪圖示 ⚙️
-
-   勾選：「Use your own OAuth credentials」
-
-   輸入：
-   - OAuth Client ID: `你的 YOUTUBE_CLIENT_ID`
-   - OAuth Client Secret: `你的 Client Secret`
-
-3. **選擇 YouTube Data API v3**
-
-   在左側 API 列表中找到：
-   ```
-   YouTube Data API v3
-   └─ https://www.googleapis.com/auth/youtube
-   ```
-
-   勾選這個 scope
-
-4. **授權 API**
-
-   點擊「Authorize APIs」按鈕
-
-   登入你的 Google 帳號並授權
-
-5. **交換授權碼**
-
-   授權完成後會自動跳轉回來
-
-   點擊「Exchange authorization code for tokens」
-
-6. **複製 Refresh Token**
-
-   在右側會顯示：
-   ```json
-   {
-     "access_token": "ya29.a0...",
-     "refresh_token": "1//...",
-     "expires_in": 3599,
-     "token_type": "Bearer"
-   }
-   ```
-
-   複製 `refresh_token` 的值
-
-7. **設定環境變數**（同方法 1 的步驟 8）
+-   **Access Token 會過期**：YouTube Access Token 通常在 1 小時後失效。
+-   **Refresh Token 永久有效**：除非被手動撤銷，Refresh Token 可以用來持續取得新的 Access Token。
+-   **實現自動化**：是 GitHub Actions 等自動化工具能夠長期運行的基礎。
 
 ---
 
-## 🎯 方法 3：從 config.js 取得（如果已經有）
+## 🎯 方法 1：從已登入的應用程式取得 (推薦且最簡單)
 
-如果你之前已經取得過，可能存在配置文件中。
+這是最直接的方法，直接從您已登入的 AI Video Writer 應用程式中提取 Refresh Token。
 
-### 檢查位置：
+### 步驟 1：啟動應用程式並登入 YouTube
 
-```javascript
-// 檢查前端 localStorage
-localStorage.getItem('youtubeContentAssistant.oauthToken')
+1.  **啟動應用程式**：
+    ```bash
+    npm run dev:all
+    ```
+    這會同時啟動前端 (port 3000) 和後端 (port 3001)。
+2.  **開啟瀏覽器**：造訪 `http://localhost:3000`。
+3.  **登入 YouTube**：點擊「Sign in with Google」按鈕，完成 OAuth 認證流程。
 
-// 檢查 config 文件
-// config.js 或 config/youtube.js
+### 步驟 2：從瀏覽器開發者工具取得 Refresh Token
+
+1.  **開啟開發者工具**：在瀏覽器中按 `F12` 或右鍵點擊頁面選擇「檢查」，然後切換到「Console」分頁。
+2.  **執行指令**：在 Console 中輸入並執行以下 JavaScript 程式碼：
+    ```javascript
+    const tokenData = JSON.parse(localStorage.getItem('youtubeContentAssistant.oauthToken'));
+    if (tokenData && tokenData.token && tokenData.token.refresh_token) {
+        copy(tokenData.token.refresh_token);
+        console.log('✅ Refresh Token 已複製到剪貼簿！');
+        console.log('Refresh Token 範例:', tokenData.token.refresh_token.substring(0, 20) + '...');
+    } else {
+        console.error('❌ 未找到 Refresh Token。請確認已成功登入 YouTube。');
+    }
+    ```
+3.  **複製 Refresh Token**：您的 Refresh Token (格式：`1//xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`) 將被複製到剪貼簿。請妥善保存。
+
+### 步驟 3：取得 Client Secret
+
+您的應用程式已經有 `YOUTUBE_CLIENT_ID`，現在需要取得對應的 `Client Secret`。
+
+1.  **前往 Google Cloud Console**：[https://console.cloud.google.com/](https://console.cloud.google.com/)
+2.  **選擇您的專案**。
+3.  **導航至憑證**：在左側選單中選擇「API 和服務」→「憑證」。
+4.  **找到 OAuth 2.0 用戶端 ID**：找到與您的 `YOUTUBE_CLIENT_ID` 相符的 OAuth 2.0 用戶端 ID。
+5.  **複製 Client Secret**：點擊該用戶端 ID 進入詳情頁面，複製 `Client Secret` (格式：`GOCSPX-xxxxxxxxxxxxxxxxxxxxx`)。請妥善保存。
+
+---
+
+## 🎯 方法 2：使用 OAuth 2.0 Playground (進階替代方案)
+
+如果方法 1 不適用，您可以使用 Google 提供的 OAuth 2.0 Playground。
+
+### 步驟 1：前往 OAuth 2.0 Playground
+
+-   開啟網頁：[https://developers.google.com/oauthplayground](https://developers.google.com/oauthplayground)
+
+### 步驟 2：設定自己的 OAuth Client 憑證
+
+1.  點擊右上角的齒輪圖示 ⚙️。
+2.  勾選「Use your own OAuth credentials」。
+3.  輸入您的 `YOUTUBE_CLIENT_ID` 和 `Client Secret`。
+
+### 步驟 3：選擇 YouTube Data API 範圍 (Scopes)
+
+1.  在左側的「Step 1: Select & authorize APIs」中，找到 `YouTube Data API v3`。
+2.  展開它並勾選 `https://www.googleapis.com/auth/youtube` 範圍。
+
+### 步驟 4：授權 API
+
+1.  點擊「Authorize APIs」按鈕。
+2.  登入您的 Google 帳號並授權。
+
+### 步驟 5：交換授權碼以取得 Token
+
+1.  授權完成後，頁面會自動跳轉回 Playground。
+2.  點擊「Exchange authorization code for tokens」按鈕。
+3.  在右側的「Request / Response」區域，您會看到包含 `refresh_token` 的 JSON 回應。複製 `refresh_token` 的值。
+
+---
+
+## 📝 設定環境變數
+
+取得 Refresh Token 和 Client Secret 後，您需要將它們設定為環境變數。
+
+### 本地開發環境 (`.env.local`)
+
+在專案根目錄下的 `.env.local` 檔案中，新增或更新以下變數：
+
+```env
+# YouTube OAuth 憑證 (用於後端自動刷新 Access Token)
+YOUTUBE_REFRESH_TOKEN="YOUR_REFRESH_TOKEN_HERE"
+YOUTUBE_CLIENT_ID="YOUR_CLIENT_ID.apps.googleusercontent.com" # 應已存在
+YOUTUBE_CLIENT_SECRET="YOUR_CLIENT_SECRET_HERE"
+
+# 您的 YouTube 頻道 ID (用於快取更新)
+YOUTUBE_CHANNEL_ID="UCxxxxxxxxxxxxxxxxxx" # 替換為您的頻道 ID
 ```
+將 `YOUR_REFRESH_TOKEN_HERE` 和 `YOUR_CLIENT_SECRET_HERE` 替換為您實際取得的值。
 
----
+### GitHub Actions Secrets
 
-## 📋 完整設定檢查清單
+如果您計劃使用 GitHub Actions 自動更新影片快取，則需要將這些憑證設定為 GitHub Secrets。
 
-設定完成後，確認以下環境變數：
+1.  前往您的 GitHub repository → `Settings` → `Secrets and variables` → `Actions`。
+2.  點擊「New repository secret」。
+3.  新增以下 Secrets：
 
-```bash
-# .env.local 文件
-
-# YouTube 前端（已有）
-YOUTUBE_CLIENT_ID=xxxxx.apps.googleusercontent.com
-
-# YouTube 後端（新增）
-YOUTUBE_REFRESH_TOKEN=1//xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-YOUTUBE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxxxxxxx
-YOUTUBE_CHANNEL_ID=UCxxxxxxxxxxxxxxxxxx
-
-# GitHub Gist
-GITHUB_GIST_TOKEN=ghp_xxxxxxxxxxxxxx
-GITHUB_GIST_ID=abc123...（首次執行後取得）
-```
+| Secret 名稱 | 值 | 說明 |
+| :---------- | :--- | :--- |
+| `YOUTUBE_REFRESH_TOKEN` | 您的 Refresh Token | 永久有效，用於自動刷新 Access Token |
+| `YOUTUBE_CLIENT_ID` | 您的 OAuth Client ID | 從 Google Cloud Console 取得 |
+| `YOUTUBE_CLIENT_SECRET` | 您的 OAuth Client Secret | 從 Google Cloud Console 取得 |
+| `YOUTUBE_CHANNEL_ID` | 您的 YouTube 頻道 ID | 格式：`UCxxxxxxxxxxxxxxxxxx` |
 
 ---
 
 ## 🧪 測試 Refresh Token
 
-### 本地測試：
+設定完成後，您可以執行以下指令來測試 Refresh Token 是否能成功取得新的 Access Token：
 
 ```bash
-npm run server
 npm run update-cache
 ```
-
-成功的輸出：
+如果成功，您會看到類似以下的日誌：
 ```
-========================================
-🚀 開始更新影片快取到 Gist
-========================================
-
-✅ 環境變數檢查通過
-   - Channel ID: UCxxxxxxxxxxxxxxxxxx
-   - Gist ID: abc123...
-   - Token 類型: Refresh Token (自動刷新)
-   - Force Update: false
-
 🔄 使用 refresh token 取得 access token...
 ✅ Access token 取得成功（有效期限: 3599 秒）
-
-📡 正在連接到 API...
-...
-✅ 快取更新成功！
 ```
 
 ---
 
-## 🔒 GitHub Secrets 設定
+## 🔒 安全注意事項
 
-在 GitHub 設定以下 Secrets（取代舊的 `YOUTUBE_ACCESS_TOKEN`）：
+-   **Refresh Token 具有高權限**：它允許無限期地取得新的 Access Token，因此必須像密碼一樣妥善保管。
+-   **切勿公開**：絕對不要將 Refresh Token、Client ID 或 Client Secret 硬編碼在程式碼中，或提交到版本控制系統。
+-   **使用 Secrets**：在生產環境或自動化流程中，務必使用環境變數或 Secrets 管理這些憑證。
+-   **定期檢查**：定期檢查 Google 帳戶的授權應用程式列表，撤銷不再使用的授權。
 
-| Secret 名稱 | 值 | 說明 |
-|------------|-----|------|
-| `YOUTUBE_REFRESH_TOKEN` | `1//xxxxxx...` | Refresh Token（永久有效） |
-| `YOUTUBE_CLIENT_ID` | `xxxxx.apps.googleusercontent.com` | OAuth Client ID |
-| `YOUTUBE_CLIENT_SECRET` | `GOCSPX-xxxxx` | OAuth Client Secret |
-| `YOUTUBE_CHANNEL_ID` | `UCxxxxxxxxxxxxxxxxxx` | 你的頻道 ID |
-| `VIDEO_CACHE_GIST_TOKEN` | `ghp_xxxxxx` | GitHub Token（gist scope，workflow 會映射成 `GITHUB_GIST_TOKEN` 環境變數） |
-| `VIDEO_CACHE_GIST_ID` | `abc123...` | Gist ID（workflow 會映射成 `GITHUB_GIST_ID` 環境變數） |
+### Refresh Token 會失效的情況
 
----
+Refresh Token 通常永久有效，但在以下情況可能會失效：
+-   用戶手動撤銷了對應用程式的授權。
+-   用戶更改了 Google 帳戶密碼。
+-   Google 安全策略發生變更。
+-   Refresh Token 未被使用超過 6 個月。
 
-## ⚠️ 重要提醒
-
-### Refresh Token 的特性：
-
-1. **永久有效**：除非被手動撤銷
-2. **不會過期**：可以一直用來取得新的 Access Token
-3. **需妥善保管**：具有完整的帳號權限，不要洩漏
-
-### 安全建議：
-
-- ✅ 使用 GitHub Secrets 儲存
-- ✅ 不要 commit 到 Git
-- ✅ 定期檢查 Google 授權列表
-- ❌ 不要分享給他人
-- ❌ 不要寫在程式碼中
-
-### Refresh Token 會失效的情況：
-
-- 用戶手動撤銷授權
-- 用戶修改密碼
-- 用戶刪除 Google 帳號
-- Google 安全性政策變更
-
-如果失效，重新執行方法 1 或方法 2 即可。
-
----
-
-## 🎉 完成！
-
-現在你的系統可以：
-- ✅ 每天自動更新快取
-- ✅ Token 自動刷新，永久有效
-- ✅ 不需要手動更新 token
-- ✅ GitHub Actions 全自動運行
-
-**配額使用**：
-- 每日自動更新：80-160 配額
-- 前端搜尋：0 配額
-- 完全自動化，無需人工介入！
+如果 Refresh Token 失效，您需要重新執行上述步驟來取得新的 Refresh Token。
 
 ---
 
 ## 🛠 故障排除
 
-### 問題 1: Refresh Token 無效
+### 問題 1：`invalid_grant` 錯誤
 
 **症狀**：
-```
-❌ Token 處理失敗: invalid_grant
-```
+-   嘗試使用 Refresh Token 時，日誌顯示 `invalid_grant` 錯誤。
 
-**解決方式**：
-1. 重新從應用程式登入取得新的 Refresh Token
-2. 確認 Client ID 和 Client Secret 正確
-3. 檢查 Google 授權列表是否有撤銷
+**原因**：
+-   Refresh Token 無效、已過期或已被撤銷。
+-   `YOUTUBE_CLIENT_ID` 或 `YOUTUBE_CLIENT_SECRET` 不正確。
 
-### 問題 2: Client Secret 不正確
+**解決方法**：
+1.  **重新取得 Refresh Token**：再次執行方法 1 或方法 2 取得新的 Refresh Token。
+2.  **確認憑證**：仔細檢查 `YOUTUBE_CLIENT_ID` 和 `YOUTUBE_CLIENT_SECRET` 是否與 Google Cloud Console 中的憑證完全一致。
+
+### 問題 2：`unauthorized_client` 錯誤
 
 **症狀**：
-```
-❌ Token 處理失敗: unauthorized_client
-```
+-   日誌顯示 `unauthorized_client` 錯誤。
 
-**解決方式**：
-1. 前往 Google Cloud Console 確認 Client Secret
-2. 確認使用的是同一個 OAuth Client
+**原因**：
+-   `YOUTUBE_CLIENT_SECRET` 不正確或與 `YOUTUBE_CLIENT_ID` 不匹配。
 
-### 問題 3: GitHub Actions 執行失敗
-
-**解決方式**：
-1. 檢查 GitHub Secrets 是否都設定正確
-2. 確認 Secret 名稱沒有打錯
-3. 查看 Actions 日誌中的詳細錯誤訊息
+**解決方法**：
+1.  **確認 Client Secret**：前往 Google Cloud Console，確認您使用的 `Client Secret` 與 `YOUTUBE_CLIENT_ID` 是配對的。
 
 ---
 
-## 📞 需要幫助？
+## 📚 相關文件
 
-如果遇到問題：
-1. 檢查錯誤訊息
-2. 確認所有環境變數都正確設定
-3. 嘗試本地測試 `npm run update-cache`
-4. 查看詳細日誌找出問題
+-   [GitHub Actions 自動更新影片快取設定指南](./GITHUB_ACTIONS_SETUP.md)
+-   [影片快取功能：快速設定指南](./QUICK_START_CACHE.md)
