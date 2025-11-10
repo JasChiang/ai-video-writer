@@ -657,13 +657,24 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
       if (video.isUrlOnly) {
         // 純網址模式：使用 URL Context 工具直接分析網址
         console.log('[Article] Using URL-only mode (URL Context)');
-        console.log('[Article] URL:', video.title);
+        console.log('[Article] Main URL:', video.title);
         if (uploadedFiles.length > 0) {
           console.log(`[Article] With ${uploadedFiles.length} reference files`);
         }
 
         // 將主要 URL 加入到參考網址中
         const allUrls = [video.title, ...referenceUrls];
+        console.log(`[Article] Total URLs to send to Gemini: ${allUrls.length}`);
+        allUrls.forEach((url, index) => {
+          console.log(`[Article]   ${index + 1}. ${url}`);
+        });
+
+        if (referenceVideos.length > 0) {
+          console.log(`[Article] Reference videos: ${referenceVideos.length}`);
+          referenceVideos.forEach((videoUrl, index) => {
+            console.log(`[Article]   ${index + 1}. ${videoUrl}`);
+          });
+        }
 
         generateData = await videoApiService.generateArticleFromUrlOnly(
           video.title,

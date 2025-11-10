@@ -1700,7 +1700,11 @@ app.post('/api/generate-article-from-url-async', async (req, res) => {
 
       // 將所有 URL 加入到 prompt（主要 URL + 參考 URLs）
       let finalPrompt = fullPrompt;
-      console.log(`[Article URL-Only] 📎 參考網址: ${referenceUrls.length} 個`);
+      console.log(`[Article URL-Only] 📎 參考網址總數: ${referenceUrls.length} 個`);
+      referenceUrls.forEach((url, index) => {
+        console.log(`[Article URL-Only]   ${index + 1}. ${url}`);
+      });
+
       const urlList = referenceUrls.map((url, index) => `${index + 1}. ${url}`).join('\n');
       finalPrompt = `${fullPrompt}\n\n請參考以下網址的內容：\n${urlList}\n\n**重要：請確保你的回應是有效的 JSON 格式，不要包含任何額外的說明文字。**`;
 
@@ -1777,15 +1781,54 @@ app.post('/api/generate-article-from-url-async', async (req, res) => {
 
         // 使用工具模式時，需要提取 JSON
         console.log(`[Article URL-Only] 🔍 使用工具模式，嘗試提取 JSON...`);
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          responseText = jsonMatch[0];
-          console.log(`[Article URL-Only] ✅ 成功提取 JSON (長度: ${responseText.length} 字元)`);
-        } else {
-          console.log(`[Article URL-Only] ⚠️ 無法找到 JSON 對象，使用原始回應`);
+
+        // 智能提取 JSON：從末尾往前找最後一個完整的 JSON 對象
+        let jsonText = null;
+
+        // 從末尾找最後一個 '}'
+        const lastBraceIndex = responseText.lastIndexOf('}');
+        if (lastBraceIndex !== -1) {
+          // 往前找對應的 '{'
+          let braceCount = 1;
+          let startIndex = -1;
+
+          for (let i = lastBraceIndex - 1; i >= 0; i--) {
+            if (responseText[i] === '}') {
+              braceCount++;
+            } else if (responseText[i] === '{') {
+              braceCount--;
+              if (braceCount === 0) {
+                startIndex = i;
+                break;
+              }
+            }
+          }
+
+          if (startIndex !== -1) {
+            jsonText = responseText.substring(startIndex, lastBraceIndex + 1);
+            console.log(`[Article URL-Only] ✅ 提取最後一個完整 JSON 對象 (長度: ${jsonText.length} 字元)`);
+
+            // 驗證是否包含必要欄位
+            if (!jsonText.includes('"titleA"')) {
+              console.log(`[Article URL-Only] ⚠️ 提取的 JSON 不包含 titleA，嘗試其他方法...`);
+              jsonText = null;
+            }
+          }
         }
 
-        result = JSON.parse(responseText);
+        // 備用方法：使用貪婪匹配
+        if (!jsonText) {
+          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            jsonText = jsonMatch[0];
+            console.log(`[Article URL-Only] ✅ 使用貪婪匹配提取 JSON (長度: ${jsonText.length} 字元)`);
+          } else {
+            console.log(`[Article URL-Only] ⚠️ 無法找到 JSON 對象，使用原始回應`);
+            jsonText = responseText;
+          }
+        }
+
+        result = JSON.parse(jsonText);
 
         if (!result.titleA || !result.titleB || !result.titleC || !result.article_text) {
           throw new Error('Missing required fields in response');
