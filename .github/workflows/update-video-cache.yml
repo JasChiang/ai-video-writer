@@ -2,8 +2,8 @@ name: Update Video Cache to Gist
 
 on:
   schedule:
-    # 每天台灣時間中午 13:10 執行（UTC 05:10 = 台灣時間 13:10）
-    - cron: '10 5 * * *'
+    # 每天台灣時間中午 13:40 執行（UTC 05:40 = 台灣時間 13:40）
+    - cron: '40 5 * * *'
 
   workflow_dispatch:  # 允許手動觸發
     inputs:
