@@ -38,3 +38,6 @@ temp_videos/
 # Claude Code local settings
 .claude/*.local.json
 ai-video-writer.tar.gz
+*.tar
+custom-templates.json
+custom-templates.local.json
