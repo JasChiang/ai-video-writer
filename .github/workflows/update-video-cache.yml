@@ -1,20 +1,7 @@
 name: Update Video Cache to Gist
 
 on:
-  push:
-    branches:
-      - feature/video-performance-analytics
-    paths:
-      - 'scripts/update-video-cache.js'
-      - '.github/workflows/update-video-cache.yml'
-      - 'services/**'
-      - 'package.json'
-
-  schedule:
-    # 每天台灣時間中午 12:15 執行（UTC 04:15 = 台灣時間 12:15）
-    - cron: '15 4 * * *'
-
-  workflow_dispatch:  # 允許手動觸發
+  workflow_dispatch:  # 由 main 分支的 schedule 觸發，或手動觸發
     inputs:
       force_update:
         description: '強制更新（忽略快取）'
