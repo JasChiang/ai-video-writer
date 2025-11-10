@@ -2968,7 +2968,27 @@ app.use(express.static(path.join(process.cwd(), 'dist')));
 app.get('*', (_req, res) => {
   const indexPath = path.join(process.cwd(), 'dist', 'index.html');
   if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
+    // 讀取 HTML 並注入 runtime config
+    let html = fs.readFileSync(indexPath, 'utf-8');
+
+    // 注入環境變數到前端（只注入安全的公開資訊）
+    const runtimeConfig = {
+      YOUTUBE_CLIENT_ID: process.env.YOUTUBE_CLIENT_ID || null,
+      YOUTUBE_SCOPES: process.env.YOUTUBE_SCOPES || 'https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/yt-analytics.readonly',
+      GITHUB_GIST_ID: process.env.GITHUB_GIST_ID || null,
+    };
+
+    // 在 </head> 前注入 config script
+    const configScript = `
+    <script>
+      window.__APP_CONFIG__ = ${JSON.stringify(runtimeConfig)};
+    </script>
+    `;
+
+    html = html.replace('</head>', `${configScript}</head>`);
+
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
   } else {
     res.status(404).send('Build not found. Please run the build process.');
   }
