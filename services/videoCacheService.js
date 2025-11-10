@@ -185,11 +185,36 @@ export async function fetchAllVideoTitles(accessToken, channelId) {
       console.log(`[VideoCache] ✅ 批次 ${currentBatch} 完成，已處理 ${videos.length}/${videoBasicInfo.length} 支影片`);
     }
 
+    // 步驟 4: 去重（確保每個 videoId 只出現一次）
+    console.log('[VideoCache] 🔄 步驟 4: 檢查並移除重複影片...');
+
+    const videoMap = new Map();
+    const duplicates = [];
+
+    for (const video of videos) {
+      if (videoMap.has(video.videoId)) {
+        duplicates.push({
+          videoId: video.videoId,
+          title: video.title,
+          publishedAt: video.publishedAt
+        });
+      } else {
+        videoMap.set(video.videoId, video);
+      }
+    }
+
+    const uniqueVideos = Array.from(videoMap.values());
+
+    if (duplicates.length > 0) {
+      console.log(`[VideoCache] ⚠️  發現 ${duplicates.length} 支重複影片，已移除:`);
+      console.table(duplicates);
+    }
+
     console.log('[VideoCache] ========================================');
-    console.log(`[VideoCache] ✅ 抓取完成！總共 ${videos.length} 支影片`);
+    console.log(`[VideoCache] ✅ 抓取完成！總共 ${uniqueVideos.length} 支影片（去重前: ${videos.length}）`);
     console.log('[VideoCache] ========================================');
 
-    return videos;
+    return uniqueVideos;
   } catch (error) {
     console.error('[VideoCache] 錯誤:', error.message);
     throw error;

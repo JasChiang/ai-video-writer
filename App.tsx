@@ -165,20 +165,44 @@ export default function App() {
           throw new Error(data.error || '快取搜尋失敗');
         }
 
+        console.log(`[App] API 返回 ${data.videos.length} 支影片`);
+
         // 將快取資料格式轉換為 YouTubeVideo 格式
-        const cacheVideos: YouTubeVideo[] = data.videos.map((v: any) => ({
-          id: v.videoId,
-          title: v.title,
-          description: '', // 描述未包含在快取中，需要時才抓取
-          thumbnailUrl: v.thumbnail,
-          tags: v.tags || [],
-          categoryId: v.categoryId || '',
-          privacyStatus: v.privacyStatus || 'public',
-          publishedAt: v.publishedAt,
-          viewCount: v.viewCount,
-          likeCount: v.likeCount,
-          commentCount: v.commentCount,
-        }));
+        const cacheVideos: YouTubeVideo[] = [];
+        const skippedVideos: any[] = [];
+
+        for (const v of data.videos) {
+          try {
+            // 檢查必要欄位
+            if (!v.videoId) {
+              skippedVideos.push({ reason: 'missing videoId', data: v });
+              continue;
+            }
+
+            cacheVideos.push({
+              id: v.videoId,
+              title: v.title || '(無標題)',
+              description: '', // 描述未包含在快取中，需要時才抓取
+              thumbnailUrl: v.thumbnail || '',
+              tags: v.tags || [],
+              categoryId: v.categoryId || '',
+              privacyStatus: v.privacyStatus || 'public',
+              publishedAt: v.publishedAt || '',
+              viewCount: v.viewCount || 0,
+              likeCount: v.likeCount || 0,
+              commentCount: v.commentCount || 0,
+            });
+          } catch (err: any) {
+            skippedVideos.push({ reason: err.message, data: v });
+          }
+        }
+
+        if (skippedVideos.length > 0) {
+          console.warn(`[App] ⚠️ 轉換時跳過 ${skippedVideos.length} 支影片:`);
+          console.table(skippedVideos);
+        }
+
+        console.log(`[App] 轉換後 ${cacheVideos.length} 支影片`);
 
         // 過濾影片狀態
         const filteredVideos = cacheVideos.filter(video => {
@@ -188,12 +212,51 @@ export default function App() {
           return false;
         });
 
-        console.log(`[App] 快取搜尋結果: ${filteredVideos.length} 支影片`);
+        // Debug: 顯示被過濾掉的影片
+        const filtered = cacheVideos.filter(video => {
+          if (video.privacyStatus === 'public') return false;
+          if (video.privacyStatus === 'unlisted' && showUnlistedVideos) return false;
+          if (video.privacyStatus === 'private' && showPrivateVideos) return false;
+          return true;
+        });
+
+        if (filtered.length > 0) {
+          console.log(`[App] 共 ${cacheVideos.length} 支影片，過濾掉 ${filtered.length} 支 (${filtered.map(v => v.privacyStatus).join(', ')})`);
+          console.table(filtered.map(v => ({
+            videoId: v.id,
+            title: v.title,
+            privacyStatus: v.privacyStatus,
+            publishedAt: v.publishedAt
+          })));
+        }
+
+        console.log(`[App] 過濾後 ${filteredVideos.length} 支影片`);
 
         // 去重：確保每個影片 ID 只出現一次
         const uniqueVideos = Array.from(
           new Map(filteredVideos.map(video => [video.id, video])).values()
         );
+
+        const duplicateCount = filteredVideos.length - uniqueVideos.length;
+        if (duplicateCount > 0) {
+          console.warn(`[App] ⚠️ 去重移除 ${duplicateCount} 支重複影片`);
+
+          // 找出重複的影片
+          const idCounts = new Map<string, number>();
+          filteredVideos.forEach(video => {
+            idCounts.set(video.id, (idCounts.get(video.id) || 0) + 1);
+          });
+          const duplicates = Array.from(idCounts.entries())
+            .filter(([_, count]) => count > 1)
+            .map(([id, count]) => ({
+              videoId: id,
+              count,
+              title: filteredVideos.find(v => v.id === id)?.title
+            }));
+          console.table(duplicates);
+        }
+
+        console.log(`[App] 最終顯示 ${uniqueVideos.length} 支影片`);
 
         // 合併本地更新（覆蓋 Gist 快取中的舊資料）
         const mergedVideos = mergeLocalUpdates(uniqueVideos);
