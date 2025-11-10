@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { Loader } from './components/Loader';
@@ -30,6 +31,7 @@ export default function App() {
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 0));
+  const [portalReady, setPortalReady] = useState(false);
   const isDesktop = viewportWidth >= 1024;
   const showDetailSidebar = viewportWidth >= 1280;
   const useInlineDetail = !showDetailSidebar;
@@ -321,29 +323,51 @@ export default function App() {
     ? videos.find(video => video.id === selectedVideoId) ?? null
     : null;
 
-  // 處理 Detail Panel 的 DOM 位置移動（保持組件實例不變）
-  useEffect(() => {
-    if (!selectedVideo) return;
+  // 使用 Portal 渲染 Detail Panel 到指定位置
+  const renderDetailPanel = () => {
+    if (!selectedVideo || !portalReady) return null;
 
-    const detailPanel = document.getElementById('video-detail-panel-container');
-    if (!detailPanel) return;
+    const detailPanelContent = (
+      <VideoDetailPanel
+        key={selectedVideo.id}
+        video={selectedVideo}
+        onVideoUpdate={handleVideoUpdate}
+      />
+    );
 
     if (useInlineDetail) {
-      // 小螢幕：移動到選中影片的 slot 中
+      // 小螢幕：使用 Portal 渲染到選中影片的 slot 中
       const targetSlot = document.getElementById(`detail-slot-${selectedVideo.id}`);
-      if (targetSlot && detailPanel.parentElement !== targetSlot) {
-        targetSlot.appendChild(detailPanel);
-      }
+      if (!targetSlot) return null;
+      return createPortal(detailPanelContent, targetSlot);
     } else {
-      // 大螢幕：移動回 sidebar 的滾動容器中
+      // 大螢幕：使用 Portal 渲染到 sidebar 的滾動容器中
       const sidebarScroll = document.getElementById('detail-sidebar-scroll');
-      if (sidebarScroll && detailPanel.parentElement !== sidebarScroll) {
-        sidebarScroll.appendChild(detailPanel);
-        // 移動後滾動到頂部
-        sidebarScroll.scrollTop = 0;
-      }
+      if (!sidebarScroll) return null;
+      return createPortal(detailPanelContent, sidebarScroll);
     }
-  }, [useInlineDetail, selectedVideo]);
+  };
+
+  // 確保 Portal 目標容器已就緒
+  useEffect(() => {
+    if (!selectedVideo) {
+      setPortalReady(false);
+      return;
+    }
+
+    // 使用 requestAnimationFrame 確保 DOM 已更新
+    const checkPortalTarget = () => {
+      if (useInlineDetail) {
+        const targetSlot = document.getElementById(`detail-slot-${selectedVideo.id}`);
+        setPortalReady(!!targetSlot);
+      } else {
+        const sidebarScroll = document.getElementById('detail-sidebar-scroll');
+        setPortalReady(!!sidebarScroll);
+      }
+    };
+
+    requestAnimationFrame(checkPortalTarget);
+  }, [selectedVideo, useInlineDetail]);
 
   useEffect(() => {
     if (isDesktop) {
@@ -584,7 +608,7 @@ export default function App() {
                 }}
                 id="detail-sidebar-scroll"
               >
-                {/* VideoDetailPanel 將由 JavaScript 移動到這裡 */}
+                {/* VideoDetailPanel 將由 Portal 渲染到這裡 */}
               </div>
             ) : (
               <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-6 py-10 text-center text-neutral-500">
@@ -597,16 +621,8 @@ export default function App() {
           </aside>
         </div>
 
-        {/* Detail Panel - 始終渲染以保持狀態，位置由 JavaScript 控制 */}
-        {selectedVideo && (
-          <div id="video-detail-panel-container" style={{ display: 'contents' }}>
-            <VideoDetailPanel
-              key={selectedVideo.id}
-              video={selectedVideo}
-              onVideoUpdate={handleVideoUpdate}
-            />
-          </div>
-        )}
+        {/* Detail Panel - 使用 Portal 動態渲染到目標位置 */}
+        {renderDetailPanel()}
       </div>
     );
   };
