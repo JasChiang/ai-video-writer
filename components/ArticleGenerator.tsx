@@ -2281,7 +2281,8 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                   </pre>
                 </div>
               </div>
-              {result.screenshots && result.screenshots.length > 0 && (
+              {/* 截圖區塊（僅 YouTube 影片模式顯示）*/}
+              {!video.isUrlOnly && result.screenshots && result.screenshots.length > 0 && (
                 <div>
                   <div className="flex justify-between items-center mb-3">
                     <h3 className="text-lg font-semibold text-neutral-900">
