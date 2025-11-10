@@ -1,18 +1,9 @@
 name: Update Video Cache to Gist
 
 on:
-  push:
-    branches:
-      - feature/video-performance-analytics
-    paths:
-      - 'scripts/update-video-cache.js'
-      - '.github/workflows/update-video-cache.yml'
-      - 'services/**'
-      - 'package.json'
-
   schedule:
-    # 每天台灣時間中午 12:15 執行（UTC 04:15 = 台灣時間 12:15）
-    - cron: '15 4 * * *'
+    # 每天台灣時間凌晨 2 點執行（UTC 18:00 = 台灣時間 02:00）
+    - cron: '0 18 * * *'
 
   workflow_dispatch:  # 允許手動觸發
     inputs:
@@ -87,6 +78,21 @@ jobs:
           name: cache-update-info
           path: cache-update-info.json
           retention-days: 7
+
+      - name: Comment on commit (if available)
+        if: success() && github.event_name == 'push'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const info = JSON.parse(fs.readFileSync('cache-update-info.json', 'utf8'));
+
+            github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: `✅ 影片快取已更新\n\n- 總影片數：${info.totalVideos}\n- Gist ID：${info.gistId}\n- 更新時間：${info.updatedAt}`
+            });
 
       - name: Notify on failure
         if: failure()
