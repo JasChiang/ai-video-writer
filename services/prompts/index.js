@@ -231,8 +231,15 @@ export async function generatePromptFromTemplate(templateId, videoTitle, userPro
   const customTemplates = await loadCustomTemplates();
 
   // 優先使用專屬版本，否則使用公開版本
-  const generators = customTemplates || PUBLIC_TEMPLATE_GENERATORS;
-  const generator = generators[templateId] || generators.default;
+  const generator =
+    (customTemplates && customTemplates[templateId]) ||
+    (customTemplates && customTemplates.default) ||
+    PUBLIC_TEMPLATE_GENERATORS[templateId] ||
+    PUBLIC_TEMPLATE_GENERATORS.default;
+
+  if (typeof generator !== 'function') {
+    throw new Error(`找不到可用的模板：${templateId}`);
+  }
 
   return generator(videoTitle, userPrompt);
 }
