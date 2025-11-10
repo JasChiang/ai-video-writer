@@ -222,6 +222,22 @@ export async function fetchAllVideoTitles(accessToken, channelId) {
 }
 
 /**
+ * 取得正確的 GitHub Authorization header
+ * @param {string} token - GitHub token
+ * @returns {string} Authorization header 值
+ */
+function getGitHubAuthHeader(token) {
+  // GitHub 支援兩種認證格式：
+  // 1. Classic PAT (ghp_*): 同時支援 "token xxx" 和 "Bearer xxx"
+  // 2. Fine-grained PAT (github_pat_*): 只支援 "Bearer xxx"
+  // 3. GitHub Actions token (ghs_*): 只支援 "Bearer xxx"
+
+  // 現在 GitHub 建議統一使用 Bearer 格式（向後兼容 classic PAT）
+  // 參考: https://docs.github.com/en/rest/overview/authenticating-to-the-rest-api
+  return `Bearer ${token}`;
+}
+
+/**
  * 上傳快取到 GitHub Gist
  * @param {Array} videos - 影片列表
  * @param {string} gistToken - GitHub Personal Access Token
@@ -283,7 +299,7 @@ export async function uploadToGist(videos, gistToken, gistId = null) {
     const response = await fetch(url, {
       method: method,
       headers: {
-        'Authorization': `token ${gistToken}`,
+        'Authorization': getGitHubAuthHeader(gistToken),
         'Accept': 'application/vnd.github.v3+json',
         'Content-Type': 'application/json',
       },
@@ -341,7 +357,7 @@ export async function loadFromGist(gistId, gistToken = null) {
     };
 
     if (gistToken) {
-      headers['Authorization'] = `token ${gistToken}`;
+      headers['Authorization'] = getGitHubAuthHeader(gistToken);
     }
 
     console.log('[VideoCache] 🌐 正在從 GitHub 載入...');
@@ -375,7 +391,7 @@ export async function loadFromGist(gistId, gistToken = null) {
     };
 
     if (gistToken) {
-      rawHeaders['Authorization'] = `token ${gistToken}`;
+      rawHeaders['Authorization'] = getGitHubAuthHeader(gistToken);
     }
 
     const rawResponse = await fetch(rawUrl, { headers: rawHeaders });
