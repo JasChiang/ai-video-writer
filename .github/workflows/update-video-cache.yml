@@ -88,21 +88,6 @@ jobs:
           path: cache-update-info.json
           retention-days: 7
 
-      - name: Comment on commit (if available)
-        if: success() && github.event_name == 'push'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const info = JSON.parse(fs.readFileSync('cache-update-info.json', 'utf8'));
-
-            github.rest.repos.createCommitComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              commit_sha: context.sha,
-              body: `✅ 影片快取已更新\n\n- 總影片數：${info.totalVideos}\n- Gist ID：${info.gistId}\n- 更新時間：${info.updatedAt}`
-            });
-
       - name: Notify on failure
         if: failure()
         uses: actions/github-script@v7
