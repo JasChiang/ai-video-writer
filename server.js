@@ -2961,8 +2961,11 @@ app.get('/api/video-cache/search', async (req, res) => {
   }
 });
 
-// 服務前端靜態檔案（Vite build 輸出的 dist）
-app.use(express.static(path.join(process.cwd(), 'dist')));
+// 服務前端靜態檔案（Vite build 輸出的 dist），但排除 index.html
+// index.html 需要動態注入環境變數，所以由下面的路由處理
+app.use(express.static(path.join(process.cwd(), 'dist'), {
+  index: false, // 不自動提供 index.html，讓下面的路由處理
+}));
 
 // 單頁應用程式路由 fallback（最後註冊，避免吃掉 /api/*）
 app.get('*', (_req, res) => {
