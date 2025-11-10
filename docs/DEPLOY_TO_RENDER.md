@@ -76,11 +76,23 @@
 
 #### 選填環境變數 (Notion 整合)
 
+**方式 1：使用 Internal Integration Token (適合個人使用)**
+
 | Key | Value | 說明 |
 | :--- | :--- | :--- |
 | `NOTION_API_TOKEN` | `secret_...` | 您的 Notion Internal Integration Token。 |
 | `NOTION_DATABASE_ID` | `32字元ID` | 預設的 Notion 資料庫 ID。 |
-| `NOTION_REDIRECT_URI` | `https://YOUR_RENDER_URL.onrender.com/api/notion/oauth/callback` | Notion OAuth 回調網址。 |
+| `NOTION_TITLE_PROPERTY` | `Name` (預設值) | Notion 資料庫中的標題欄位名稱。 |
+
+**方式 2：使用 OAuth (適合多用戶，需同時設定以下三個變數)**
+
+| Key | Value | 說明 |
+| :--- | :--- | :--- |
+| `NOTION_CLIENT_ID` | `你的 OAuth Client ID` | Notion OAuth 應用程式的 Client ID。 |
+| `NOTION_CLIENT_SECRET` | `你的 OAuth Client Secret` | Notion OAuth 應用程式的 Client Secret。 |
+| `NOTION_REDIRECT_URI` | `https://YOUR_RENDER_URL.onrender.com/api/notion/callback` | Notion OAuth 回調網址（注意路徑是 `/api/notion/callback`）。 |
+
+> **注意**：兩種方式擇一使用即可。OAuth 方式不需要設定 `NOTION_API_TOKEN`，token 會在使用者授權後動態取得。
 
 ### 步驟 4：部署應用程式
 
