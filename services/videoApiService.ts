@@ -303,12 +303,20 @@ export async function generateArticleWithYouTubeUrlAsync(
   screenshotQuality: number = 2,
   onProgress?: ProgressCallback,
   uploadedFiles: any[] = [],
-  templateId: string = 'default'
+  templateId: string = 'default',
+  referenceUrls: string[] = [],
+  referenceVideos: string[] = []
 ): Promise<any> {
   try {
     console.log(`[API Async] Generating article via YouTube URL (async mode): ${videoId}`);
     if (uploadedFiles.length > 0) {
       console.log(`[API Async] With ${uploadedFiles.length} uploaded reference files`);
+    }
+    if (referenceUrls.length > 0) {
+      console.log(`[API Async] With ${referenceUrls.length} reference URLs`);
+    }
+    if (referenceVideos.length > 0) {
+      console.log(`[API Async] With ${referenceVideos.length} reference videos`);
     }
 
     // 取得 access token
@@ -331,6 +339,8 @@ export async function generateArticleWithYouTubeUrlAsync(
             uploadedFiles,
             accessToken,
             templateId,
+            referenceUrls,
+            referenceVideos,
           }),
         });
 
@@ -348,7 +358,7 @@ export async function generateArticleWithYouTubeUrlAsync(
         timeout: 10 * 60 * 1000, // 10 分鐘超時
         onProgress: (progress, message) => {
           console.log(`[API Async] Progress: ${progress}% - ${message}`);
-          onProgress?.(message);
+          notifyProgress(onProgress, 'spinner', message);
         }
       }
     );
@@ -434,12 +444,20 @@ export async function generateArticleWithDownload(
   screenshotQuality: number = 2,
   onProgress?: ProgressCallback,
   uploadedFiles: any[] = [],
-  templateId: string = 'default'
+  templateId: string = 'default',
+  referenceUrls: string[] = [],
+  referenceVideos: string[] = []
 ): Promise<any> {
   try {
     console.log(`[API] Generating article with video download: ${videoId}`);
     if (uploadedFiles.length > 0) {
       console.log(`[API] With ${uploadedFiles.length} uploaded reference files`);
+    }
+    if (referenceUrls.length > 0) {
+      console.log(`[API] With ${referenceUrls.length} reference URLs`);
+    }
+    if (referenceVideos.length > 0) {
+      console.log(`[API] With ${referenceVideos.length} reference videos`);
     }
 
     // 步驟 1: 先檢查 Files API 中是否已有此檔案
@@ -470,6 +488,8 @@ export async function generateArticleWithDownload(
             quality: screenshotQuality,
             uploadedFiles,
             templateId,
+            referenceUrls,
+            referenceVideos,
           }),
         });
 
@@ -531,6 +551,8 @@ export async function generateArticleWithDownload(
         quality: screenshotQuality,
         uploadedFiles,
         templateId,
+        referenceUrls,
+        referenceVideos,
       }),
     });
 
@@ -653,5 +675,81 @@ export async function regenerateScreenshots(
   } catch (error: any) {
     console.error('[API] Error:', error);
     throw new Error(`截圖重新生成失敗: ${error.message}`);
+  }
+}
+
+/**
+ * 使用純網址生成文章（不需要 YouTube 影片）
+ * @param url 網址
+ * @param userPrompt 使用者額外提示
+ * @param onProgress Optional: progress callback function
+ * @param uploadedFiles Optional: uploaded reference files
+ * @param templateId Optional: template ID
+ * @param referenceUrls Optional: reference URLs
+ * @param referenceVideos Optional: reference videos
+ * @returns 文章生成結果
+ */
+export async function generateArticleFromUrlOnly(
+  url: string,
+  userPrompt: string,
+  onProgress?: ProgressCallback,
+  uploadedFiles: any[] = [],
+  templateId: string = 'default',
+  referenceUrls: string[] = [],
+  referenceVideos: string[] = []
+): Promise<any> {
+  try {
+    console.log(`[API URL-Only] Generating article from URL: ${url}`);
+    if (uploadedFiles.length > 0) {
+      console.log(`[API URL-Only] With ${uploadedFiles.length} uploaded reference files`);
+    }
+    if (referenceUrls.length > 0) {
+      console.log(`[API URL-Only] With ${referenceUrls.length} reference URLs`);
+    }
+    if (referenceVideos.length > 0) {
+      console.log(`[API URL-Only] With ${referenceVideos.length} reference videos`);
+    }
+
+    // 使用異步任務執行
+    return await executeAsyncTask(
+      async () => {
+        // 創建任務
+        notifyProgress(onProgress, 'notepad', '正在建立文章生成任務...');;
+
+        const response = await fetch(`${API_BASE_URL}/generate-article-from-url-async`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url,
+            prompt: userPrompt,
+            uploadedFiles,
+            templateId,
+            referenceUrls,
+            referenceVideos,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to create article generation task');
+        }
+
+        const data = await response.json();
+        console.log(`[API URL-Only Async] Task created: ${data.taskId}`);
+        return { taskId: data.taskId };
+      },
+      {
+        interval: 2000, // 每 2 秒輪詢一次
+        timeout: 10 * 60 * 1000, // 10 分鐘超時
+        onProgress: (progress, message) => {
+          console.log(`[API URL-Only Async] Progress: ${progress}% - ${message}`);
+          notifyProgress(onProgress, 'spinner', message);
+        }
+      }
+    );
+
+  } catch (error: any) {
+    console.error('[API URL-Only] Error:', error);
+    throw new Error(`文章生成失敗: ${error.message}`);
   }
 }

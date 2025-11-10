@@ -18,6 +18,7 @@ export interface YouTubeVideo {
   viewCount?: string;
   likeCount?: string;
   publishedAt?: string; // ISO 8601 date format
+  isUrlOnly?: boolean; // 標記為純網址模式（不是 YouTube 影片）
 }
 
 export type AppIconName =

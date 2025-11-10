@@ -47,18 +47,51 @@ export function ArticleWorkspace() {
 
   const handleLoadFromUrl = async () => {
     setError(null);
-    const videoId = extractVideoId(urlInput);
-    if (!videoId) {
-      setError('請輸入有效的 YouTube 影片網址或 ID');
+    const trimmedInput = urlInput.trim();
+
+    if (!trimmedInput) {
+      setError('請輸入網址或 YouTube 影片連結');
       return;
     }
+
+    // 嘗試提取 YouTube 影片 ID
+    const videoId = extractVideoId(trimmedInput);
+
     setIsLoadingUrl(true);
     try {
-      const video = await youtubeService.fetchVideoDetails(videoId);
-      setSelectedVideo(video);
-      setCachedArticle(null);
+      if (videoId) {
+        // 是 YouTube 影片，正常獲取影片詳情
+        const video = await youtubeService.fetchVideoDetails(videoId);
+        setSelectedVideo(video);
+        setCachedArticle(null);
+      } else {
+        // 不是 YouTube 影片，檢查是否為有效的 URL
+        try {
+          new URL(trimmedInput);
+
+          // 創建一個「虛擬影片」對象，用於純網址模式
+          const virtualVideo: YouTubeVideo = {
+            id: `url_${Date.now()}`, // 使用時間戳作為唯一 ID
+            title: trimmedInput,
+            description: '',
+            thumbnailUrl: '',
+            tags: [],
+            categoryId: '',
+            privacyStatus: 'public',
+            publishedAt: new Date().toISOString(),
+            isUrlOnly: true, // 標記為純網址模式
+          };
+
+          setSelectedVideo(virtualVideo);
+          setCachedArticle(null);
+        } catch (urlError) {
+          setError('請輸入有效的網址（需包含 http:// 或 https://）或 YouTube 影片連結');
+          setIsLoadingUrl(false);
+          return;
+        }
+      }
     } catch (err: any) {
-      setError(err?.message || '無法取得影片資訊，請確認影片連結是否正確。');
+      setError(err?.message || '無法處理輸入，請確認網址或影片連結是否正確。');
     } finally {
       setIsLoadingUrl(false);
     }
@@ -126,16 +159,16 @@ export function ArticleWorkspace() {
     <div className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-neutral-900">輸入 YouTube 影片連結</h2>
+          <h2 className="text-lg font-semibold text-neutral-900">輸入 YouTube 影片連結或網址</h2>
           <p className="mt-1 text-sm text-neutral-500">
-            支援 YouTube 網址、短網址（youtu.be）或直接貼上 11 碼影片 ID。
+            支援 YouTube 網址、短網址（youtu.be）、11 碼影片 ID，或任何一般網址（http/https）。
           </p>
           <div className="mt-4 flex flex-col gap-3">
             <input
               type="text"
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
-              placeholder="https://www.youtube.com/watch?v=xxxxxxx"
+              placeholder="https://www.youtube.com/watch?v=xxx 或 https://example.com"
               className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500"
             />
             <button
@@ -213,9 +246,13 @@ export function ArticleWorkspace() {
           <div className="space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-xs text-neutral-500">目前選擇的影片</p>
-                <h3 className="text-lg font-semibold text-neutral-900">{selectedVideo.title}</h3>
-                <p className="text-sm text-neutral-500">影片 ID：{selectedVideo.id}</p>
+                <p className="text-xs text-neutral-500">
+                  {selectedVideo.isUrlOnly ? '目前選擇的網址' : '目前選擇的影片'}
+                </p>
+                <h3 className="text-lg font-semibold text-neutral-900 break-all">{selectedVideo.title}</h3>
+                {!selectedVideo.isUrlOnly && (
+                  <p className="text-sm text-neutral-500">影片 ID：{selectedVideo.id}</p>
+                )}
               </div>
               <div className="flex gap-2">
                 <button
@@ -226,12 +263,12 @@ export function ArticleWorkspace() {
                   清除選擇
                 </button>
                 <a
-                  href={`https://www.youtube.com/watch?v=${selectedVideo.id}`}
+                  href={selectedVideo.isUrlOnly ? selectedVideo.title : `https://www.youtube.com/watch?v=${selectedVideo.id}`}
                   target="_blank"
                   rel="noreferrer"
                   className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-700"
                 >
-                  在 YouTube 中開啟
+                  {selectedVideo.isUrlOnly ? '在新分頁開啟' : '在 YouTube 中開啟'}
                 </a>
               </div>
             </div>
@@ -245,8 +282,8 @@ export function ArticleWorkspace() {
         ) : (
           <div className="flex items-center justify-center py-16 text-center text-neutral-500">
             <div>
-              <p className="text-lg font-semibold text-neutral-700">尚未選擇影片</p>
-              <p className="mt-2 text-sm">請輸入 YouTube 連結或搜尋影片，並選擇要生成文章的對象。</p>
+              <p className="text-lg font-semibold text-neutral-700">尚未選擇影片或網址</p>
+              <p className="mt-2 text-sm">請輸入 YouTube 連結、網址，或搜尋影片，並選擇要生成文章的對象。</p>
             </div>
           </div>
         )}

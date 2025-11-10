@@ -78,6 +78,10 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
   const [loadingStep, setLoadingStep] = useState<ProgressMessage | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [referenceUrls, setReferenceUrls] = useState<string[]>([]);
+  const [urlInput, setUrlInput] = useState('');
+  const [referenceVideos, setReferenceVideos] = useState<string[]>([]);
+  const [videoUrlInput, setVideoUrlInput] = useState('');
   const [notionToken, setNotionToken] = useState('');
   const [notionDatabaseId, setNotionDatabaseId] = useState('');
   const [notionTitleProperty, setNotionTitleProperty] = useState('Name');
@@ -331,7 +335,7 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
       { label: '選項 A', value: result.titleA },
       { label: '選項 B', value: result.titleB },
       { label: '選項 C', value: result.titleC },
-      { label: '原始影片標題', value: video.title },
+      { label: video.isUrlOnly ? '原始網址' : '原始影片標題', value: video.title },
     ];
 
     return options
@@ -538,52 +542,187 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  // 新增 URL
+  const handleAddUrl = () => {
+    const trimmedUrl = urlInput.trim();
+
+    // 驗證 URL 格式
+    if (!trimmedUrl) {
+      return;
+    }
+
+    try {
+      // 檢查是否為有效的 URL
+      new URL(trimmedUrl);
+
+      // 檢查是否已存在
+      if (referenceUrls.includes(trimmedUrl)) {
+        setError('此 URL 已經新增過了');
+        return;
+      }
+
+      // 檢查數量限制（Gemini URL Context 最多支援 20 個）
+      if (referenceUrls.length >= 20) {
+        setError('最多只能新增 20 個參考網址');
+        return;
+      }
+
+      setReferenceUrls(prev => [...prev, trimmedUrl]);
+      setUrlInput('');
+      setError(null);
+    } catch (e) {
+      setError('請輸入有效的 URL（需包含 http:// 或 https://）');
+    }
+  };
+
+  // 移除 URL
+  const handleRemoveUrl = (index: number) => {
+    setReferenceUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // 從 YouTube URL 提取影片 ID
+  const extractVideoId = (url: string): string | null => {
+    try {
+      const urlObj = new URL(url);
+
+      // 處理 youtube.com/watch?v=xxx 格式
+      if (urlObj.hostname.includes('youtube.com') && urlObj.pathname === '/watch') {
+        return urlObj.searchParams.get('v');
+      }
+
+      // 處理 youtu.be/xxx 格式
+      if (urlObj.hostname.includes('youtu.be')) {
+        return urlObj.pathname.slice(1);
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  // 新增參考影片
+  const handleAddVideo = () => {
+    const trimmedUrl = videoUrlInput.trim();
+
+    if (!trimmedUrl) {
+      return;
+    }
+
+    // 提取影片 ID
+    const videoId = extractVideoId(trimmedUrl);
+
+    if (!videoId) {
+      setError('請輸入有效的 YouTube 影片網址');
+      return;
+    }
+
+    // 檢查是否為主要影片
+    if (videoId === video.id) {
+      setError('此影片已經是主要影片，無需重複新增');
+      return;
+    }
+
+    // 檢查是否已存在
+    if (referenceVideos.includes(trimmedUrl)) {
+      setError('此影片已經新增過了');
+      return;
+    }
+
+    // 檢查數量限制（Gemini 2.5 最多支援 10 個影片，扣除主要影片還有 9 個）
+    if (referenceVideos.length >= 9) {
+      setError('最多只能新增 9 個參考影片（加上主要影片共 10 個）');
+      return;
+    }
+
+    setReferenceVideos(prev => [...prev, trimmedUrl]);
+    setVideoUrlInput('');
+    setError(null);
+  };
+
+  // 移除參考影片
+  const handleRemoveVideo = (index: number) => {
+    setReferenceVideos(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleGenerate = async () => {
     setIsGenerating(true);
     setError(null);
     setLoadingStep(null);
 
     try {
-      const privacyStatus = video.privacyStatus || 'public';
       let generateData;
 
-      // 根據隱私狀態選擇不同的策略
-      if (privacyStatus === 'public') {
-        // 公開影片：使用 YouTube URL 直接分析（異步版本，適合手機端）
-        console.log('[Article] Using YouTube URL for public video (async mode)');
+      // 檢查是否為純網址模式（不是 YouTube 影片）
+      if (video.isUrlOnly) {
+        // 純網址模式：使用 URL Context 工具直接分析網址
+        console.log('[Article] Using URL-only mode (URL Context)');
+        console.log('[Article] URL:', video.title);
         if (uploadedFiles.length > 0) {
           console.log(`[Article] With ${uploadedFiles.length} reference files`);
         }
-        generateData = await videoApiService.generateArticleWithYouTubeUrlAsync(
-          video.id,
-          customPrompt,
+
+        // 將主要 URL 加入到參考網址中
+        const allUrls = [video.title, ...referenceUrls];
+
+        generateData = await videoApiService.generateArticleFromUrlOnly(
           video.title,
-          screenshotQuality,
+          customPrompt,
           (step: ProgressMessage) => {
             setLoadingStep(step);
             console.log(`[Progress] ${step.text}`);
           },
           uploadedFiles,
-          selectedTemplateId
+          selectedTemplateId,
+          allUrls,
+          referenceVideos
         );
       } else {
-        // 非公開影片：先下載再分析
-        console.log('[Article] Using download mode for unlisted/private video');
-        if (uploadedFiles.length > 0) {
-          console.log(`[Article] With ${uploadedFiles.length} reference files`);
+        // YouTube 影片模式
+        const privacyStatus = video.privacyStatus || 'public';
+
+        // 根據隱私狀態選擇不同的策略
+        if (privacyStatus === 'public') {
+          // 公開影片：使用 YouTube URL 直接分析（異步版本，適合手機端）
+          console.log('[Article] Using YouTube URL for public video (async mode)');
+          if (uploadedFiles.length > 0) {
+            console.log(`[Article] With ${uploadedFiles.length} reference files`);
+          }
+          generateData = await videoApiService.generateArticleWithYouTubeUrlAsync(
+            video.id,
+            customPrompt,
+            video.title,
+            screenshotQuality,
+            (step: ProgressMessage) => {
+              setLoadingStep(step);
+              console.log(`[Progress] ${step.text}`);
+            },
+            uploadedFiles,
+            selectedTemplateId,
+            referenceUrls,
+            referenceVideos
+          );
+        } else {
+          // 非公開影片：先下載再分析
+          console.log('[Article] Using download mode for unlisted/private video');
+          if (uploadedFiles.length > 0) {
+            console.log(`[Article] With ${uploadedFiles.length} reference files`);
+          }
+          generateData = await videoApiService.generateArticleWithDownload(
+            video.id,
+            customPrompt,
+            video.title,
+            screenshotQuality,
+            (step: ProgressMessage) => {
+              setLoadingStep(step);
+              console.log(`[Progress] ${step.text}`);
+            },
+            uploadedFiles,
+            selectedTemplateId,
+            referenceUrls,
+            referenceVideos
+          );
         }
-        generateData = await videoApiService.generateArticleWithDownload(
-          video.id,
-          customPrompt,
-          video.title,
-          screenshotQuality,
-          (step: ProgressMessage) => {
-            setLoadingStep(step);
-            console.log(`[Progress] ${step.text}`);
-          },
-          uploadedFiles,
-          selectedTemplateId
-        );
       }
 
       console.log('[Article] Article generated successfully');
@@ -1524,8 +1663,10 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
     <div className="rounded-2xl p-6 bg-white border border-neutral-200 shadow-sm">
           <div className="space-y-4">
             <div>
-              <h3 className="text-lg font-semibold mb-2 text-neutral-900">影片標題</h3>
-              <p className="text-neutral-600">{video.title}</p>
+              <h3 className="text-lg font-semibold mb-2 text-neutral-900">
+                {video.isUrlOnly ? '來源網址' : '影片標題'}
+              </h3>
+              <p className="text-neutral-600 break-all">{video.title}</p>
               {result && (
                 <p className="mt-1 text-xs text-neutral-500">
                   想重新生成文章？調整提示詞或截圖設定後再次執行即可。
@@ -1677,39 +1818,42 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
               )}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2 text-neutral-700">
-                截圖品質
-              </label>
-              <div className="space-y-2">
-                <label className="flex items-center cursor-pointer text-neutral-600">
-                  <input
-                    type="radio"
-                    name="quality"
-                    value="2"
-                    checked={screenshotQuality === 2}
-                    onChange={() => setScreenshotQuality(2)}
-                    className="mr-2 accent-red-600"
-                  />
-                  <span>高畫質（預設）- 檔案較大，畫質最佳</span>
+            {/* 截圖品質設定（僅 YouTube 影片模式顯示）*/}
+            {!video.isUrlOnly && (
+              <div>
+                <label className="block text-sm font-medium mb-2 text-neutral-700">
+                  截圖品質
                 </label>
-                <label className="flex items-center cursor-pointer text-neutral-600">
-                  <input
-                    type="radio"
-                    name="quality"
-                    value="20"
-                    checked={screenshotQuality === 20}
-                    onChange={() => setScreenshotQuality(20)}
-                    className="mr-2 accent-red-600"
-                  />
-                  <span>壓縮 - 檔案較小，適合網頁載入</span>
-                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center cursor-pointer text-neutral-600">
+                    <input
+                      type="radio"
+                      name="quality"
+                      value="2"
+                      checked={screenshotQuality === 2}
+                      onChange={() => setScreenshotQuality(2)}
+                      className="mr-2 accent-red-600"
+                    />
+                    <span>高畫質（預設）- 檔案較大，畫質最佳</span>
+                  </label>
+                  <label className="flex items-center cursor-pointer text-neutral-600">
+                    <input
+                      type="radio"
+                      name="quality"
+                      value="20"
+                      checked={screenshotQuality === 20}
+                      onChange={() => setScreenshotQuality(20)}
+                      className="mr-2 accent-red-600"
+                    />
+                    <span>壓縮 - 檔案較小，適合網頁載入</span>
+                  </label>
+                </div>
+                <p className="text-xs mt-2 text-neutral-400 flex items-center gap-1">
+                  <AppIcon name="idea" size={14} className="text-amber-500" />
+                  高畫質適合印刷或高解析度顯示，壓縮適合網頁快速載入
+                </p>
               </div>
-              <p className="text-xs mt-2 text-neutral-400 flex items-center gap-1">
-                <AppIcon name="idea" size={14} className="text-amber-500" />
-                高畫質適合印刷或高解析度顯示，壓縮適合網頁快速載入
-              </p>
-            </div>
+            )}
 
             {/* 檔案上傳區域 */}
             <div>
@@ -1804,6 +1948,174 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
               <p className="text-xs mt-2 text-neutral-400 flex items-center gap-1">
                 <AppIcon name="idea" size={14} className="text-amber-500" />
                 上傳相關文件、圖片或 Markdown 檔案，AI 會參考這些資料來生成更精準的文章內容
+              </p>
+            </div>
+
+            {/* URL 參考資料區域 */}
+            <div>
+              <label className="block text-sm font-medium mb-2 text-neutral-700">
+                <span className="inline-flex items-center gap-1">
+                  <AppIcon name="globe" size={16} className="text-red-500" />
+                  參考網址（選填）
+                </span>
+              </label>
+
+              {/* URL 輸入框 */}
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddUrl();
+                    }
+                  }}
+                  placeholder="輸入網址（需包含 http:// 或 https://）"
+                  className="flex-1 px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+                  disabled={isGenerating || referenceUrls.length >= 20}
+                />
+                <button
+                  onClick={handleAddUrl}
+                  disabled={isGenerating || !urlInput.trim() || referenceUrls.length >= 20}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition text-sm font-medium"
+                >
+                  新增
+                </button>
+              </div>
+
+              {/* 已新增的 URL 列表 */}
+              {referenceUrls.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-sm font-medium text-neutral-700">已新增的網址：</p>
+                  {referenceUrls.map((url, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between bg-neutral-50 px-3 py-2 rounded-lg border border-neutral-200"
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-neutral-600">
+                          <AppIcon name="globe" size={18} className="text-red-500" />
+                        </span>
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:text-blue-800 truncate underline"
+                          title={url}
+                        >
+                          {url}
+                        </a>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveUrl(index)}
+                        className="text-red-600 hover:text-red-800 ml-2 flex-shrink-0"
+                        disabled={isGenerating}
+                        title="移除網址"
+                      >
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-xs mt-2 text-neutral-400 flex items-center gap-1">
+                <AppIcon name="idea" size={14} className="text-amber-500" />
+                提供相關網址讓 AI 參考，支援文章、文件、PDF 等（最多 20 個網址）
+              </p>
+            </div>
+
+            {/* 參考影片區域 */}
+            <div>
+              <label className="block text-sm font-medium mb-2 text-neutral-700">
+                <span className="inline-flex items-center gap-1">
+                  <AppIcon name="video" size={16} className="text-red-500" />
+                  參考影片（選填）
+                </span>
+              </label>
+
+              {/* 影片 URL 輸入框 */}
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={videoUrlInput}
+                  onChange={(e) => setVideoUrlInput(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddVideo();
+                    }
+                  }}
+                  placeholder="輸入 YouTube 影片網址"
+                  className="flex-1 px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+                  disabled={isGenerating || referenceVideos.length >= 9}
+                />
+                <button
+                  onClick={handleAddVideo}
+                  disabled={isGenerating || !videoUrlInput.trim() || referenceVideos.length >= 9}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition text-sm font-medium"
+                >
+                  新增
+                </button>
+              </div>
+
+              {/* 已新增的影片列表 */}
+              {referenceVideos.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-sm font-medium text-neutral-700">已新增的參考影片：</p>
+                  {referenceVideos.map((videoUrl, index) => {
+                    const videoId = extractVideoId(videoUrl);
+                    const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/default.jpg` : '';
+
+                    return (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between bg-neutral-50 px-3 py-2 rounded-lg border border-neutral-200"
+                      >
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          {thumbnailUrl && (
+                            <img
+                              src={thumbnailUrl}
+                              alt="影片縮圖"
+                              className="w-12 h-9 object-cover rounded"
+                            />
+                          )}
+                          <span className="text-neutral-600">
+                            <AppIcon name="video" size={18} className="text-red-500" />
+                          </span>
+                          <a
+                            href={videoUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-blue-600 hover:text-blue-800 truncate underline"
+                            title={videoUrl}
+                          >
+                            {videoUrl}
+                          </a>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveVideo(index)}
+                          className="text-red-600 hover:text-red-800 ml-2 flex-shrink-0"
+                          disabled={isGenerating}
+                          title="移除影片"
+                        >
+                          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <p className="text-xs mt-2 text-neutral-400 flex items-center gap-1">
+                <AppIcon name="idea" size={14} className="text-amber-500" />
+                提供額外的 YouTube 影片讓 AI 參考，最多 9 個（加上主要影片共 10 個）
               </p>
             </div>
 

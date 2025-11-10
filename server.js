@@ -1354,7 +1354,9 @@ app.post('/api/generate-article-url-async', async (req, res) => {
     quality = 2,
     uploadedFiles = [],
     accessToken,
-    templateId = 'default'
+    templateId = 'default',
+    referenceUrls = [],
+    referenceVideos = []
   } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
@@ -1370,7 +1372,9 @@ app.post('/api/generate-article-url-async', async (req, res) => {
       quality,
       uploadedFiles,
       accessToken,
-      templateId
+      templateId,
+      referenceUrls,
+      referenceVideos
     });
 
     // 立即返回任務 ID
@@ -1451,7 +1455,35 @@ app.post('/api/generate-article-url-async', async (req, res) => {
         }
       }
 
-      parts.push({ text: fullPrompt });
+      // 加入參考影片
+      if (referenceVideos && referenceVideos.length > 0) {
+        console.log(`[Article URL] 📎 參考影片: ${referenceVideos.length} 個`);
+        for (const videoUrl of referenceVideos) {
+          console.log(`[Article URL] 加入參考影片: ${videoUrl}`);
+          parts.push({ fileData: { fileUri: videoUrl } });
+        }
+      }
+
+      // 如果有提供參考網址，將它們加入 prompt
+      let finalPrompt = fullPrompt;
+      if (referenceUrls && referenceUrls.length > 0) {
+        console.log(`[Article URL] 📎 參考網址: ${referenceUrls.length} 個`);
+        const urlList = referenceUrls.map((url, index) => `${index + 1}. ${url}`).join('\n');
+        finalPrompt = `${fullPrompt}\n\n請參考以下網址的內容：\n${urlList}\n\n**重要：請確保你的回應是有效的 JSON 格式，不要包含任何額外的說明文字。**`;
+      }
+
+      parts.push({ text: finalPrompt });
+
+      // 日誌：顯示最終的 parts 結構
+      console.log(`[Article URL] 📊 Parts 結構總覽:`);
+      console.log(`[Article URL]   - 總共 ${parts.length} 個 parts`);
+      parts.forEach((part, index) => {
+        if (part.fileData) {
+          console.log(`[Article URL]   - Part ${index + 1}: 檔案/影片 (${part.fileData.fileUri?.substring(0, 50)}...)`);
+        } else if (part.text) {
+          console.log(`[Article URL]   - Part ${index + 1}: 文字 (長度: ${part.text.length} 字元)`);
+        }
+      });
 
       taskQueue.updateTaskProgress(taskId, 50, 'Gemini AI 正在分析影片內容...');
 
@@ -1459,6 +1491,18 @@ app.post('/api/generate-article-url-async', async (req, res) => {
       let response;
       let attempts = 0;
       const maxAttempts = 3;
+
+      // 準備 config
+      const geminiConfig = {};
+
+      // 如果有參考網址，啟用 URL Context 工具
+      if (referenceUrls && referenceUrls.length > 0) {
+        geminiConfig.tools = [{ urlContext: {} }];
+        console.log(`[Article URL] 🔧 已啟用 URL Context 工具（無法使用 responseMimeType）`);
+      } else {
+        // 只有在沒有使用工具時才能指定 responseMimeType
+        geminiConfig.responseMimeType = "application/json";
+      }
 
       while (attempts < maxAttempts) {
         try {
@@ -1470,9 +1514,7 @@ app.post('/api/generate-article-url-async', async (req, res) => {
                 parts: parts
               }
             ],
-            config: {
-              responseMimeType: "application/json",
-            },
+            config: geminiConfig,
           });
           break;
         } catch (error) {
@@ -1490,10 +1532,36 @@ app.post('/api/generate-article-url-async', async (req, res) => {
 
       taskQueue.updateTaskProgress(taskId, 80, '解析 Gemini AI 回應...');
 
+      // 檢查 URL Context metadata
+      if (response.candidates && response.candidates[0]?.urlContextMetadata) {
+        const metadata = response.candidates[0].urlContextMetadata;
+        console.log(`[Article URL] 🔍 URL Context Metadata:`);
+        if (metadata.urlMetadata) {
+          metadata.urlMetadata.forEach((urlMeta, index) => {
+            console.log(`[Article URL]   - URL ${index + 1}: ${urlMeta.retrievedUrl}`);
+            console.log(`[Article URL]     狀態: ${urlMeta.urlRetrievalStatus}`);
+          });
+        }
+      }
+
       let result;
       try {
-        const responseText = response.text;
+        let responseText = response.text;
         console.log(`[Article URL] ✅ Gemini 回應長度: ${responseText.length} 字元`);
+
+        // 當使用工具時，可能需要提取 JSON
+        if (referenceUrls && referenceUrls.length > 0) {
+          console.log(`[Article URL] 🔍 使用工具模式，嘗試提取 JSON...`);
+          // 嘗試找到 JSON 對象
+          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            responseText = jsonMatch[0];
+            console.log(`[Article URL] ✅ 成功提取 JSON (長度: ${responseText.length} 字元)`);
+          } else {
+            console.log(`[Article URL] ⚠️ 無法找到 JSON 對象，使用原始回應`);
+          }
+        }
+
         result = JSON.parse(responseText);
 
         if (!result.titleA || !result.titleB || !result.titleC || !result.article_text || !result.screenshots) {
@@ -1504,6 +1572,7 @@ app.post('/api/generate-article-url-async', async (req, res) => {
         console.log(`[Article URL] 標題 A: ${result.titleA}`);
       } catch (parseError) {
         console.error('[Article URL] ❌ JSON parsing error:', parseError.message);
+        console.error('[Article URL] 回應內容:', response.text.substring(0, 500));
         throw new Error(`無法解析 Gemini 回應為 JSON 格式。錯誤：${parseError.message}`);
       }
 
@@ -1523,6 +1592,228 @@ app.post('/api/generate-article-url-async', async (req, res) => {
         usedYouTubeUrl: true,
         needsScreenshots: true,
         videoId: videoId
+      };
+    });
+
+  } catch (error) {
+    console.error('Task creation error:', error);
+    res.status(500).json({
+      error: 'Failed to create task',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * 使用純網址生成文章（不需要 YouTube 影片）
+ * POST /api/generate-article-from-url-async
+ * Body: { url: string, prompt: string, uploadedFiles?: array, templateId?: string, referenceUrls?: array, referenceVideos?: array }
+ * Response: { taskId: string }
+ */
+app.post('/api/generate-article-from-url-async', async (req, res) => {
+  const {
+    url,
+    prompt,
+    uploadedFiles = [],
+    templateId = 'default',
+    referenceUrls = [],
+    referenceVideos = []
+  } = req.body;
+
+  if (!url) {
+    return res.status(400).json({ error: 'Missing url' });
+  }
+
+  // 驗證 URL 格式
+  try {
+    new URL(url);
+  } catch (error) {
+    return res.status(400).json({ error: 'Invalid URL format' });
+  }
+
+  try {
+    // 創建任務
+    const taskId = taskQueue.createTask('generate-article-from-url', {
+      url,
+      prompt,
+      uploadedFiles,
+      templateId,
+      referenceUrls,
+      referenceVideos
+    });
+
+    // 立即返回任務 ID
+    res.json({
+      success: true,
+      taskId,
+      message: '任務已建立，請使用 taskId 查詢進度'
+    });
+
+    // 在背景執行任務
+    taskQueue.executeTask(taskId, async (taskId) => {
+      console.log(`\n========== 📝 [Task ${taskId}] 使用純網址生成文章 ==========`);
+      console.log(`[Article URL-Only] URL: ${url}`);
+      console.log(`[Article URL-Only] Template: ${templateId}`);
+
+      if (uploadedFiles.length > 0) {
+        console.log(`[Article URL-Only] 📎 上傳的參考檔案: ${uploadedFiles.length} 個`);
+      }
+
+      taskQueue.updateTaskProgress(taskId, 20, '初始化 Gemini AI...');
+
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+      // 生成文章
+      taskQueue.updateTaskProgress(taskId, 30, '使用 URL Context 工具分析網址並生成文章...');
+      console.log('[Article URL-Only] 使用 URL Context 工具分析網址並生成文章...');
+
+      // 根據是否有上傳檔案，使用不同的 prompt 生成函數
+      const { generateArticlePromptWithFiles } = await import('./services/articlePromptService.js');
+      const fullPrompt = uploadedFiles.length > 0
+        ? await generateArticlePromptWithFiles(url, prompt, uploadedFiles, templateId)
+        : await generateArticlePrompt(url, prompt, templateId);
+
+      // 建立 parts 陣列
+      const parts = [];
+
+      // 加入使用者上傳的參考檔案
+      if (uploadedFiles.length > 0) {
+        for (const file of uploadedFiles) {
+          console.log(`[Article URL-Only] 加入參考檔案: ${file.displayName} (${file.mimeType})`);
+          parts.push({
+            fileData: {
+              mimeType: file.mimeType,
+              fileUri: file.uri
+            }
+          });
+        }
+      }
+
+      // 加入參考影片
+      if (referenceVideos && referenceVideos.length > 0) {
+        console.log(`[Article URL-Only] 📎 參考影片: ${referenceVideos.length} 個`);
+        for (const videoUrl of referenceVideos) {
+          console.log(`[Article URL-Only] 加入參考影片: ${videoUrl}`);
+          parts.push({ fileData: { fileUri: videoUrl } });
+        }
+      }
+
+      // 將所有 URL 加入到 prompt（主要 URL + 參考 URLs）
+      let finalPrompt = fullPrompt;
+      console.log(`[Article URL-Only] 📎 參考網址: ${referenceUrls.length} 個`);
+      const urlList = referenceUrls.map((url, index) => `${index + 1}. ${url}`).join('\n');
+      finalPrompt = `${fullPrompt}\n\n請參考以下網址的內容：\n${urlList}\n\n**重要：請確保你的回應是有效的 JSON 格式，不要包含任何額外的說明文字。**`;
+
+      parts.push({ text: finalPrompt });
+
+      // 日誌：顯示最終的 parts 結構
+      console.log(`[Article URL-Only] 📊 Parts 結構總覽:`);
+      console.log(`[Article URL-Only]   - 總共 ${parts.length} 個 parts`);
+      parts.forEach((part, index) => {
+        if (part.fileData) {
+          console.log(`[Article URL-Only]   - Part ${index + 1}: 檔案/影片 (${part.fileData.fileUri?.substring(0, 50)}...)`);
+        } else if (part.text) {
+          console.log(`[Article URL-Only]   - Part ${index + 1}: 文字 (長度: ${part.text.length} 字元)`);
+        }
+      });
+
+      taskQueue.updateTaskProgress(taskId, 50, 'Gemini AI 正在使用 URL Context 工具分析網址內容...');
+
+      // 添加重試機制處理 503 錯誤
+      let response;
+      let attempts = 0;
+      const maxAttempts = 3;
+
+      // 準備 config - 啟用 URL Context 工具
+      const geminiConfig = {
+        tools: [{ urlContext: {} }]
+      };
+      console.log(`[Article URL-Only] 🔧 已啟用 URL Context 工具`);
+
+      while (attempts < maxAttempts) {
+        try {
+          response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: [
+              {
+                role: 'user',
+                parts: parts
+              }
+            ],
+            config: geminiConfig,
+          });
+          break;
+        } catch (error) {
+          attempts++;
+          if (error.status === 503 && attempts < maxAttempts) {
+            const waitTime = attempts * 5;
+            console.log(`[Article URL-Only] ⚠️  Gemini API 過載，${waitTime} 秒後重試（第 ${attempts}/${maxAttempts} 次）...`);
+            taskQueue.updateTaskProgress(taskId, 50 + attempts * 5, `Gemini API 過載，${waitTime} 秒後重試...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      taskQueue.updateTaskProgress(taskId, 80, '解析 Gemini AI 回應...');
+
+      // 檢查 URL Context metadata
+      if (response.candidates && response.candidates[0]?.urlContextMetadata) {
+        const metadata = response.candidates[0].urlContextMetadata;
+        console.log(`[Article URL-Only] 🔍 URL Context Metadata:`);
+        if (metadata.urlMetadata) {
+          metadata.urlMetadata.forEach((urlMeta, index) => {
+            console.log(`[Article URL-Only]   - URL ${index + 1}: ${urlMeta.retrievedUrl}`);
+            console.log(`[Article URL-Only]     狀態: ${urlMeta.urlRetrievalStatus}`);
+          });
+        }
+      }
+
+      let result;
+      try {
+        let responseText = response.text;
+        console.log(`[Article URL-Only] ✅ Gemini 回應長度: ${responseText.length} 字元`);
+
+        // 使用工具模式時，需要提取 JSON
+        console.log(`[Article URL-Only] 🔍 使用工具模式，嘗試提取 JSON...`);
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          responseText = jsonMatch[0];
+          console.log(`[Article URL-Only] ✅ 成功提取 JSON (長度: ${responseText.length} 字元)`);
+        } else {
+          console.log(`[Article URL-Only] ⚠️ 無法找到 JSON 對象，使用原始回應`);
+        }
+
+        result = JSON.parse(responseText);
+
+        if (!result.titleA || !result.titleB || !result.titleC || !result.article_text) {
+          throw new Error('Missing required fields in response');
+        }
+
+        console.log(`[Article URL-Only] ✅ 文章生成成功!`);
+        console.log(`[Article URL-Only] 標題 A: ${result.titleA}`);
+      } catch (parseError) {
+        console.error('[Article URL-Only] ❌ JSON parsing error:', parseError.message);
+        console.error('[Article URL-Only] 回應內容:', response.text.substring(0, 500));
+        throw new Error(`無法解析 Gemini 回應為 JSON 格式。錯誤：${parseError.message}`);
+      }
+
+      taskQueue.updateTaskProgress(taskId, 100, '文章生成完成！');
+      console.log('[Article URL-Only] ✅ 文章生成完成！');
+      console.log(`========== 文章生成完成 ==========\n`);
+
+      return {
+        success: true,
+        titleA: result.titleA,
+        titleB: result.titleB,
+        titleC: result.titleC,
+        article: result.article_text,
+        seo_description: result.seo_description,
+        image_urls: [],
+        screenshots: result.screenshots || [],
+        needsScreenshots: false,
+        videoId: null
       };
     });
 
@@ -1907,7 +2198,7 @@ app.post('/api/capture-screenshots', async (req, res) => {
  * 截圖功能已分離到 /api/capture-screenshots 端點
  */
 app.post('/api/generate-article', async (req, res) => {
-  const { videoId, filePath, prompt, videoTitle, templateId = 'default' } = req.body;
+  const { videoId, filePath, prompt, videoTitle, templateId = 'default', referenceUrls = [], uploadedFiles = [], referenceVideos = [] } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
@@ -2007,7 +2298,75 @@ app.post('/api/generate-article', async (req, res) => {
 
     // 生成文章提示詞
     console.log(reusedFile ? '[Article] 步驟 3/4: 正在生成文章內容與截圖時間點...' : '[Article] 步驟 4/5: 正在生成文章內容與截圖時間點...');
-    const fullPrompt = await generateArticlePrompt(videoTitle, prompt, templateId);
+
+    // 根據是否有上傳檔案，使用不同的 prompt 生成函數
+    const { generateArticlePromptWithFiles } = await import('./services/articlePromptService.js');
+    let fullPrompt = uploadedFiles.length > 0
+      ? await generateArticlePromptWithFiles(videoTitle, prompt, uploadedFiles, templateId)
+      : await generateArticlePrompt(videoTitle, prompt, templateId);
+
+    // 如果有提供參考網址，將它們加入 prompt
+    if (referenceUrls && referenceUrls.length > 0) {
+      console.log(`[Article] 📎 參考網址: ${referenceUrls.length} 個`);
+      const urlList = referenceUrls.map((url, index) => `${index + 1}. ${url}`).join('\n');
+      fullPrompt = `${fullPrompt}\n\n請參考以下網址的內容：\n${urlList}\n\n**重要：請確保你的回應是有效的 JSON 格式，不要包含任何額外的說明文字。**`;
+    }
+
+    // 準備 config
+    const geminiConfig = {};
+
+    // 如果有參考網址，啟用 URL Context 工具
+    if (referenceUrls && referenceUrls.length > 0) {
+      geminiConfig.tools = [{ urlContext: {} }];
+      console.log(`[Article] 🔧 已啟用 URL Context 工具（無法使用 responseMimeType）`);
+    } else {
+      // 只有在沒有使用工具時才能指定 responseMimeType
+      geminiConfig.responseMimeType = "application/json";
+    }
+
+    // 建立 parts 陣列
+    const parts = [
+      { fileData: { fileUri: uploadedFile.uri, mimeType: 'video/mp4' } }
+    ];
+
+    // 加入使用者上傳的參考檔案
+    if (uploadedFiles.length > 0) {
+      console.log(`[Article] 📎 上傳的參考檔案: ${uploadedFiles.length} 個`);
+      for (const file of uploadedFiles) {
+        console.log(`[Article] 加入參考檔案: ${file.displayName} (${file.mimeType})`);
+        parts.push({
+          fileData: {
+            mimeType: file.mimeType,
+            fileUri: file.uri
+          }
+        });
+      }
+    }
+
+    // 加入參考影片
+    if (referenceVideos && referenceVideos.length > 0) {
+      console.log(`[Article] 📎 參考影片: ${referenceVideos.length} 個`);
+      for (const videoUrl of referenceVideos) {
+        console.log(`[Article] 加入參考影片: ${videoUrl}`);
+        parts.push({ fileData: { fileUri: videoUrl } });
+      }
+    }
+
+    parts.push({ text: fullPrompt });
+
+    // 日誌：顯示最終的 parts 結構
+    console.log(`[Article] 📊 Parts 結構總覽:`);
+    console.log(`[Article]   - 總共 ${parts.length} 個 parts`);
+    parts.forEach((part, index) => {
+      if (part.fileData) {
+        console.log(`[Article]   - Part ${index + 1}: 檔案/影片 (${part.fileData.fileUri?.substring(0, 50)}...)`);
+      } else if (part.text) {
+        console.log(`[Article]   - Part ${index + 1}: 文字 (長度: ${part.text.length} 字元)`);
+      }
+    });
+    if (geminiConfig.tools) {
+      console.log(`[Article] 🔧 已啟用工具: ${JSON.stringify(geminiConfig.tools)}`);
+    }
 
     // 呼叫 Gemini API 生成文章與截圖時間點
     // 根據最佳實踐：影片應該放在 prompt 之前
@@ -2016,24 +2375,44 @@ app.post('/api/generate-article', async (req, res) => {
       contents: [
         {
           role: 'user',
-          parts: [
-            { fileData: { fileUri: uploadedFile.uri, mimeType: 'video/mp4' } },
-            { text: fullPrompt }
-          ]
+          parts: parts
         }
       ],
-      config: {
-        responseMimeType: "application/json",
-      },
+      config: geminiConfig,
     });
+
+    // 檢查 URL Context metadata
+    if (response.candidates && response.candidates[0]?.urlContextMetadata) {
+      const metadata = response.candidates[0].urlContextMetadata;
+      console.log(`[Article] 🔍 URL Context Metadata:`);
+      if (metadata.urlMetadata) {
+        metadata.urlMetadata.forEach((urlMeta, index) => {
+          console.log(`[Article]   - URL ${index + 1}: ${urlMeta.retrievedUrl}`);
+          console.log(`[Article]     狀態: ${urlMeta.urlRetrievalStatus}`);
+        });
+      }
+    }
 
     let result;
     try {
-      const responseText = response.text;
+      let responseText = response.text;
       console.log(`[Article] ✅ Gemini 回應長度: ${responseText.length} 字元`);
-                console.log(`[Article] 回應預覽: ${responseText.substring(0, 150)}...`);
-      
-                result = JSON.parse(responseText);
+      console.log(`[Article] 回應預覽: ${responseText.substring(0, 150)}...`);
+
+      // 當使用工具時，可能需要提取 JSON
+      if (referenceUrls && referenceUrls.length > 0) {
+        console.log(`[Article] 🔍 使用工具模式，嘗試提取 JSON...`);
+        // 嘗試找到 JSON 對象
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          responseText = jsonMatch[0];
+          console.log(`[Article] ✅ 成功提取 JSON (長度: ${responseText.length} 字元)`);
+        } else {
+          console.log(`[Article] ⚠️ 無法找到 JSON 對象，使用原始回應`);
+        }
+      }
+
+      result = JSON.parse(responseText);
       // 驗證必要欄位
       if (!result.titleA || !result.titleB || !result.titleC || !result.article_text || !result.screenshots) {
         throw new Error('Missing required fields in response');
@@ -2043,7 +2422,7 @@ app.post('/api/generate-article', async (req, res) => {
       console.log(`[Article] 標題 A: ${result.titleA}`);
     } catch (parseError) {
       console.error('[Article] ❌ JSON parsing error:', parseError.message);
-      console.error('[Article] Full response text:', response.text);
+      console.error('[Article] 回應內容:', response.text.substring(0, 500));
 
       // 嘗試找出問題位置
       const lines = response.text.split('\n');
