@@ -11,8 +11,8 @@ on:
       - 'package.json'
 
   schedule:
-    # 每天台灣時間中午 12:15 執行（UTC 04:15 = 台灣時間 12:15）
-    - cron: '15 4 * * *'
+    # 每天台灣時間中午 13:10 執行（UTC 05:10 = 台灣時間 13:10）
+    - cron: '10 5 * * *'
 
   workflow_dispatch:  # 允許手動觸發
     inputs:
