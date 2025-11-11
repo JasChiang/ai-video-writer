@@ -5,6 +5,11 @@
 
 import { google } from 'googleapis';
 import { recordQuota as recordQuotaServer } from './quotaTracker.js';
+import { loadFromGist } from './videoCacheService.js';
+import dotenv from 'dotenv';
+
+// 載入環境變數
+dotenv.config({ path: '.env.local' });
 
 const YOUTUBE_QUOTA_COST = {
   channelsList: 1,
@@ -39,6 +44,59 @@ function filterVideosByKeywordClient(videos, keyword) {
     }
     return false;
   });
+}
+
+/**
+ * 從 video cache 中獲取並過濾影片
+ * @param {string} keyword - 關鍵字（可為空，表示所有影片）
+ * @returns {Promise<Array>} 影片列表
+ */
+async function searchChannelVideosFromCache(keyword) {
+  const normalizedKeyword = keyword?.trim() || '';
+
+  try {
+    // 從環境變數獲取 Gist 設定
+    const gistId = process.env.GITHUB_GIST_ID;
+    const gistToken = process.env.GITHUB_GIST_TOKEN;
+
+    if (!gistId) {
+      throw new Error('GITHUB_GIST_ID 環境變數未設定');
+    }
+
+    console.log(`[ChannelAnalytics] 🔍 從 video cache 載入影片...`);
+    console.log(`[ChannelAnalytics] Gist ID: ${gistId}`);
+
+    // 從 Gist 載入快取
+    const cache = await loadFromGist(gistId, gistToken);
+
+    console.log(`[ChannelAnalytics] ✅ 已載入 ${cache.totalVideos} 支影片（快取更新時間: ${cache.updatedAt}）`);
+
+    // 將 cache 格式轉換為與原有 API 相同的格式
+    let videos = cache.videos.map(v => ({
+      videoId: v.videoId,
+      title: v.title,
+      description: '', // cache 中沒有 description
+      tags: v.tags || [],
+      publishedAt: v.publishedAt,
+      thumbnail: v.thumbnail,
+      privacyStatus: v.privacyStatus || 'public',
+    }));
+
+    // 如果有關鍵字，進行過濾
+    if (normalizedKeyword) {
+      videos = filterVideosByKeywordClient(videos, normalizedKeyword);
+      console.log(
+        `[ChannelAnalytics] ✅ 關鍵字 "${normalizedKeyword}" 過濾後: ${videos.length} 支影片（總共 ${cache.totalVideos} 支影片）`
+      );
+    } else {
+      console.log(`[ChannelAnalytics] ✅ 未指定關鍵字，返回所有 ${videos.length} 支影片`);
+    }
+
+    return videos;
+  } catch (error) {
+    console.error(`[ChannelAnalytics] ❌ 從 video cache 載入失敗: ${error.message}`);
+    throw error;
+  }
 }
 
 /**
@@ -522,13 +580,24 @@ export async function aggregateChannelData(accessToken, channelId, keywordGroups
     const channelCountry = await getChannelTimezone(youtube, channelId);
     console.log(`[ChannelAnalytics] 頻道國家設定: ${channelCountry}`);
 
-    // 步驟 1: 為每個關鍵字組合搜尋影片
-    console.log('[ChannelAnalytics] 步驟 1: 根據關鍵字搜尋影片...');
+    // 步驟 1: 為每個關鍵字組合搜尋影片（使用 video cache）
+    console.log('[ChannelAnalytics] 步驟 1: 根據關鍵字從 video cache 搜尋影片...');
     const filteredVideoGroups = [];
 
     for (const group of keywordGroups) {
       console.log(`[ChannelAnalytics] 正在搜尋關鍵字: "${group.keyword || '(所有影片)'}"`);
-      const videos = await searchChannelVideos(youtube, channelId, group.keyword);
+
+      let videos;
+      try {
+        // 優先使用 video cache
+        videos = await searchChannelVideosFromCache(group.keyword);
+        console.log(`[ChannelAnalytics] ✓ 從 cache 獲取關鍵字 "${group.keyword || '(所有影片)'}": ${videos.length} 支影片`);
+      } catch (cacheError) {
+        console.warn(`[ChannelAnalytics] ⚠️ Video cache 不可用 (${cacheError.message})，改用 YouTube API`);
+        // 如果 cache 失敗，使用原有的 YouTube API 方式
+        videos = await searchChannelVideos(youtube, channelId, group.keyword);
+        console.log(`[ChannelAnalytics] ✓ 從 YouTube API 獲取關鍵字 "${group.keyword || '(所有影片)'}": ${videos.length} 支影片`);
+      }
 
       filteredVideoGroups.push({
         name: group.name,
@@ -536,8 +605,6 @@ export async function aggregateChannelData(accessToken, channelId, keywordGroups
         videos: videos,
         videoIds: videos.map(v => v.videoId),
       });
-
-      console.log(`[ChannelAnalytics] ✓ 關鍵字 "${group.keyword || '(所有影片)'}": ${videos.length} 支影片`);
     }
 
     // 步驟 2: 為每個組合和每個日期範圍獲取數據
