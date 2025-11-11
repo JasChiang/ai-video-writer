@@ -111,6 +111,72 @@ export async function generateArticlePromptWithFiles(videoTitle, userPrompt, upl
   return prompt;
 }
 
+/**
+ * 生成文章與截圖的完整提示詞（支援所有類型的參考資料）
+ * @param {string} videoTitle 影片標題或網址
+ * @param {string} [userPrompt] 使用者額外提示（選填）
+ * @param {Object} references 參考資料物件
+ * @param {Array} [references.uploadedFiles] 使用者上傳的參考檔案
+ * @param {Array} [references.referenceVideos] 參考影片網址
+ * @param {Array} [references.referenceUrls] 參考網址
+ * @param {string} [templateId] 模板 ID（預設為 'default'）
+ * @returns {Promise<string>} 完整的提示詞
+ */
+export async function generateArticlePromptWithReferences(videoTitle, userPrompt = '', references = {}, templateId = 'default') {
+  // 使用模板生成基本提示詞
+  let prompt = await generatePromptFromTemplate(templateId, videoTitle, userPrompt);
+
+  // 建立參考資料區塊
+  let referencesContext = '';
+
+  // 1. 處理上傳檔案
+  if (references.uploadedFiles && references.uploadedFiles.length > 0) {
+    referencesContext += '\n\n## 參考檔案\n\n使用者已上傳 ' + references.uploadedFiles.length + ' 個參考檔案：\n\n';
+
+    references.uploadedFiles.forEach((file, index) => {
+      const fileType =
+        file.mimeType.startsWith('image/') ? '圖片檔案' :
+        file.mimeType === 'application/pdf' ? 'PDF 文件' :
+        file.displayName.endsWith('.md') ? 'Markdown 文件' :
+        file.mimeType === 'text/plain' ? '文字檔案' : '檔案';
+
+      referencesContext += `${index + 1}. ${file.displayName}（${fileType}）\n`;
+    });
+
+    referencesContext += '\n請深入分析這些參考檔案，將檔案中的資訊與主要內容結合，產出更豐富、更專業的文章。\n';
+  }
+
+  // 2. 處理參考影片
+  if (references.referenceVideos && references.referenceVideos.length > 0) {
+    referencesContext += '\n\n## 參考影片\n\n系統已提供 ' + references.referenceVideos.length + ' 部參考影片。\n\n';
+    referencesContext += '請深入分析這些參考影片的內容，將其中的資訊、觀點、技術細節與主要內容整合，產出更全面、更深入的文章。這些參考影片與主題密切相關，請確保充分利用其中的內容。\n';
+  }
+
+  // 3. 處理參考網址
+  if (references.referenceUrls && references.referenceUrls.length > 0) {
+    referencesContext += '\n\n## 參考網址\n\n請深入閱讀並分析以下網址的內容：\n\n';
+
+    references.referenceUrls.forEach((url, index) => {
+      referencesContext += `${index + 1}. ${url}\n`;
+    });
+
+    referencesContext += '\n這些網址提供了額外的脈絡、數據或觀點。請確保將這些參考資料的重要資訊整合到文章中，讓內容更加全面和深入。\n';
+  }
+
+  // 4. 如果有任何參考資料，加上總體整合指示
+  const hasAnyReferences =
+    (references.uploadedFiles && references.uploadedFiles.length > 0) ||
+    (references.referenceVideos && references.referenceVideos.length > 0) ||
+    (references.referenceUrls && references.referenceUrls.length > 0);
+
+  if (hasAnyReferences) {
+    referencesContext += '\n**重要整合原則**：請綜合分析主要來源與上述所有參考資料，將它們的內容有機地整合到文章中。不要只使用部分參考資料，而應該全面吸收各個來源的精華，產出一篇完整、專業、具有深度的文章。\n';
+  }
+
+  prompt += referencesContext;
+  return prompt;
+}
+
 export async function listAvailableArticleTemplates() {
   return await getTemplatesMetadata();
 }

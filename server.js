@@ -1431,11 +1431,18 @@ app.post('/api/generate-article-url-async', async (req, res) => {
       taskQueue.updateTaskProgress(taskId, 30, '使用 YouTube URL 分析影片並生成文章...');
       console.log('[Article URL] 步驟 1/3: 使用 YouTube URL 分析影片並生成文章...');
 
-      // 根據是否有上傳檔案，使用不同的 prompt 生成函數
-      const { generateArticlePromptWithFiles } = await import('./services/articlePromptService.js');
-      const fullPrompt = uploadedFiles.length > 0
-        ? await generateArticlePromptWithFiles(videoTitle, prompt, uploadedFiles, templateId)
-        : await generateArticlePrompt(videoTitle, prompt, templateId);
+      // 使用新的 prompt 生成函數，整合所有參考資料
+      const { generateArticlePromptWithReferences } = await import('./services/articlePromptService.js');
+
+      // 準備參考資料物件
+      const references = {
+        uploadedFiles: uploadedFiles || [],
+        referenceVideos: referenceVideos || [],
+        referenceUrls: referenceUrls || []
+      };
+
+      // 生成包含所有參考資料指示的完整 prompt
+      const fullPrompt = await generateArticlePromptWithReferences(videoTitle, prompt, references, templateId);
 
       // 建立 parts 陣列
       const parts = [
@@ -1444,6 +1451,7 @@ app.post('/api/generate-article-url-async', async (req, res) => {
 
       // 加入使用者上傳的參考檔案
       if (uploadedFiles.length > 0) {
+        console.log(`[Article URL] 📎 上傳的參考檔案: ${uploadedFiles.length} 個`);
         for (const file of uploadedFiles) {
           console.log(`[Article URL] 加入參考檔案: ${file.displayName} (${file.mimeType})`);
           parts.push({
@@ -1464,14 +1472,13 @@ app.post('/api/generate-article-url-async', async (req, res) => {
         }
       }
 
-      // 如果有提供參考網址，將它們加入 prompt
-      let finalPrompt = fullPrompt;
+      // 記錄參考網址數量
       if (referenceUrls && referenceUrls.length > 0) {
         console.log(`[Article URL] 📎 參考網址: ${referenceUrls.length} 個`);
-        const urlList = referenceUrls.map((url, index) => `${index + 1}. ${url}`).join('\n');
-        finalPrompt = `${fullPrompt}\n\n請參考以下網址的內容：\n${urlList}\n\n**重要：請確保你的回應是有效的 JSON 格式，不要包含任何額外的說明文字。**`;
       }
 
+      // 加入完整的 prompt（已包含所有參考資料的整合指示）
+      const finalPrompt = `${fullPrompt}\n\n**重要：請確保你的回應是有效的 JSON 格式，不要包含任何額外的說明文字。**`;
       parts.push({ text: finalPrompt });
 
       // 日誌：顯示最終的 parts 結構
@@ -1536,12 +1543,17 @@ app.post('/api/generate-article-url-async', async (req, res) => {
       if (response.candidates && response.candidates[0]?.urlContextMetadata) {
         const metadata = response.candidates[0].urlContextMetadata;
         console.log(`[Article URL] 🔍 URL Context Metadata:`);
-        if (metadata.urlMetadata) {
+        if (metadata.urlMetadata && metadata.urlMetadata.length > 0) {
+          console.log(`[Article URL]   ✅ 成功抓取 ${metadata.urlMetadata.length} 個網址的內容：`);
           metadata.urlMetadata.forEach((urlMeta, index) => {
             console.log(`[Article URL]   - URL ${index + 1}: ${urlMeta.retrievedUrl}`);
             console.log(`[Article URL]     狀態: ${urlMeta.urlRetrievalStatus}`);
           });
+        } else {
+          console.log(`[Article URL]   ⚠️  沒有 URL metadata 資料（可能是 Gemini 沒有使用 URL Context 工具）`);
         }
+      } else {
+        console.log(`[Article URL]   ⚠️  回應中沒有 URL Context Metadata`);
       }
 
       let result;
@@ -1667,17 +1679,25 @@ app.post('/api/generate-article-from-url-async', async (req, res) => {
       taskQueue.updateTaskProgress(taskId, 30, '使用 URL Context 工具分析網址並生成文章...');
       console.log('[Article URL-Only] 使用 URL Context 工具分析網址並生成文章...');
 
-      // 根據是否有上傳檔案，使用不同的 prompt 生成函數
-      const { generateArticlePromptWithFiles } = await import('./services/articlePromptService.js');
-      const fullPrompt = uploadedFiles.length > 0
-        ? await generateArticlePromptWithFiles(url, prompt, uploadedFiles, templateId)
-        : await generateArticlePrompt(url, prompt, templateId);
+      // 使用新的 prompt 生成函數，整合所有參考資料
+      const { generateArticlePromptWithReferences } = await import('./services/articlePromptService.js');
+
+      // 準備參考資料物件
+      const references = {
+        uploadedFiles: uploadedFiles || [],
+        referenceVideos: referenceVideos || [],
+        referenceUrls: referenceUrls || []
+      };
+
+      // 生成包含所有參考資料指示的完整 prompt
+      const fullPrompt = await generateArticlePromptWithReferences(url, prompt, references, templateId);
 
       // 建立 parts 陣列
       const parts = [];
 
       // 加入使用者上傳的參考檔案
       if (uploadedFiles.length > 0) {
+        console.log(`[Article URL-Only] 📎 上傳的參考檔案: ${uploadedFiles.length} 個`);
         for (const file of uploadedFiles) {
           console.log(`[Article URL-Only] 加入參考檔案: ${file.displayName} (${file.mimeType})`);
           parts.push({
@@ -1698,16 +1718,14 @@ app.post('/api/generate-article-from-url-async', async (req, res) => {
         }
       }
 
-      // 將所有 URL 加入到 prompt（主要 URL + 參考 URLs）
-      let finalPrompt = fullPrompt;
+      // 記錄參考網址總數
       console.log(`[Article URL-Only] 📎 參考網址總數: ${referenceUrls.length} 個`);
       referenceUrls.forEach((url, index) => {
         console.log(`[Article URL-Only]   ${index + 1}. ${url}`);
       });
 
-      const urlList = referenceUrls.map((url, index) => `${index + 1}. ${url}`).join('\n');
-      finalPrompt = `${fullPrompt}\n\n請參考以下網址的內容：\n${urlList}\n\n**重要：請確保你的回應是有效的 JSON 格式，不要包含任何額外的說明文字。**`;
-
+      // 加入完整的 prompt（已包含所有參考資料的整合指示）
+      const finalPrompt = `${fullPrompt}\n\n**重要：請確保你的回應是有效的 JSON 格式，不要包含任何額外的說明文字。**`;
       parts.push({ text: finalPrompt });
 
       // 日誌：顯示最終的 parts 結構
@@ -1766,12 +1784,17 @@ app.post('/api/generate-article-from-url-async', async (req, res) => {
       if (response.candidates && response.candidates[0]?.urlContextMetadata) {
         const metadata = response.candidates[0].urlContextMetadata;
         console.log(`[Article URL-Only] 🔍 URL Context Metadata:`);
-        if (metadata.urlMetadata) {
+        if (metadata.urlMetadata && metadata.urlMetadata.length > 0) {
+          console.log(`[Article URL-Only]   ✅ 成功抓取 ${metadata.urlMetadata.length} 個網址的內容：`);
           metadata.urlMetadata.forEach((urlMeta, index) => {
             console.log(`[Article URL-Only]   - URL ${index + 1}: ${urlMeta.retrievedUrl}`);
             console.log(`[Article URL-Only]     狀態: ${urlMeta.urlRetrievalStatus}`);
           });
+        } else {
+          console.log(`[Article URL-Only]   ⚠️  沒有 URL metadata 資料（可能是 Gemini 沒有使用 URL Context 工具）`);
         }
+      } else {
+        console.log(`[Article URL-Only]   ⚠️  回應中沒有 URL Context Metadata`);
       }
 
       let result;
@@ -2342,18 +2365,18 @@ app.post('/api/generate-article', async (req, res) => {
     // 生成文章提示詞
     console.log(reusedFile ? '[Article] 步驟 3/4: 正在生成文章內容與截圖時間點...' : '[Article] 步驟 4/5: 正在生成文章內容與截圖時間點...');
 
-    // 根據是否有上傳檔案，使用不同的 prompt 生成函數
-    const { generateArticlePromptWithFiles } = await import('./services/articlePromptService.js');
-    let fullPrompt = uploadedFiles.length > 0
-      ? await generateArticlePromptWithFiles(videoTitle, prompt, uploadedFiles, templateId)
-      : await generateArticlePrompt(videoTitle, prompt, templateId);
+    // 使用新的 prompt 生成函數，整合所有參考資料
+    const { generateArticlePromptWithReferences } = await import('./services/articlePromptService.js');
 
-    // 如果有提供參考網址，將它們加入 prompt
-    if (referenceUrls && referenceUrls.length > 0) {
-      console.log(`[Article] 📎 參考網址: ${referenceUrls.length} 個`);
-      const urlList = referenceUrls.map((url, index) => `${index + 1}. ${url}`).join('\n');
-      fullPrompt = `${fullPrompt}\n\n請參考以下網址的內容：\n${urlList}\n\n**重要：請確保你的回應是有效的 JSON 格式，不要包含任何額外的說明文字。**`;
-    }
+    // 準備參考資料物件
+    const references = {
+      uploadedFiles: uploadedFiles || [],
+      referenceVideos: referenceVideos || [],
+      referenceUrls: referenceUrls || []
+    };
+
+    // 生成包含所有參考資料指示的完整 prompt
+    const fullPrompt = await generateArticlePromptWithReferences(videoTitle, prompt, references, templateId);
 
     // 準備 config
     const geminiConfig = {};
@@ -2395,7 +2418,14 @@ app.post('/api/generate-article', async (req, res) => {
       }
     }
 
-    parts.push({ text: fullPrompt });
+    // 記錄參考網址數量
+    if (referenceUrls && referenceUrls.length > 0) {
+      console.log(`[Article] 📎 參考網址: ${referenceUrls.length} 個`);
+    }
+
+    // 加入完整的 prompt（已包含所有參考資料的整合指示）
+    const finalPrompt = `${fullPrompt}\n\n**重要：請確保你的回應是有效的 JSON 格式，不要包含任何額外的說明文字。**`;
+    parts.push({ text: finalPrompt });
 
     // 日誌：顯示最終的 parts 結構
     console.log(`[Article] 📊 Parts 結構總覽:`);
@@ -2428,12 +2458,17 @@ app.post('/api/generate-article', async (req, res) => {
     if (response.candidates && response.candidates[0]?.urlContextMetadata) {
       const metadata = response.candidates[0].urlContextMetadata;
       console.log(`[Article] 🔍 URL Context Metadata:`);
-      if (metadata.urlMetadata) {
+      if (metadata.urlMetadata && metadata.urlMetadata.length > 0) {
+        console.log(`[Article]   ✅ 成功抓取 ${metadata.urlMetadata.length} 個網址的內容：`);
         metadata.urlMetadata.forEach((urlMeta, index) => {
           console.log(`[Article]   - URL ${index + 1}: ${urlMeta.retrievedUrl}`);
           console.log(`[Article]     狀態: ${urlMeta.urlRetrievalStatus}`);
         });
+      } else {
+        console.log(`[Article]   ⚠️  沒有 URL metadata 資料（可能是 Gemini 沒有使用 URL Context 工具）`);
       }
+    } else {
+      console.log(`[Article]   ⚠️  回應中沒有 URL Context Metadata`);
     }
 
     let result;
