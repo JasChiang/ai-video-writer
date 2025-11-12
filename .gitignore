@@ -48,3 +48,4 @@ ai-video-writer.tar
 # Video cache update info
 cache-update-info.json
 server.pid
+quick-query.cjs

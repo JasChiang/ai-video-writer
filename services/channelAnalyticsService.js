@@ -5,6 +5,10 @@
 
 import { google } from 'googleapis';
 import { recordQuota as recordQuotaServer } from './quotaTracker.js';
+import { loadFromGist } from './videoCacheService.js';
+import dotenv from 'dotenv';
+
+dotenv.config({ path: '.env.local' });
 
 const YOUTUBE_QUOTA_COST = {
   channelsList: 1,
@@ -42,7 +46,51 @@ function filterVideosByKeywordClient(videos, keyword) {
 }
 
 /**
- * 獲取並過濾頻道影片（包含公開、未列出、私人影片）
+ * 從 Gist 快取獲取並過濾影片（零配額成本）
+ * @param {string} keyword - 關鍵字（可為空，表示所有影片）
+ * @returns {Promise<Array>} 影片列表
+ */
+async function getVideosFromGistCache(keyword) {
+  const GIST_ID = process.env.GITHUB_GIST_ID;
+  const GIST_TOKEN = process.env.GITHUB_GIST_TOKEN;
+
+  if (!GIST_ID) {
+    console.log('[ChannelAnalytics] ⚠️ 未設定 GITHUB_GIST_ID，無法使用快取');
+    return null;
+  }
+
+  try {
+    console.log('[ChannelAnalytics] 📥 從 Gist 快取載入影片列表...');
+    const cache = await loadFromGist(GIST_ID, GIST_TOKEN);
+
+    if (!cache || !cache.videos || cache.videos.length === 0) {
+      console.log('[ChannelAnalytics] ⚠️ Gist 快取為空');
+      return null;
+    }
+
+    console.log(`[ChannelAnalytics] ✅ 從快取載入 ${cache.videos.length} 支影片`);
+
+    // 過濾關鍵字
+    const normalizedKeyword = keyword?.trim() || '';
+    if (!normalizedKeyword) {
+      console.log('[ChannelAnalytics] ✅ 未指定關鍵字，返回所有影片');
+      return cache.videos;
+    }
+
+    const filteredVideos = filterVideosByKeywordClient(cache.videos, normalizedKeyword);
+    console.log(
+      `[ChannelAnalytics] ✅ 關鍵字 "${normalizedKeyword}" 過濾後: ${filteredVideos.length} 支影片`
+    );
+
+    return filteredVideos;
+  } catch (error) {
+    console.error('[ChannelAnalytics] ⚠️ 從 Gist 快取載入失敗:', error.message);
+    return null;
+  }
+}
+
+/**
+ * 獲取並過濾頻道影片（優先使用 Gist 快取，零配額成本）
  * @param {Object} youtube - YouTube API 客戶端
  * @param {string} channelId - 頻道 ID
  * @param {string} keyword - 關鍵字（可為空，表示所有影片）
@@ -51,6 +99,20 @@ function filterVideosByKeywordClient(videos, keyword) {
  */
 async function searchChannelVideos(youtube, channelId, keyword, maxVideos = DEFAULT_MAX_VIDEOS) {
   const normalizedKeyword = keyword?.trim() || '';
+
+  // 🚀 優先策略：從 Gist 快取獲取影片列表（零配額成本）
+  console.log('[ChannelAnalytics] 🚀 優先策略：嘗試從 Gist 快取獲取影片列表...');
+  const cachedVideos = await getVideosFromGistCache(normalizedKeyword);
+
+  if (cachedVideos && cachedVideos.length > 0) {
+    console.log(
+      `[ChannelAnalytics] ✅ 成功從 Gist 快取獲取 ${cachedVideos.length} 支影片（零配額成本）`
+    );
+    return cachedVideos;
+  }
+
+  // 📌 備援策略：如果快取不可用，回退到原來的邏輯
+  console.log('[ChannelAnalytics] 📌 Gist 快取不可用，回退到 YouTube API...');
 
   if (normalizedKeyword) {
     try {

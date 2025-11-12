@@ -48,7 +48,7 @@ function sanitizeText(text) {
 export async function fetchAllVideoTitles(accessToken, channelId) {
   try {
     console.log('[VideoCache] ========================================');
-    console.log('[VideoCache] 🚀 開始抓取影片快取');
+    console.log('[VideoCache] 🚀 開始抓取影片快取 (使用 search.list 策略)');
     console.log('[VideoCache] ========================================');
     console.log(`[VideoCache] 頻道 ID: ${channelId}`);
 
@@ -57,43 +57,26 @@ export async function fetchAllVideoTitles(accessToken, channelId) {
 
     const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
 
-    // 步驟 1: 獲取上傳播放清單 ID
-    console.log('[VideoCache] 📋 步驟 1: 獲取上傳播放清單 ID...');
-    const channelResponse = await youtube.channels.list({
-      part: 'contentDetails',
-      id: channelId,
-    });
-    recordQuotaServer('youtube.channels.list', YOUTUBE_QUOTA_COST.channelsList, {
-      part: 'contentDetails',
-      context: 'videoCache:fetchAllVideoTitles',
-      caller: 'videoCacheService.fetchAllVideoTitles',
-    });
-
-    if (!channelResponse.data.items || channelResponse.data.items.length === 0) {
-      throw new Error('找不到頻道資訊');
-    }
-
-    const uploadsPlaylistId = channelResponse.data.items[0].contentDetails.relatedPlaylists.uploads;
-    console.log(`[VideoCache] ✅ 上傳播放清單 ID: ${uploadsPlaylistId}`);
-
-    // 步驟 2: 獲取所有影片 ID（使用 playlistItems.list）
-    console.log('[VideoCache] 📹 步驟 2: 開始抓取所有影片 ID...');
+    // 步驟 1: 使用 search.list 獲取所有影片的基本資訊
+    console.log('[VideoCache] 📹 步驟 1: 開始使用 search.list 抓取所有影片...');
     const videoBasicInfo = [];
     let pageToken = null;
     let pageCount = 0;
 
     do {
       pageCount++;
-      console.log(`[VideoCache] 📄 正在獲取第 ${pageCount} 頁...`);
+      console.log(`[VideoCache] 📄 正在獲取第 ${pageCount} 頁... (配額成本: 100)`);
 
-      const response = await youtube.playlistItems.list({
-        part: 'snippet,status',
-        playlistId: uploadsPlaylistId,
+      const response = await youtube.search.list({
+        part: 'snippet',
+        forMine: true,
+        type: 'video',
+        order: 'date', // 按日期排序
         maxResults: 50,
         pageToken: pageToken,
       });
-      recordQuotaServer('youtube.playlistItems.list', YOUTUBE_QUOTA_COST.playlistItemsList, {
-        part: 'snippet,status',
+      recordQuotaServer('youtube.search.list', 100, {
+        part: 'snippet',
         page: pageCount,
         context: 'videoCache:fetchAllVideoTitles',
         caller: 'videoCacheService.fetchAllVideoTitles',
@@ -102,22 +85,28 @@ export async function fetchAllVideoTitles(accessToken, channelId) {
       const items = response.data.items || [];
 
       for (const item of items) {
-        videoBasicInfo.push({
-          videoId: item.snippet.resourceId.videoId,
-          publishedAt: item.snippet.publishedAt,
-          thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || '',
-          privacyStatus: item.status?.privacyStatus || 'unknown',
-        });
+        // 確保影片屬於指定的頻道 ID，避免多頻道帳號的問題
+        // 同時檢查 item.id 和 item.id.videoId 是否存在
+        if (item && item.id && item.id.videoId && item.snippet && item.snippet.channelId === channelId) {
+            videoBasicInfo.push({
+              videoId: item.id.videoId,
+              title: sanitizeText(item.snippet.title),
+              publishedAt: item.snippet.publishedAt,
+              thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || '',
+              // 注意：search.list 的 snippet 不包含 tags 和 categoryId
+              // 這些資訊將在步驟 2 透過 videos.list 獲取
+            });
+        }
       }
 
-      console.log(`[VideoCache] 📊 目前已獲取: ${videoBasicInfo.length} 支影片 ID`);
+      console.log(`[VideoCache] 📊 目前已獲取: ${videoBasicInfo.length} 支影片`);
       pageToken = response.data.nextPageToken;
     } while (pageToken);
 
-    console.log(`[VideoCache] ✅ 步驟 2 完成！總共 ${videoBasicInfo.length} 支影片`);
+    console.log(`[VideoCache] ✅ 步驟 1 完成！總共 ${videoBasicInfo.length} 支影片`);
 
-    // 步驟 3: 批次獲取詳細資訊（snippet + statistics）
-    console.log('[VideoCache] 📊 步驟 3: 批次獲取詳細資訊（tags, categoryId, statistics）...');
+    // 步驟 2: 批次獲取統計資訊（statistics）
+    console.log('[VideoCache] 📊 步驟 2: 批次獲取統計資訊 (statistics)...');
     const videos = [];
     const batchSize = 50; // YouTube API 限制每次最多 50 個
     const totalBatches = Math.ceil(videoBasicInfo.length / batchSize);
@@ -129,89 +118,64 @@ export async function fetchAllVideoTitles(accessToken, channelId) {
 
       console.log(`[VideoCache] 📦 正在處理批次 ${currentBatch}/${totalBatches} (${batch.length} 支影片)...`);
 
-      const detailsResponse = await youtube.videos.list({
-        part: 'snippet,statistics',
+      const statsResponse = await youtube.videos.list({
+        part: 'statistics,status,snippet', // 同時獲取 status 和 snippet (包含 tags, categoryId)
         id: videoIds,
         maxResults: 50,
       });
 
-      // 記錄配額
-      const quotaCost = YOUTUBE_QUOTA_COST.videosListSnippet + YOUTUBE_QUOTA_COST.videosListStatistics + 1; // 1 for base cost
+      // snippet: 2, statistics: 2, status: 2
+      const quotaCost = 2 + 2 + 2;
       recordQuotaServer('youtube.videos.list', quotaCost, {
-        part: 'snippet,statistics',
+        part: 'statistics,status,snippet',
         batch: currentBatch,
         videoCount: batch.length,
         context: 'videoCache:fetchAllVideoTitles',
         caller: 'videoCacheService.fetchAllVideoTitles',
       });
 
-      const detailItems = detailsResponse.data.items || [];
+      const statsItems = statsResponse.data.items || [];
 
-      // 合併基本資訊和詳細資訊
+      // 合併基本資訊和統計資訊
       for (const basicInfo of batch) {
-        const detailItem = detailItems.find(item => item.id === basicInfo.videoId);
+        const statsItem = statsItems.find(item => item.id === basicInfo.videoId);
 
-        if (detailItem) {
+        if (statsItem) {
           videos.push({
-            videoId: basicInfo.videoId,
-            title: sanitizeText(detailItem.snippet.title),
-            tags: (detailItem.snippet.tags || []).map(tag => sanitizeText(tag)),
-            categoryId: detailItem.snippet.categoryId || '',
-            viewCount: parseInt(detailItem.statistics.viewCount || '0'),
-            likeCount: parseInt(detailItem.statistics.likeCount || '0'),
-            commentCount: parseInt(detailItem.statistics.commentCount || '0'),
-            publishedAt: basicInfo.publishedAt,
-            thumbnail: basicInfo.thumbnail,
-            privacyStatus: basicInfo.privacyStatus,
+            ...basicInfo,
+            viewCount: parseInt(statsItem.statistics?.viewCount || '0'),
+            likeCount: parseInt(statsItem.statistics?.likeCount || '0'),
+            commentCount: parseInt(statsItem.statistics?.commentCount || '0'),
+            privacyStatus: statsItem.status?.privacyStatus || 'unknown',
+            // 從 videos.list 的 snippet 獲取 tags 和 categoryId
+            tags: (statsItem.snippet?.tags || []).map(tag => sanitizeText(tag)),
+            categoryId: statsItem.snippet?.categoryId || '',
           });
         } else {
-          // 如果找不到詳細資訊，使用基本資訊
-          console.warn(`[VideoCache] ⚠️  找不到影片詳細資訊: ${basicInfo.videoId}`);
+          // 如果找不到統計資訊，使用基本資訊並給予預設值
+          console.warn(`[VideoCache] ⚠️  找不到影片統計資訊: ${basicInfo.videoId}`);
           videos.push({
-            videoId: basicInfo.videoId,
-            title: '(無法取得標題)',
-            tags: [],
-            categoryId: '',
+            ...basicInfo,
             viewCount: 0,
             likeCount: 0,
             commentCount: 0,
-            publishedAt: basicInfo.publishedAt,
-            thumbnail: basicInfo.thumbnail,
-            privacyStatus: basicInfo.privacyStatus,
+            privacyStatus: 'unknown',
+            tags: [],
+            categoryId: '',
           });
         }
       }
-
       console.log(`[VideoCache] ✅ 批次 ${currentBatch} 完成，已處理 ${videos.length}/${videoBasicInfo.length} 支影片`);
     }
 
-    // 步驟 4: 去重（確保每個 videoId 只出現一次）
-    console.log('[VideoCache] 🔄 步驟 4: 檢查並移除重複影片...');
-
+    // 步驟 3: 去重（search.list 理論上不會重複，但作為保險措施）
+    console.log('[VideoCache] 🔄 步驟 3: 檢查並移除重複影片...');
     const videoMap = new Map();
-    const duplicates = [];
-
-    for (const video of videos) {
-      if (videoMap.has(video.videoId)) {
-        duplicates.push({
-          videoId: video.videoId,
-          title: video.title,
-          publishedAt: video.publishedAt
-        });
-      } else {
-        videoMap.set(video.videoId, video);
-      }
-    }
-
+    videos.forEach(video => videoMap.set(video.videoId, video));
     const uniqueVideos = Array.from(videoMap.values());
 
-    if (duplicates.length > 0) {
-      console.log(`[VideoCache] ⚠️  發現 ${duplicates.length} 支重複影片，已移除:`);
-      console.table(duplicates);
-    }
-
     console.log('[VideoCache] ========================================');
-    console.log(`[VideoCache] ✅ 抓取完成！總共 ${uniqueVideos.length} 支影片（去重前: ${videos.length}）`);
+    console.log(`[VideoCache] ✅ 抓取完成！總共 ${uniqueVideos.length} 支影片`);
     console.log('[VideoCache] ========================================');
 
     return uniqueVideos;
