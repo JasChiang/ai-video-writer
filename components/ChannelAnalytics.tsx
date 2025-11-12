@@ -79,6 +79,10 @@ interface TemplateData {
   createdAt: number;
 }
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
+
 export function ChannelAnalytics() {
   // 狀態管理
   const [keywordGroups, setKeywordGroups] = useState<KeywordGroup[]>([]);
@@ -256,7 +260,7 @@ export function ChannelAnalytics() {
       }
 
       // 調用後端 API
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/channel-analytics/aggregate`, {
+      const response = await fetch(`${API_BASE_URL}/channel-analytics/aggregate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -275,12 +279,32 @@ export function ChannelAnalytics() {
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || '獲取數據失敗');
+      const contentType = response.headers.get('content-type') || '';
+      const responseText = await response.text();
+      let parsedResponse: any = null;
+
+      if (contentType.includes('application/json') && responseText) {
+        try {
+          parsedResponse = JSON.parse(responseText);
+        } catch (parseErr) {
+          console.warn('無法解析 JSON 回應:', parseErr);
+        }
       }
 
-      const result = await response.json();
+      if (!response.ok) {
+        const message =
+          parsedResponse?.error ||
+          parsedResponse?.message ||
+          responseText ||
+          '獲取數據失敗';
+        throw new Error(message);
+      }
+
+      if (!parsedResponse) {
+        throw new Error('後端回傳格式錯誤（非 JSON）');
+      }
+
+      const result = parsedResponse;
 
       // 設定表格數據
       setTableData(result.rows);
@@ -389,7 +413,7 @@ export function ChannelAnalytics() {
   // 清除快取
   const clearCache = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/channel-analytics/clear-cache`, {
+      const response = await fetch(`${API_BASE_URL}/channel-analytics/clear-cache`, {
         method: 'POST',
       });
 
