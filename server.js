@@ -3367,15 +3367,18 @@ app.get('/api/video-cache/load/:gistId', async (req, res) => {
  */
 app.get('/api/video-cache/search', async (req, res) => {
   try {
-    const { gistId, query, maxResults = 10, gistToken } = req.query;
+    const { gistId: requestGistId, query, maxResults = 10, gistToken } = req.query;
 
     console.log('[API] ========================================');
     console.log('[API] 🔍 收到快取搜尋請求');
     console.log('[API] ========================================');
 
+    // 優先使用請求中的 gistId，如果沒有則使用環境變數
+    const gistId = requestGistId || process.env.GITHUB_GIST_ID;
+
     if (!gistId) {
-      console.log('[API] ❌ 缺少 gistId');
-      return res.status(400).json({ error: '缺少 gistId' });
+      console.log('[API] ❌ 缺少 gistId (請求參數或環境變數)');
+      return res.status(400).json({ error: '缺少 gistId，請設定 GITHUB_GIST_ID 環境變數' });
     }
 
     // 優先使用環境變數中的 GIST_TOKEN，如果前端有傳則使用前端的

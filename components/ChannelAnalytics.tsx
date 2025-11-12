@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, Upload, RefreshCw, Calendar, TrendingUp } from 'lucide-react';
+import { Plus, Trash2, Save, Upload, RefreshCw, Calendar, TrendingUp, BarChart3 } from 'lucide-react';
 import * as youtubeService from '../services/youtubeService';
 import {
   getRelativeDateRange,
@@ -8,6 +8,7 @@ import {
   type RelativeDateType,
   type DateRange
 } from '../utils/dateRangeUtils';
+import { ChannelDashboard } from './ChannelDashboard';
 
 interface KeywordGroup {
   id: string;
@@ -83,7 +84,12 @@ const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
   (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
 
+type TabType = 'dashboard' | 'report';
+
 export function ChannelAnalytics() {
+  // 分頁狀態
+  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+
   // 狀態管理
   const [keywordGroups, setKeywordGroups] = useState<KeywordGroup[]>([]);
   const [dateColumns, setDateColumns] = useState<DateColumn[]>([]);
@@ -455,33 +461,71 @@ export function ChannelAnalytics() {
 
   return (
     <div className="space-y-6">
-      {/* 標題區域 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <TrendingUp className="w-6 h-6" />
-            頻道數據分析
-          </h2>
-          <p className="text-gray-600 mt-1">
-            根據關鍵字搜尋影片、比較不同時間段的影片表現
-          </p>
-          <div className="mt-2 space-y-2">
-            <div className="text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">
-              💡 系統會獲取頻道<strong>所有影片</strong>（公開、未列出、私人），再根據<strong>關鍵字</strong>過濾，並統計您選擇的<strong>時間段內</strong>的數據
-            </div>
-
-          </div>
-        </div>
-        <div className="flex gap-2">
+      {/* 分頁選擇器 */}
+      <div className="border-b border-gray-200">
+        <div className="flex gap-1">
           <button
-            onClick={clearCache}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+            onClick={() => setActiveTab('dashboard')}
+            className={`px-6 py-3 font-medium transition-colors relative ${
+              activeTab === 'dashboard'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
           >
-            <RefreshCw className="w-4 h-4" />
-            清除快取
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5" />
+              頻道儀錶板
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('report')}
+            className={`px-6 py-3 font-medium transition-colors relative ${
+              activeTab === 'report'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5" />
+              關鍵字報表
+            </div>
           </button>
         </div>
       </div>
+
+      {/* 儀錶板視圖 */}
+      {activeTab === 'dashboard' && <ChannelDashboard />}
+
+      {/* 報表分析視圖 */}
+      {activeTab === 'report' && (
+        <div className="space-y-6">
+          {/* 標題區域 */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <TrendingUp className="w-6 h-6" />
+                頻道數據分析
+              </h2>
+              <p className="text-gray-600 mt-1">
+                根據關鍵字搜尋影片、比較不同時間段的影片表現
+              </p>
+              <div className="mt-2 space-y-2">
+                <div className="text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">
+                  💡 系統會獲取頻道<strong>所有影片</strong>（公開、未列出、私人），再根據<strong>關鍵字</strong>過濾，並統計您選擇的<strong>時間段內</strong>的數據
+                </div>
+
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={clearCache}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                清除快取
+              </button>
+            </div>
+          </div>
 
       {/* 模板管理區域 */}
       <div className="bg-white rounded-lg border border-gray-200 p-4">
@@ -751,6 +795,8 @@ export function ChannelAnalytics() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
         </div>
       )}
 
