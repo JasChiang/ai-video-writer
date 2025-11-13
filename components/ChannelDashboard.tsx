@@ -39,7 +39,7 @@
  * - 需要先運行 `npm run update-cache` 生成影片快取
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   TrendingUp,
   Eye,
@@ -51,6 +51,7 @@ import {
   Calendar,
   BarChart3,
   RefreshCw,
+  Share2,
 } from 'lucide-react';
 import * as youtubeService from '../services/youtubeService';
 
@@ -72,6 +73,8 @@ interface VideoItem {
   viewCount: number;
   likeCount: number;
   commentCount: number;
+  avgViewPercentage?: number;
+  shareCount?: number;
   publishedAt: string;
   thumbnailUrl: string;
 }
@@ -144,6 +147,24 @@ interface ComparisonData {
 type ChartMetric = 'views' | 'watchTime' | 'subscribers';
 type QuickDateRange = '7d' | '30d' | '90d' | 'this_month' | 'last_month';
 
+const FILTER_STORAGE_KEY = 'channel_dashboard_filters';
+const DATA_STORAGE_KEY = 'channel_dashboard_data';
+
+const QUICK_DATE_PRESETS: { label: string; value: QuickDateRange }[] = [
+  { label: '過去 7 天', value: '7d' },
+  { label: '過去 30 天', value: '30d' },
+  { label: '過去 90 天', value: '90d' },
+  { label: '本月', value: 'this_month' },
+  { label: '上月', value: 'last_month' },
+];
+
+const TOP_VIDEO_METRICS = [
+  { label: '觀看次數', value: 'views' as const },
+  { label: '平均觀看百分比', value: 'avgViewPercent' as const },
+  { label: '分享次數', value: 'shares' as const },
+  { label: '留言次數', value: 'comments' as const },
+];
+
 const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
   (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
@@ -195,6 +216,8 @@ const getDefaultDateRange = () => {
 export function ChannelDashboard() {
   // 狀態管理
   const defaultDates = getDefaultDateRange();
+  const cardBaseClass = 'rounded-2xl border border-red-50 bg-white shadow-sm';
+  const compactCardClass = `${cardBaseClass} p-5 self-start`;
   const [startDate, setStartDate] = useState<string>(defaultDates.start);
   const [endDate, setEndDate] = useState<string>(defaultDates.end);
   const [isLoading, setIsLoading] = useState(false);
@@ -220,6 +243,107 @@ export function ChannelDashboard() {
   const [viewsComparison, setViewsComparison] = useState<ComparisonData | null>(null);
   const [watchTimeComparison, setWatchTimeComparison] = useState<ComparisonData | null>(null);
   const [subscribersComparison, setSubscribersComparison] = useState<ComparisonData | null>(null);
+  const [topVideoMetric, setTopVideoMetric] = useState<'views' | 'avgViewPercent' | 'shares' | 'comments'>('views');
+
+  const hasHydratedRef = useRef(false);
+
+  // 載入快取的日期與數據
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const storedFilters = window.localStorage.getItem(FILTER_STORAGE_KEY);
+      if (storedFilters) {
+        const parsed = JSON.parse(storedFilters);
+        if (parsed?.startDate) setStartDate(parsed.startDate);
+        if (parsed?.endDate) setEndDate(parsed.endDate);
+      }
+      if (parsed?.topVideoMetric) setTopVideoMetric(parsed.topVideoMetric);
+
+      const storedData = window.localStorage.getItem(DATA_STORAGE_KEY);
+      if (storedData) {
+        const parsed = JSON.parse(storedData);
+        if (parsed?.channelStats) setChannelStats(parsed.channelStats);
+        if (Array.isArray(parsed?.topVideos)) setTopVideos(parsed.topVideos);
+        if (Array.isArray(parsed?.monthlyData)) setMonthlyData(parsed.monthlyData);
+        if (Array.isArray(parsed?.trafficSources)) setTrafficSources(parsed.trafficSources);
+        if (Array.isArray(parsed?.externalSources)) setExternalSources(parsed.externalSources);
+        if (Array.isArray(parsed?.searchTerms)) setSearchTerms(parsed.searchTerms);
+        if (Array.isArray(parsed?.demographics)) setDemographics(parsed.demographics);
+        if (Array.isArray(parsed?.geography)) setGeography(parsed.geography);
+        if (Array.isArray(parsed?.devices)) setDevices(parsed.devices);
+        if (Array.isArray(parsed?.subscriberSources)) setSubscriberSources(parsed.subscriberSources);
+        if (typeof parsed?.avgViewDuration === 'number') setAvgViewDuration(parsed.avgViewDuration);
+        if (typeof parsed?.avgViewPercentage === 'number') setAvgViewPercentage(parsed.avgViewPercentage);
+        if (parsed?.viewsComparison) setViewsComparison(parsed.viewsComparison);
+        if (parsed?.watchTimeComparison) setWatchTimeComparison(parsed.watchTimeComparison);
+        if (parsed?.subscribersComparison) setSubscribersComparison(parsed.subscribersComparison);
+      }
+    } catch (err) {
+      console.warn('[Dashboard] ⚠️ 無法還原快取資料:', err);
+    } finally {
+      hasHydratedRef.current = true;
+    }
+  }, []);
+
+  // 儲存日期選擇
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!hasHydratedRef.current) return;
+    window.localStorage.setItem(
+      FILTER_STORAGE_KEY,
+      JSON.stringify({ startDate, endDate, topVideoMetric })
+    );
+  }, [startDate, endDate, topVideoMetric]);
+
+  // 儲存儀表板數據
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!hasHydratedRef.current) return;
+    if (!channelStats) return;
+
+    const payload = {
+      timestamp: Date.now(),
+      startDate,
+      endDate,
+      channelStats,
+      topVideos,
+      monthlyData,
+      trafficSources,
+      externalSources,
+      searchTerms,
+      demographics,
+      geography,
+      devices,
+      subscriberSources,
+      avgViewDuration,
+      avgViewPercentage,
+      viewsComparison,
+      watchTimeComparison,
+      subscribersComparison,
+      topVideoMetric,
+    };
+
+    window.localStorage.setItem(DATA_STORAGE_KEY, JSON.stringify(payload));
+  }, [
+    channelStats,
+    topVideos,
+    monthlyData,
+    trafficSources,
+    externalSources,
+    searchTerms,
+    demographics,
+    geography,
+    devices,
+    subscriberSources,
+    avgViewDuration,
+    avgViewPercentage,
+    viewsComparison,
+    watchTimeComparison,
+    subscribersComparison,
+    startDate,
+    endDate,
+    topVideoMetric,
+  ]);
 
   // 計算日期範圍
   const getDateRange = (): { startDate: Date; endDate: Date } => {
@@ -419,6 +543,9 @@ export function ChannelDashboard() {
       const topVideosWithDetails = analyticsRows.slice(0, 10).map((row: any[]) => {
         const videoId = row[0];
         const views = parseInt(row[1]) || 0;
+        const avgViewPercent = parseFloat(row[2]) || 0;
+        const shares = parseInt(row[3]) || 0;
+        const comments = parseInt(row[4]) || 0;
         const video = allVideos.find((v: any) => v.videoId === videoId || v.id === videoId);
 
         return {
@@ -426,7 +553,9 @@ export function ChannelDashboard() {
           title: video?.title || `影片 ${videoId}`,
           viewCount: views, // Analytics API 的觀看數（時間範圍內）
           likeCount: video?.likeCount || 0,
-          commentCount: video?.commentCount || 0,
+          commentCount: comments || video?.commentCount || 0,
+          avgViewPercentage: avgViewPercent,
+          shareCount: shares || 0,
           publishedAt: video?.publishedAt || '',
           thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
         };
@@ -563,7 +692,7 @@ export function ChannelDashboard() {
         `ids=channel==MINE` +
         `&startDate=${formatDate(startDate)}` +
         `&endDate=${formatDate(endDate)}` +
-        `&metrics=views,estimatedMinutesWatched` +
+        `&metrics=views,averageViewPercentage,shares,comments` +
         `&dimensions=video` +
         `&sort=-views` +
         `&maxResults=10`,
@@ -1194,7 +1323,7 @@ export function ChannelDashboard() {
 
         // 計算觀看時長：平均觀看時長 = 總觀看數 * 影片時長的估算
         // 注意：這是估算值，真實數據需要 Analytics API
-        // 假設平均觀看完成率 40%，影片平均長度 10 分鐘
+        // 假設平均觀看百分比 40%，影片平均長度 10 分鐘
         const avgVideoDurationMinutes = 10;
         const avgWatchPercentage = 0.4;
         const watchTimePerView = avgVideoDurationMinutes * 60 * avgWatchPercentage;
@@ -1230,6 +1359,8 @@ export function ChannelDashboard() {
           viewCount: parseInt(v.viewCount || '0'),
           likeCount: parseInt(v.likeCount || '0'),
           commentCount: parseInt(v.commentCount || '0'),
+          avgViewPercentage: parseFloat(v.avgViewPercentage || v.averageViewPercentage || '0') || 0,
+          shareCount: parseInt(v.shareCount || '0') || 0,
           publishedAt: v.publishedAt,
           thumbnailUrl: v.thumbnail || v.thumbnailUrl,
         }));
@@ -1302,6 +1433,42 @@ export function ChannelDashboard() {
     });
   };
 
+  const topVideoMetricConfig = {
+    views: {
+      label: '觀看次數',
+      unit: '次',
+      icon: Eye,
+      value: (video: VideoItem) => video.viewCount || 0,
+      formatter: (val: number) => formatFullNumber(val),
+    },
+    avgViewPercent: {
+      label: '平均觀看百分比',
+      unit: '%',
+      icon: TrendingUp,
+      value: (video: VideoItem) => video.avgViewPercentage || 0,
+      formatter: (val: number) => `${val.toFixed(1)}%`,
+    },
+    shares: {
+      label: '分享次數',
+      unit: '次',
+      icon: Share2,
+      value: (video: VideoItem) => video.shareCount || 0,
+      formatter: (val: number) => formatFullNumber(val),
+    },
+    comments: {
+      label: '留言次數',
+      unit: '則',
+      icon: MessageSquare,
+      value: (video: VideoItem) => video.commentCount || 0,
+      formatter: (val: number) => formatFullNumber(val),
+    },
+  } as const;
+
+  const sortedTopVideos = useMemo(() => {
+    const config = topVideoMetricConfig[topVideoMetric];
+    return [...topVideos].sort((a, b) => config.value(b) - config.value(a));
+  }, [topVideos, topVideoMetric]);
+
   // 不自動監聽日期變化，只有點擊「刷新數據」按鈕才會調用 API
   // useEffect(() => {
   //   if (channelStats) {
@@ -1312,91 +1479,107 @@ export function ChannelDashboard() {
   return (
     <div className="space-y-6">
       {/* 標題區域 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <BarChart3 className="w-6 h-6" />
-            頻道數據儀錶板
-          </h2>
-          <p className="text-gray-600 mt-1">查看頻道整體表現和熱門影片</p>
-        </div>
-        <div className="flex flex-col gap-2 items-end">
-          {/* 快速篩選器 */}
-          <div className="flex gap-2">
-            {[
-              { label: '過去 7 天', value: '7d' as QuickDateRange },
-              { label: '過去 30 天', value: '30d' as QuickDateRange },
-              { label: '過去 90 天', value: '90d' as QuickDateRange },
-              { label: '本月', value: 'this_month' as QuickDateRange },
-              { label: '上月', value: 'last_month' as QuickDateRange },
-            ].map((item) => (
-              <button
-                key={item.value}
-                onClick={() => {
-                  const range = getQuickDateRange(item.value);
-                  setStartDate(range.start);
-                  setEndDate(range.end);
-                }}
-                className="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100 transition-colors"
-              >
-                {item.label}
-              </button>
-            ))}
+      <div className="rounded-2xl border border-red-100 bg-white shadow-md p-5 lg:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2.5">
+            <div className="inline-flex items-center gap-2.5">
+              <div className="h-10 w-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center">
+                <BarChart3 className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-500">
+                  YouTube Insights
+                </p>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  頻道數據儀表板
+                </h2>
+              </div>
+            </div>
+            <p className="text-gray-500 text-sm leading-relaxed">
+              紅白質感介面，快速檢視整體表現、成長趨勢與熱門影片，一眼掌握 YouTube 成效。
+            </p>
           </div>
 
-          <div className="flex gap-2 items-center">
-            {/* 日期範圍選擇器 */}
-            <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg bg-white">
-              <Calendar className="w-4 h-4 text-gray-500" />
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="focus:outline-none text-sm"
-              />
-              <span className="text-gray-500">至</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="focus:outline-none text-sm"
-              />
+          <div className="flex flex-col gap-3 w-full lg:w-auto">
+            {/* 快速篩選器 */}
+            <div className="flex flex-wrap gap-1.5 justify-start lg:justify-end">
+              {QUICK_DATE_PRESETS.map((item) => {
+                const range = getQuickDateRange(item.value);
+                const isActive = startDate === range.start && endDate === range.end;
+
+                return (
+                  <button
+                    key={item.value}
+                    onClick={() => {
+                      setStartDate(range.start);
+                      setEndDate(range.end);
+                    }}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all shadow-sm ${
+                      isActive
+                        ? 'bg-red-600 text-white border-red-600 shadow-red-200'
+                        : 'bg-white text-gray-600 border-red-100 hover:bg-red-50 hover:text-red-600'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* 刷新按鈕 */}
-            <button
-              onClick={fetchDashboardData}
-              disabled={isLoading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isLoading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  載入中...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4" />
-                  刷新數據
-                </>
-              )}
-            </button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+              {/* 日期範圍選擇器 */}
+              <div className="flex items-center gap-2 px-3 py-2 border border-red-100 rounded-xl bg-white shadow-inner">
+                <Calendar className="w-4 h-4 text-red-500" />
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="focus:outline-none text-sm text-gray-700"
+                />
+                <span className="text-gray-400">至</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="focus:outline-none text-sm text-gray-700"
+                />
+              </div>
+
+              {/* 刷新按鈕 */}
+              <button
+                onClick={fetchDashboardData}
+                disabled={isLoading}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-red-200 transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-200 disabled:text-white/80 disabled:shadow-none"
+              >
+                {isLoading ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    載入中...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    刷新數據
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* 數據來源說明（可摺疊）*/}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg overflow-hidden">
+      <div className="rounded-2xl border border-red-100 bg-red-50/80 shadow-sm overflow-hidden">
         <button
           onClick={() => setShowDataSourceInfo(!showDataSourceInfo)}
-          className="w-full p-4 flex items-center justify-between hover:bg-blue-100 transition-colors"
+          className="w-full p-4 flex items-center justify-between hover:bg-red-100/70 transition-colors"
         >
           <div className="flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-blue-600" />
-            <strong className="text-sm text-blue-900">數據來源說明</strong>
+            <BarChart3 className="w-5 h-5 text-red-500" />
+            <strong className="text-sm text-red-900">數據來源說明</strong>
           </div>
           <svg
-            className={`w-5 h-5 text-blue-600 transition-transform ${showDataSourceInfo ? 'rotate-180' : ''}`}
+            className={`w-5 h-5 text-red-500 transition-transform ${showDataSourceInfo ? 'rotate-180' : ''}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -1407,7 +1590,7 @@ export function ChannelDashboard() {
 
         {showDataSourceInfo && (
           <div className="px-4 pb-4">
-            <ul className="space-y-1 text-sm text-blue-800">
+            <ul className="space-y-1 text-sm text-red-900">
               <li>
                 • <strong>時區</strong>：所有數據使用<strong>台灣時間（UTC+8）</strong>，與 YouTube Studio 後台一致
               </li>
@@ -1421,7 +1604,7 @@ export function ChannelDashboard() {
               <li>
                 • <strong>熱門影片</strong>：基於時間範圍內的觀看次數排序（Analytics API + Gist 快取）
               </li>
-              <li className="text-green-700 font-medium">
+              <li className="text-red-600 font-medium">
                 ✅ 這是真實的時間段內數據，非累計數據
               </li>
               <li className="text-xs text-gray-600 mt-2">
@@ -1434,7 +1617,7 @@ export function ChannelDashboard() {
 
       {/* 錯誤訊息 */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-700 shadow-inner">
           {error}
         </div>
       )}
@@ -1445,33 +1628,33 @@ export function ChannelDashboard() {
           {/* 觀看次數（時間範圍內）*/}
           <button
             onClick={() => setSelectedMetric('views')}
-            className={`bg-white rounded-lg border-2 p-6 text-left transition-all hover:shadow-md ${
+            className={`${cardBaseClass} p-5 text-left transition-all ${
               selectedMetric === 'views'
-                ? 'border-blue-600 shadow-md'
-                : 'border-gray-200'
+                ? 'border-red-500 bg-gradient-to-b from-red-50 to-white shadow-lg shadow-red-100'
+                : 'hover:border-red-200'
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-gray-600 text-sm">觀看次數</div>
-              <Eye className={`w-5 h-5 ${selectedMetric === 'views' ? 'text-blue-600' : 'text-blue-400'}`} />
+            <div className="flex items-center justify-between mb-2.5">
+              <div className="text-gray-500 text-sm font-semibold tracking-wide">觀看次數</div>
+              <Eye className={`w-5 h-5 ${selectedMetric === 'views' ? 'text-red-600' : 'text-gray-400'}`} />
             </div>
-            <div className="text-3xl font-bold text-gray-900">
+            <div className="text-[32px] font-bold text-gray-900 leading-tight">
               {formatNumber(channelStats.viewsInRange)}
             </div>
             <div className="text-sm text-gray-500 mt-1">
               {formatFullNumber(channelStats.viewsInRange)} 次觀看
             </div>
             {viewsComparison && (
-              <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
-                <div className="flex items-center justify-between text-xs">
+              <div className="mt-2 flex flex-col gap-1 text-xs">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-gray-500">較前期</span>
-                  <span className={`font-medium ${viewsComparison.changeFromPrevious >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`ml-2 font-semibold ${viewsComparison.changeFromPrevious >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {viewsComparison.changeFromPrevious >= 0 ? '+' : ''}{viewsComparison.changeFromPreviousPercent.toFixed(1)}%
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-gray-500">較去年同期</span>
-                  <span className={`font-medium ${viewsComparison.changeFromYearAgo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`ml-2 font-semibold ${viewsComparison.changeFromYearAgo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {viewsComparison.changeFromYearAgo >= 0 ? '+' : ''}{viewsComparison.changeFromYearAgoPercent.toFixed(1)}%
                   </span>
                 </div>
@@ -1487,33 +1670,33 @@ export function ChannelDashboard() {
           {/* 觀看時間（小時）*/}
           <button
             onClick={() => setSelectedMetric('watchTime')}
-            className={`bg-white rounded-lg border-2 p-6 text-left transition-all hover:shadow-md ${
+            className={`${cardBaseClass} p-5 text-left transition-all ${
               selectedMetric === 'watchTime'
-                ? 'border-purple-600 shadow-md'
-                : 'border-gray-200'
+                ? 'border-red-500 bg-gradient-to-b from-red-50 to-white shadow-lg shadow-red-100'
+                : 'hover:border-red-200'
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-gray-600 text-sm">觀看時間</div>
-              <Clock className={`w-5 h-5 ${selectedMetric === 'watchTime' ? 'text-purple-600' : 'text-purple-400'}`} />
+            <div className="flex items-center justify-between mb-2.5">
+              <div className="text-gray-500 text-sm font-semibold tracking-wide">觀看時間</div>
+              <Clock className={`w-5 h-5 ${selectedMetric === 'watchTime' ? 'text-red-600' : 'text-gray-400'}`} />
             </div>
-            <div className="text-3xl font-bold text-gray-900">
+            <div className="text-[32px] font-bold text-gray-900 leading-tight">
               {formatNumber(channelStats.watchTimeHours)}
             </div>
             <div className="text-sm text-gray-500 mt-1">
               {formatFullNumber(channelStats.watchTimeHours)} 小時
             </div>
             {watchTimeComparison && (
-              <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
-                <div className="flex items-center justify-between text-xs">
+              <div className="mt-2 flex flex-col gap-1 text-xs">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-gray-500">較前期</span>
-                  <span className={`font-medium ${watchTimeComparison.changeFromPrevious >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`ml-2 font-semibold ${watchTimeComparison.changeFromPrevious >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {watchTimeComparison.changeFromPrevious >= 0 ? '+' : ''}{watchTimeComparison.changeFromPreviousPercent.toFixed(1)}%
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-gray-500">較去年同期</span>
-                  <span className={`font-medium ${watchTimeComparison.changeFromYearAgo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`ml-2 font-semibold ${watchTimeComparison.changeFromYearAgo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {watchTimeComparison.changeFromYearAgo >= 0 ? '+' : ''}{watchTimeComparison.changeFromYearAgoPercent.toFixed(1)}%
                   </span>
                 </div>
@@ -1529,33 +1712,33 @@ export function ChannelDashboard() {
           {/* 新增訂閱數 */}
           <button
             onClick={() => setSelectedMetric('subscribers')}
-            className={`bg-white rounded-lg border-2 p-6 text-left transition-all hover:shadow-md ${
+            className={`${cardBaseClass} p-5 text-left transition-all ${
               selectedMetric === 'subscribers'
-                ? 'border-green-600 shadow-md'
-                : 'border-gray-200'
+                ? 'border-red-500 bg-gradient-to-b from-red-50 to-white shadow-lg shadow-red-100'
+                : 'hover:border-red-200'
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-gray-600 text-sm">新增訂閱數</div>
-              <Users className={`w-5 h-5 ${selectedMetric === 'subscribers' ? 'text-green-600' : 'text-green-400'}`} />
+            <div className="flex items-center justify-between mb-2.5">
+              <div className="text-gray-500 text-sm font-semibold tracking-wide">新增訂閱數</div>
+              <Users className={`w-5 h-5 ${selectedMetric === 'subscribers' ? 'text-red-600' : 'text-gray-400'}`} />
             </div>
-            <div className="text-3xl font-bold text-gray-900">
+            <div className="text-[32px] font-bold text-gray-900 leading-tight">
               {formatNumber(channelStats.subscribersGained)}
             </div>
             <div className="text-sm text-gray-500 mt-1">
               {channelStats.subscribersGained >= 0 ? '+' : ''}{formatFullNumber(channelStats.subscribersGained)} 位訂閱者
             </div>
             {subscribersComparison && (
-              <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
-                <div className="flex items-center justify-between text-xs">
+              <div className="mt-2 flex flex-col gap-1 text-xs">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-gray-500">較前期</span>
-                  <span className={`font-medium ${subscribersComparison.changeFromPrevious >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`ml-2 font-semibold ${subscribersComparison.changeFromPrevious >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {subscribersComparison.changeFromPrevious >= 0 ? '+' : ''}{subscribersComparison.changeFromPreviousPercent.toFixed(1)}%
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-gray-500">較去年同期</span>
-                  <span className={`font-medium ${subscribersComparison.changeFromYearAgo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`ml-2 font-semibold ${subscribersComparison.changeFromYearAgo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {subscribersComparison.changeFromYearAgo >= 0 ? '+' : ''}{subscribersComparison.changeFromYearAgoPercent.toFixed(1)}%
                   </span>
                 </div>
@@ -1569,10 +1752,10 @@ export function ChannelDashboard() {
           </button>
 
           {/* 平均觀看時長 */}
-          <div className="bg-white rounded-lg border-2 border-gray-200 p-6">
+          <div className={`${cardBaseClass} p-6`}>
             <div className="flex items-center justify-between mb-2">
               <div className="text-gray-600 text-sm">平均觀看時長</div>
-              <Clock className="w-5 h-5 text-orange-400" />
+              <Clock className="w-5 h-5 text-red-500" />
             </div>
             <div className="text-3xl font-bold text-gray-900">
               {Math.floor(avgViewDuration / 60)}:{String(avgViewDuration % 60).padStart(2, '0')}
@@ -1587,12 +1770,12 @@ export function ChannelDashboard() {
             </div>
           </div>
 
-          {/* 平均觀看完成率 */}
-          <div className="bg-white rounded-lg border-2 border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-gray-600 text-sm">平均觀看完成率</div>
-              <TrendingUp className="w-5 h-5 text-indigo-400" />
-            </div>
+        {/* 平均觀看百分比 */}
+        <div className={`${cardBaseClass} p-6`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-gray-600 text-sm">平均觀看百分比</div>
+            <TrendingUp className="w-5 h-5 text-red-500" />
+          </div>
             <div className="text-3xl font-bold text-gray-900">
               {avgViewPercentage.toFixed(1)}%
             </div>
@@ -1609,7 +1792,7 @@ export function ChannelDashboard() {
       )}
 
       {/* 過去 12 個月趨勢圖表 */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className={`${cardBaseClass} p-6`}>
         <h3 className="text-lg font-semibold mb-4">
           過去 12 個月趨勢
           {monthlyData.length > 0 && (
@@ -1629,7 +1812,7 @@ export function ChannelDashboard() {
           <>
             {/* 柱狀圖 */}
             <div className="mt-6">
-              <div className="flex items-end justify-between gap-1 h-64 border-b border-l border-gray-200 pb-2 pl-2">
+              <div className="flex items-end justify-between gap-1 h-64 border-b border-l border-red-100 pb-2 pl-2">
                 {monthlyData.map((dataPoint, index) => {
                   // 根據選擇的指標獲取值
                   let value = 0;
@@ -1637,15 +1820,15 @@ export function ChannelDashboard() {
                   switch (selectedMetric) {
                     case 'views':
                       value = dataPoint.views;
-                      color = 'bg-blue-500 hover:bg-blue-600';
+                      color = 'bg-red-500 hover:bg-red-600';
                       break;
                     case 'watchTime':
                       value = dataPoint.watchTimeHours;
-                      color = 'bg-purple-500 hover:bg-purple-600';
+                      color = 'bg-rose-400 hover:bg-rose-500';
                       break;
                     case 'subscribers':
                       value = dataPoint.subscribersNet; // 使用淨增長（新增 - 取消）
-                      color = value >= 0 ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600';
+                      color = value >= 0 ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-300 hover:bg-gray-400';
                       break;
                   }
 
@@ -1687,13 +1870,15 @@ export function ChannelDashboard() {
                         </div>
 
                         {/* 柱狀條 */}
-                        <div
-                          className={`w-full ${color} rounded-t transition-all cursor-pointer hover:opacity-80`}
-                          style={{
-                            height: `${heightPercent}%`
-                          }}
-                          title={`${dataPoint.month}: ${formatFullNumber(value)}`}
-                        />
+                        <div className="flex items-end justify-center w-full" style={{ height: '100%' }}>
+                          <div
+                            className={`w-5 sm:w-6 ${color} rounded-t-full transition-all duration-300 cursor-pointer hover:opacity-80`}
+                            style={{
+                              height: `${heightPercent}%`
+                            }}
+                            title={`${dataPoint.month}: ${formatFullNumber(value)}`}
+                          />
+                        </div>
                       </div>
 
                       {/* 月份標籤（水平顯示）*/}
@@ -1710,74 +1895,97 @@ export function ChannelDashboard() {
       </div>
 
       {/* 熱門影片列表 */}
-      {topVideos.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+      {sortedTopVideos.length > 0 && (
+        <div className={compactCardClass}>
           <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" />
+            <TrendingUp className="w-5 h-5 text-red-500" />
             熱門影片 (Top 10)
           </h3>
           <p className="text-sm text-gray-600 mb-4">
             顯示時間範圍內發布的影片，按總觀看數排序
           </p>
-          <div className="space-y-3">
-            {topVideos.map((video, index) => (
-              <div
-                key={video.id}
-                className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+          <div className="flex flex-wrap gap-2 mb-4">
+            {TOP_VIDEO_METRICS.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setTopVideoMetric(option.value)}
+                className={`px-3 py-1 text-xs font-semibold rounded-full border transition ${
+                  topVideoMetric === option.value
+                    ? 'bg-red-600 text-white border-red-600 shadow-sm shadow-red-200'
+                    : 'bg-white text-gray-600 border-red-100 hover:bg-red-50 hover:text-red-600'
+                }`}
               >
-                {/* 排名 */}
-                <div className="text-2xl font-bold text-gray-400 w-8 text-center">
-                  {index + 1}
-                </div>
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <div className="space-y-3">
+            {sortedTopVideos.map((video, index) => {
+              const metricConfig = topVideoMetricConfig[topVideoMetric];
+              const metricValue = metricConfig.value(video);
+              const metricDisplay = metricConfig.formatter(metricValue);
+              const MetricIcon = metricConfig.icon;
 
-                {/* 縮圖 */}
-                <img
-                  src={video.thumbnailUrl}
-                  alt={video.title}
-                  className="w-32 h-18 object-cover rounded"
-                />
+              return (
+                <div
+                  key={video.id}
+                  className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4 p-3 rounded-xl border border-transparent hover:border-red-100 hover:bg-red-50/70 transition-colors"
+                >
+                  {/* 排名與縮圖 */}
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="text-2xl font-bold text-red-500 w-8 text-center">
+                    {index + 1}
+                  </div>
+                  <img
+                    src={video.thumbnailUrl}
+                    alt={video.title}
+                    className="w-40 sm:w-32 aspect-video object-cover rounded-xl shadow-sm"
+                  />
+                </div>
 
                 {/* 影片資訊 */}
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-gray-900 truncate mb-1">
+                  <h4 className="font-medium text-gray-900 line-clamp-2 sm:truncate mb-1">
                     {video.title}
                   </h4>
-                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                  <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
                     <div className="flex items-center gap-1">
-                      <Eye className="w-4 h-4" />
-                      {formatFullNumber(video.viewCount)}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <ThumbsUp className="w-4 h-4" />
+                      <ThumbsUp className="w-4 h-4 text-red-500" />
                       {formatFullNumber(video.likeCount)}
                     </div>
                     <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
+                      <MessageSquare className="w-4 h-4 text-red-500" />
+                      {formatFullNumber(video.commentCount)}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-4 h-4 text-red-400" />
                       {formatDate(video.publishedAt)}
                     </div>
                   </div>
                 </div>
 
                 {/* 觀看次數 */}
-                <div className="text-right">
-                  <div className="text-lg font-semibold text-gray-900">
-                    {formatFullNumber(video.viewCount)}
+                <div className="flex items-center justify-between sm:flex-col sm:items-end text-sm text-gray-600 w-full sm:w-auto gap-1">
+                  <div className="flex items-center gap-1 text-red-600 font-semibold">
+                    <MetricIcon className="w-4 h-4" />
+                    <span className="text-lg">{metricDisplay}</span>
                   </div>
-                  <div className="text-xs text-gray-500">觀看次數</div>
+                  <div className="text-xs text-gray-500">{metricConfig.label}</div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
 
       {/* 流量來源分析區塊 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* 熱門流量來源 */}
         {trafficSources.length > 0 && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className={compactCardClass}>
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
+              <TrendingUp className="w-5 h-5 text-red-500" />
               熱門流量來源
             </h3>
             <div className="space-y-3">
@@ -1788,9 +1996,9 @@ export function ChannelDashboard() {
                       {source.source}
                     </div>
                     <div className="flex items-center gap-2 mt-1">
-                      <div className="flex-1 bg-gray-200 rounded-full h-2">
+                      <div className="flex-1 bg-gray-100 rounded-full h-2">
                         <div
-                          className="bg-blue-600 h-2 rounded-full"
+                          className="bg-red-500 h-2 rounded-full"
                           style={{ width: `${source.percentage}%` }}
                         />
                       </div>
@@ -1813,9 +2021,9 @@ export function ChannelDashboard() {
 
         {/* 外部來源排行 */}
         {externalSources.length > 0 && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className={compactCardClass}>
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
+              <TrendingUp className="w-5 h-5 text-red-500" />
               外部來源排行
             </h3>
             <div className="space-y-3">
@@ -1826,9 +2034,9 @@ export function ChannelDashboard() {
                       {source.source}
                     </div>
                     <div className="flex items-center gap-2 mt-1">
-                      <div className="flex-1 bg-gray-200 rounded-full h-2">
+                      <div className="flex-1 bg-gray-100 rounded-full h-2">
                         <div
-                          className="bg-green-600 h-2 rounded-full"
+                          className="bg-red-400 h-2 rounded-full"
                           style={{ width: `${source.percentage}%` }}
                         />
                       </div>
@@ -1851,23 +2059,23 @@ export function ChannelDashboard() {
 
         {/* 搜尋字詞 */}
         {searchTerms.length > 0 && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className={`${compactCardClass} flex flex-col gap-4`}>
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
+              <TrendingUp className="w-5 h-5 text-red-500" />
               搜尋字詞
             </h3>
-            <div className="space-y-2">
+            <div className="space-y-1.5 max-h-[520px] overflow-y-auto pr-1">
               {searchTerms.map((term, index) => (
-                <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                <div key={index} className="flex items-center justify-between py-2 border-b border-red-50 last:border-0">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <span className="text-sm font-medium text-gray-400 w-6 text-center">
+                    <span className="text-sm font-medium text-red-500 w-6 text-center">
                       {index + 1}
                     </span>
                     <span className="text-sm text-gray-900 truncate">
                       {term.term}
                     </span>
                   </div>
-                  <span className="text-sm font-semibold text-gray-700 ml-4">
+                  <span className="text-sm font-semibold text-red-600 ml-4">
                     {formatFullNumber(term.views)}
                   </span>
                 </div>
@@ -1881,16 +2089,16 @@ export function ChannelDashboard() {
       {(demographics.length > 0 || geography.length > 0) && (
         <div className="space-y-6">
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <Users className="w-6 h-6" />
+            <Users className="w-6 h-6 text-red-500" />
             觀眾人口統計
           </h2>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             {/* 年齡與性別分佈 */}
             {demographics.length > 0 && (
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className={compactCardClass}>
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-blue-600" />
+                  <Users className="w-5 h-5 text-red-500" />
                   年齡與性別分佈
                 </h3>
                 <div className="space-y-3">
@@ -1911,8 +2119,8 @@ export function ChannelDashboard() {
                         <div className="w-full bg-gray-100 rounded-full h-2">
                           <div
                             className={`h-2 rounded-full ${
-                              item.gender === 'male' ? 'bg-blue-500' :
-                              item.gender === 'female' ? 'bg-pink-500' : 'bg-gray-500'
+                              item.gender === 'male' ? 'bg-red-400' :
+                              item.gender === 'female' ? 'bg-rose-500' : 'bg-gray-400'
                             }`}
                             style={{ width: `${item.viewsPercentage}%` }}
                           />
@@ -1926,9 +2134,9 @@ export function ChannelDashboard() {
 
             {/* 地理位置分佈 */}
             {geography.length > 0 && (
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className={compactCardClass}>
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-green-600" />
+                  <TrendingUp className="w-5 h-5 text-red-500" />
                   觀眾地理分佈（前 10 名）
                 </h3>
                 <div className="space-y-3">
@@ -1952,7 +2160,7 @@ export function ChannelDashboard() {
                       </div>
                       <div className="w-full bg-gray-100 rounded-full h-2">
                         <div
-                          className="bg-green-500 h-2 rounded-full"
+                          className="bg-red-500 h-2 rounded-full"
                           style={{ width: `${item.percentage}%` }}
                         />
                       </div>
@@ -1964,21 +2172,21 @@ export function ChannelDashboard() {
 
             {/* 裝置類型分佈圓餅圖 */}
             {devices.length > 0 && (
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className={`${compactCardClass} flex flex-col`}>
                 <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
-                  <Video className="w-5 h-5 text-purple-600" />
+                  <Video className="w-5 h-5 text-red-500" />
                   觀看裝置分佈
                 </h3>
                 <div className="flex flex-col items-center">
                   {/* 簡易圓餅圖（使用 CSS 實現） */}
-                  <div className="relative w-48 h-48 mb-6">
+                  <div className="relative w-40 h-40 mb-6">
                     {/* 使用 conic-gradient 創建圓餅圖 */}
                     <div
                       className="w-full h-full rounded-full"
                       style={{
                         background: `conic-gradient(${devices
                           .map((device, index) => {
-                            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+                            const colors = ['#dc2626', '#ef4444', '#f87171', '#fb7185', '#fecdd3'];
                             const color = colors[index % colors.length];
                             const start = devices
                               .slice(0, index)
@@ -2002,11 +2210,11 @@ export function ChannelDashboard() {
                   <div className="w-full space-y-3">
                     {devices.map((device, index) => {
                       const colors = [
-                        { bg: 'bg-blue-500', text: 'text-blue-500' },
-                        { bg: 'bg-green-500', text: 'text-green-500' },
-                        { bg: 'bg-yellow-500', text: 'text-yellow-500' },
-                        { bg: 'bg-red-500', text: 'text-red-500' },
-                        { bg: 'bg-purple-500', text: 'text-purple-500' },
+                        { bg: 'bg-red-600', text: 'text-red-600' },
+                        { bg: 'bg-red-400', text: 'text-red-400' },
+                        { bg: 'bg-rose-400', text: 'text-rose-400' },
+                        { bg: 'bg-red-300', text: 'text-red-300' },
+                        { bg: 'bg-rose-300', text: 'text-rose-300' },
                       ];
                       const color = colors[index % colors.length];
 
@@ -2044,9 +2252,9 @@ export function ChannelDashboard() {
 
             {/* 訂閱來源分析 */}
             {subscriberSources.length > 0 && (
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className={compactCardClass}>
                 <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-pink-600" />
+                  <Users className="w-5 h-5 text-red-500" />
                   訂閱來源分析
                   <span className="text-sm font-normal text-gray-500">
                     （帶來最多新訂閱的影片）
@@ -2056,19 +2264,19 @@ export function ChannelDashboard() {
                   {subscriberSources.map((source, index) => (
                     <div
                       key={source.videoId}
-                      className="flex items-center gap-4 p-4 bg-gradient-to-r from-pink-50 to-transparent rounded-lg hover:from-pink-100 transition-colors"
+                      className="flex items-center gap-4 p-4 bg-gradient-to-r from-red-50 to-transparent rounded-xl hover:from-red-100 transition-colors"
                     >
                       {/* 排名 */}
                       <div className="flex-shrink-0">
                         <div
                           className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
                             index === 0
-                              ? 'bg-yellow-400 text-yellow-900'
+                              ? 'bg-red-600 text-white'
                               : index === 1
-                              ? 'bg-gray-300 text-gray-700'
+                              ? 'bg-red-400 text-white'
                               : index === 2
-                              ? 'bg-orange-400 text-orange-900'
-                              : 'bg-gray-100 text-gray-600'
+                              ? 'bg-rose-300 text-red-800'
+                              : 'bg-red-100 text-red-500'
                           }`}
                         >
                           {index + 1}
@@ -2084,7 +2292,7 @@ export function ChannelDashboard() {
                           href={`https://www.youtube.com/watch?v=${source.videoId}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                          className="text-xs text-red-500 hover:text-red-700 hover:underline"
                         >
                           {source.videoId}
                         </a>
@@ -2092,7 +2300,7 @@ export function ChannelDashboard() {
 
                       {/* 訂閱數 */}
                       <div className="flex-shrink-0 text-right">
-                        <div className="text-lg font-bold text-pink-600">
+                        <div className="text-lg font-bold text-red-600">
                           +{formatNumber(source.subscribersGained)}
                         </div>
                         <div className="text-xs text-gray-500">新訂閱</div>
@@ -2102,12 +2310,12 @@ export function ChannelDashboard() {
                 </div>
 
                 {/* 總計 */}
-                <div className="mt-6 pt-6 border-t border-gray-200">
+                <div className="mt-6 pt-6 border-t border-red-100">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-700">
                       前 {subscriberSources.length} 支影片總計
                     </span>
-                    <span className="text-xl font-bold text-pink-600">
+                    <span className="text-xl font-bold text-red-600">
                       +
                       {formatNumber(
                         subscriberSources.reduce((sum, s) => sum + s.subscribersGained, 0)
@@ -2124,17 +2332,17 @@ export function ChannelDashboard() {
 
       {/* 提示訊息 */}
       {!channelStats && !isLoading && !error && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
-          <BarChart3 className="w-12 h-12 text-blue-600 mx-auto mb-3" />
+        <div className="rounded-2xl border border-red-100 bg-red-50/80 p-8 text-center shadow-sm">
+          <BarChart3 className="w-12 h-12 text-red-500 mx-auto mb-3" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            歡迎使用頻道數據儀錶板
+            歡迎使用頻道數據儀表板
           </h3>
           <p className="text-gray-600 mb-4">
             點擊「刷新數據」按鈕開始查看您的頻道統計資訊
           </p>
           <button
             onClick={fetchDashboardData}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center gap-2"
+            className="px-6 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 inline-flex items-center gap-2 shadow-md shadow-red-200"
           >
             <RefreshCw className="w-4 h-4" />
             開始載入

@@ -474,7 +474,7 @@ export function ChannelAnalytics() {
           >
             <div className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5" />
-              頻道儀錶板
+              頻道儀表板
             </div>
           </button>
           <button
