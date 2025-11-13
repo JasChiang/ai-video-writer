@@ -328,6 +328,12 @@ export function ChannelDashboard() {
 
         // 獲取對比數據（環比、同比）
         await fetchComparisonData(startDate, endDate, views, watchTimeHours, subscribersNet, token);
+
+        // 獲取人口統計數據
+        await fetchDemographicsData(startDate, endDate, token);
+
+        // 獲取裝置類型數據
+        await fetchDeviceData(startDate, endDate, token);
       } else {
         // Analytics API 不可用，回退到 Gist 快取方案
         console.log('[Dashboard] ℹ️  回退到 Gist 快取方案');
@@ -833,6 +839,148 @@ export function ChannelDashboard() {
       });
     } catch (err: any) {
       console.error('[Dashboard] ⚠️ 獲取對比數據失敗:', err.message);
+      // 不拋出錯誤，允許儀錶板繼續顯示其他數據
+    }
+  };
+
+  // 獲取人口統計數據（年齡、性別、地理位置）
+  const fetchDemographicsData = async (startDate: Date, endDate: Date, token: string) => {
+    try {
+      console.log('[Dashboard] 👥 從 Analytics API 獲取人口統計數據...');
+
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      // 1. 獲取年齡和性別分佈
+      // 根據 YouTube Analytics API 文檔，demographics 必須使用 viewerPercentage metric
+      const ageGenderResponse = await fetch(
+        `https://youtubeanalytics.googleapis.com/v2/reports?` +
+        `ids=channel==MINE` +
+        `&startDate=${formatDate(startDate)}` +
+        `&endDate=${formatDate(endDate)}` +
+        `&metrics=viewerPercentage` +
+        `&dimensions=ageGroup,gender` +
+        `&sort=gender,ageGroup`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (ageGenderResponse.ok) {
+        const data = await ageGenderResponse.json();
+        if (data.rows && data.rows.length > 0) {
+          const demographicsData: DemographicsItem[] = data.rows.map((row: any[]) => ({
+            ageGroup: row[0],
+            gender: row[1],
+            viewsPercentage: parseFloat(row[2]) || 0,
+          }));
+          console.log('[Dashboard] ✅ 年齡性別數據獲取成功:', demographicsData.length, '個組別');
+          setDemographics(demographicsData);
+        }
+      } else {
+        const errorData = await ageGenderResponse.json();
+        console.error('[Dashboard] ❌ 年齡性別數據 API 錯誤:', errorData);
+        console.warn('[Dashboard] ℹ️  年齡性別數據可能需要以下條件：');
+        console.warn('  1. 頻道已加入 YouTube 合作夥伴計畫（YPP）');
+        console.warn('  2. 有足夠的觀看數據量');
+        console.warn('  3. 符合隱私要求（觀眾數量達到最低門檻）');
+        console.warn('  4. YouTube Analytics API 已啟用相關權限');
+      }
+
+      // 2. 獲取地理位置分佈
+      const geographyResponse = await fetch(
+        `https://youtubeanalytics.googleapis.com/v2/reports?` +
+        `ids=channel==MINE` +
+        `&startDate=${formatDate(startDate)}` +
+        `&endDate=${formatDate(endDate)}` +
+        `&metrics=views` +
+        `&dimensions=country` +
+        `&sort=-views` +
+        `&maxResults=10`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (geographyResponse.ok) {
+        const data = await geographyResponse.json();
+        if (data.rows && data.rows.length > 0) {
+          const totalViews = data.rows.reduce((sum: number, row: any[]) => sum + (parseInt(row[1]) || 0), 0);
+          const geographyData: GeographyItem[] = data.rows.map((row: any[]) => {
+            const views = parseInt(row[1]) || 0;
+            return {
+              country: row[0],
+              views: views,
+              percentage: totalViews > 0 ? (views / totalViews) * 100 : 0,
+            };
+          });
+          console.log('[Dashboard] ✅ 地理位置數據獲取成功:', geographyData.length, '個國家/地區');
+          setGeography(geographyData);
+        }
+      }
+    } catch (err: any) {
+      console.error('[Dashboard] ⚠️ 獲取人口統計數據失敗:', err.message);
+      // 不拋出錯誤，允許儀錶板繼續顯示其他數據
+    }
+  };
+
+  // 獲取裝置類型數據
+  const fetchDeviceData = async (startDate: Date, endDate: Date, token: string) => {
+    try {
+      console.log('[Dashboard] 📱 從 Analytics API 獲取裝置類型數據...');
+
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      const response = await fetch(
+        `https://youtubeanalytics.googleapis.com/v2/reports?` +
+        `ids=channel==MINE` +
+        `&startDate=${formatDate(startDate)}` +
+        `&endDate=${formatDate(endDate)}` +
+        `&metrics=views` +
+        `&dimensions=deviceType` +
+        `&sort=-views`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.rows && data.rows.length > 0) {
+          const totalViews = data.rows.reduce((sum: number, row: any[]) => sum + (parseInt(row[1]) || 0), 0);
+
+          const deviceData: DeviceItem[] = data.rows.map((row: any[]) => {
+            const views = parseInt(row[1]) || 0;
+            return {
+              deviceType: row[0],
+              views: views,
+              percentage: totalViews > 0 ? (views / totalViews) * 100 : 0,
+            };
+          });
+          console.log('[Dashboard] ✅ 裝置類型數據獲取成功:', deviceData.length, '種裝置');
+          setDevices(deviceData);
+        }
+      } else {
+        const errorData = await response.json();
+        console.error('[Dashboard] ❌ 裝置類型數據 API 錯誤:', errorData);
+      }
+    } catch (err: any) {
+      console.error('[Dashboard] ⚠️ 獲取裝置類型數據失敗:', err.message);
       // 不拋出錯誤，允許儀錶板繼續顯示其他數據
     }
   };
@@ -1641,6 +1789,174 @@ export function ChannelDashboard() {
           </div>
         )}
       </div>
+
+      {/* 人口統計區塊 */}
+      {(demographics.length > 0 || geography.length > 0) && (
+        <div className="space-y-6">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Users className="w-6 h-6" />
+            觀眾人口統計
+          </h2>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 年齡與性別分佈 */}
+            {demographics.length > 0 && (
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-blue-600" />
+                  年齡與性別分佈
+                </h3>
+                <div className="space-y-3">
+                  {demographics.map((item, index) => {
+                    const genderText = item.gender === 'male' ? '男性' : item.gender === 'female' ? '女性' : '其他';
+                    const ageText = item.ageGroup.replace('age', '').replace('-', '-') + ' 歲';
+
+                    return (
+                      <div key={index} className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-700">
+                            {ageText} · {genderText}
+                          </span>
+                          <span className="font-semibold text-gray-900">
+                            {item.viewsPercentage.toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full ${
+                              item.gender === 'male' ? 'bg-blue-500' :
+                              item.gender === 'female' ? 'bg-pink-500' : 'bg-gray-500'
+                            }`}
+                            style={{ width: `${item.viewsPercentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 地理位置分佈 */}
+            {geography.length > 0 && (
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-green-600" />
+                  觀眾地理分佈（前 10 名）
+                </h3>
+                <div className="space-y-3">
+                  {geography.map((item, index) => (
+                    <div key={index} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-400 w-5 text-center">
+                            {index + 1}
+                          </span>
+                          <span className="text-gray-700">{item.country}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-gray-500 text-xs">
+                            {formatFullNumber(item.views)} 次
+                          </span>
+                          <span className="font-semibold text-gray-900 w-12 text-right">
+                            {item.percentage.toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-2">
+                        <div
+                          className="bg-green-500 h-2 rounded-full"
+                          style={{ width: `${item.percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 裝置類型分佈圓餅圖 */}
+            {devices.length > 0 && (
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
+                  <Video className="w-5 h-5 text-purple-600" />
+                  觀看裝置分佈
+                </h3>
+                <div className="flex flex-col items-center">
+                  {/* 簡易圓餅圖（使用 CSS 實現） */}
+                  <div className="relative w-48 h-48 mb-6">
+                    {/* 使用 conic-gradient 創建圓餅圖 */}
+                    <div
+                      className="w-full h-full rounded-full"
+                      style={{
+                        background: `conic-gradient(${devices
+                          .map((device, index) => {
+                            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+                            const color = colors[index % colors.length];
+                            const start = devices
+                              .slice(0, index)
+                              .reduce((sum, d) => sum + d.percentage, 0);
+                            const end = start + device.percentage;
+                            return `${color} ${start}% ${end}%`;
+                          })
+                          .join(', ')})`,
+                      }}
+                    />
+                    {/* 中心白色圓圈 */}
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-24 h-24 bg-white rounded-full flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-gray-900">{devices.length}</div>
+                        <div className="text-xs text-gray-500">裝置類型</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 圖例 */}
+                  <div className="w-full space-y-3">
+                    {devices.map((device, index) => {
+                      const colors = [
+                        { bg: 'bg-blue-500', text: 'text-blue-500' },
+                        { bg: 'bg-green-500', text: 'text-green-500' },
+                        { bg: 'bg-yellow-500', text: 'text-yellow-500' },
+                        { bg: 'bg-red-500', text: 'text-red-500' },
+                        { bg: 'bg-purple-500', text: 'text-purple-500' },
+                      ];
+                      const color = colors[index % colors.length];
+
+                      // 翻譯裝置類型
+                      const deviceNames: { [key: string]: string } = {
+                        DESKTOP: '桌面電腦',
+                        MOBILE: '手機',
+                        TABLET: '平板',
+                        TV: '電視',
+                        GAME_CONSOLE: '遊戲主機',
+                      };
+                      const deviceName = deviceNames[device.deviceType] || device.deviceType;
+
+                      return (
+                        <div key={index} className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 flex-1">
+                            <div className={`w-3 h-3 rounded-full ${color.bg}`} />
+                            <span className="text-sm text-gray-700">{deviceName}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-gray-500">
+                              {formatFullNumber(device.views)} 次
+                            </span>
+                            <span className={`text-sm font-semibold ${color.text} w-14 text-right`}>
+                              {device.percentage.toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 提示訊息 */}
       {!channelStats && !isLoading && !error && (
