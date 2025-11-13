@@ -2451,18 +2451,18 @@ export function ChannelDashboard() {
               <TrendingUp className="w-5 h-5 text-red-500" />
               搜尋字詞
             </h3>
-            <div className="space-y-1.5 max-h-[520px] overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {searchTerms.map((term, index) => (
-                <div key={index} className="flex items-center justify-between py-2 border-b border-red-50 last:border-0">
+                <div key={index} className="flex items-center justify-between py-2 border border-red-50 rounded-lg">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <span className="text-sm font-medium text-red-500 w-6 text-center">
                       {index + 1}
                     </span>
-                    <span className="text-sm text-gray-900 truncate">
+                    <span className="text-sm text-gray-800 truncate">
                       {term.term}
                     </span>
                   </div>
-                  <span className="text-sm font-semibold text-red-600 ml-4">
+                  <span className="text-sm font-semibold text-emerald-600 ml-4">
                     {formatFullNumber(term.views)}
                   </span>
                 </div>
