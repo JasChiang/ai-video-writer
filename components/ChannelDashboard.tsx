@@ -142,10 +142,13 @@ interface VideoPerformanceItem {
 }
 
 interface ComparisonData {
-  current: number;         // 當前期間數據
-  previous: number;        // 上期數據
-  change: number;          // 變化量
-  changePercentage: number; // 變化百分比
+  current: number;                    // 當前期間數據
+  previous: number;                   // 環比：前一期數據
+  yearAgo: number;                    // 同比：去年同期數據
+  changeFromPrevious: number;         // 環比變化量
+  changeFromPreviousPercent: number;  // 環比變化百分比
+  changeFromYearAgo: number;          // 同比變化量
+  changeFromYearAgoPercent: number;   // 同比變化百分比
 }
 
 type ChartMetric = 'views' | 'watchTime' | 'subscribers';
@@ -226,6 +229,7 @@ export function ChannelDashboard() {
   const [avgViewDuration, setAvgViewDuration] = useState<number>(0);
   const [avgViewPercentage, setAvgViewPercentage] = useState<number>(0);
   const [viewsComparison, setViewsComparison] = useState<ComparisonData | null>(null);
+  const [watchTimeComparison, setWatchTimeComparison] = useState<ComparisonData | null>(null);
   const [subscribersComparison, setSubscribersComparison] = useState<ComparisonData | null>(null);
 
   // 計算日期範圍
@@ -321,6 +325,9 @@ export function ChannelDashboard() {
 
         // 獲取流量來源數據
         await fetchTrafficSourcesData(startDate, endDate, token);
+
+        // 獲取對比數據（環比、同比）
+        await fetchComparisonData(startDate, endDate, views, watchTimeHours, subscribersNet, token);
       } else {
         // Analytics API 不可用，回退到 Gist 快取方案
         console.log('[Dashboard] ℹ️  回退到 Gist 快取方案');
@@ -694,6 +701,138 @@ export function ChannelDashboard() {
       }
     } catch (err: any) {
       console.error('[Dashboard] ⚠️ 獲取流量來源數據失敗:', err.message);
+      // 不拋出錯誤，允許儀錶板繼續顯示其他數據
+    }
+  };
+
+  // 獲取對比數據（環比、同比）
+  const fetchComparisonData = async (
+    currentStart: Date,
+    currentEnd: Date,
+    currentViews: number,
+    currentWatchTime: number,
+    currentSubscribers: number,
+    token: string
+  ) => {
+    try {
+      console.log('[Dashboard] 📊 獲取對比數據（環比、同比）...');
+
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      // 計算當前期間的天數
+      const daysDiff = Math.ceil((currentEnd.getTime() - currentStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+      // 計算前一期（環比）的日期範圍
+      const previousEnd = new Date(currentStart);
+      previousEnd.setDate(previousEnd.getDate() - 1);
+      const previousStart = new Date(previousEnd);
+      previousStart.setDate(previousStart.getDate() - daysDiff + 1);
+
+      // 計算去年同期（同比）的日期範圍
+      const yearAgoStart = new Date(currentStart);
+      yearAgoStart.setFullYear(yearAgoStart.getFullYear() - 1);
+      const yearAgoEnd = new Date(currentEnd);
+      yearAgoEnd.setFullYear(yearAgoEnd.getFullYear() - 1);
+
+      console.log('[Dashboard] 📅 對比期間:', {
+        當前期間: `${formatDate(currentStart)} ~ ${formatDate(currentEnd)} (${daysDiff}天)`,
+        當前數據: { views: currentViews, watchTime: currentWatchTime, subscribers: currentSubscribers },
+        前一期_環比: `${formatDate(previousStart)} ~ ${formatDate(previousEnd)}`,
+        去年同期_同比: `${formatDate(yearAgoStart)} ~ ${formatDate(yearAgoEnd)}`,
+      });
+
+      // 獲取前一期數據
+      const previousData = await fetchChannelAnalytics(previousStart, previousEnd, token);
+
+      // 獲取去年同期數據
+      const yearAgoData = await fetchChannelAnalytics(yearAgoStart, yearAgoEnd, token);
+
+      // 處理前一期數據
+      let previousViews = 0;
+      let previousWatchTime = 0;
+      let previousSubscribers = 0;
+      if (previousData && previousData.rows && previousData.rows.length > 0) {
+        const row = previousData.rows[0];
+        previousViews = parseInt(row[0]) || 0;
+        previousWatchTime = Math.floor((parseInt(row[1]) || 0) / 60);
+        const subGained = parseInt(row[2]) || 0;
+        const subLost = parseInt(row[3]) || 0;
+        previousSubscribers = subGained - subLost;
+      }
+
+      // 處理去年同期數據
+      let yearAgoViews = 0;
+      let yearAgoWatchTime = 0;
+      let yearAgoSubscribers = 0;
+      if (yearAgoData && yearAgoData.rows && yearAgoData.rows.length > 0) {
+        const row = yearAgoData.rows[0];
+        yearAgoViews = parseInt(row[0]) || 0;
+        yearAgoWatchTime = Math.floor((parseInt(row[1]) || 0) / 60);
+        const subGained = parseInt(row[2]) || 0;
+        const subLost = parseInt(row[3]) || 0;
+        yearAgoSubscribers = subGained - subLost;
+      }
+
+      // 計算觀看次數對比
+      const viewsChange = currentViews - previousViews;
+      const viewsChangePercent = previousViews > 0 ? (viewsChange / previousViews) * 100 : 0;
+      const viewsYearChange = currentViews - yearAgoViews;
+      const viewsYearChangePercent = yearAgoViews > 0 ? (viewsYearChange / yearAgoViews) * 100 : 0;
+
+      setViewsComparison({
+        current: currentViews,
+        previous: previousViews,
+        yearAgo: yearAgoViews,
+        changeFromPrevious: viewsChange,
+        changeFromPreviousPercent: viewsChangePercent,
+        changeFromYearAgo: viewsYearChange,
+        changeFromYearAgoPercent: viewsYearChangePercent,
+      });
+
+      // 計算觀看時間對比
+      const watchTimeChange = currentWatchTime - previousWatchTime;
+      const watchTimeChangePercent = previousWatchTime > 0 ? (watchTimeChange / previousWatchTime) * 100 : 0;
+      const watchTimeYearChange = currentWatchTime - yearAgoWatchTime;
+      const watchTimeYearChangePercent = yearAgoWatchTime > 0 ? (watchTimeYearChange / yearAgoWatchTime) * 100 : 0;
+
+      setWatchTimeComparison({
+        current: currentWatchTime,
+        previous: previousWatchTime,
+        yearAgo: yearAgoWatchTime,
+        changeFromPrevious: watchTimeChange,
+        changeFromPreviousPercent: watchTimeChangePercent,
+        changeFromYearAgo: watchTimeYearChange,
+        changeFromYearAgoPercent: watchTimeYearChangePercent,
+      });
+
+      // 計算訂閱數對比
+      const subscribersChange = currentSubscribers - previousSubscribers;
+      const subscribersChangePercent = previousSubscribers !== 0 ? (subscribersChange / Math.abs(previousSubscribers)) * 100 : 0;
+      const subscribersYearChange = currentSubscribers - yearAgoSubscribers;
+      const subscribersYearChangePercent = yearAgoSubscribers !== 0 ? (subscribersYearChange / Math.abs(yearAgoSubscribers)) * 100 : 0;
+
+      setSubscribersComparison({
+        current: currentSubscribers,
+        previous: previousSubscribers,
+        yearAgo: yearAgoSubscribers,
+        changeFromPrevious: subscribersChange,
+        changeFromPreviousPercent: subscribersChangePercent,
+        changeFromYearAgo: subscribersYearChange,
+        changeFromYearAgoPercent: subscribersYearChangePercent,
+      });
+
+      console.log('[Dashboard] ✅ 對比數據獲取成功:', {
+        觀看次數: { 當前: currentViews, 前期: previousViews, 去年: yearAgoViews },
+        觀看時間: { 當前: currentWatchTime, 前期: previousWatchTime, 去年: yearAgoWatchTime },
+        訂閱數: { 當前: currentSubscribers, 前期: previousSubscribers, 去年: yearAgoSubscribers },
+      });
+    } catch (err: any) {
+      console.error('[Dashboard] ⚠️ 獲取對比數據失敗:', err.message);
       // 不拋出錯誤，允許儀錶板繼續顯示其他數據
     }
   };
@@ -1087,6 +1226,22 @@ export function ChannelDashboard() {
             <div className="text-sm text-gray-500 mt-1">
               {formatFullNumber(channelStats.viewsInRange)} 次觀看
             </div>
+            {viewsComparison && (
+              <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">較前期</span>
+                  <span className={`font-medium ${viewsComparison.changeFromPrevious >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {viewsComparison.changeFromPrevious >= 0 ? '+' : ''}{viewsComparison.changeFromPreviousPercent.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">較去年同期</span>
+                  <span className={`font-medium ${viewsComparison.changeFromYearAgo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {viewsComparison.changeFromYearAgo >= 0 ? '+' : ''}{viewsComparison.changeFromYearAgoPercent.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            )}
             <div className="text-xs text-gray-400 mt-1">
               {error?.includes('Analytics API')
                 ? '時間範圍內發布影片的累計數（備援模式）'
@@ -1113,6 +1268,22 @@ export function ChannelDashboard() {
             <div className="text-sm text-gray-500 mt-1">
               {formatFullNumber(channelStats.watchTimeHours)} 小時
             </div>
+            {watchTimeComparison && (
+              <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">較前期</span>
+                  <span className={`font-medium ${watchTimeComparison.changeFromPrevious >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {watchTimeComparison.changeFromPrevious >= 0 ? '+' : ''}{watchTimeComparison.changeFromPreviousPercent.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">較去年同期</span>
+                  <span className={`font-medium ${watchTimeComparison.changeFromYearAgo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {watchTimeComparison.changeFromYearAgo >= 0 ? '+' : ''}{watchTimeComparison.changeFromYearAgoPercent.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            )}
             <div className="text-xs text-gray-400 mt-1">
               {error?.includes('Analytics API')
                 ? '估算值（基於平均觀看時長）'
@@ -1139,6 +1310,22 @@ export function ChannelDashboard() {
             <div className="text-sm text-gray-500 mt-1">
               {channelStats.subscribersGained >= 0 ? '+' : ''}{formatFullNumber(channelStats.subscribersGained)} 位訂閱者
             </div>
+            {subscribersComparison && (
+              <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">較前期</span>
+                  <span className={`font-medium ${subscribersComparison.changeFromPrevious >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {subscribersComparison.changeFromPrevious >= 0 ? '+' : ''}{subscribersComparison.changeFromPreviousPercent.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">較去年同期</span>
+                  <span className={`font-medium ${subscribersComparison.changeFromYearAgo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {subscribersComparison.changeFromYearAgo >= 0 ? '+' : ''}{subscribersComparison.changeFromYearAgoPercent.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            )}
             <div className="text-xs text-gray-400 mt-1">
               {error?.includes('Analytics API')
                 ? '無法獲取（需要 Analytics API）'
