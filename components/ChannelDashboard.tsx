@@ -218,6 +218,7 @@ const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
   (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
 const YT_VIDEO_BASE_URL = 'https://www.youtube.com/watch?v=';
+const ENABLE_PUBLISHING_SLOTS = false;
 
 // 使用本地時區格式化，避免 UTC 時區偏移
 const formatDateString = (date: Date) => {
@@ -531,7 +532,12 @@ export function ChannelDashboard() {
 
         // 獲取日趨勢與最佳時段
         await fetchTrendData(startDate, endDate, token);
-        await fetchViewingHoursData(startDate, endDate, token);
+        if (ENABLE_PUBLISHING_SLOTS) {
+          await fetchViewingHoursData(startDate, endDate, token);
+        } else {
+          setViewingHours([]);
+          setViewingHoursSource('none');
+        }
       } else {
         // Analytics API 不可用，回退到 Gist 快取方案
         console.log('[Dashboard] ℹ️  回退到 Gist 快取方案');
@@ -542,7 +548,12 @@ export function ChannelDashboard() {
         );
         await fetchVideosInRange(startDate, endDate);
         setTrendData([]);
-        await generateViewingHoursFromCache(startDate, endDate);
+        if (ENABLE_PUBLISHING_SLOTS) {
+          await generateViewingHoursFromCache(startDate, endDate);
+        } else {
+          setViewingHours([]);
+          setViewingHoursSource('none');
+        }
       }
     } catch (err: any) {
       console.error('[Dashboard] ❌ 獲取儀錶板數據失敗:', err);
@@ -2076,6 +2087,46 @@ export function ChannelDashboard() {
     };
   }, [trendData]);
 
+  const trendLeaders = useMemo(() => {
+    if (trendData.length === 0) return [];
+    const map = new Map<
+      string,
+      {
+        id: string;
+        title: string;
+        thumbnailUrl: string;
+        dates: string[];
+        totalViews: number;
+      }
+    >();
+
+    trendData.forEach((point) => {
+      if (!point.topVideo) return;
+      const key = point.topVideo.id;
+      if (!map.has(key)) {
+        map.set(key, {
+          id: key,
+          title: point.topVideo.title,
+          thumbnailUrl: point.topVideo.thumbnailUrl,
+          dates: [],
+          totalViews: 0,
+        });
+      }
+      const target = map.get(key)!;
+      target.dates.push(point.date);
+      target.totalViews += point.topVideo.views;
+    });
+
+    return Array.from(map.values())
+      .map((item) => ({
+        ...item,
+        count: item.dates.length,
+        lastDate: item.dates[item.dates.length - 1],
+      }))
+      .sort((a, b) => b.count - a.count || b.totalViews - a.totalViews)
+      .slice(0, 5);
+  }, [trendData]);
+
   const bestPublishingSlots = useMemo(() => {
     if (viewingHours.length === 0) return [];
     return [...viewingHours]
@@ -2479,12 +2530,12 @@ export function ChannelDashboard() {
         </div>
       )}
 
-      {(trendData.length > 0 || viewingHours.length > 0 || error?.includes('Analytics API')) && (
+      {(trendData.length > 0 || (ENABLE_PUBLISHING_SLOTS && viewingHours.length > 0) || error?.includes('Analytics API')) && (
         <>
           <h2 className="text-lg font-semibold text-gray-900 border-l-4 border-red-500 pl-3 mt-2">
-            趨勢走勢與建議發布時段
+            {ENABLE_PUBLISHING_SLOTS ? '趨勢走勢與建議發布時段' : '觀看趨勢'}
           </h2>
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className={`grid grid-cols-1 ${ENABLE_PUBLISHING_SLOTS ? 'xl:grid-cols-2' : ''} gap-6`}>
             <div className={`${cardBaseClass} p-6`}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -2625,11 +2676,72 @@ export function ChannelDashboard() {
                       </div>
                     </div>
                   )}
+                  {trendLeaders.length > 0 && (
+                    <div className="mt-4 rounded-xl border border-red-100 bg-red-50/40">
+                      <div className="px-4 py-2 border-b border-red-100 text-sm font-semibold text-red-700 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4" />
+                        每日觀看冠軍最多次的影片
+                      </div>
+                      <div className="divide-y divide-red-100 text-sm">
+                        {trendLeaders.map((leader, index) => (
+                          <div
+                            key={leader.id}
+                            className="px-4 py-3 flex items-center gap-3"
+                          >
+                            <span className="text-xs font-bold text-red-600 w-5">
+                              #{index + 1}
+                            </span>
+                            <a
+                              href={`${YT_VIDEO_BASE_URL}${leader.id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="w-14 h-9 rounded-lg overflow-hidden border border-red-100 shadow-sm shrink-0"
+                            >
+                              {leader.thumbnailUrl ? (
+                                <img
+                                  src={leader.thumbnailUrl}
+                                  alt={leader.title}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-red-100/50 flex items-center justify-center text-[10px] text-red-600">
+                                  無縮圖
+                                </div>
+                              )}
+                            </a>
+                            <div className="flex-1 min-w-0">
+                              <a
+                                href={`${YT_VIDEO_BASE_URL}${leader.id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-gray-900 font-semibold line-clamp-2 hover:underline"
+                              >
+                                {leader.title}
+                              </a>
+                              <div className="text-xs text-gray-500 mt-1">
+                                {leader.count} 天拿下每日第一 · 最近 {formatDate(leader.lastDate)}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs font-semibold text-red-600 uppercase tracking-wide">
+                                冠軍 {leader.count} 次
+                              </div>
+                              <div className="text-sm font-semibold text-gray-900">
+                                {formatFullNumber(leader.totalViews)}
+                              </div>
+                              <div className="text-[11px] text-gray-500">累積觀看</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </div>
 
-            <div className={`${cardBaseClass} p-6`}>
+            {ENABLE_PUBLISHING_SLOTS && (
+              <div className={`${cardBaseClass} p-6`}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Clock className="w-5 h-5 text-red-500" />
@@ -2728,6 +2840,7 @@ export function ChannelDashboard() {
                 </>
               )}
             </div>
+            )}
           </div>
         </>
       )}
