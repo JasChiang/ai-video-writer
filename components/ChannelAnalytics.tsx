@@ -500,8 +500,8 @@ export function ChannelAnalytics() {
       {activeTab === 'report' && (
         <div className="space-y-6">
           {/* 標題區域 */}
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex-1">
               <h2 className="text-2xl font-bold flex items-center gap-2">
                 <TrendingUp className="w-6 h-6" />
                 頻道數據分析
@@ -516,10 +516,10 @@ export function ChannelAnalytics() {
 
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 sm:flex-col items-stretch sm:items-end">
               <button
                 onClick={clearCache}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+                className="px-3 py-2 sm:px-4 sm:py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 text-sm"
               >
                 <RefreshCw className="w-4 h-4" />
                 清除快取
