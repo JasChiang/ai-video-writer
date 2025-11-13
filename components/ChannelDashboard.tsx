@@ -86,7 +86,9 @@ interface MonthlyDataPoint {
   month: string;           // 格式: YYYY-MM
   views: number;
   watchTimeHours: number;
-  subscribersGained: number;
+  subscribersGained: number;  // 新增訂閱
+  subscribersLost: number;    // 取消訂閱
+  subscribersNet: number;     // 淨增長 = subscribersGained - subscribersLost
 }
 
 type ChartMetric = 'views' | 'watchTime' | 'subscribers';
@@ -95,14 +97,23 @@ const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
   (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
 
-// 計算默認日期範圍（過去30天）
+// 計算默認日期範圍（過去30天）- 使用台灣時間
 const getDefaultDateRange = () => {
   const endDate = new Date();
   const startDate = new Date();
   startDate.setDate(endDate.getDate() - 30);
+
+  // 使用本地時區格式化，避免 UTC 時區偏移
+  const formatDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   return {
-    start: startDate.toISOString().split('T')[0],
-    end: endDate.toISOString().split('T')[0],
+    start: formatDate(startDate),
+    end: formatDate(endDate),
   };
 };
 
@@ -121,10 +132,18 @@ export function ChannelDashboard() {
 
   // 計算日期範圍
   const getDateRange = (): { startDate: Date; endDate: Date } => {
-    return {
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-    };
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    console.log('[Dashboard] 📅 日期範圍解析:', {
+      原始字串: { startDate, endDate },
+      解析後: {
+        start: start.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }),
+        end: end.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })
+      }
+    });
+
+    return { startDate: start, endDate: end };
   };
 
   // 獲取儀錶板數據
@@ -164,12 +183,16 @@ export function ChannelDashboard() {
         const views = parseInt(channelRow[0]) || 0;
         const watchTimeMinutes = parseInt(channelRow[1]) || 0;
         const subscribersGained = parseInt(channelRow[2]) || 0;
+        const subscribersLost = parseInt(channelRow[3]) || 0;
+        const subscribersNet = subscribersGained - subscribersLost; // 淨增長
         const watchTimeHours = Math.floor(watchTimeMinutes / 60);
 
         console.log('[Dashboard] 📊 頻道統計 (Analytics API):', {
           views,
           watchTimeHours,
           subscribersGained,
+          subscribersLost,
+          subscribersNet,
         });
 
         // 更新頻道統計
@@ -178,7 +201,7 @@ export function ChannelDashboard() {
           totalViews: prev?.totalViews || 0,
           viewsInRange: views,
           watchTimeHours: watchTimeHours,
-          subscribersGained: subscribersGained,
+          subscribersGained: subscribersNet, // 使用淨增長（新增 - 取消）
           videosInRange: 0, // 頻道級別數據不包含影片數
         }));
 
@@ -356,15 +379,31 @@ export function ChannelDashboard() {
     try {
       console.log('[Dashboard] 📊 從 Analytics API 獲取頻道級別數據...');
 
-      const formatDate = (date: Date) => date.toISOString().split('T')[0];
+      // 使用本地時區（台灣時間）格式化日期
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      const formattedStartDate = formatDate(startDate);
+      const formattedEndDate = formatDate(endDate);
+
+      console.log('[Dashboard] 📡 API 請求參數:', {
+        startDate: formattedStartDate,
+        endDate: formattedEndDate,
+        metrics: 'views,estimatedMinutesWatched,subscribersGained,subscribersLost'
+      });
 
       // 頻道級別數據：不使用 dimensions，直接獲取頻道整體統計
+      // 同時獲取 subscribersGained 和 subscribersLost 來計算淨增長
       const response = await fetch(
         `https://youtubeanalytics.googleapis.com/v2/reports?` +
         `ids=channel==MINE` +
-        `&startDate=${formatDate(startDate)}` +
-        `&endDate=${formatDate(endDate)}` +
-        `&metrics=views,estimatedMinutesWatched,subscribersGained`,
+        `&startDate=${formattedStartDate}` +
+        `&endDate=${formattedEndDate}` +
+        `&metrics=views,estimatedMinutesWatched,subscribersGained,subscribersLost`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -379,7 +418,11 @@ export function ChannelDashboard() {
       }
 
       const data = await response.json();
-      console.log('[Dashboard] ✅ 頻道級別數據獲取成功:', data);
+      console.log('[Dashboard] ✅ 頻道級別數據獲取成功');
+      console.log('[Dashboard] 📊 API 原始返回:', {
+        columnHeaders: data.columnHeaders,
+        rows: data.rows
+      });
       return data;
     } catch (err: any) {
       console.log('[Dashboard] ⚠️ Analytics API 不可用:', err.message);
@@ -392,7 +435,13 @@ export function ChannelDashboard() {
     try {
       console.log('[Dashboard] 🎬 從 Analytics API 獲取影片級別數據...');
 
-      const formatDate = (date: Date) => date.toISOString().split('T')[0];
+      // 使用本地時區（台灣時間）格式化日期
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
 
       // 影片級別數據：使用 video dimension，獲取每個影片的統計
       const response = await fetch(
@@ -424,57 +473,71 @@ export function ChannelDashboard() {
     }
   };
 
-  // 獲取過去 12 個月的月度數據
+  // 獲取過去 12 個月的月度數據（使用和日期卡片相同的邏輯）
   const fetchMonthlyData = async (token: string) => {
     try {
       console.log('[Dashboard] 📅 從 Analytics API 獲取過去 12 個月數據...');
 
-      // 計算過去 12 個月的日期範圍
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setMonth(endDate.getMonth() - 12);
+      const today = new Date();
+      const monthlyDataPoints: MonthlyDataPoint[] = [];
 
-      const formatDate = (date: Date) => date.toISOString().split('T')[0];
+      // 使用本地時區格式化日期
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
 
-      // 使用 month dimension 獲取月度數據
-      const response = await fetch(
-        `https://youtubeanalytics.googleapis.com/v2/reports?` +
-        `ids=channel==MINE` +
-        `&startDate=${formatDate(startDate)}` +
-        `&endDate=${formatDate(endDate)}` +
-        `&metrics=views,estimatedMinutesWatched,subscribersGained` +
-        `&dimensions=month` +
-        `&sort=month`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+      // 循環獲取過去 12 個完整月份的數據（不包括當前月）
+      for (let i = 12; i >= 1; i--) {
+        // 計算該月的起始和結束日期
+        const monthStart = new Date(today.getFullYear(), today.getMonth() - i, 1);
+        const monthEnd = new Date(today.getFullYear(), today.getMonth() - i + 1, 0);
+
+        const monthKey = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`;
+
+        try {
+          // 使用和 fetchChannelAnalytics 相同的邏輯，不使用 dimensions
+          // 同時獲取 subscribersGained 和 subscribersLost
+          const url = `https://youtubeanalytics.googleapis.com/v2/reports?` +
+            `ids=channel==MINE` +
+            `&startDate=${formatDate(monthStart)}` +
+            `&endDate=${formatDate(monthEnd)}` +
+            `&metrics=views,estimatedMinutesWatched,subscribersGained,subscribersLost`;
+
+          const response = await fetch(url, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.rows && data.rows.length > 0) {
+              const row = data.rows[0]; // 單月聚合數據只有一行
+              const subscribersGained = parseInt(row[2]) || 0;
+              const subscribersLost = parseInt(row[3]) || 0;
+              const subscribersNet = subscribersGained - subscribersLost;
+
+              monthlyDataPoints.push({
+                month: monthKey,
+                views: parseInt(row[0]) || 0,
+                watchTimeHours: Math.floor((parseInt(row[1]) || 0) / 60),
+                subscribersGained: subscribersGained,
+                subscribersLost: subscribersLost,
+                subscribersNet: subscribersNet, // 淨增長
+              });
+            }
+          }
+        } catch (err) {
+          console.warn(`[Dashboard] ⚠️ 跳過月份 ${monthKey}:`, err);
         }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('[Dashboard] ❌ Analytics API 錯誤:', errorData);
-        throw new Error('無法獲取月度數據');
       }
 
-      const data = await response.json();
-
-      if (data.rows && data.rows.length > 0) {
-        // 處理數據：rows 格式 [month, views, estimatedMinutesWatched, subscribersGained]
-        const monthlyDataPoints: MonthlyDataPoint[] = data.rows.map((row: any[]) => ({
-          month: row[0], // 格式: YYYY-MM
-          views: parseInt(row[1]) || 0,
-          watchTimeHours: Math.floor((parseInt(row[2]) || 0) / 60),
-          subscribersGained: parseInt(row[3]) || 0,
-        }));
-
-        console.log('[Dashboard] ✅ 月度數據獲取成功:', monthlyDataPoints.length, '個月');
-        setMonthlyData(monthlyDataPoints);
-      } else {
-        console.log('[Dashboard] ⚠️ 無月度數據');
-        setMonthlyData([]);
-      }
+      console.log('[Dashboard] ✅ 月度數據獲取成功:', monthlyDataPoints.length, '個月');
+      console.log('[Dashboard] 📊 月度數據詳情:', monthlyDataPoints);
+      setMonthlyData(monthlyDataPoints);
     } catch (err: any) {
       console.error('[Dashboard] ❌ 獲取月度數據失敗:', err);
       // 不拋出錯誤，允許儀錶板繼續顯示其他數據
@@ -707,11 +770,14 @@ export function ChannelDashboard() {
             <strong>數據來源說明：</strong>
             <ul className="mt-2 space-y-1 text-blue-800">
               <li>
+                • <strong>時區</strong>：所有數據使用<strong>台灣時間（UTC+8）</strong>，與 YouTube Studio 後台一致
+              </li>
+              <li>
                 • <strong>觀看次數 & 觀看時間</strong>：所選時間範圍內<strong>實際產生</strong>的觀看數據
                 （YouTube Analytics API，配額：1-2 單位）
               </li>
               <li>
-                • <strong>新增訂閱數</strong>：時間範圍內新增的訂閱人數（YouTube Analytics API）
+                • <strong>新增訂閱數</strong>：時間範圍內淨增長（新增訂閱 - 取消訂閱）
               </li>
               <li>
                 • <strong>熱門影片</strong>：基於時間範圍內的觀看次數排序（Analytics API + Gist 快取）
@@ -734,14 +800,21 @@ export function ChannelDashboard() {
         </div>
       )}
 
-      {/* KPI 指標卡片 */}
+      {/* KPI 指標卡片（可點擊切換圖表）*/}
       {channelStats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* 觀看次數（時間範圍內）*/}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <button
+            onClick={() => setSelectedMetric('views')}
+            className={`bg-white rounded-lg border-2 p-6 text-left transition-all hover:shadow-md ${
+              selectedMetric === 'views'
+                ? 'border-blue-600 shadow-md'
+                : 'border-gray-200'
+            }`}
+          >
             <div className="flex items-center justify-between mb-2">
               <div className="text-gray-600 text-sm">觀看次數</div>
-              <Eye className="w-5 h-5 text-blue-600" />
+              <Eye className={`w-5 h-5 ${selectedMetric === 'views' ? 'text-blue-600' : 'text-blue-400'}`} />
             </div>
             <div className="text-3xl font-bold text-gray-900">
               {formatNumber(channelStats.viewsInRange)}
@@ -754,13 +827,20 @@ export function ChannelDashboard() {
                 ? '時間範圍內發布影片的累計數（備援模式）'
                 : '時間範圍內實際產生的觀看數'}
             </div>
-          </div>
+          </button>
 
           {/* 觀看時間（小時）*/}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <button
+            onClick={() => setSelectedMetric('watchTime')}
+            className={`bg-white rounded-lg border-2 p-6 text-left transition-all hover:shadow-md ${
+              selectedMetric === 'watchTime'
+                ? 'border-purple-600 shadow-md'
+                : 'border-gray-200'
+            }`}
+          >
             <div className="flex items-center justify-between mb-2">
               <div className="text-gray-600 text-sm">觀看時間</div>
-              <Clock className="w-5 h-5 text-purple-600" />
+              <Clock className={`w-5 h-5 ${selectedMetric === 'watchTime' ? 'text-purple-600' : 'text-purple-400'}`} />
             </div>
             <div className="text-3xl font-bold text-gray-900">
               {formatNumber(channelStats.watchTimeHours)}
@@ -773,13 +853,20 @@ export function ChannelDashboard() {
                 ? '估算值（基於平均觀看時長）'
                 : '時間範圍內實際觀看時長'}
             </div>
-          </div>
+          </button>
 
           {/* 新增訂閱數 */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <button
+            onClick={() => setSelectedMetric('subscribers')}
+            className={`bg-white rounded-lg border-2 p-6 text-left transition-all hover:shadow-md ${
+              selectedMetric === 'subscribers'
+                ? 'border-green-600 shadow-md'
+                : 'border-gray-200'
+            }`}
+          >
             <div className="flex items-center justify-between mb-2">
               <div className="text-gray-600 text-sm">新增訂閱數</div>
-              <Users className="w-5 h-5 text-green-600" />
+              <Users className={`w-5 h-5 ${selectedMetric === 'subscribers' ? 'text-green-600' : 'text-green-400'}`} />
             </div>
             <div className="text-3xl font-bold text-gray-900">
               {formatNumber(channelStats.subscribersGained)}
@@ -792,13 +879,20 @@ export function ChannelDashboard() {
                 ? '無法獲取（需要 Analytics API）'
                 : '時間範圍內新增訂閱數'}
             </div>
-          </div>
+          </button>
         </div>
       )}
 
       {/* 過去 12 個月趨勢圖表 */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold mb-4">過去 12 個月趨勢</h3>
+        <h3 className="text-lg font-semibold mb-4">
+          過去 12 個月趨勢
+          {monthlyData.length > 0 && (
+            <span className="text-sm font-normal text-gray-500 ml-2">
+              ({monthlyData.length} 個月)
+            </span>
+          )}
+        </h3>
 
         {monthlyData.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
@@ -808,64 +902,6 @@ export function ChannelDashboard() {
           </div>
         ) : (
           <>
-            {/* 指標切換卡片 */}
-            <div className="flex gap-3 mb-6">
-              <button
-                onClick={() => setSelectedMetric('views')}
-                className={`flex-1 p-4 rounded-lg border-2 transition-all ${
-                  selectedMetric === 'views'
-                    ? 'border-blue-600 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-sm text-gray-600">觀看次數</div>
-                  <Eye className={`w-5 h-5 ${selectedMetric === 'views' ? 'text-blue-600' : 'text-gray-400'}`} />
-                </div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {formatNumber(monthlyData.reduce((sum, d) => sum + d.views, 0))}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">過去 12 個月總計</div>
-              </button>
-
-              <button
-                onClick={() => setSelectedMetric('watchTime')}
-                className={`flex-1 p-4 rounded-lg border-2 transition-all ${
-                  selectedMetric === 'watchTime'
-                    ? 'border-purple-600 bg-purple-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-sm text-gray-600">觀看時間</div>
-                  <Clock className={`w-5 h-5 ${selectedMetric === 'watchTime' ? 'text-purple-600' : 'text-gray-400'}`} />
-                </div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {formatNumber(monthlyData.reduce((sum, d) => sum + d.watchTimeHours, 0))}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">小時</div>
-              </button>
-
-              <button
-                onClick={() => setSelectedMetric('subscribers')}
-                className={`flex-1 p-4 rounded-lg border-2 transition-all ${
-                  selectedMetric === 'subscribers'
-                    ? 'border-green-600 bg-green-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-sm text-gray-600">新增訂閱數</div>
-                  <Users className={`w-5 h-5 ${selectedMetric === 'subscribers' ? 'text-green-600' : 'text-gray-400'}`} />
-                </div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {monthlyData.reduce((sum, d) => sum + d.subscribersGained, 0) >= 0 ? '+' : ''}
-                  {formatNumber(monthlyData.reduce((sum, d) => sum + d.subscribersGained, 0))}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">過去 12 個月總計</div>
-              </button>
-            </div>
-
             {/* 柱狀圖 */}
             <div className="mt-6">
               <div className="flex items-end justify-between gap-2 h-64 border-b border-l border-gray-200 pb-2 pl-2">
@@ -883,7 +919,7 @@ export function ChannelDashboard() {
                       color = 'bg-purple-500 hover:bg-purple-600';
                       break;
                     case 'subscribers':
-                      value = dataPoint.subscribersGained;
+                      value = dataPoint.subscribersNet; // 使用淨增長（新增 - 取消）
                       color = value >= 0 ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600';
                       break;
                   }
@@ -894,14 +930,14 @@ export function ChannelDashboard() {
                       switch (selectedMetric) {
                         case 'views': return d.views;
                         case 'watchTime': return d.watchTimeHours;
-                        case 'subscribers': return Math.abs(d.subscribersGained);
+                        case 'subscribers': return Math.abs(d.subscribersNet); // 使用淨增長
                         default: return 0;
                       }
                     })
                   );
 
-                  // 計算高度百分比（最小 2%，最大 100%）
-                  const heightPercent = maxValue > 0 ? Math.max(2, (Math.abs(value) / maxValue) * 100) : 2;
+                  // 計算高度百分比（最小 5%，最大 100%）
+                  const heightPercent = maxValue > 0 ? Math.max(5, (Math.abs(value) / maxValue) * 100) : 5;
 
                   return (
                     <div key={index} className="flex-1 flex flex-col items-center justify-end group">
@@ -915,7 +951,7 @@ export function ChannelDashboard() {
                         {/* 柱狀條 */}
                         <div
                           className={`w-full ${color} rounded-t transition-all cursor-pointer`}
-                          style={{ height: `${heightPercent}%` }}
+                          style={{ height: `${heightPercent}%`, minHeight: '12px' }}
                           title={`${dataPoint.month}: ${formatFullNumber(value)}`}
                         />
                       </div>
