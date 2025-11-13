@@ -1948,6 +1948,49 @@ export function ChannelDashboard() {
     return num.toLocaleString('en-US');
   };
 
+  // 取得國旗 emoji
+  const getCountryFlag = (countryCode: string): string => {
+    // 將國家代碼轉換為旗幟 emoji
+    // 例如: TW -> 🇹🇼, US -> 🇺🇸
+    if (countryCode.length !== 2) return '🌍';
+
+    const codePoints = countryCode
+      .toUpperCase()
+      .split('')
+      .map(char => 127397 + char.charCodeAt(0));
+    return String.fromCodePoint(...codePoints);
+  };
+
+  // 翻譯流量來源代碼
+  const translateTrafficSource = (source: string): string => {
+    const translations: { [key: string]: string } = {
+      'YT_SEARCH': 'YouTube 搜尋',
+      'SUBSCRIBER': '訂閱者',
+      'BROWSE': '瀏覽功能',
+      'SUGGESTED': '建議影片',
+      'YT_CHANNEL': 'YouTube 頻道頁',
+      'YT_OTHER_PAGE': 'YouTube 其他頁面',
+      'EXTERNAL_APP': '外部應用程式',
+      'EXT_URL': '外部連結',
+      'NO_LINK_OTHER': '其他',
+      'NOTIFICATION': '通知',
+      'PLAYLIST': '播放清單',
+      'RELATED_VIDEO': '相關影片',
+      'YT_PLAYLIST_PAGE': 'YouTube 播放清單頁',
+      'CAMPAIGN_CARD': '宣傳卡',
+      'END_SCREEN': '結束畫面',
+      'SHORTS': 'Shorts',
+      'HASHTAGS': '主題標籤',
+    };
+
+    const translated = translations[source] || source;
+    // 如果有翻譯且與原文不同，返回「中文（原文）」格式，使用全形括號
+    if (translated !== source) {
+      return `${translated}（${source}）`;
+    }
+    return source;
+  };
+
   // 格式化日期
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
@@ -3313,110 +3356,199 @@ export function ChannelDashboard() {
       )}
 
       {/* 流量來源分析區塊 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* 熱門流量來源 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* 熱門流量來源 - 甜甜圈圖 */}
         {trafficSources.length > 0 && (
           <div className={compactCardClass}>
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-red-500" />
               熱門流量來源
             </h3>
-            <div className="space-y-3">
-              {trafficSources.map((source, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-900 truncate">
-                      {source.source}
+            <div className="flex flex-col items-center">
+              {/* 甜甜圈圖 */}
+              <div className="relative w-48 h-48 mb-6">
+                <div
+                  className="w-full h-full rounded-full"
+                  style={{
+                    background: `conic-gradient(${trafficSources
+                      .map((source, index) => {
+                        const colors = ['#dc2626', '#ef4444', '#f87171', '#fb923c', '#fbbf24'];
+                        const color = colors[index % colors.length];
+                        const start = trafficSources
+                          .slice(0, index)
+                          .reduce((sum, s) => sum + s.percentage, 0);
+                        const end = start + source.percentage;
+                        return `${color} ${start}% ${end}%`;
+                      })
+                      .join(', ')})`,
+                  }}
+                />
+                {/* 中心白色圓圈 */}
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-28 h-28 bg-white rounded-full flex items-center justify-center shadow-inner">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-gray-900">
+                      {trafficSources.reduce((sum, s) => sum + s.views, 0) > 0
+                        ? formatNumber(trafficSources.reduce((sum, s) => sum + s.views, 0))
+                        : '0'}
                     </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <div className="flex-1 bg-gray-100 rounded-full h-2">
-                        <div
-                          className="bg-red-500 h-2 rounded-full"
-                          style={{ width: `${source.percentage}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-gray-500 whitespace-nowrap">
-                        {source.percentage.toFixed(1)}%
-                      </span>
-                    </div>
-                  </div>
-                  <div className="ml-4 text-right">
-                    <div className="text-sm font-semibold text-gray-900">
-                      {formatFullNumber(source.views)}
-                    </div>
-                    <div className="text-xs text-gray-500">觀看次數</div>
+                    <div className="text-xs text-gray-500">總觀看</div>
                   </div>
                 </div>
-              ))}
+              </div>
+
+              {/* 圖例 */}
+              <div className="w-full space-y-2">
+                {trafficSources.map((source, index) => {
+                  const colors = [
+                    { bg: 'bg-red-600', dot: 'bg-red-600' },
+                    { bg: 'bg-red-500', dot: 'bg-red-500' },
+                    { bg: 'bg-red-400', dot: 'bg-red-400' },
+                    { bg: 'bg-orange-400', dot: 'bg-orange-400' },
+                    { bg: 'bg-amber-400', dot: 'bg-amber-400' },
+                  ];
+                  const color = colors[index % colors.length];
+
+                  return (
+                    <div key={index} className="flex items-center justify-between py-1.5">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className={`w-3 h-3 rounded-full ${color.dot}`} />
+                        <span className="text-sm text-gray-700 truncate">{translateTrafficSource(source.source)}</span>
+                      </div>
+                      <div className="flex items-center gap-3 ml-2">
+                        <span className="text-xs text-gray-500">
+                          {formatFullNumber(source.views)}
+                        </span>
+                        <span className="text-sm font-semibold text-gray-900 w-12 text-right">
+                          {source.percentage.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
 
-        {/* 外部來源排行 */}
+        {/* 外部來源排行 - 橫向柱狀圖 */}
         {externalSources.length > 0 && (
           <div className={compactCardClass}>
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-red-500" />
               外部來源排行
             </h3>
-            <div className="space-y-3">
-              {externalSources.map((source, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-900 truncate">
-                      {source.source}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <div className="flex-1 bg-gray-100 rounded-full h-2">
-                        <div
-                          className="bg-red-400 h-2 rounded-full"
-                          style={{ width: `${source.percentage}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-gray-500 whitespace-nowrap">
-                        {source.percentage.toFixed(1)}%
+
+            {/* 橫向柱狀圖 */}
+            <div className="space-y-4">
+              {externalSources.slice(0, 8).map((source, index) => {
+                const colors = [
+                  '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7',
+                  '#d946ef', '#ec4899', '#f43f5e', '#ef4444'
+                ];
+                const color = colors[index % colors.length];
+                const maxViews = Math.max(...externalSources.slice(0, 8).map(s => s.views));
+                const barWidth = (source.views / maxViews) * 100;
+
+                return (
+                  <div key={index} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-gray-700 truncate pr-4">
+                        {source.source}
+                      </span>
+                      <span className="text-gray-900 font-semibold whitespace-nowrap">
+                        {formatFullNumber(source.views)}
                       </span>
                     </div>
-                  </div>
-                  <div className="ml-4 text-right">
-                    <div className="text-sm font-semibold text-gray-900">
-                      {formatFullNumber(source.views)}
+                    <div className="relative">
+                      <div className="w-full bg-gray-100 rounded-full h-6 overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2"
+                          style={{
+                            width: `${barWidth}%`,
+                            backgroundColor: color,
+                          }}
+                        >
+                          <span className="text-xs font-semibold text-white">
+                            {source.percentage.toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500">觀看次數</div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* 搜尋字詞 */}
-        {searchTerms.length > 0 && (
-          <div className={`${compactCardClass} flex flex-col gap-4`}>
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-red-500" />
-              搜尋字詞
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {searchTerms.map((term, index) => (
-                <div key={index} className="flex items-center justify-between py-2 border border-red-50 rounded-lg">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <span className="text-sm font-medium text-red-500 w-6 text-center">
+      </div>
+
+      {/* 搜尋字詞排行榜（跨2欄） */}
+      {searchTerms.length > 0 && (
+        <div className={compactCardClass}>
+          <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-red-500" />
+            熱門搜尋字詞排行
+          </h3>
+
+          {/* 排行榜 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {searchTerms.slice(0, 10).map((term, index) => {
+              // 前三名的特殊顏色
+              const rankColors = [
+                { bg: 'bg-gradient-to-r from-yellow-50 to-yellow-100', border: 'border-yellow-400', text: 'text-yellow-600', rankBg: 'bg-yellow-500' },
+                { bg: 'bg-gradient-to-r from-gray-50 to-gray-100', border: 'border-gray-400', text: 'text-gray-600', rankBg: 'bg-gray-400' },
+                { bg: 'bg-gradient-to-r from-orange-50 to-orange-100', border: 'border-orange-400', text: 'text-orange-600', rankBg: 'bg-orange-500' },
+              ];
+
+              const isTopThree = index < 3;
+              const colorScheme = isTopThree
+                ? rankColors[index]
+                : { bg: 'bg-white', border: 'border-gray-200', text: 'text-gray-600', rankBg: 'bg-gray-300' };
+
+              return (
+                <div
+                  key={index}
+                  className={`relative flex items-center gap-4 p-4 rounded-xl border-2 ${colorScheme.border} ${colorScheme.bg} hover:shadow-md transition-all duration-200`}
+                >
+                  {/* 排名徽章 */}
+                  <div className={`flex-shrink-0 w-10 h-10 ${colorScheme.rankBg} rounded-full flex items-center justify-center shadow-sm`}>
+                    <span className="text-xl font-bold text-white">
                       {index + 1}
                     </span>
-                    <span className="text-sm text-gray-800 truncate">
-                      {term.term}
-                    </span>
                   </div>
-                  <span className="text-sm font-semibold text-emerald-600 ml-4">
-                    {formatFullNumber(term.views)}
-                  </span>
+
+                  {/* 搜尋字詞 */}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-base font-semibold text-gray-900 truncate">
+                      {term.term}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-gray-500">搜尋次數</span>
+                      <div className="flex-1 bg-gray-200 rounded-full h-1.5 max-w-[100px]">
+                        <div
+                          className={`${isTopThree ? colorScheme.rankBg : 'bg-red-400'} h-1.5 rounded-full transition-all duration-500`}
+                          style={{
+                            width: `${(term.views / searchTerms[0].views) * 100}%`
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 觀看次數 */}
+                  <div className="flex-shrink-0 text-right">
+                    <div className={`text-lg font-bold ${colorScheme.text}`}>
+                      {formatFullNumber(term.views)}
+                    </div>
+                    <div className="text-xs text-gray-500">觀看</div>
+                  </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* 觀眾洞察區塊標題 */}
       {(demographics.length > 0 || geography.length > 0 || devices.length > 0 || subscriberSources.length > 0) && (
@@ -3429,40 +3561,87 @@ export function ChannelDashboard() {
       {(demographics.length > 0 || geography.length > 0) && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-            {/* 年齡與性別分佈 */}
+            {/* 年齡與性別分佈 - 人口金字塔 */}
             {demographics.length > 0 && (
               <div className={compactCardClass}>
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
                   <Users className="w-5 h-5 text-red-500" />
                   年齡與性別分佈
                 </h3>
-                <div className="space-y-3">
-                  {demographics.map((item, index) => {
-                    const genderText = item.gender === 'male' ? '男性' : item.gender === 'female' ? '女性' : '其他';
-                    const ageText = item.ageGroup.replace('age', '').replace('-', '-') + ' 歲';
 
-                    return (
-                      <div key={index} className="space-y-1">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-700">
-                            {ageText} · {genderText}
-                          </span>
-                          <span className="font-semibold text-gray-900">
-                            {item.viewsPercentage.toFixed(1)}%
-                          </span>
+                {/* 圖例 */}
+                <div className="flex justify-center gap-6 mb-6">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-blue-500 rounded"></div>
+                    <span className="text-sm text-gray-600">男性</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-pink-500 rounded"></div>
+                    <span className="text-sm text-gray-600">女性</span>
+                  </div>
+                </div>
+
+                {/* 人口金字塔 */}
+                <div className="space-y-2">
+                  {(() => {
+                    // 按年齡分組
+                    const ageGroups = Array.from(new Set(demographics.map(d => d.ageGroup)));
+                    const maxPercentage = Math.max(...demographics.map(d => d.viewsPercentage));
+
+                    return ageGroups.map((ageGroup, index) => {
+                      const maleData = demographics.find(d => d.ageGroup === ageGroup && d.gender === 'male');
+                      const femaleData = demographics.find(d => d.ageGroup === ageGroup && d.gender === 'female');
+
+                      const malePercentage = maleData?.viewsPercentage || 0;
+                      const femalePercentage = femaleData?.viewsPercentage || 0;
+
+                      const maleWidth = (malePercentage / maxPercentage) * 100;
+                      const femaleWidth = (femalePercentage / maxPercentage) * 100;
+
+                      const ageText = ageGroup.replace('age', '').replace('-', '-');
+
+                      return (
+                        <div key={index} className="flex items-center gap-2">
+                          {/* 男性柱狀圖（左側） */}
+                          <div className="flex-1 flex justify-end">
+                            <div className="flex items-center justify-end w-full">
+                              <span className="text-xs text-gray-600 mr-2 w-10 text-right">
+                                {malePercentage > 0 ? `${malePercentage.toFixed(1)}%` : ''}
+                              </span>
+                              <div className="w-full bg-gray-50 rounded-l-md h-8 flex items-center justify-end overflow-hidden">
+                                <div
+                                  className="bg-blue-500 h-full transition-all duration-500"
+                                  style={{ width: `${maleWidth}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 中間年齡標籤 */}
+                          <div className="w-16 text-center">
+                            <span className="text-xs font-semibold text-gray-700">
+                              {ageText}
+                            </span>
+                          </div>
+
+                          {/* 女性柱狀圖（右側） */}
+                          <div className="flex-1">
+                            <div className="flex items-center w-full">
+                              <div className="w-full bg-gray-50 rounded-r-md h-8 flex items-center overflow-hidden">
+                                <div
+                                  className="bg-pink-500 h-full transition-all duration-500"
+                                  style={{ width: `${femaleWidth}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-xs text-gray-600 ml-2 w-10">
+                                {femalePercentage > 0 ? `${femalePercentage.toFixed(1)}%` : ''}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="w-full bg-gray-100 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full ${
-                              item.gender === 'male' ? 'bg-red-400' :
-                              item.gender === 'female' ? 'bg-rose-500' : 'bg-gray-400'
-                            }`}
-                            style={{ width: `${item.viewsPercentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             )}
@@ -3482,6 +3661,7 @@ export function ChannelDashboard() {
                           <span className="text-xs font-medium text-gray-400 w-5 text-center">
                             {index + 1}
                           </span>
+                          <span className="text-2xl">{getCountryFlag(item.country)}</span>
                           <span className="text-gray-700">{item.country}</span>
                         </div>
                         <div className="flex items-center gap-3">
@@ -3505,87 +3685,98 @@ export function ChannelDashboard() {
               </div>
             )}
 
-            {/* 裝置類型分佈圓餅圖 */}
+            {/* 裝置類型分佈 - 橫向柱狀圖 */}
             {devices.length > 0 && (
-              <div className={`${compactCardClass} flex flex-col`}>
+              <div className={compactCardClass}>
                 <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
                   <Video className="w-5 h-5 text-red-500" />
                   觀看裝置分佈
                 </h3>
-                <div className="flex flex-col items-center">
-                  {/* 簡易圓餅圖（使用 CSS 實現） */}
-                  <div className="relative w-40 h-40 mb-6">
-                    {/* 使用 conic-gradient 創建圓餅圖 */}
-                    <div
-                      className="w-full h-full rounded-full"
-                      style={{
-                        background: `conic-gradient(${devices
-                          .map((device, index) => {
-                            const colors = ['#dc2626', '#ef4444', '#f87171', '#fb7185', '#fecdd3'];
-                            const color = colors[index % colors.length];
-                            const start = devices
-                              .slice(0, index)
-                              .reduce((sum, d) => sum + d.percentage, 0);
-                            const end = start + device.percentage;
-                            return `${color} ${start}% ${end}%`;
-                          })
-                          .join(', ')})`,
-                      }}
-                    />
-                    {/* 中心白色圓圈 */}
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-24 h-24 bg-white rounded-full flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-900">{devices.length}</div>
-                        <div className="text-xs text-gray-500">裝置類型</div>
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* 圖例 */}
-                  <div className="w-full space-y-3">
-                    {devices.map((device, index) => {
-                      const colors = [
-                        { bg: 'bg-red-600', text: 'text-red-600' },
-                        { bg: 'bg-red-400', text: 'text-red-400' },
-                        { bg: 'bg-rose-400', text: 'text-rose-400' },
-                        { bg: 'bg-red-300', text: 'text-red-300' },
-                        { bg: 'bg-rose-300', text: 'text-rose-300' },
-                      ];
-                      const color = colors[index % colors.length];
+                {/* 橫向柱狀圖 */}
+                <div className="space-y-4">
+                  {devices.map((device, index) => {
+                    // 翻譯裝置類型
+                    const deviceNames: { [key: string]: string } = {
+                      DESKTOP: '桌面電腦',
+                      MOBILE: '手機',
+                      TABLET: '平板',
+                      TV: '電視',
+                      GAME_CONSOLE: '遊戲主機',
+                    };
+                    const deviceName = deviceNames[device.deviceType] || device.deviceType;
 
-                      // 翻譯裝置類型
-                      const deviceNames: { [key: string]: string } = {
-                        DESKTOP: '桌面電腦',
-                        MOBILE: '手機',
-                        TABLET: '平板',
-                        TV: '電視',
-                        GAME_CONSOLE: '遊戲主機',
-                      };
-                      const deviceName = deviceNames[device.deviceType] || device.deviceType;
+                    // 裝置圖示
+                    const deviceIcons: { [key: string]: string } = {
+                      DESKTOP: '💻',
+                      MOBILE: '📱',
+                      TABLET: '📱',
+                      TV: '📺',
+                      GAME_CONSOLE: '🎮',
+                    };
+                    const deviceIcon = deviceIcons[device.deviceType] || '📱';
 
-                      return (
-                        <div key={index} className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 flex-1">
-                            <div className={`w-3 h-3 rounded-full ${color.bg}`} />
-                            <span className="text-sm text-gray-700">{deviceName}</span>
+                    // 顏色
+                    const colors = [
+                      '#dc2626', // red-600
+                      '#f59e0b', // amber-500
+                      '#8b5cf6', // violet-500
+                      '#06b6d4', // cyan-500
+                      '#ec4899', // pink-500
+                    ];
+                    const color = colors[index % colors.length];
+
+                    const maxViews = Math.max(...devices.map(d => d.views));
+                    const barWidth = (device.views / maxViews) * 100;
+
+                    return (
+                      <div key={index} className="space-y-1.5">
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl">{deviceIcon}</span>
+                            <span className="font-medium text-gray-700">
+                              {deviceName}
+                            </span>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-xs text-gray-500">
-                              {formatFullNumber(device.views)} 次
-                            </span>
-                            <span className={`text-sm font-semibold ${color.text} w-14 text-right`}>
-                              {device.percentage.toFixed(1)}%
-                            </span>
+                          <span className="text-gray-900 font-semibold whitespace-nowrap">
+                            {formatFullNumber(device.views)} 次
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <div className="w-full bg-gray-100 rounded-full h-7 overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-3"
+                              style={{
+                                width: `${barWidth}%`,
+                                backgroundColor: color,
+                              }}
+                            >
+                              <span className="text-sm font-semibold text-white">
+                                {device.percentage.toFixed(1)}%
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      );
-                    })}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 總計 */}
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">
+                      總觀看次數
+                    </span>
+                    <span className="text-xl font-bold text-red-600">
+                      {formatFullNumber(devices.reduce((sum, d) => sum + d.views, 0))} 次
+                    </span>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* 訂閱來源分析 */}
+            {/* 訂閱來源分析 - 頒獎台式 */}
             {subscriberSources.length > 0 && (
               <div className={compactCardClass}>
                 <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
@@ -3595,68 +3786,207 @@ export function ChannelDashboard() {
                     （帶來最多新訂閱的影片）
                   </span>
                 </h3>
-                <div className="space-y-3">
-                  {subscriberSources.map((source, index) => (
-                    <div
-                      key={source.videoId}
-                      className="flex items-center gap-4 p-4 bg-gradient-to-r from-red-50 to-transparent rounded-xl hover:from-red-100 transition-colors"
-                    >
-                      {/* 排名 */}
-                      <div className="flex-shrink-0">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                            index === 0
-                              ? 'bg-red-600 text-white'
-                              : index === 1
-                              ? 'bg-red-400 text-white'
-                              : index === 2
-                              ? 'bg-rose-300 text-red-800'
-                              : 'bg-red-100 text-red-500'
-                          }`}
-                        >
-                          {index + 1}
+
+                {/* 頒獎台 - 前三名 */}
+                {subscriberSources.length >= 3 && (
+                  <div className="mb-8">
+                    {/* 桌面版：頒獎台排列（2-1-3） */}
+                    <div className="hidden md:flex items-end justify-center gap-4 mb-6">
+                      {/* 第二名 */}
+                      <div className="flex flex-col items-center w-1/3">
+                        <div className="w-16 h-16 bg-gradient-to-br from-gray-300 to-gray-500 rounded-full flex items-center justify-center shadow-xl ring-4 ring-gray-300 mb-3">
+                          <span className="text-3xl">🥈</span>
+                        </div>
+                        <div className="w-full bg-gradient-to-b from-gray-100 to-gray-200 rounded-t-2xl p-4 border-2 border-gray-300 shadow-lg" style={{ height: '200px' }}>
+                          <div className="text-center mb-2">
+                            <div className="text-2xl font-bold text-gray-600">第 2 名</div>
+                          </div>
+                          <div className="text-sm font-semibold text-gray-900 mb-3 line-clamp-2 h-10">
+                            {subscriberSources[1].videoTitle}
+                          </div>
+                          <div className="text-center">
+                            <div className="text-3xl font-bold text-gray-700">
+                              +{formatNumber(subscriberSources[1].subscribersGained)}
+                            </div>
+                            <div className="text-xs text-gray-600 mb-2">新訂閱</div>
+                            <a
+                              href={`https://www.youtube.com/watch?v=${subscriberSources[1].videoId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-500 hover:text-blue-700 hover:underline inline-flex items-center gap-1 justify-center"
+                            >
+                              <span>觀看影片</span>
+                              <span>↗</span>
+                            </a>
+                          </div>
                         </div>
                       </div>
 
-                      {/* 影片資訊 */}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-gray-900 truncate">
-                          {source.videoTitle}
+                      {/* 第一名（中間最高） */}
+                      <div className="flex flex-col items-center w-1/3">
+                        <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center shadow-2xl ring-4 ring-yellow-400 mb-3 animate-pulse">
+                          <span className="text-4xl">🥇</span>
                         </div>
-                        <a
-                          href={`https://www.youtube.com/watch?v=${source.videoId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-red-500 hover:text-red-700 hover:underline"
-                        >
-                          {source.videoId}
-                        </a>
+                        <div className="w-full bg-gradient-to-b from-yellow-50 to-yellow-100 rounded-t-2xl p-5 border-2 border-yellow-400 shadow-2xl" style={{ height: '260px' }}>
+                          <div className="text-center mb-3">
+                            <div className="text-3xl font-bold text-yellow-700">第 1 名</div>
+                            <div className="text-xs text-yellow-600">👑 冠軍</div>
+                          </div>
+                          <div className="text-sm font-bold text-gray-900 mb-3 line-clamp-2 h-10">
+                            {subscriberSources[0].videoTitle}
+                          </div>
+                          <div className="text-center">
+                            <div className="text-4xl font-bold text-red-600">
+                              +{formatNumber(subscriberSources[0].subscribersGained)}
+                            </div>
+                            <div className="text-xs text-gray-600 mb-2">新訂閱</div>
+                            <a
+                              href={`https://www.youtube.com/watch?v=${subscriberSources[0].videoId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-500 hover:text-blue-700 hover:underline inline-flex items-center gap-1 justify-center"
+                            >
+                              <span>觀看影片</span>
+                              <span>↗</span>
+                            </a>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* 訂閱數 */}
-                      <div className="flex-shrink-0 text-right">
-                        <div className="text-lg font-bold text-red-600">
-                          +{formatNumber(source.subscribersGained)}
+                      {/* 第三名 */}
+                      <div className="flex flex-col items-center w-1/3">
+                        <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center shadow-xl ring-4 ring-orange-300 mb-3">
+                          <span className="text-3xl">🥉</span>
                         </div>
-                        <div className="text-xs text-gray-500">新訂閱</div>
+                        <div className="w-full bg-gradient-to-b from-orange-50 to-orange-100 rounded-t-2xl p-4 border-2 border-orange-300 shadow-lg" style={{ height: '180px' }}>
+                          <div className="text-center mb-2">
+                            <div className="text-2xl font-bold text-orange-600">第 3 名</div>
+                          </div>
+                          <div className="text-sm font-semibold text-gray-900 mb-3 line-clamp-2 h-10">
+                            {subscriberSources[2].videoTitle}
+                          </div>
+                          <div className="text-center">
+                            <div className="text-3xl font-bold text-orange-700">
+                              +{formatNumber(subscriberSources[2].subscribersGained)}
+                            </div>
+                            <div className="text-xs text-gray-600 mb-2">新訂閱</div>
+                            <a
+                              href={`https://www.youtube.com/watch?v=${subscriberSources[2].videoId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-500 hover:text-blue-700 hover:underline inline-flex items-center gap-1 justify-center"
+                            >
+                              <span>觀看影片</span>
+                              <span>↗</span>
+                            </a>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
 
-                {/* 總計 */}
-                <div className="mt-6 pt-6 border-t border-red-100">
+                    {/* 手機版：垂直堆疊 */}
+                    <div className="md:hidden space-y-4 mb-6">
+                      {subscriberSources.slice(0, 3).map((source, index) => {
+                        const medals = [
+                          { icon: '🥇', bg: 'from-yellow-50 to-yellow-100', border: 'border-yellow-400', text: 'text-yellow-700', ring: 'ring-yellow-400', label: '冠軍' },
+                          { icon: '🥈', bg: 'from-gray-50 to-gray-100', border: 'border-gray-400', text: 'text-gray-700', ring: 'ring-gray-300', label: '亞軍' },
+                          { icon: '🥉', bg: 'from-orange-50 to-orange-100', border: 'border-orange-400', text: 'text-orange-700', ring: 'ring-orange-300', label: '季軍' },
+                        ];
+                        const medal = medals[index];
+
+                        return (
+                          <div key={source.videoId} className={`bg-gradient-to-r ${medal.bg} rounded-2xl p-4 border-2 ${medal.border} shadow-lg`}>
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className={`w-14 h-14 bg-gradient-to-br ${index === 0 ? 'from-yellow-400 to-yellow-600' : index === 1 ? 'from-gray-300 to-gray-500' : 'from-orange-400 to-orange-600'} rounded-full flex items-center justify-center shadow-lg ring-2 ${medal.ring}`}>
+                                <span className="text-2xl">{medal.icon}</span>
+                              </div>
+                              <div className="flex-1">
+                                <div className={`text-xl font-bold ${medal.text}`}>第 {index + 1} 名</div>
+                                <div className="text-xs text-gray-600">{medal.label}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-2xl font-bold text-red-600">
+                                  +{formatNumber(source.subscribersGained)}
+                                </div>
+                                <div className="text-xs text-gray-600">新訂閱</div>
+                              </div>
+                            </div>
+                            <div className="text-sm font-semibold text-gray-900 mb-2">
+                              {source.videoTitle}
+                            </div>
+                            <a
+                              href={`https://www.youtube.com/watch?v=${source.videoId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-500 hover:text-blue-700 hover:underline inline-flex items-center gap-1"
+                            >
+                              <span>觀看影片</span>
+                              <span>↗</span>
+                            </a>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 其他影片 - 網格顯示 */}
+                {subscriberSources.length > 3 && (
+                  <div>
+                    <h4 className="text-md font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                      <span>其他影片</span>
+                      <span className="text-sm text-gray-500">（第 4-{subscriberSources.length} 名）</span>
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {subscriberSources.slice(3).map((source, index) => (
+                        <div
+                          key={source.videoId}
+                          className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:shadow-md transition-all"
+                        >
+                          <div className="flex-shrink-0 w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                            <span className="text-lg font-bold text-gray-600">{index + 4}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-900 truncate">
+                              {source.videoTitle}
+                            </div>
+                            <a
+                              href={`https://www.youtube.com/watch?v=${source.videoId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-500 hover:text-blue-700 hover:underline"
+                            >
+                              觀看 ↗
+                            </a>
+                          </div>
+                          <div className="flex-shrink-0 text-right">
+                            <div className="text-base font-bold text-gray-700">
+                              +{formatNumber(source.subscribersGained)}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 總計卡片 */}
+                <div className="mt-6 p-4 bg-gradient-to-br from-red-50 to-rose-50 rounded-xl border-2 border-red-200">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700">
-                      前 {subscriberSources.length} 支影片總計
-                    </span>
-                    <span className="text-xl font-bold text-red-600">
-                      +
-                      {formatNumber(
-                        subscriberSources.reduce((sum, s) => sum + s.subscribersGained, 0)
-                      )}{' '}
-                      訂閱
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center shadow-md">
+                        <Users className="w-5 h-5 text-white" />
+                      </div>
+                      <span className="text-sm font-semibold text-gray-700">
+                        前 {subscriberSources.length} 支影片總計
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-red-600">
+                        +{formatNumber(subscriberSources.reduce((sum, s) => sum + s.subscribersGained, 0))}
+                      </div>
+                      <div className="text-xs text-gray-600">新訂閱</div>
+                    </div>
                   </div>
                 </div>
               </div>
