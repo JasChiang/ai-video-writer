@@ -122,14 +122,19 @@ if (process.env.CUSTOM_TEMPLATE_URL && !Number.isNaN(CUSTOM_TEMPLATE_REFRESH_INT
   }, CUSTOM_TEMPLATE_REFRESH_INTERVAL_MS);
 }
 
-// 驗證 API Key
+// 驗證 API Key (Mock 模式下可跳過)
 if (!process.env.GEMINI_API_KEY) {
-  console.error('❌ ERROR: GEMINI_API_KEY is not set in .env.local');
-  console.error('Please add GEMINI_API_KEY=your_api_key to .env.local');
-  process.exit(1);
+  if (ENABLE_MOCK_DATA) {
+    console.log('⚠️  GEMINI_API_KEY is not set - OK in Mock Mode');
+    console.log('🎭 Mock 模式：不需要真實的 API key');
+  } else {
+    console.error('❌ ERROR: GEMINI_API_KEY is not set in .env.local');
+    console.error('Please add GEMINI_API_KEY=your_api_key to .env.local');
+    process.exit(1);
+  }
+} else {
+  console.log('✅ Gemini API Key loaded successfully');
 }
-
-console.log('✅ Gemini API Key loaded successfully');
 
 // CORS 配置 - 只允許指定的前端網址
 const corsOptions = {

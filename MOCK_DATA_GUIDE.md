@@ -47,6 +47,8 @@
 cp .env.mock .env.local
 ```
 
+   **重要提示**：Mock 模式下不需要設定任何 API 金鑰！`.env.mock` 檔案已經配置好所有必要設定。
+
 2. 啟動開發伺服器：
 ```bash
 npm run dev:all
@@ -56,6 +58,13 @@ npm run dev:all
 ```
 http://localhost:3000
 ```
+
+   你會看到伺服器啟動訊息：
+   ```
+   🎭 Mock 資料模式已啟用 - 所有 dashboard API 將返回 mock 資料
+   ⚠️  GEMINI_API_KEY is not set - OK in Mock Mode
+   🎭 Mock 模式：不需要真實的 API key
+   ```
 
 ### 方法 2：手動設定環境變數
 
@@ -174,6 +183,12 @@ npm run dev:all
 
 **Q: Mock 模式下需要登入 YouTube 嗎？**
 A: 不需要。Mock 模式完全繞過 YouTube OAuth 流程。
+
+**Q: Mock 模式下需要設定 API 金鑰嗎？**
+A: 不需要！只要 `ENABLE_MOCK_DATA=true`，伺服器就會跳過 API 金鑰檢查。你會看到訊息：「⚠️ GEMINI_API_KEY is not set - OK in Mock Mode」。
+
+**Q: 啟動時看到 "GEMINI_API_KEY is not set" 是正常的嗎？**
+A: 是的！在 Mock 模式下這是正常訊息。只要確認 `.env.local` 中設定了 `ENABLE_MOCK_DATA=true`，伺服器就會正常啟動。
 
 **Q: Mock 資料會改變嗎？**
 A: 每次刷新頁面或重新獲取資料時，數值會有隨機變化，但保持在合理範圍內。
