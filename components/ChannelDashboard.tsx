@@ -3073,7 +3073,7 @@ export function ChannelDashboard() {
               Shorts 與一般影片的表現對比
               {(contentTypeMetrics.shorts.views === 0 && contentTypeMetrics.regularVideos.views === 0) && (
                 <span className="block mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-orange-700 text-xs">
-                  ℹ️ 選定的時間範圍內沒有觀看數據。請嘗試：<br/>
+                  選定的時間範圍內沒有觀看數據。請嘗試：<br/>
                   1. 選擇更長的時間範圍（例如「過去 90 天」）<br/>
                   2. 確認頻道在此期間有發布影片
                 </span>
@@ -3110,7 +3110,7 @@ export function ChannelDashboard() {
               {/* 一般影片卡片 */}
               <div className="p-4 rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 border border-amber-100">
                 <div className="text-sm font-semibold text-amber-600 mb-3 flex items-center gap-2">
-                  <span className="text-lg">🎬</span>
+                  <Video className="w-4 h-4" />
                   一般影片
                 </div>
                 <div className="space-y-2.5">
@@ -3848,11 +3848,11 @@ export function ChannelDashboard() {
                             <div className="text-2xl font-bold text-gray-600">第 2 名</div>
                           </div>
                           {/* 影片縮圖 - 固定高度 */}
-                          <div className="mb-3 rounded-lg overflow-hidden h-24 flex-shrink-0">
+                          <div className="mb-3 h-24 flex-shrink-0">
                             <img
                               src={`https://i.ytimg.com/vi/${subscriberSources[1].videoId}/mqdefault.jpg`}
                               alt={subscriberSources[1].videoTitle}
-                              className="w-full h-full object-contain"
+                              className="w-full h-full object-contain rounded-lg"
                               onError={(e) => {
                                 e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[1].videoId}/default.jpg`;
                               }}
@@ -3883,11 +3883,11 @@ export function ChannelDashboard() {
                             </div>
                           </div>
                           {/* 影片縮圖 - 固定高度 */}
-                          <div className="mb-3 rounded-lg overflow-hidden shadow-md h-28 flex-shrink-0">
+                          <div className="mb-3 h-28 flex-shrink-0">
                             <img
                               src={`https://i.ytimg.com/vi/${subscriberSources[0].videoId}/mqdefault.jpg`}
                               alt={subscriberSources[0].videoTitle}
-                              className="w-full h-full object-contain"
+                              className="w-full h-full object-contain rounded-lg"
                               onError={(e) => {
                                 e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[0].videoId}/default.jpg`;
                               }}
@@ -3914,11 +3914,11 @@ export function ChannelDashboard() {
                             <div className="text-2xl font-bold text-orange-600">第 3 名</div>
                           </div>
                           {/* 影片縮圖 - 固定高度 */}
-                          <div className="mb-3 rounded-lg overflow-hidden h-20 flex-shrink-0">
+                          <div className="mb-3 h-20 flex-shrink-0">
                             <img
                               src={`https://i.ytimg.com/vi/${subscriberSources[2].videoId}/mqdefault.jpg`}
                               alt={subscriberSources[2].videoTitle}
-                              className="w-full h-full object-contain"
+                              className="w-full h-full object-contain rounded-lg"
                               onError={(e) => {
                                 e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[2].videoId}/default.jpg`;
                               }}
@@ -3953,11 +3953,11 @@ export function ChannelDashboard() {
                           <div key={source.videoId} className={`bg-gradient-to-r ${style.bg} rounded-2xl p-4 border-2 ${style.border} shadow-lg`}>
                             <div className="flex gap-3 mb-3">
                               {/* 影片縮圖 */}
-                              <div className="flex-shrink-0 w-32 rounded-lg overflow-hidden">
+                              <div className="flex-shrink-0 w-32">
                                 <img
                                   src={`https://i.ytimg.com/vi/${source.videoId}/mqdefault.jpg`}
                                   alt={source.videoTitle}
-                                  className="w-full h-18 object-contain"
+                                  className="w-full h-18 object-contain rounded-lg"
                                   onError={(e) => {
                                     e.currentTarget.src = `https://i.ytimg.com/vi/${source.videoId}/default.jpg`;
                                   }}
@@ -4005,11 +4005,11 @@ export function ChannelDashboard() {
                           className="flex gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:shadow-md transition-all"
                         >
                           {/* 影片縮圖 */}
-                          <div className="flex-shrink-0 w-24 rounded-md overflow-hidden">
+                          <div className="flex-shrink-0 w-24">
                             <img
                               src={`https://i.ytimg.com/vi/${source.videoId}/mqdefault.jpg`}
                               alt={source.videoTitle}
-                              className="w-full h-16 object-contain"
+                              className="w-full h-16 object-contain rounded-lg"
                               onError={(e) => {
                                 e.currentTarget.src = `https://i.ytimg.com/vi/${source.videoId}/default.jpg`;
                               }}
