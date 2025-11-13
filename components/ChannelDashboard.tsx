@@ -52,6 +52,12 @@ import {
   BarChart3,
   RefreshCw,
   Share2,
+  Monitor,
+  Smartphone,
+  Tablet,
+  Tv,
+  Gamepad2,
+  Crown,
 } from 'lucide-react';
 import * as youtubeService from '../services/youtubeService';
 
@@ -1948,17 +1954,56 @@ export function ChannelDashboard() {
     return num.toLocaleString('en-US');
   };
 
-  // 取得國旗 emoji
-  const getCountryFlag = (countryCode: string): string => {
-    // 將國家代碼轉換為旗幟 emoji
-    // 例如: TW -> 🇹🇼, US -> 🇺🇸
-    if (countryCode.length !== 2) return '🌍';
+  // 取得國家中文名稱
+  const getCountryName = (countryCode: string): string => {
+    const countryNames: { [key: string]: string } = {
+      'TW': '台灣',
+      'US': '美國',
+      'JP': '日本',
+      'KR': '韓國',
+      'CN': '中國',
+      'HK': '香港',
+      'MO': '澳門',
+      'SG': '新加坡',
+      'MY': '馬來西亞',
+      'TH': '泰國',
+      'VN': '越南',
+      'PH': '菲律賓',
+      'ID': '印尼',
+      'IN': '印度',
+      'GB': '英國',
+      'DE': '德國',
+      'FR': '法國',
+      'CA': '加拿大',
+      'AU': '澳洲',
+      'NZ': '紐西蘭',
+      'BR': '巴西',
+      'MX': '墨西哥',
+      'ES': '西班牙',
+      'IT': '義大利',
+      'NL': '荷蘭',
+      'SE': '瑞典',
+      'NO': '挪威',
+      'DK': '丹麥',
+      'FI': '芬蘭',
+      'PL': '波蘭',
+      'RU': '俄羅斯',
+      'TR': '土耳其',
+      'SA': '沙烏地阿拉伯',
+      'AE': '阿聯酋',
+      'IL': '以色列',
+      'EG': '埃及',
+      'ZA': '南非',
+      'AR': '阿根廷',
+      'CL': '智利',
+      'CO': '哥倫比亞',
+    };
 
-    const codePoints = countryCode
-      .toUpperCase()
-      .split('')
-      .map(char => 127397 + char.charCodeAt(0));
-    return String.fromCodePoint(...codePoints);
+    const chineseName = countryNames[countryCode.toUpperCase()];
+    if (chineseName) {
+      return `${chineseName}（${countryCode.toUpperCase()}）`;
+    }
+    return countryCode.toUpperCase();
   };
 
   // 翻譯流量來源代碼
@@ -3039,7 +3084,7 @@ export function ChannelDashboard() {
               {/* Shorts 卡片 */}
               <div className="p-4 rounded-xl bg-gradient-to-br from-red-50 to-rose-50 border border-red-100">
                 <div className="text-sm font-semibold text-red-600 mb-3 flex items-center gap-2">
-                  <span className="text-lg">📱</span>
+                  <Video className="w-4 h-4" />
                   Shorts 短影片
                 </div>
                 <div className="space-y-2.5">
@@ -3661,8 +3706,7 @@ export function ChannelDashboard() {
                           <span className="text-xs font-medium text-gray-400 w-5 text-center">
                             {index + 1}
                           </span>
-                          <span className="text-2xl">{getCountryFlag(item.country)}</span>
-                          <span className="text-gray-700">{item.country}</span>
+                          <span className="text-gray-700">{getCountryName(item.country)}</span>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-gray-500 text-xs">
@@ -3707,14 +3751,16 @@ export function ChannelDashboard() {
                     const deviceName = deviceNames[device.deviceType] || device.deviceType;
 
                     // 裝置圖示
-                    const deviceIcons: { [key: string]: string } = {
-                      DESKTOP: '💻',
-                      MOBILE: '📱',
-                      TABLET: '📱',
-                      TV: '📺',
-                      GAME_CONSOLE: '🎮',
-                    };
-                    const deviceIcon = deviceIcons[device.deviceType] || '📱';
+                    const DeviceIcon = (() => {
+                      switch (device.deviceType) {
+                        case 'DESKTOP': return Monitor;
+                        case 'MOBILE': return Smartphone;
+                        case 'TABLET': return Tablet;
+                        case 'TV': return Tv;
+                        case 'GAME_CONSOLE': return Gamepad2;
+                        default: return Smartphone;
+                      }
+                    })();
 
                     // 顏色
                     const colors = [
@@ -3733,7 +3779,7 @@ export function ChannelDashboard() {
                       <div key={index} className="space-y-1.5">
                         <div className="flex items-center justify-between text-sm">
                           <div className="flex items-center gap-2">
-                            <span className="text-2xl">{deviceIcon}</span>
+                            <DeviceIcon className="w-5 h-5" style={{ color }} />
                             <span className="font-medium text-gray-700">
                               {deviceName}
                             </span>
@@ -3806,7 +3852,7 @@ export function ChannelDashboard() {
                             <img
                               src={`https://i.ytimg.com/vi/${subscriberSources[1].videoId}/mqdefault.jpg`}
                               alt={subscriberSources[1].videoTitle}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-contain"
                               onError={(e) => {
                                 e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[1].videoId}/default.jpg`;
                               }}
@@ -3831,14 +3877,17 @@ export function ChannelDashboard() {
                         <div className="w-full bg-gradient-to-b from-yellow-50 to-yellow-100 rounded-2xl p-5 border-2 border-yellow-400 shadow-2xl overflow-hidden flex flex-col" style={{ height: '380px' }}>
                           <div className="text-center mb-3">
                             <div className="text-3xl font-bold text-yellow-700">第 1 名</div>
-                            <div className="text-xs text-yellow-600">👑 冠軍</div>
+                            <div className="text-xs text-yellow-600 flex items-center justify-center gap-1">
+                              <Crown className="w-3 h-3" />
+                              冠軍
+                            </div>
                           </div>
                           {/* 影片縮圖 - 固定高度 */}
                           <div className="mb-3 rounded-lg overflow-hidden shadow-md h-28 flex-shrink-0">
                             <img
                               src={`https://i.ytimg.com/vi/${subscriberSources[0].videoId}/mqdefault.jpg`}
                               alt={subscriberSources[0].videoTitle}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-contain"
                               onError={(e) => {
                                 e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[0].videoId}/default.jpg`;
                               }}
@@ -3869,7 +3918,7 @@ export function ChannelDashboard() {
                             <img
                               src={`https://i.ytimg.com/vi/${subscriberSources[2].videoId}/mqdefault.jpg`}
                               alt={subscriberSources[2].videoTitle}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-contain"
                               onError={(e) => {
                                 e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[2].videoId}/default.jpg`;
                               }}
@@ -3908,7 +3957,7 @@ export function ChannelDashboard() {
                                 <img
                                   src={`https://i.ytimg.com/vi/${source.videoId}/mqdefault.jpg`}
                                   alt={source.videoTitle}
-                                  className="w-full h-18 object-cover"
+                                  className="w-full h-18 object-contain"
                                   onError={(e) => {
                                     e.currentTarget.src = `https://i.ytimg.com/vi/${source.videoId}/default.jpg`;
                                   }}
@@ -3960,7 +4009,7 @@ export function ChannelDashboard() {
                             <img
                               src={`https://i.ytimg.com/vi/${source.videoId}/mqdefault.jpg`}
                               alt={source.videoTitle}
-                              className="w-full h-16 object-cover"
+                              className="w-full h-16 object-contain"
                               onError={(e) => {
                                 e.currentTarget.src = `https://i.ytimg.com/vi/${source.videoId}/default.jpg`;
                               }}
