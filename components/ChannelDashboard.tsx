@@ -283,6 +283,9 @@ export function ChannelDashboard() {
       const storedData = window.localStorage.getItem(DATA_STORAGE_KEY);
       if (storedData) {
         const parsed = JSON.parse(storedData);
+        if (parsed?.startDate) setStartDate(parsed.startDate);
+        if (parsed?.endDate) setEndDate(parsed.endDate);
+        if (parsed?.topVideoMetric) setTopVideoMetric(parsed.topVideoMetric);
         if (parsed?.channelStats) setChannelStats(parsed.channelStats);
         if (Array.isArray(parsed?.topVideos)) setTopVideos(parsed.topVideos);
         if (Array.isArray(parsed?.monthlyData)) setMonthlyData(parsed.monthlyData);
@@ -1670,6 +1673,33 @@ export function ChannelDashboard() {
     return [...topVideos].sort((a, b) => config.value(b) - config.value(a));
   }, [topVideos, topVideoMetric]);
 
+  const comparisonDateRanges = useMemo(() => {
+    if (!startDate || !endDate) return null;
+    const currentStart = new Date(startDate);
+    const currentEnd = new Date(endDate);
+    if (Number.isNaN(currentStart.getTime()) || Number.isNaN(currentEnd.getTime())) {
+      return null;
+    }
+
+    const daysDiff =
+      Math.ceil((currentEnd.getTime() - currentStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+    const previousEnd = new Date(currentStart);
+    previousEnd.setDate(previousEnd.getDate() - 1);
+    const previousStart = new Date(previousEnd);
+    previousStart.setDate(previousStart.getDate() - daysDiff + 1);
+
+    const yearAgoStart = new Date(currentStart);
+    yearAgoStart.setFullYear(yearAgoStart.getFullYear() - 1);
+    const yearAgoEnd = new Date(currentEnd);
+    yearAgoEnd.setFullYear(yearAgoEnd.getFullYear() - 1);
+
+    return {
+      previous: `${formatDateString(previousStart)} ~ ${formatDateString(previousEnd)}`,
+      yearAgo: `${formatDateString(yearAgoStart)} ~ ${formatDateString(yearAgoEnd)}`,
+    };
+  }, [startDate, endDate]);
+
   // 不自動監聽日期變化，只有點擊「刷新數據」按鈕才會調用 API
   // useEffect(() => {
   //   if (channelStats) {
@@ -1848,13 +1878,23 @@ export function ChannelDashboard() {
             {viewsComparison && (
               <div className="mt-2 flex flex-col gap-1 text-xs">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-gray-500">較前期</span>
+                  <div className="text-gray-500 leading-tight">
+                    <div>較前期</div>
+                    {comparisonDateRanges && (
+                      <div className="text-[10px] text-gray-400">{comparisonDateRanges.previous}</div>
+                    )}
+                  </div>
                   <span className={`ml-2 font-semibold ${viewsComparison.changeFromPrevious >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {viewsComparison.changeFromPrevious >= 0 ? '+' : ''}{viewsComparison.changeFromPreviousPercent.toFixed(1)}%
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-gray-500">較去年同期</span>
+                  <div className="text-gray-500 leading-tight">
+                    <div>較去年同期</div>
+                    {comparisonDateRanges && (
+                      <div className="text-[10px] text-gray-400">{comparisonDateRanges.yearAgo}</div>
+                    )}
+                  </div>
                   <span className={`ml-2 font-semibold ${viewsComparison.changeFromYearAgo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {viewsComparison.changeFromYearAgo >= 0 ? '+' : ''}{viewsComparison.changeFromYearAgoPercent.toFixed(1)}%
                   </span>
@@ -1890,13 +1930,23 @@ export function ChannelDashboard() {
             {watchTimeComparison && (
               <div className="mt-2 flex flex-col gap-1 text-xs">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-gray-500">較前期</span>
+                  <div className="text-gray-500 leading-tight">
+                    <div>較前期</div>
+                    {comparisonDateRanges && (
+                      <div className="text-[10px] text-gray-400">{comparisonDateRanges.previous}</div>
+                    )}
+                  </div>
                   <span className={`ml-2 font-semibold ${watchTimeComparison.changeFromPrevious >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {watchTimeComparison.changeFromPrevious >= 0 ? '+' : ''}{watchTimeComparison.changeFromPreviousPercent.toFixed(1)}%
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-gray-500">較去年同期</span>
+                  <div className="text-gray-500 leading-tight">
+                    <div>較去年同期</div>
+                    {comparisonDateRanges && (
+                      <div className="text-[10px] text-gray-400">{comparisonDateRanges.yearAgo}</div>
+                    )}
+                  </div>
                   <span className={`ml-2 font-semibold ${watchTimeComparison.changeFromYearAgo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {watchTimeComparison.changeFromYearAgo >= 0 ? '+' : ''}{watchTimeComparison.changeFromYearAgoPercent.toFixed(1)}%
                   </span>
@@ -1932,13 +1982,23 @@ export function ChannelDashboard() {
             {subscribersComparison && (
               <div className="mt-2 flex flex-col gap-1 text-xs">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-gray-500">較前期</span>
+                  <div className="text-gray-500 leading-tight">
+                    <div>較前期</div>
+                    {comparisonDateRanges && (
+                      <div className="text-[10px] text-gray-400">{comparisonDateRanges.previous}</div>
+                    )}
+                  </div>
                   <span className={`ml-2 font-semibold ${subscribersComparison.changeFromPrevious >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {subscribersComparison.changeFromPrevious >= 0 ? '+' : ''}{subscribersComparison.changeFromPreviousPercent.toFixed(1)}%
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-gray-500">較去年同期</span>
+                  <div className="text-gray-500 leading-tight">
+                    <div>較去年同期</div>
+                    {comparisonDateRanges && (
+                      <div className="text-[10px] text-gray-400">{comparisonDateRanges.yearAgo}</div>
+                    )}
+                  </div>
                   <span className={`ml-2 font-semibold ${subscribersComparison.changeFromYearAgo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {subscribersComparison.changeFromYearAgo >= 0 ? '+' : ''}{subscribersComparison.changeFromYearAgoPercent.toFixed(1)}%
                   </span>
@@ -2121,53 +2181,53 @@ export function ChannelDashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               {/* Shorts 卡片 */}
-              <div className="p-4 rounded-xl bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200">
-                <div className="text-sm font-semibold text-purple-700 mb-3 flex items-center gap-2">
+              <div className="p-4 rounded-xl bg-gradient-to-br from-red-50 to-rose-50 border border-red-100">
+                <div className="text-sm font-semibold text-red-600 mb-3 flex items-center gap-2">
                   <span className="text-lg">📱</span>
                   Shorts 短影片
                 </div>
                 <div className="space-y-2.5">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-700">觀看次數</span>
-                    <span className="font-bold text-purple-900">{formatNumber(contentTypeMetrics.shorts.views)}</span>
+                    <span className="font-bold text-red-700">{formatNumber(contentTypeMetrics.shorts.views)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-700">按讚數</span>
-                    <span className="font-semibold text-gray-800">{formatNumber(contentTypeMetrics.shorts.likes)}</span>
+                    <span className="font-semibold text-red-700">{formatNumber(contentTypeMetrics.shorts.likes)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-700">分享數</span>
-                    <span className="font-semibold text-gray-800">{formatNumber(contentTypeMetrics.shorts.shares)}</span>
+                    <span className="font-semibold text-red-600">{formatNumber(contentTypeMetrics.shorts.shares)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-700">留言數</span>
-                    <span className="font-semibold text-gray-800">{formatNumber(contentTypeMetrics.shorts.comments)}</span>
+                    <span className="font-semibold text-red-600">{formatNumber(contentTypeMetrics.shorts.comments)}</span>
                   </div>
                 </div>
               </div>
 
               {/* 一般影片卡片 */}
-              <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200">
-                <div className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
+              <div className="p-4 rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 border border-amber-100">
+                <div className="text-sm font-semibold text-amber-600 mb-3 flex items-center gap-2">
                   <span className="text-lg">🎬</span>
                   一般影片
                 </div>
                 <div className="space-y-2.5">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-700">觀看次數</span>
-                    <span className="font-bold text-blue-900">{formatNumber(contentTypeMetrics.regularVideos.views)}</span>
+                    <span className="font-bold text-amber-700">{formatNumber(contentTypeMetrics.regularVideos.views)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-700">觀看時間</span>
-                    <span className="font-semibold text-gray-800">{formatNumber(contentTypeMetrics.regularVideos.watchTime)} 小時</span>
+                    <span className="font-semibold text-amber-700">{formatNumber(contentTypeMetrics.regularVideos.watchTime)} 小時</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-700">按讚數</span>
-                    <span className="font-semibold text-gray-800">{formatNumber(contentTypeMetrics.regularVideos.likes)}</span>
+                    <span className="font-semibold text-amber-600">{formatNumber(contentTypeMetrics.regularVideos.likes)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-700">留言數</span>
-                    <span className="font-semibold text-gray-800">{formatNumber(contentTypeMetrics.regularVideos.comments)}</span>
+                    <span className="font-semibold text-amber-600">{formatNumber(contentTypeMetrics.regularVideos.comments)}</span>
                   </div>
                 </div>
               </div>
@@ -2180,17 +2240,17 @@ export function ChannelDashboard() {
               const regularPercentage = totalViews > 0 ? ((contentTypeMetrics.regularVideos.views / totalViews) * 100).toFixed(1) : '0';
 
               return (
-                <div className="p-4 bg-gray-50 rounded-xl">
+                <div className="p-4 bg-rose-50 rounded-xl border border-rose-100">
                   <div className="text-sm font-medium text-gray-700 mb-2">觀看次數佔比</div>
                   <div className="flex h-10 rounded-full overflow-hidden shadow-inner">
                     <div
-                      className="bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-semibold transition-all"
+                      className="bg-gradient-to-r from-red-500 to-rose-500 flex items-center justify-center text-white text-sm font-semibold transition-all"
                       style={{ width: `${shortsPercentage}%` }}
                     >
                       {parseFloat(shortsPercentage) > 12 && `Shorts ${shortsPercentage}%`}
                     </div>
                     <div
-                      className="bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center text-white text-sm font-semibold transition-all"
+                      className="bg-gradient-to-r from-amber-500 to-orange-500 flex items-center justify-center text-white text-sm font-semibold transition-all"
                       style={{ width: `${regularPercentage}%` }}
                     >
                       {parseFloat(regularPercentage) > 12 && `一般影片 ${regularPercentage}%`}
@@ -2212,54 +2272,59 @@ export function ChannelDashboard() {
         <div className={cardBaseClass}>
           <div className="p-6">
             <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-purple-500" />
+              <TrendingUp className="w-5 h-5 text-red-500" />
               熱門 Shorts 排行榜
             </h3>
             <p className="text-sm text-gray-500 mb-4">時間範圍內表現最佳的 Shorts 短影片（按觀看次數排序）</p>
 
-            <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
               {topShorts.map((video, index) => (
                 <div
                   key={video.id}
-                  className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4 p-3 rounded-xl border border-transparent hover:border-purple-200 hover:bg-purple-50/50 transition-colors"
+                  className="p-2 rounded-lg border border-red-100 hover:border-red-200 hover:bg-red-50/70 transition-colors flex flex-col items-center text-center gap-2 h-full"
                 >
-                  {/* 排名與縮圖 */}
-                  <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <div className="text-2xl font-bold text-purple-500 w-8 text-center">
-                      {index + 1}
-                    </div>
+                  {/* 排名 */}
+                  <div className="self-start text-xs font-semibold text-red-500 flex items-center gap-1">
+                    <span className="text-sm">#{index + 1}</span>
+                    <span className="text-[11px] text-gray-400">Shorts</span>
+                  </div>
+
+                  {/* 縮圖與觀看次數 */}
+                  <div className="flex flex-col items-center w-full">
                     <img
                       src={video.thumbnailUrl}
                       alt={video.title}
-                      className="w-24 aspect-[9/16] object-cover rounded-lg shadow-sm"
+                      className="w-full max-w-[105px] aspect-[9/16] object-cover rounded-lg shadow-sm"
                     />
+                    <div className="mt-1 inline-flex items-center justify-center gap-1 text-sm text-red-600 w-full max-w-[105px] truncate">
+                      <Eye className="w-4 h-4 text-red-500 shrink-0" />
+                      <span className="font-semibold truncate">
+                        {formatFullNumber(video.viewCount)}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* 影片資訊 */}
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-gray-900 line-clamp-2 mb-1.5">
-                      {video.title}
-                    </h4>
-                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600 mb-2">
-                      <div className="flex items-center gap-1">
-                        <Eye className="w-4 h-4 text-purple-500" />
-                        <span className="font-semibold text-purple-700">{formatFullNumber(video.viewCount)}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <ThumbsUp className="w-4 h-4 text-gray-400" />
-                        {formatFullNumber(video.likeCount)}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <MessageSquare className="w-4 h-4 text-gray-400" />
-                        {formatFullNumber(video.commentCount)}
-                      </div>
-                      {video.avgViewPercentage > 0 && (
-                        <div className="flex items-center gap-1">
-                          <BarChart3 className="w-4 h-4 text-gray-400" />
-                          {video.avgViewPercentage.toFixed(1)}% 完成度
-                        </div>
-                      )}
-                    </div>
+                  {/* 影片標題 */}
+                  <h4 className="text-[13px] font-medium text-gray-900 line-clamp-2 w-full">
+                    {video.title}
+                  </h4>
+
+                  {/* 互動數據 */}
+                  <div className="w-full flex items-center justify-center gap-2 text-xs font-semibold whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 text-rose-600">
+                      <ThumbsUp className="w-4 h-4 shrink-0" />
+                      {formatFullNumber(video.likeCount)}
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-red-500">
+                      <MessageSquare className="w-4 h-4 shrink-0" />
+                      {formatFullNumber(video.commentCount)}
+                    </span>
+                    {video.avgViewPercentage > 0 && (
+                      <span className="inline-flex items-center gap-1 text-amber-600">
+                        <BarChart3 className="w-4 h-4 shrink-0" />
+                        {video.avgViewPercentage.toFixed(1)}%
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -2296,7 +2361,7 @@ export function ChannelDashboard() {
             </div>
 
             {/* 響應式網格卡片 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
               {sortedTopVideos.map((video, index) => {
                 const metricConfig = topVideoMetricConfig[topVideoMetric];
                 const metricValue = metricConfig.value(video);
@@ -2306,50 +2371,47 @@ export function ChannelDashboard() {
                 return (
                   <div
                     key={video.id}
-                    className="relative flex flex-col p-4 rounded-xl border border-gray-200 hover:border-red-300 hover:shadow-md transition-all bg-white"
+                    className="p-2 rounded-lg border border-red-100 hover:border-red-200 hover:bg-red-50/70 transition-colors flex flex-col items-center text-center gap-2 h-full"
                   >
                     {/* 排名標籤 */}
-                    <div className="absolute top-2 left-2 w-8 h-8 rounded-full bg-red-500 text-white font-bold flex items-center justify-center shadow-md z-10">
-                      {index + 1}
+                    <div className="self-start text-xs font-semibold text-red-500 flex items-center gap-1">
+                      <span className="text-sm">#{index + 1}</span>
+                      <span className="text-[11px] text-gray-400">Top</span>
                     </div>
 
-                    {/* 縮圖 */}
-                    <div className="mb-3">
+                    {/* 縮圖與主要指標 */}
+                    <div className="flex flex-col items-center w-full">
                       <img
                         src={video.thumbnailUrl}
                         alt={video.title}
-                        className="w-full aspect-video object-cover rounded-lg shadow-sm"
+                        className="w-full max-w-[150px] aspect-video object-cover rounded-lg shadow-sm"
                       />
+                      <div className="mt-1 inline-flex items-center justify-center gap-1 text-sm text-red-600 w-full max-w-[150px] truncate">
+                        <MetricIcon className="w-4 h-4 text-red-500 flex-shrink-0" />
+                        <span className="font-semibold truncate">{metricDisplay}</span>
+                      </div>
+                      <div className="text-[11px] text-gray-500">{metricConfig.label}</div>
                     </div>
 
                     {/* 影片標題 */}
-                    <h4 className="font-semibold text-gray-900 line-clamp-2 mb-2 min-h-[2.5rem]">
+                    <h4 className="text-[13px] font-medium text-gray-900 line-clamp-2 w-full">
                       {video.title}
                     </h4>
 
-                    {/* 指標數據 */}
-                    <div className="flex items-center gap-2 mb-3 p-2 bg-red-50 rounded-lg">
-                      <MetricIcon className="w-5 h-5 text-red-600 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs text-gray-600">{metricConfig.label}</div>
-                        <div className="text-lg font-bold text-red-600">{metricDisplay}</div>
-                      </div>
-                    </div>
-
                     {/* 互動數據 */}
-                    <div className="flex items-center justify-between text-sm text-gray-600 pt-3 border-t border-gray-100">
-                      <div className="flex items-center gap-1">
-                        <ThumbsUp className="w-4 h-4 text-gray-400" />
-                        <span>{formatNumber(video.likeCount)}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <MessageSquare className="w-4 h-4 text-gray-400" />
-                        <span>{formatNumber(video.commentCount)}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4 text-gray-400" />
-                        <span className="text-xs">{formatDate(video.publishedAt)}</span>
-                      </div>
+                    <div className="w-full flex items-center justify-center gap-2 text-xs font-semibold whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1 text-rose-600">
+                        <ThumbsUp className="w-4 h-4 shrink-0" />
+                        {formatNumber(video.likeCount)}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-red-500">
+                        <MessageSquare className="w-4 h-4 shrink-0" />
+                        {formatNumber(video.commentCount)}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-amber-600">
+                        <Calendar className="w-4 h-4 shrink-0" />
+                        {formatDate(video.publishedAt)}
+                      </span>
                     </div>
                   </div>
                 );
