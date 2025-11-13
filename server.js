@@ -44,7 +44,12 @@ import {
   getMockChannelAnalyticsAggregate,
   getMockVideoAnalytics,
   getMockKeywordAnalysis,
-  getMockVideoCache
+  getMockVideoCache,
+  getMockMetadataOptions,
+  getMockArticle,
+  getMockScreenshotSuggestions,
+  getMockYouTubeToken,
+  getMockChannelInfo
 } from './services/mockDataService.js';
 
 const execAsync = promisify(exec);
@@ -2286,6 +2291,19 @@ app.post('/api/generate-article', async (req, res) => {
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
+  }
+
+  // Mock 資料模式
+  if (ENABLE_MOCK_DATA) {
+    console.log('[Generate Article - Mock] 返回 mock 文章資料');
+    const mockData = getMockArticle(videoTitle || '影片標題');
+    return res.json({
+      success: true,
+      article: mockData.article.content,
+      wordCount: mockData.article.wordCount,
+      fileReused: false,
+      message: 'Mock 模式：文章已生成（模擬資料）'
+    });
   }
 
   try {
