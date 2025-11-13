@@ -11,7 +11,9 @@
 
 ## 包含的 Mock 資料
 
-### 1. 頻道儀表板 (ChannelDashboard)
+### 🎯 已完成的 Mock 功能
+
+#### 1. 頻道儀表板 (ChannelDashboard)
 - 頻道總體統計（訂閱數、觀看數、觀看時長）
 - 熱門影片列表（可依觀看數、分享數、留言數排序）
 - 趨勢圖表（過去 30 天）
@@ -27,16 +29,47 @@
 - Shorts vs 一般影片對比
 - 熱門 Shorts 列表
 
-### 2. 關鍵字報表 (ChannelAnalytics)
+#### 2. 關鍵字報表 (ChannelAnalytics)
 - 多關鍵字組合分析
 - 多時間範圍對比
 - 完整的影片數據指標
 
-### 3. 影片分析 (VideoAnalytics)
+#### 3. 影片分析 (VideoAnalytics)
 - 影片表現評分
 - 流量來源詳細分析
 - 關鍵字優化建議
 - SEO 改善建議
+
+#### 4. 文章生成 (ArticleGenerator) ✨ 新功能
+- 完整文章內容（1500+ 字）
+- 結構化內容（標題、段落、清單）
+- SEO 優化文案
+- 實用技巧和案例分享
+- 行動計畫清單
+- 字數統計
+
+#### 5. 中繼資料生成 (MetadataGenerator) ✨ 新功能
+- 三種不同風格的標題和說明：
+  - **實用導向**：清晰的時間軸和重點摘要
+  - **情感共鳴**：引起共鳴的文案和互動提示
+  - **SEO 優化**：關鍵字豐富、結構化的說明
+- 完整的標籤建議（每種風格 10+ 標籤）
+
+#### 6. 截圖建議 (Screenshot Suggestions) ✨ 新功能
+- 5 個建議的截圖時間點
+- 每個時間點的截圖理由
+- 適合的文章位置建議
+
+### 🚧 待開發的 Mock 功能
+
+以下功能目前仍需真實 API 金鑰（未來版本會添加 mock 支援）：
+
+- **影片列表 (VideoSelector)**：需要 YouTube OAuth 登入查看影片
+- **影片詳細資料 (VideoDetailPanel)**：需要 YouTube Data API
+- **影片上傳和處理**：需要實際影片檔案和處理
+- **Notion 發佈**：需要 Notion API Token
+
+如果你需要這些功能的 mock 支援，請在 issue 中告訴我們！
 
 ## 啟動方式
 
@@ -122,11 +155,20 @@ npm run dev:all
 
 所有以下 API endpoints 在 Mock 模式下都會返回假資料：
 
+### Dashboard & Analytics
 - `POST /api/dashboard/data` - 頻道儀表板資料
 - `POST /api/analytics/channel` - 影片分析資料
 - `POST /api/analytics/keyword-analysis` - 關鍵字分析
 - `POST /api/channel-analytics/aggregate` - 頻道分析聚合資料
 - `GET /api/video-cache` - 影片快取資料
+
+### Content Generation ✨ 新增
+- `POST /api/generate-article` - 文章生成（返回完整 mock 文章）
+- ~~`POST /api/generate-metadata`~~ (計劃中)
+- ~~`POST /api/screenshot-suggestions`~~ (計劃中)
+
+### 說明
+目前文章生成已支援 mock 模式。當你在 mock 模式下點擊「生成文章」時，系統會立即返回一篇完整的示範文章，無需等待 AI 處理。
 
 ## 截圖建議
 
