@@ -144,6 +144,25 @@ interface ComparisonData {
   changeFromYearAgoPercent: number;   // 同比變化百分比
 }
 
+interface ContentTypeMetrics {
+  shorts: {
+    views: number;
+    watchTime: number;
+    likes: number;
+    shares: number;
+    comments: number;
+    videoCount: number;
+  };
+  regularVideos: {
+    views: number;
+    watchTime: number;
+    likes: number;
+    shares: number;
+    comments: number;
+    videoCount: number;
+  };
+}
+
 type ChartMetric = 'views' | 'watchTime' | 'subscribers';
 type QuickDateRange = '7d' | '30d' | '90d' | 'this_month' | 'last_month';
 
@@ -244,6 +263,8 @@ export function ChannelDashboard() {
   const [watchTimeComparison, setWatchTimeComparison] = useState<ComparisonData | null>(null);
   const [subscribersComparison, setSubscribersComparison] = useState<ComparisonData | null>(null);
   const [topVideoMetric, setTopVideoMetric] = useState<'views' | 'avgViewPercent' | 'shares' | 'comments'>('views');
+  const [contentTypeMetrics, setContentTypeMetrics] = useState<ContentTypeMetrics | null>(null);
+  const [topShorts, setTopShorts] = useState<VideoItem[]>([]);
 
   const hasHydratedRef = useRef(false);
 
@@ -256,8 +277,8 @@ export function ChannelDashboard() {
         const parsed = JSON.parse(storedFilters);
         if (parsed?.startDate) setStartDate(parsed.startDate);
         if (parsed?.endDate) setEndDate(parsed.endDate);
+        if (parsed?.topVideoMetric) setTopVideoMetric(parsed.topVideoMetric);
       }
-      if (parsed?.topVideoMetric) setTopVideoMetric(parsed.topVideoMetric);
 
       const storedData = window.localStorage.getItem(DATA_STORAGE_KEY);
       if (storedData) {
@@ -277,6 +298,8 @@ export function ChannelDashboard() {
         if (parsed?.viewsComparison) setViewsComparison(parsed.viewsComparison);
         if (parsed?.watchTimeComparison) setWatchTimeComparison(parsed.watchTimeComparison);
         if (parsed?.subscribersComparison) setSubscribersComparison(parsed.subscribersComparison);
+        if (parsed?.contentTypeMetrics) setContentTypeMetrics(parsed.contentTypeMetrics);
+        if (Array.isArray(parsed?.topShorts)) setTopShorts(parsed.topShorts);
       }
     } catch (err) {
       console.warn('[Dashboard] ⚠️ 無法還原快取資料:', err);
@@ -321,6 +344,8 @@ export function ChannelDashboard() {
       watchTimeComparison,
       subscribersComparison,
       topVideoMetric,
+      contentTypeMetrics,
+      topShorts,
     };
 
     window.localStorage.setItem(DATA_STORAGE_KEY, JSON.stringify(payload));
@@ -343,6 +368,8 @@ export function ChannelDashboard() {
     startDate,
     endDate,
     topVideoMetric,
+    contentTypeMetrics,
+    topShorts,
   ]);
 
   // 計算日期範圍
@@ -450,6 +477,12 @@ export function ChannelDashboard() {
 
         // 獲取訂閱來源數據
         await fetchSubscriberSourcesData(startDate, endDate, token);
+
+        // 獲取 Shorts vs 一般影片對比數據
+        await fetchContentTypeMetrics(startDate, endDate, token);
+
+        // 獲取熱門 Shorts 排行榜
+        await fetchTopShorts(startDate, endDate, token);
       } else {
         // Analytics API 不可用，回退到 Gist 快取方案
         console.log('[Dashboard] ℹ️  回退到 Gist 快取方案');
@@ -713,6 +746,174 @@ export function ChannelDashboard() {
     } catch (err: any) {
       console.log('[Dashboard] ⚠️ 無法獲取影片數據:', err.message);
       return null;
+    }
+  };
+
+  // 獲取 Shorts vs 一般影片對比數據
+  const fetchContentTypeMetrics = async (startDate: Date, endDate: Date, token: string) => {
+    try {
+      console.log('[Dashboard] 📱 從 Analytics API 獲取內容類型數據...');
+
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      const response = await fetch(
+        `https://youtubeanalytics.googleapis.com/v2/reports?` +
+        `ids=channel==MINE` +
+        `&startDate=${formatDate(startDate)}` +
+        `&endDate=${formatDate(endDate)}` +
+        `&dimensions=creatorContentType` +
+        `&metrics=views,estimatedMinutesWatched,likes,shares,comments` +
+        `&sort=-views`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('[Dashboard] ❌ 內容類型 API 錯誤:', errorData);
+        throw new Error('無法獲取內容類型數據');
+      }
+
+      const data = await response.json();
+      console.log('[Dashboard] 📊 內容類型 API 原始返回:', data);
+
+      // 解析回傳數據（注意：API 返回小寫駝峰式，不是大寫蛇形）
+      const shorts = data.rows?.find((row: any[]) => row[0] === 'shorts' || row[0] === 'SHORTS') || [];
+      const regular = data.rows?.find((row: any[]) => row[0] === 'videoOnDemand' || row[0] === 'VIDEO_ON_DEMAND') || [];
+
+      const metrics: ContentTypeMetrics = {
+        shorts: {
+          views: parseInt(shorts[1]) || 0,
+          watchTime: Math.floor((parseInt(shorts[2]) || 0) / 60), // 分鐘轉小時
+          likes: parseInt(shorts[3]) || 0,
+          shares: parseInt(shorts[4]) || 0,
+          comments: parseInt(shorts[5]) || 0,
+          videoCount: 0, // 需要另外計算
+        },
+        regularVideos: {
+          views: parseInt(regular[1]) || 0,
+          watchTime: Math.floor((parseInt(regular[2]) || 0) / 60), // 分鐘轉小時
+          likes: parseInt(regular[3]) || 0,
+          shares: parseInt(regular[4]) || 0,
+          comments: parseInt(regular[5]) || 0,
+          videoCount: 0, // 需要另外計算
+        }
+      };
+
+      console.log('[Dashboard] ✅ 內容類型數據獲取成功:', {
+        shorts: metrics.shorts,
+        regularVideos: metrics.regularVideos,
+        hasData: metrics.shorts.views > 0 || metrics.regularVideos.views > 0
+      });
+
+      setContentTypeMetrics(metrics);
+      return metrics;
+    } catch (err: any) {
+      console.error('[Dashboard] ⚠️ 無法獲取內容類型數據:', err.message);
+      // 設置空數據以便 UI 可以顯示
+      const emptyMetrics: ContentTypeMetrics = {
+        shorts: { views: 0, watchTime: 0, likes: 0, shares: 0, comments: 0, videoCount: 0 },
+        regularVideos: { views: 0, watchTime: 0, likes: 0, shares: 0, comments: 0, videoCount: 0 }
+      };
+      setContentTypeMetrics(emptyMetrics);
+      return null;
+    }
+  };
+
+  // 獲取熱門 Shorts 排行榜
+  const fetchTopShorts = async (startDate: Date, endDate: Date, token: string) => {
+    try {
+      console.log('[Dashboard] 🎬 從 Analytics API 獲取熱門 Shorts...');
+
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      const response = await fetch(
+        `https://youtubeanalytics.googleapis.com/v2/reports?` +
+        `ids=channel==MINE` +
+        `&startDate=${formatDate(startDate)}` +
+        `&endDate=${formatDate(endDate)}` +
+        `&dimensions=video` +
+        `&filters=creatorContentType==shorts` +
+        `&metrics=views,averageViewPercentage,shares,comments` +
+        `&sort=-views` +
+        `&maxResults=10`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('無法獲取 Shorts 數據');
+      }
+
+      const data = await response.json();
+
+      if (!data.rows || data.rows.length === 0) {
+        console.log('[Dashboard] ℹ️ 時間範圍內沒有 Shorts 數據');
+        setTopShorts([]);
+        return;
+      }
+
+      // 從 Gist 快取獲取影片詳情
+      const cacheResponse = await fetch(
+        `${API_BASE_URL}/video-cache/search?query=&maxResults=10000`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!cacheResponse.ok) {
+        throw new Error('無法獲取影片快取');
+      }
+
+      const cacheData = await cacheResponse.json();
+      const allVideos = cacheData.videos || [];
+
+      // 匹配影片詳情
+      const topShortsWithDetails = data.rows.slice(0, 10).map((row: any[]) => {
+        const videoId = row[0];
+        const views = parseInt(row[1]) || 0;
+        const avgViewPercent = parseFloat(row[2]) || 0;
+        const shares = parseInt(row[3]) || 0;
+        const comments = parseInt(row[4]) || 0;
+        const video = allVideos.find((v: any) => v.videoId === videoId || v.id === videoId);
+
+        return {
+          id: videoId,
+          title: video?.title || `Shorts ${videoId}`,
+          viewCount: views,
+          likeCount: video?.likeCount || 0,
+          commentCount: comments || video?.commentCount || 0,
+          avgViewPercentage: avgViewPercent,
+          shareCount: shares || 0,
+          publishedAt: video?.publishedAt || '',
+          thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
+        };
+      });
+
+      console.log(`[Dashboard] 🏆 熱門 Shorts: ${topShortsWithDetails.length} 支`);
+      setTopShorts(topShortsWithDetails);
+    } catch (err: any) {
+      console.log('[Dashboard] ⚠️ 獲取熱門 Shorts 失敗:', err.message);
+      setTopShorts([]);
     }
   };
 
@@ -1624,7 +1825,7 @@ export function ChannelDashboard() {
 
       {/* KPI 指標卡片（可點擊切換圖表）*/}
       {channelStats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* 觀看次數（時間範圍內）*/}
           <button
             onClick={() => setSelectedMetric('views')}
@@ -1751,41 +1952,39 @@ export function ChannelDashboard() {
             </div>
           </button>
 
-          {/* 平均觀看時長 */}
-          <div className={`${cardBaseClass} p-6`}>
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-gray-600 text-sm">平均觀看時長</div>
-              <Clock className="w-5 h-5 text-red-500" />
+          {/* 觀看指標（平均時長 + 完成度）*/}
+          <div className={`${cardBaseClass} p-5`}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-gray-500 text-sm font-semibold tracking-wide">觀看指標</div>
+              <BarChart3 className="w-5 h-5 text-gray-400" />
             </div>
-            <div className="text-3xl font-bold text-gray-900">
-              {Math.floor(avgViewDuration / 60)}:{String(avgViewDuration % 60).padStart(2, '0')}
-            </div>
-            <div className="text-sm text-gray-500 mt-1">
-              {avgViewDuration} 秒
-            </div>
-            <div className="text-xs text-gray-400 mt-1">
-              {error?.includes('Analytics API')
-                ? '無法獲取（需要 Analytics API）'
-                : '每次觀看的平均時長'}
-            </div>
-          </div>
 
-        {/* 平均觀看百分比 */}
-        <div className={`${cardBaseClass} p-6`}>
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-gray-600 text-sm">平均觀看百分比</div>
-            <TrendingUp className="w-5 h-5 text-red-500" />
-          </div>
-            <div className="text-3xl font-bold text-gray-900">
-              {avgViewPercentage.toFixed(1)}%
+            {/* 平均觀看時長 */}
+            <div className="mb-3 pb-3 border-b border-gray-100">
+              <div className="text-xs text-gray-500 mb-1">平均觀看時長</div>
+              <div className="text-2xl font-bold text-gray-900">
+                {Math.floor(avgViewDuration / 60)}:{String(avgViewDuration % 60).padStart(2, '0')}
+              </div>
+              <div className="text-xs text-gray-500 mt-0.5">
+                {avgViewDuration} 秒
+              </div>
             </div>
-            <div className="text-sm text-gray-500 mt-1">
-              觀眾平均看完 {avgViewPercentage.toFixed(1)}%
+
+            {/* 平均觀看百分比 */}
+            <div>
+              <div className="text-xs text-gray-500 mb-1">平均完成度</div>
+              <div className="text-2xl font-bold text-gray-900">
+                {avgViewPercentage.toFixed(1)}%
+              </div>
+              <div className="text-xs text-gray-500 mt-0.5">
+                觀眾平均看完比例
+              </div>
             </div>
-            <div className="text-xs text-gray-400 mt-1">
+
+            <div className="text-xs text-gray-400 mt-2">
               {error?.includes('Analytics API')
                 ? '無法獲取（需要 Analytics API）'
-                : '觀眾觀看影片的平均完成度'}
+                : '觀眾參與度指標'}
             </div>
           </div>
         </div>
@@ -1894,89 +2093,277 @@ export function ChannelDashboard() {
         )}
       </div>
 
-      {/* 熱門影片列表 */}
-      {sortedTopVideos.length > 0 && (
-        <div className={compactCardClass}>
-          <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-red-500" />
-            熱門影片 (Top 10)
-          </h3>
-          <p className="text-sm text-gray-600 mb-4">
-            顯示時間範圍內發布的影片，按總觀看數排序
-          </p>
-          <div className="flex flex-wrap gap-2 mb-4">
-            {TOP_VIDEO_METRICS.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => setTopVideoMetric(option.value)}
-                className={`px-3 py-1 text-xs font-semibold rounded-full border transition ${
-                  topVideoMetric === option.value
-                    ? 'bg-red-600 text-white border-red-600 shadow-sm shadow-red-200'
-                    : 'bg-white text-gray-600 border-red-100 hover:bg-red-50 hover:text-red-600'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          <div className="space-y-3">
-            {sortedTopVideos.map((video, index) => {
-              const metricConfig = topVideoMetricConfig[topVideoMetric];
-              const metricValue = metricConfig.value(video);
-              const metricDisplay = metricConfig.formatter(metricValue);
-              const MetricIcon = metricConfig.icon;
+      {/* 內容類型分析區塊標題 */}
+      {(contentTypeMetrics || topShorts.length > 0 || sortedTopVideos.length > 0) && (
+        <h2 className="text-lg font-semibold text-gray-900 border-l-4 border-red-500 pl-3 mt-2">
+          內容表現分析
+        </h2>
+      )}
 
-              return (
-                <div
-                  key={video.id}
-                  className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4 p-3 rounded-xl border border-transparent hover:border-red-100 hover:bg-red-50/70 transition-colors"
-                >
-                  {/* 排名與縮圖 */}
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                  <div className="text-2xl font-bold text-red-500 w-8 text-center">
-                    {index + 1}
-                  </div>
-                  <img
-                    src={video.thumbnailUrl}
-                    alt={video.title}
-                    className="w-40 sm:w-32 aspect-video object-cover rounded-xl shadow-sm"
-                  />
+      {/* Shorts vs 一般影片對比 */}
+      {contentTypeMetrics && (
+        <div className={cardBaseClass}>
+          <div className="p-6">
+            <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+              <Video className="w-5 h-5 text-red-500" />
+              內容類型分析
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Shorts 與一般影片的表現對比
+              {(contentTypeMetrics.shorts.views === 0 && contentTypeMetrics.regularVideos.views === 0) && (
+                <span className="block mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-orange-700 text-xs">
+                  ℹ️ 選定的時間範圍內沒有觀看數據。請嘗試：<br/>
+                  1. 選擇更長的時間範圍（例如「過去 90 天」）<br/>
+                  2. 確認頻道在此期間有發布影片
+                </span>
+              )}
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              {/* Shorts 卡片 */}
+              <div className="p-4 rounded-xl bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200">
+                <div className="text-sm font-semibold text-purple-700 mb-3 flex items-center gap-2">
+                  <span className="text-lg">📱</span>
+                  Shorts 短影片
                 </div>
-
-                {/* 影片資訊 */}
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-gray-900 line-clamp-2 sm:truncate mb-1">
-                    {video.title}
-                  </h4>
-                  <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
-                    <div className="flex items-center gap-1">
-                      <ThumbsUp className="w-4 h-4 text-red-500" />
-                      {formatFullNumber(video.likeCount)}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <MessageSquare className="w-4 h-4 text-red-500" />
-                      {formatFullNumber(video.commentCount)}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4 text-red-400" />
-                      {formatDate(video.publishedAt)}
-                    </div>
+                <div className="space-y-2.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-700">觀看次數</span>
+                    <span className="font-bold text-purple-900">{formatNumber(contentTypeMetrics.shorts.views)}</span>
                   </div>
-                </div>
-
-                {/* 觀看次數 */}
-                <div className="flex items-center justify-between sm:flex-col sm:items-end text-sm text-gray-600 w-full sm:w-auto gap-1">
-                  <div className="flex items-center gap-1 text-red-600 font-semibold">
-                    <MetricIcon className="w-4 h-4" />
-                    <span className="text-lg">{metricDisplay}</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-700">按讚數</span>
+                    <span className="font-semibold text-gray-800">{formatNumber(contentTypeMetrics.shorts.likes)}</span>
                   </div>
-                  <div className="text-xs text-gray-500">{metricConfig.label}</div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-700">分享數</span>
+                    <span className="font-semibold text-gray-800">{formatNumber(contentTypeMetrics.shorts.shares)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-700">留言數</span>
+                    <span className="font-semibold text-gray-800">{formatNumber(contentTypeMetrics.shorts.comments)}</span>
+                  </div>
                 </div>
               </div>
+
+              {/* 一般影片卡片 */}
+              <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200">
+                <div className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
+                  <span className="text-lg">🎬</span>
+                  一般影片
+                </div>
+                <div className="space-y-2.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-700">觀看次數</span>
+                    <span className="font-bold text-blue-900">{formatNumber(contentTypeMetrics.regularVideos.views)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-700">觀看時間</span>
+                    <span className="font-semibold text-gray-800">{formatNumber(contentTypeMetrics.regularVideos.watchTime)} 小時</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-700">按讚數</span>
+                    <span className="font-semibold text-gray-800">{formatNumber(contentTypeMetrics.regularVideos.likes)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-700">留言數</span>
+                    <span className="font-semibold text-gray-800">{formatNumber(contentTypeMetrics.regularVideos.comments)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 觀看次數佔比圖表 */}
+            {(() => {
+              const totalViews = contentTypeMetrics.shorts.views + contentTypeMetrics.regularVideos.views;
+              const shortsPercentage = totalViews > 0 ? ((contentTypeMetrics.shorts.views / totalViews) * 100).toFixed(1) : '0';
+              const regularPercentage = totalViews > 0 ? ((contentTypeMetrics.regularVideos.views / totalViews) * 100).toFixed(1) : '0';
+
+              return (
+                <div className="p-4 bg-gray-50 rounded-xl">
+                  <div className="text-sm font-medium text-gray-700 mb-2">觀看次數佔比</div>
+                  <div className="flex h-10 rounded-full overflow-hidden shadow-inner">
+                    <div
+                      className="bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-semibold transition-all"
+                      style={{ width: `${shortsPercentage}%` }}
+                    >
+                      {parseFloat(shortsPercentage) > 12 && `Shorts ${shortsPercentage}%`}
+                    </div>
+                    <div
+                      className="bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center text-white text-sm font-semibold transition-all"
+                      style={{ width: `${regularPercentage}%` }}
+                    >
+                      {parseFloat(regularPercentage) > 12 && `一般影片 ${regularPercentage}%`}
+                    </div>
+                  </div>
+                  <div className="flex justify-between mt-2 text-xs text-gray-600">
+                    <span>Shorts: {formatFullNumber(contentTypeMetrics.shorts.views)} 次</span>
+                    <span>一般影片: {formatFullNumber(contentTypeMetrics.regularVideos.views)} 次</span>
+                  </div>
+                </div>
               );
-            })}
+            })()}
           </div>
         </div>
+      )}
+
+      {/* 熱門 Shorts 排行榜 */}
+      {topShorts.length > 0 && (
+        <div className={cardBaseClass}>
+          <div className="p-6">
+            <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-purple-500" />
+              熱門 Shorts 排行榜
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">時間範圍內表現最佳的 Shorts 短影片（按觀看次數排序）</p>
+
+            <div className="space-y-3">
+              {topShorts.map((video, index) => (
+                <div
+                  key={video.id}
+                  className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4 p-3 rounded-xl border border-transparent hover:border-purple-200 hover:bg-purple-50/50 transition-colors"
+                >
+                  {/* 排名與縮圖 */}
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <div className="text-2xl font-bold text-purple-500 w-8 text-center">
+                      {index + 1}
+                    </div>
+                    <img
+                      src={video.thumbnailUrl}
+                      alt={video.title}
+                      className="w-24 aspect-[9/16] object-cover rounded-lg shadow-sm"
+                    />
+                  </div>
+
+                  {/* 影片資訊 */}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-gray-900 line-clamp-2 mb-1.5">
+                      {video.title}
+                    </h4>
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600 mb-2">
+                      <div className="flex items-center gap-1">
+                        <Eye className="w-4 h-4 text-purple-500" />
+                        <span className="font-semibold text-purple-700">{formatFullNumber(video.viewCount)}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <ThumbsUp className="w-4 h-4 text-gray-400" />
+                        {formatFullNumber(video.likeCount)}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <MessageSquare className="w-4 h-4 text-gray-400" />
+                        {formatFullNumber(video.commentCount)}
+                      </div>
+                      {video.avgViewPercentage > 0 && (
+                        <div className="flex items-center gap-1">
+                          <BarChart3 className="w-4 h-4 text-gray-400" />
+                          {video.avgViewPercentage.toFixed(1)}% 完成度
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 熱門影片列表 */}
+      {sortedTopVideos.length > 0 && (
+        <div className={cardBaseClass}>
+          <div className="p-6">
+            <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-red-500" />
+              熱門影片 (Top 10)
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              時間範圍內表現最佳的影片（按總觀看數排序）
+            </p>
+            <div className="flex flex-wrap gap-2 mb-6">
+              {TOP_VIDEO_METRICS.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => setTopVideoMetric(option.value)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition ${
+                    topVideoMetric === option.value
+                      ? 'bg-red-600 text-white border-red-600 shadow-sm shadow-red-200'
+                      : 'bg-white text-gray-600 border-red-100 hover:bg-red-50 hover:text-red-600'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            {/* 響應式網格卡片 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {sortedTopVideos.map((video, index) => {
+                const metricConfig = topVideoMetricConfig[topVideoMetric];
+                const metricValue = metricConfig.value(video);
+                const metricDisplay = metricConfig.formatter(metricValue);
+                const MetricIcon = metricConfig.icon;
+
+                return (
+                  <div
+                    key={video.id}
+                    className="relative flex flex-col p-4 rounded-xl border border-gray-200 hover:border-red-300 hover:shadow-md transition-all bg-white"
+                  >
+                    {/* 排名標籤 */}
+                    <div className="absolute top-2 left-2 w-8 h-8 rounded-full bg-red-500 text-white font-bold flex items-center justify-center shadow-md z-10">
+                      {index + 1}
+                    </div>
+
+                    {/* 縮圖 */}
+                    <div className="mb-3">
+                      <img
+                        src={video.thumbnailUrl}
+                        alt={video.title}
+                        className="w-full aspect-video object-cover rounded-lg shadow-sm"
+                      />
+                    </div>
+
+                    {/* 影片標題 */}
+                    <h4 className="font-semibold text-gray-900 line-clamp-2 mb-2 min-h-[2.5rem]">
+                      {video.title}
+                    </h4>
+
+                    {/* 指標數據 */}
+                    <div className="flex items-center gap-2 mb-3 p-2 bg-red-50 rounded-lg">
+                      <MetricIcon className="w-5 h-5 text-red-600 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-gray-600">{metricConfig.label}</div>
+                        <div className="text-lg font-bold text-red-600">{metricDisplay}</div>
+                      </div>
+                    </div>
+
+                    {/* 互動數據 */}
+                    <div className="flex items-center justify-between text-sm text-gray-600 pt-3 border-t border-gray-100">
+                      <div className="flex items-center gap-1">
+                        <ThumbsUp className="w-4 h-4 text-gray-400" />
+                        <span>{formatNumber(video.likeCount)}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <MessageSquare className="w-4 h-4 text-gray-400" />
+                        <span>{formatNumber(video.commentCount)}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        <span className="text-xs">{formatDate(video.publishedAt)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 流量來源區塊標題 */}
+      {(trafficSources.length > 0 || externalSources.length > 0 || searchTerms.length > 0) && (
+        <h2 className="text-lg font-semibold text-gray-900 border-l-4 border-red-500 pl-3 mt-2">
+          流量來源分析
+        </h2>
       )}
 
       {/* 流量來源分析區塊 */}
@@ -2085,14 +2472,16 @@ export function ChannelDashboard() {
         )}
       </div>
 
+      {/* 觀眾洞察區塊標題 */}
+      {(demographics.length > 0 || geography.length > 0 || devices.length > 0 || subscriberSources.length > 0) && (
+        <h2 className="text-lg font-semibold text-gray-900 border-l-4 border-red-500 pl-3 mt-2">
+          觀眾洞察分析
+        </h2>
+      )}
+
       {/* 人口統計區塊 */}
       {(demographics.length > 0 || geography.length > 0) && (
         <div className="space-y-6">
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <Users className="w-6 h-6 text-red-500" />
-            觀眾人口統計
-          </h2>
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             {/* 年齡與性別分佈 */}
             {demographics.length > 0 && (
