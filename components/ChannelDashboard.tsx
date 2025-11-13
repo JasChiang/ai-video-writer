@@ -91,6 +91,17 @@ interface MonthlyDataPoint {
   subscribersNet: number;     // 淨增長 = subscribersGained - subscribersLost
 }
 
+interface TrafficSourceItem {
+  source: string;          // 流量來源類型或名稱
+  views: number;           // 觀看次數
+  percentage: number;      // 百分比
+}
+
+interface SearchTermItem {
+  term: string;            // 搜尋字詞
+  views: number;           // 觀看次數
+}
+
 type ChartMetric = 'views' | 'watchTime' | 'subscribers';
 
 const API_BASE_URL =
@@ -129,6 +140,9 @@ export function ChannelDashboard() {
   const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
   const [selectedMetric, setSelectedMetric] = useState<ChartMetric>('views');
   const [monthlyData, setMonthlyData] = useState<MonthlyDataPoint[]>([]);
+  const [trafficSources, setTrafficSources] = useState<TrafficSourceItem[]>([]);
+  const [externalSources, setExternalSources] = useState<TrafficSourceItem[]>([]);
+  const [searchTerms, setSearchTerms] = useState<SearchTermItem[]>([]);
 
   // 計算日期範圍
   const getDateRange = (): { startDate: Date; endDate: Date } => {
@@ -212,6 +226,9 @@ export function ChannelDashboard() {
           console.log('[Dashboard] ⚠️ 無影片數據，使用空列表');
           setTopVideos([]);
         }
+
+        // 獲取流量來源數據
+        await fetchTrafficSourcesData(startDate, endDate, token);
       } else {
         // Analytics API 不可用，回退到 Gist 快取方案
         console.log('[Dashboard] ℹ️  回退到 Gist 快取方案');
@@ -470,6 +487,122 @@ export function ChannelDashboard() {
     } catch (err: any) {
       console.log('[Dashboard] ⚠️ 無法獲取影片數據:', err.message);
       return null;
+    }
+  };
+
+  // 獲取流量來源數據
+  const fetchTrafficSourcesData = async (startDate: Date, endDate: Date, token: string) => {
+    try {
+      console.log('[Dashboard] 🚦 從 Analytics API 獲取流量來源數據...');
+
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      // 1. 獲取流量來源類型
+      const trafficSourceResponse = await fetch(
+        `https://youtubeanalytics.googleapis.com/v2/reports?` +
+        `ids=channel==MINE` +
+        `&startDate=${formatDate(startDate)}` +
+        `&endDate=${formatDate(endDate)}` +
+        `&metrics=views` +
+        `&dimensions=insightTrafficSourceType` +
+        `&sort=-views` +
+        `&maxResults=10`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (trafficSourceResponse.ok) {
+        const data = await trafficSourceResponse.json();
+        if (data.rows && data.rows.length > 0) {
+          const totalViews = data.rows.reduce((sum: number, row: any[]) => sum + (parseInt(row[1]) || 0), 0);
+          const sources: TrafficSourceItem[] = data.rows.map((row: any[]) => {
+            const views = parseInt(row[1]) || 0;
+            return {
+              source: row[0],
+              views: views,
+              percentage: totalViews > 0 ? (views / totalViews) * 100 : 0,
+            };
+          });
+          console.log('[Dashboard] ✅ 流量來源獲取成功:', sources.length, '個來源');
+          setTrafficSources(sources);
+        }
+      }
+
+      // 2. 獲取外部來源
+      const externalSourceResponse = await fetch(
+        `https://youtubeanalytics.googleapis.com/v2/reports?` +
+        `ids=channel==MINE` +
+        `&startDate=${formatDate(startDate)}` +
+        `&endDate=${formatDate(endDate)}` +
+        `&metrics=views` +
+        `&dimensions=insightTrafficSourceDetail` +
+        `&filters=insightTrafficSourceType==EXT_URL` +
+        `&sort=-views` +
+        `&maxResults=10`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (externalSourceResponse.ok) {
+        const data = await externalSourceResponse.json();
+        if (data.rows && data.rows.length > 0) {
+          const totalViews = data.rows.reduce((sum: number, row: any[]) => sum + (parseInt(row[1]) || 0), 0);
+          const sources: TrafficSourceItem[] = data.rows.map((row: any[]) => {
+            const views = parseInt(row[1]) || 0;
+            return {
+              source: row[0],
+              views: views,
+              percentage: totalViews > 0 ? (views / totalViews) * 100 : 0,
+            };
+          });
+          console.log('[Dashboard] ✅ 外部來源獲取成功:', sources.length, '個來源');
+          setExternalSources(sources);
+        }
+      }
+
+      // 3. 獲取搜尋字詞
+      const searchTermResponse = await fetch(
+        `https://youtubeanalytics.googleapis.com/v2/reports?` +
+        `ids=channel==MINE` +
+        `&startDate=${formatDate(startDate)}` +
+        `&endDate=${formatDate(endDate)}` +
+        `&metrics=views` +
+        `&dimensions=insightTrafficSourceDetail` +
+        `&filters=insightTrafficSourceType==YT_SEARCH` +
+        `&sort=-views` +
+        `&maxResults=25`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (searchTermResponse.ok) {
+        const data = await searchTermResponse.json();
+        if (data.rows && data.rows.length > 0) {
+          const terms: SearchTermItem[] = data.rows.map((row: any[]) => ({
+            term: row[0],
+            views: parseInt(row[1]) || 0,
+          }));
+          console.log('[Dashboard] ✅ 搜尋字詞獲取成功:', terms.length, '個字詞');
+          setSearchTerms(terms);
+        }
+      }
+    } catch (err: any) {
+      console.error('[Dashboard] ⚠️ 獲取流量來源數據失敗:', err.message);
+      // 不拋出錯誤，允許儀錶板繼續顯示其他數據
     }
   };
 
@@ -904,7 +1037,7 @@ export function ChannelDashboard() {
           <>
             {/* 柱狀圖 */}
             <div className="mt-6">
-              <div className="flex items-end justify-between gap-2 h-64 border-b border-l border-gray-200 pb-2 pl-2">
+              <div className="flex items-end justify-between gap-1 h-64 border-b border-l border-gray-200 pb-2 pl-2">
                 {monthlyData.map((dataPoint, index) => {
                   // 根據選擇的指標獲取值
                   let value = 0;
@@ -939,25 +1072,40 @@ export function ChannelDashboard() {
                   // 計算高度百分比（最小 5%，最大 100%）
                   const heightPercent = maxValue > 0 ? Math.max(5, (Math.abs(value) / maxValue) * 100) : 5;
 
+                  // 調試日誌（只在第一個月份打印）
+                  if (index === 0) {
+                    console.log('[Dashboard] 📊 柱狀圖渲染:', {
+                      selectedMetric,
+                      monthlyDataCount: monthlyData.length,
+                      firstDataPoint: dataPoint,
+                      value,
+                      maxValue,
+                      heightPercent,
+                      color
+                    });
+                  }
+
                   return (
-                    <div key={index} className="flex-1 flex flex-col items-center justify-end group">
-                      {/* 柱子 */}
-                      <div className="relative w-full flex flex-col items-center">
-                        {/* 數值提示（hover 時顯示）*/}
-                        <div className="absolute -top-8 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+                    <div key={index} className="flex-1 flex flex-col items-center group" style={{ height: '100%' }}>
+                      {/* 柱子區域 */}
+                      <div className="relative w-full flex-1 flex items-end justify-center">
+                        {/* 數值標籤（始終顯示）*/}
+                        <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 whitespace-nowrap">
                           {formatFullNumber(value)}
                         </div>
 
                         {/* 柱狀條 */}
                         <div
-                          className={`w-full ${color} rounded-t transition-all cursor-pointer`}
-                          style={{ height: `${heightPercent}%`, minHeight: '12px' }}
+                          className={`w-full ${color} rounded-t transition-all cursor-pointer hover:opacity-80`}
+                          style={{
+                            height: `${heightPercent}%`
+                          }}
                           title={`${dataPoint.month}: ${formatFullNumber(value)}`}
                         />
                       </div>
 
-                      {/* 月份標籤 */}
-                      <div className="text-xs text-gray-600 mt-2 transform -rotate-45 origin-top-left whitespace-nowrap">
+                      {/* 月份標籤（水平顯示）*/}
+                      <div className="text-xs text-gray-600 mt-2 whitespace-nowrap">
                         {dataPoint.month}
                       </div>
                     </div>
@@ -1021,7 +1169,7 @@ export function ChannelDashboard() {
                 {/* 觀看次數 */}
                 <div className="text-right">
                   <div className="text-lg font-semibold text-gray-900">
-                    {formatNumber(video.viewCount)}
+                    {formatFullNumber(video.viewCount)}
                   </div>
                   <div className="text-xs text-gray-500">觀看次數</div>
                 </div>
@@ -1030,6 +1178,112 @@ export function ChannelDashboard() {
           </div>
         </div>
       )}
+
+      {/* 流量來源分析區塊 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* 熱門流量來源 */}
+        {trafficSources.length > 0 && (
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5" />
+              熱門流量來源
+            </h3>
+            <div className="space-y-3">
+              {trafficSources.map((source, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900 truncate">
+                      {source.source}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex-1 bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-blue-600 h-2 rounded-full"
+                          style={{ width: `${source.percentage}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-500 whitespace-nowrap">
+                        {source.percentage.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="ml-4 text-right">
+                    <div className="text-sm font-semibold text-gray-900">
+                      {formatFullNumber(source.views)}
+                    </div>
+                    <div className="text-xs text-gray-500">觀看次數</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 外部來源排行 */}
+        {externalSources.length > 0 && (
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5" />
+              外部來源排行
+            </h3>
+            <div className="space-y-3">
+              {externalSources.map((source, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900 truncate">
+                      {source.source}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex-1 bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-green-600 h-2 rounded-full"
+                          style={{ width: `${source.percentage}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-500 whitespace-nowrap">
+                        {source.percentage.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="ml-4 text-right">
+                    <div className="text-sm font-semibold text-gray-900">
+                      {formatFullNumber(source.views)}
+                    </div>
+                    <div className="text-xs text-gray-500">觀看次數</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 搜尋字詞 */}
+        {searchTerms.length > 0 && (
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5" />
+              搜尋字詞
+            </h3>
+            <div className="space-y-2">
+              {searchTerms.map((term, index) => (
+                <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <span className="text-sm font-medium text-gray-400 w-6 text-center">
+                      {index + 1}
+                    </span>
+                    <span className="text-sm text-gray-900 truncate">
+                      {term.term}
+                    </span>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-700 ml-4">
+                    {formatFullNumber(term.views)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* 提示訊息 */}
       {!channelStats && !isLoading && !error && (
