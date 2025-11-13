@@ -102,30 +102,101 @@ interface SearchTermItem {
   views: number;           // 觀看次數
 }
 
+interface DemographicsItem {
+  ageGroup: string;        // 年齡層
+  gender: string;          // 性別
+  viewsPercentage: number; // 觀看百分比
+}
+
+interface GeographyItem {
+  country: string;         // 國家代碼
+  views: number;           // 觀看次數
+  percentage: number;      // 百分比
+}
+
+interface DeviceItem {
+  deviceType: string;      // 裝置類型
+  views: number;           // 觀看次數
+  percentage: number;      // 百分比
+}
+
+interface ViewingHourData {
+  hour: number;            // 小時 (0-23)
+  views: number;           // 觀看次數
+}
+
+interface SubscriberSourceItem {
+  videoId: string;         // 影片 ID
+  videoTitle: string;      // 影片標題
+  subscribersGained: number; // 獲得訂閱數
+}
+
+interface VideoPerformanceItem {
+  videoId: string;         // 影片 ID
+  title: string;           // 標題
+  publishedAt: string;     // 發布日期
+  views: number;           // 觀看次數
+  ctr: number;             // 點擊率
+  avgViewDuration: number; // 平均觀看時長（秒）
+  avgViewPercentage: number; // 平均觀看百分比
+}
+
+interface ComparisonData {
+  current: number;         // 當前期間數據
+  previous: number;        // 上期數據
+  change: number;          // 變化量
+  changePercentage: number; // 變化百分比
+}
+
 type ChartMetric = 'views' | 'watchTime' | 'subscribers';
+type QuickDateRange = '7d' | '30d' | '90d' | 'this_month' | 'last_month';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
   (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
 
-// 計算默認日期範圍（過去30天）- 使用台灣時間
-const getDefaultDateRange = () => {
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setDate(endDate.getDate() - 30);
+// 使用本地時區格式化，避免 UTC 時區偏移
+const formatDateString = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
-  // 使用本地時區格式化，避免 UTC 時區偏移
-  const formatDate = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
+// 計算快速日期範圍
+const getQuickDateRange = (range: QuickDateRange): { start: string; end: string } => {
+  const today = new Date();
+  const endDate = new Date(today);
+  let startDate = new Date(today);
+
+  switch (range) {
+    case '7d':
+      startDate.setDate(today.getDate() - 6); // 包含今天共7天
+      break;
+    case '30d':
+      startDate.setDate(today.getDate() - 29); // 包含今天共30天
+      break;
+    case '90d':
+      startDate.setDate(today.getDate() - 89); // 包含今天共90天
+      break;
+    case 'this_month':
+      startDate = new Date(today.getFullYear(), today.getMonth(), 1); // 本月第一天
+      break;
+    case 'last_month':
+      startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1); // 上月第一天
+      endDate.setDate(0); // 上月最後一天
+      break;
+  }
 
   return {
-    start: formatDate(startDate),
-    end: formatDate(endDate),
+    start: formatDateString(startDate),
+    end: formatDateString(endDate),
   };
+};
+
+// 計算默認日期範圍（過去30天）- 使用台灣時間
+const getDefaultDateRange = () => {
+  return getQuickDateRange('30d');
 };
 
 export function ChannelDashboard() {
@@ -144,6 +215,18 @@ export function ChannelDashboard() {
   const [externalSources, setExternalSources] = useState<TrafficSourceItem[]>([]);
   const [searchTerms, setSearchTerms] = useState<SearchTermItem[]>([]);
   const [showDataSourceInfo, setShowDataSourceInfo] = useState(false);
+
+  // 新增功能的狀態
+  const [demographics, setDemographics] = useState<DemographicsItem[]>([]);
+  const [geography, setGeography] = useState<GeographyItem[]>([]);
+  const [devices, setDevices] = useState<DeviceItem[]>([]);
+  const [viewingHours, setViewingHours] = useState<ViewingHourData[]>([]);
+  const [subscriberSources, setSubscriberSources] = useState<SubscriberSourceItem[]>([]);
+  const [videoPerformance, setVideoPerformance] = useState<VideoPerformanceItem[]>([]);
+  const [avgViewDuration, setAvgViewDuration] = useState<number>(0);
+  const [avgViewPercentage, setAvgViewPercentage] = useState<number>(0);
+  const [viewsComparison, setViewsComparison] = useState<ComparisonData | null>(null);
+  const [subscribersComparison, setSubscribersComparison] = useState<ComparisonData | null>(null);
 
   // 計算日期範圍
   const getDateRange = (): { startDate: Date; endDate: Date } => {
@@ -199,6 +282,8 @@ export function ChannelDashboard() {
         const watchTimeMinutes = parseInt(channelRow[1]) || 0;
         const subscribersGained = parseInt(channelRow[2]) || 0;
         const subscribersLost = parseInt(channelRow[3]) || 0;
+        const avgDuration = parseInt(channelRow[4]) || 0; // 平均觀看時長（秒）
+        const avgPercentage = parseFloat(channelRow[5]) || 0; // 平均觀看百分比
         const subscribersNet = subscribersGained - subscribersLost; // 淨增長
         const watchTimeHours = Math.floor(watchTimeMinutes / 60);
 
@@ -208,7 +293,13 @@ export function ChannelDashboard() {
           subscribersGained,
           subscribersLost,
           subscribersNet,
+          avgViewDuration: avgDuration,
+          avgViewPercentage: avgPercentage,
         });
+
+        // 更新觀看指標
+        setAvgViewDuration(avgDuration);
+        setAvgViewPercentage(avgPercentage);
 
         // 更新頻道統計
         setChannelStats((prev) => ({
@@ -415,13 +506,13 @@ export function ChannelDashboard() {
       });
 
       // 頻道級別數據：不使用 dimensions，直接獲取頻道整體統計
-      // 同時獲取 subscribersGained 和 subscribersLost 來計算淨增長
+      // 同時獲取 subscribersGained、subscribersLost、averageViewDuration、averageViewPercentage
       const response = await fetch(
         `https://youtubeanalytics.googleapis.com/v2/reports?` +
         `ids=channel==MINE` +
         `&startDate=${formattedStartDate}` +
         `&endDate=${formattedEndDate}` +
-        `&metrics=views,estimatedMinutesWatched,subscribersGained,subscribersLost`,
+        `&metrics=views,estimatedMinutesWatched,subscribersGained,subscribersLost,averageViewDuration,averageViewPercentage`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -855,43 +946,68 @@ export function ChannelDashboard() {
           </h2>
           <p className="text-gray-600 mt-1">查看頻道整體表現和熱門影片</p>
         </div>
-        <div className="flex gap-2 items-center">
-          {/* 日期範圍選擇器 */}
-          <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg bg-white">
-            <Calendar className="w-4 h-4 text-gray-500" />
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="focus:outline-none text-sm"
-            />
-            <span className="text-gray-500">至</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="focus:outline-none text-sm"
-            />
+        <div className="flex flex-col gap-2 items-end">
+          {/* 快速篩選器 */}
+          <div className="flex gap-2">
+            {[
+              { label: '過去 7 天', value: '7d' as QuickDateRange },
+              { label: '過去 30 天', value: '30d' as QuickDateRange },
+              { label: '過去 90 天', value: '90d' as QuickDateRange },
+              { label: '本月', value: 'this_month' as QuickDateRange },
+              { label: '上月', value: 'last_month' as QuickDateRange },
+            ].map((item) => (
+              <button
+                key={item.value}
+                onClick={() => {
+                  const range = getQuickDateRange(item.value);
+                  setStartDate(range.start);
+                  setEndDate(range.end);
+                }}
+                className="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
 
-          {/* 刷新按鈕 */}
-          <button
-            onClick={fetchDashboardData}
-            disabled={isLoading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {isLoading ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                載入中...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="w-4 h-4" />
-                刷新數據
-              </>
-            )}
-          </button>
+          <div className="flex gap-2 items-center">
+            {/* 日期範圍選擇器 */}
+            <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg bg-white">
+              <Calendar className="w-4 h-4 text-gray-500" />
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="focus:outline-none text-sm"
+              />
+              <span className="text-gray-500">至</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="focus:outline-none text-sm"
+              />
+            </div>
+
+            {/* 刷新按鈕 */}
+            <button
+              onClick={fetchDashboardData}
+              disabled={isLoading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  載入中...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4" />
+                  刷新數據
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1029,6 +1145,44 @@ export function ChannelDashboard() {
                 : '時間範圍內新增訂閱數'}
             </div>
           </button>
+
+          {/* 平均觀看時長 */}
+          <div className="bg-white rounded-lg border-2 border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-gray-600 text-sm">平均觀看時長</div>
+              <Clock className="w-5 h-5 text-orange-400" />
+            </div>
+            <div className="text-3xl font-bold text-gray-900">
+              {Math.floor(avgViewDuration / 60)}:{String(avgViewDuration % 60).padStart(2, '0')}
+            </div>
+            <div className="text-sm text-gray-500 mt-1">
+              {avgViewDuration} 秒
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              {error?.includes('Analytics API')
+                ? '無法獲取（需要 Analytics API）'
+                : '每次觀看的平均時長'}
+            </div>
+          </div>
+
+          {/* 平均觀看完成率 */}
+          <div className="bg-white rounded-lg border-2 border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-gray-600 text-sm">平均觀看完成率</div>
+              <TrendingUp className="w-5 h-5 text-indigo-400" />
+            </div>
+            <div className="text-3xl font-bold text-gray-900">
+              {avgViewPercentage.toFixed(1)}%
+            </div>
+            <div className="text-sm text-gray-500 mt-1">
+              觀眾平均看完 {avgViewPercentage.toFixed(1)}%
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              {error?.includes('Analytics API')
+                ? '無法獲取（需要 Analytics API）'
+                : '觀眾觀看影片的平均完成度'}
+            </div>
+          </div>
         </div>
       )}
 
