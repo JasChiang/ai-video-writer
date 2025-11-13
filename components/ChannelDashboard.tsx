@@ -143,6 +143,7 @@ export function ChannelDashboard() {
   const [trafficSources, setTrafficSources] = useState<TrafficSourceItem[]>([]);
   const [externalSources, setExternalSources] = useState<TrafficSourceItem[]>([]);
   const [searchTerms, setSearchTerms] = useState<SearchTermItem[]>([]);
+  const [showDataSourceInfo, setShowDataSourceInfo] = useState(false);
 
   // 計算日期範圍
   const getDateRange = (): { startDate: Date; endDate: Date } => {
@@ -836,13 +837,12 @@ export function ChannelDashboard() {
     });
   };
 
-  // 監聽時間範圍變化，自動重新獲取數據
-  useEffect(() => {
-    if (channelStats) {
-      // 只有在已經有數據的情況下才自動刷新
-      fetchDashboardData();
-    }
-  }, [startDate, endDate]); // 當日期改變時重新獲取數據
+  // 不自動監聽日期變化，只有點擊「刷新數據」按鈕才會調用 API
+  // useEffect(() => {
+  //   if (channelStats) {
+  //     fetchDashboardData();
+  //   }
+  // }, [startDate, endDate]);
 
   return (
     <div className="space-y-6">
@@ -895,13 +895,29 @@ export function ChannelDashboard() {
         </div>
       </div>
 
-      {/* 數據來源說明 */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="flex items-start gap-2">
-          <BarChart3 className="w-5 h-5 text-blue-600 mt-0.5" />
-          <div className="text-sm text-blue-900">
-            <strong>數據來源說明：</strong>
-            <ul className="mt-2 space-y-1 text-blue-800">
+      {/* 數據來源說明（可摺疊）*/}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg overflow-hidden">
+        <button
+          onClick={() => setShowDataSourceInfo(!showDataSourceInfo)}
+          className="w-full p-4 flex items-center justify-between hover:bg-blue-100 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-blue-600" />
+            <strong className="text-sm text-blue-900">數據來源說明</strong>
+          </div>
+          <svg
+            className={`w-5 h-5 text-blue-600 transition-transform ${showDataSourceInfo ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {showDataSourceInfo && (
+          <div className="px-4 pb-4">
+            <ul className="space-y-1 text-sm text-blue-800">
               <li>
                 • <strong>時區</strong>：所有數據使用<strong>台灣時間（UTC+8）</strong>，與 YouTube Studio 後台一致
               </li>
@@ -923,7 +939,7 @@ export function ChannelDashboard() {
               </li>
             </ul>
           </div>
-        </div>
+        )}
       </div>
 
       {/* 錯誤訊息 */}
