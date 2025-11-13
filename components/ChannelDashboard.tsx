@@ -3558,9 +3558,9 @@ export function ChannelDashboard() {
       )}
 
       {/* 人口統計區塊 */}
-      {(demographics.length > 0 || geography.length > 0) && (
+      {(demographics.length > 0 || geography.length > 0 || devices.length > 0) && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             {/* 年齡與性別分佈 - 人口金字塔 */}
             {demographics.length > 0 && (
               <div className={compactCardClass}>
@@ -3775,44 +3775,49 @@ export function ChannelDashboard() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
 
-            {/* 訂閱來源分析 - 頒獎台式 */}
-            {subscriberSources.length > 0 && (
-              <div className={compactCardClass}>
-                <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-red-500" />
-                  訂閱來源分析
-                  <span className="text-sm font-normal text-gray-500">
-                    （帶來最多新訂閱的影片）
-                  </span>
-                </h3>
+      {/* 訂閱來源分析 - 頒獎台式（獨立區塊） */}
+      {subscriberSources.length > 0 && (
+        <div className={compactCardClass}>
+          <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
+            <Users className="w-5 h-5 text-red-500" />
+            訂閱來源分析
+            <span className="text-sm font-normal text-gray-500">
+              （帶來最多新訂閱的影片）
+            </span>
+          </h3>
 
-                {/* 頒獎台 - 前三名 */}
-                {subscriberSources.length >= 3 && (
-                  <div className="mb-8">
+          {/* 頒獎台 - 前三名 */}
+          {subscriberSources.length >= 3 && (
+            <div className="mb-8">
                     {/* 桌面版：頒獎台排列（2-1-3） */}
                     <div className="hidden md:flex items-end justify-center gap-4 mb-6">
                       {/* 第二名 */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="w-full bg-gradient-to-b from-gray-100 to-gray-200 rounded-2xl p-4 border-2 border-gray-300 shadow-lg overflow-hidden" style={{ height: '280px' }}>
+                        <div className="w-full bg-gradient-to-b from-gray-100 to-gray-200 rounded-2xl p-4 border-2 border-gray-300 shadow-lg overflow-hidden flex flex-col" style={{ height: '320px' }}>
                           <div className="text-center mb-3">
                             <div className="text-2xl font-bold text-gray-600">第 2 名</div>
                           </div>
-                          {/* 影片縮圖 */}
-                          <div className="mb-3 rounded-lg overflow-hidden">
+                          {/* 影片縮圖 - 固定高度 */}
+                          <div className="mb-3 rounded-lg overflow-hidden h-24 flex-shrink-0">
                             <img
                               src={`https://i.ytimg.com/vi/${subscriberSources[1].videoId}/mqdefault.jpg`}
                               alt={subscriberSources[1].videoTitle}
-                              className="w-full h-24 object-cover"
+                              className="w-full h-full object-cover"
                               onError={(e) => {
                                 e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[1].videoId}/default.jpg`;
                               }}
                             />
                           </div>
-                          <div className="text-sm font-semibold text-gray-900 mb-2 line-clamp-2">
+                          {/* 標題 - 固定高度 */}
+                          <div className="text-sm font-semibold text-gray-900 mb-3 line-clamp-2 h-10 flex-shrink-0">
                             {subscriberSources[1].videoTitle}
                           </div>
-                          <div className="text-center">
+                          {/* 訂閱數 - 推到底部 */}
+                          <div className="text-center mt-auto">
                             <div className="text-2xl font-bold text-gray-700">
                               +{formatNumber(subscriberSources[1].subscribersGained)}
                             </div>
@@ -3823,26 +3828,28 @@ export function ChannelDashboard() {
 
                       {/* 第一名（中間最高） */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="w-full bg-gradient-to-b from-yellow-50 to-yellow-100 rounded-2xl p-5 border-2 border-yellow-400 shadow-2xl overflow-hidden" style={{ height: '340px' }}>
+                        <div className="w-full bg-gradient-to-b from-yellow-50 to-yellow-100 rounded-2xl p-5 border-2 border-yellow-400 shadow-2xl overflow-hidden flex flex-col" style={{ height: '380px' }}>
                           <div className="text-center mb-3">
                             <div className="text-3xl font-bold text-yellow-700">第 1 名</div>
                             <div className="text-xs text-yellow-600">👑 冠軍</div>
                           </div>
-                          {/* 影片縮圖 */}
-                          <div className="mb-3 rounded-lg overflow-hidden shadow-md">
+                          {/* 影片縮圖 - 固定高度 */}
+                          <div className="mb-3 rounded-lg overflow-hidden shadow-md h-28 flex-shrink-0">
                             <img
                               src={`https://i.ytimg.com/vi/${subscriberSources[0].videoId}/mqdefault.jpg`}
                               alt={subscriberSources[0].videoTitle}
-                              className="w-full h-28 object-cover"
+                              className="w-full h-full object-cover"
                               onError={(e) => {
                                 e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[0].videoId}/default.jpg`;
                               }}
                             />
                           </div>
-                          <div className="text-sm font-bold text-gray-900 mb-2 line-clamp-2">
+                          {/* 標題 - 固定高度 */}
+                          <div className="text-sm font-bold text-gray-900 mb-3 line-clamp-2 h-10 flex-shrink-0">
                             {subscriberSources[0].videoTitle}
                           </div>
-                          <div className="text-center">
+                          {/* 訂閱數 - 推到底部 */}
+                          <div className="text-center mt-auto">
                             <div className="text-3xl font-bold text-red-600">
                               +{formatNumber(subscriberSources[0].subscribersGained)}
                             </div>
@@ -3853,25 +3860,27 @@ export function ChannelDashboard() {
 
                       {/* 第三名 */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="w-full bg-gradient-to-b from-orange-50 to-orange-100 rounded-2xl p-4 border-2 border-orange-300 shadow-lg overflow-hidden" style={{ height: '260px' }}>
+                        <div className="w-full bg-gradient-to-b from-orange-50 to-orange-100 rounded-2xl p-4 border-2 border-orange-300 shadow-lg overflow-hidden flex flex-col" style={{ height: '300px' }}>
                           <div className="text-center mb-3">
                             <div className="text-2xl font-bold text-orange-600">第 3 名</div>
                           </div>
-                          {/* 影片縮圖 */}
-                          <div className="mb-3 rounded-lg overflow-hidden">
+                          {/* 影片縮圖 - 固定高度 */}
+                          <div className="mb-3 rounded-lg overflow-hidden h-20 flex-shrink-0">
                             <img
                               src={`https://i.ytimg.com/vi/${subscriberSources[2].videoId}/mqdefault.jpg`}
                               alt={subscriberSources[2].videoTitle}
-                              className="w-full h-20 object-cover"
+                              className="w-full h-full object-cover"
                               onError={(e) => {
                                 e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[2].videoId}/default.jpg`;
                               }}
                             />
                           </div>
-                          <div className="text-sm font-semibold text-gray-900 mb-2 line-clamp-2">
+                          {/* 標題 - 固定高度 */}
+                          <div className="text-sm font-semibold text-gray-900 mb-3 line-clamp-2 h-10 flex-shrink-0">
                             {subscriberSources[2].videoTitle}
                           </div>
-                          <div className="text-center">
+                          {/* 訂閱數 - 推到底部 */}
+                          <div className="text-center mt-auto">
                             <div className="text-2xl font-bold text-orange-700">
                               +{formatNumber(subscriberSources[2].subscribersGained)}
                             </div>
@@ -4008,9 +4017,6 @@ export function ChannelDashboard() {
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
         </div>
       )}
 
