@@ -616,23 +616,9 @@ export function ChannelDashboard() {
       // Analytics rows: [videoId, views, watchTime, subs]
       const topVideoIds = analyticsRows.slice(0, 10).map((row: any[]) => row[0]);
 
-      // 從 Gist 快取獲取影片詳情
-      const cacheResponse = await fetch(
-        `${API_BASE_URL}/video-cache/search?query=&maxResults=10000`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!cacheResponse.ok) {
-        throw new Error('無法獲取影片快取');
-      }
-
-      const cacheData = await cacheResponse.json();
-      const allVideos = cacheData.videos || [];
+      // 從快取獲取影片詳情（使用統一的快取機制，只讀取一次）
+      const cache = await ensureVideoCache();
+      const allVideos = Object.values(cache);
 
       // 匹配影片詳情
       const topVideosWithDetails = analyticsRows.slice(0, 10).map((row: any[]) => {
@@ -931,23 +917,9 @@ export function ChannelDashboard() {
         return;
       }
 
-      // 從 Gist 快取獲取影片詳情
-      const cacheResponse = await fetch(
-        `${API_BASE_URL}/video-cache/search?query=&maxResults=10000`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!cacheResponse.ok) {
-        throw new Error('無法獲取影片快取');
-      }
-
-      const cacheData = await cacheResponse.json();
-      const allVideos = cacheData.videos || [];
+      // 從快取獲取影片詳情（使用統一的快取機制，只讀取一次）
+      const cache = await ensureVideoCache();
+      const allVideos = Object.values(cache);
 
       // 匹配影片詳情
       const topShortsWithDetails = data.rows.slice(0, 10).map((row: any[]) => {
@@ -1428,36 +1400,20 @@ export function ChannelDashboard() {
     try {
       console.log('[Dashboard] 📦 從 Gist 快取獲取影片標題（零配額）...', videoIds.length, '個影片');
 
-      // 從 Gist 快取獲取所有影片
-      const response = await fetch(
-        `${API_BASE_URL}/video-cache/search?query=&maxResults=10000`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+      // 從快取獲取影片（使用統一的快取機制，只讀取一次）
+      const cache = await ensureVideoCache();
+
+      // 建立 videoId -> title 映射
+      const titles: Record<string, string> = {};
+      videoIds.forEach((videoId) => {
+        const video = cache[videoId];
+        if (video) {
+          titles[videoId] = video.title || videoId;
         }
-      );
+      });
 
-      if (response.ok) {
-        const data = await response.json();
-        const allVideos = data.videos || [];
-
-        // 建立 videoId -> title 映射
-        const titles: Record<string, string> = {};
-        allVideos.forEach((video: any) => {
-          const videoId = video.videoId || video.id;
-          if (videoIds.includes(videoId)) {
-            titles[videoId] = video.title || videoId;
-          }
-        });
-
-        console.log('[Dashboard] ✅ 從快取獲取到', Object.keys(titles).length, '個影片標題');
-        return titles;
-      }
-
-      console.warn('[Dashboard] ⚠️ Gist 快取不可用，影片將顯示 ID');
-      return {};
+      console.log('[Dashboard] ✅ 從快取獲取到', Object.keys(titles).length, '個影片標題');
+      return titles;
     } catch (err) {
       console.error('[Dashboard] ⚠️ 從快取獲取影片標題失敗:', err);
       return {};
@@ -1580,30 +1536,9 @@ export function ChannelDashboard() {
       console.log('[Dashboard] 🎬 從 Gist 快取獲取影片資料（備援方案）...');
       console.log(`[Dashboard] 📅 時間範圍: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`);
 
-      // 從 Gist 快取獲取所有影片
-      const response = await fetch(
-        `${API_BASE_URL}/video-cache/search?query=&maxResults=10000`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[Dashboard] ❌ 獲取影片列表失敗:', errorText);
-
-        if (errorText.includes('GITHUB_GIST_ID')) {
-          throw new Error('未設定 Gist 快取，請先運行 npm run update-cache 生成快取');
-        }
-
-        throw new Error('無法從快取獲取影片列表');
-      }
-
-      const data = await response.json();
-      const allVideos = data.videos || [];
+      // 從快取獲取所有影片（使用統一的快取機制，只讀取一次）
+      const cache = await ensureVideoCache();
+      const allVideos = Object.values(cache);
 
       console.log(`[Dashboard] ✅ 從快取載入 ${allVideos.length} 支影片`);
 
@@ -1816,22 +1751,10 @@ export function ChannelDashboard() {
   const generateViewingHoursFromCache = async (start: Date, end: Date) => {
     try {
       console.log('[Dashboard] 🗂️ 從影片快取估算最佳時段...');
-      const response = await fetch(
-        `${API_BASE_URL}/video-cache/search?query=&maxResults=10000`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
 
-      if (!response.ok) {
-        throw new Error('無法載入影片快取');
-      }
-
-      const data = await response.json();
-      const videos = Array.isArray(data.videos) ? data.videos : [];
+      // 從快取獲取影片（使用統一的快取機制，只讀取一次）
+      const cache = await ensureVideoCache();
+      const videos = Object.values(cache);
       const startTime = start.getTime();
       const endTime = end.getTime();
       const aggregates = new Map<string, number>();
