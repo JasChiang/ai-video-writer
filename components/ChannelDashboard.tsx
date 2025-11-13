@@ -131,16 +131,6 @@ interface SubscriberSourceItem {
   subscribersGained: number; // 獲得訂閱數
 }
 
-interface VideoPerformanceItem {
-  videoId: string;         // 影片 ID
-  title: string;           // 標題
-  publishedAt: string;     // 發布日期
-  views: number;           // 觀看次數
-  ctr: number;             // 點擊率
-  avgViewDuration: number; // 平均觀看時長（秒）
-  avgViewPercentage: number; // 平均觀看百分比
-}
-
 interface ComparisonData {
   current: number;                    // 當前期間數據
   previous: number;                   // 環比：前一期數據
@@ -225,7 +215,6 @@ export function ChannelDashboard() {
   const [devices, setDevices] = useState<DeviceItem[]>([]);
   const [viewingHours, setViewingHours] = useState<ViewingHourData[]>([]);
   const [subscriberSources, setSubscriberSources] = useState<SubscriberSourceItem[]>([]);
-  const [videoPerformance, setVideoPerformance] = useState<VideoPerformanceItem[]>([]);
   const [avgViewDuration, setAvgViewDuration] = useState<number>(0);
   const [avgViewPercentage, setAvgViewPercentage] = useState<number>(0);
   const [viewsComparison, setViewsComparison] = useState<ComparisonData | null>(null);
@@ -334,6 +323,9 @@ export function ChannelDashboard() {
 
         // 獲取裝置類型數據
         await fetchDeviceData(startDate, endDate, token);
+
+        // 獲取訂閱來源數據
+        await fetchSubscriberSourcesData(startDate, endDate, token);
       } else {
         // Analytics API 不可用，回退到 Gist 快取方案
         console.log('[Dashboard] ℹ️  回退到 Gist 快取方案');
@@ -515,7 +507,7 @@ export function ChannelDashboard() {
       console.log('[Dashboard] 📡 API 請求參數:', {
         startDate: formattedStartDate,
         endDate: formattedEndDate,
-        metrics: 'views,estimatedMinutesWatched,subscribersGained,subscribersLost'
+        metrics: 'views,estimatedMinutesWatched,subscribersGained,subscribersLost,averageViewDuration,averageViewPercentage'
       });
 
       // 頻道級別數據：不使用 dimensions，直接獲取頻道整體統計
@@ -982,6 +974,101 @@ export function ChannelDashboard() {
     } catch (err: any) {
       console.error('[Dashboard] ⚠️ 獲取裝置類型數據失敗:', err.message);
       // 不拋出錯誤，允許儀錶板繼續顯示其他數據
+    }
+  };
+
+  // 獲取訂閱來源數據（帶來最多訂閱的影片）
+  const fetchSubscriberSourcesData = async (startDate: Date, endDate: Date, token: string) => {
+    try {
+      console.log('[Dashboard] 📊 從 Analytics API 獲取訂閱來源數據...');
+
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      const response = await fetch(
+        `https://youtubeanalytics.googleapis.com/v2/reports?` +
+        `ids=channel==MINE` +
+        `&startDate=${formatDate(startDate)}` +
+        `&endDate=${formatDate(endDate)}` +
+        `&metrics=subscribersGained` +
+        `&dimensions=video` +
+        `&sort=-subscribersGained` +
+        `&maxResults=10`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.rows && data.rows.length > 0) {
+          // 需要獲取影片標題
+          const videoIds = data.rows.map((row: any[]) => row[0]);
+          const videoTitles = await fetchVideoTitles(videoIds);
+
+          const subscriberSourceData: SubscriberSourceItem[] = data.rows.map((row: any[]) => ({
+            videoId: row[0],
+            videoTitle: videoTitles[row[0]] || '未知影片',
+            subscribersGained: parseInt(row[1]) || 0,
+          }));
+
+          console.log('[Dashboard] ✅ 訂閱來源數據獲取成功:', subscriberSourceData.length, '個影片');
+          setSubscriberSources(subscriberSourceData);
+        }
+      } else {
+        const errorData = await response.json();
+        console.error('[Dashboard] ❌ 訂閱來源數據 API 錯誤:', errorData);
+      }
+    } catch (err: any) {
+      console.error('[Dashboard] ⚠️ 獲取訂閱來源數據失敗:', err.message);
+      // 不拋出錯誤，允許儀錶板繼續顯示其他數據
+    }
+  };
+
+  // 輔助函數：從 Gist 快取獲取影片標題（零配額！）
+  const fetchVideoTitles = async (videoIds: string[]): Promise<Record<string, string>> => {
+    try {
+      console.log('[Dashboard] 📦 從 Gist 快取獲取影片標題（零配額）...', videoIds.length, '個影片');
+
+      // 從 Gist 快取獲取所有影片
+      const response = await fetch(
+        `${API_BASE_URL}/video-cache/search?query=&maxResults=10000`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const allVideos = data.videos || [];
+
+        // 建立 videoId -> title 映射
+        const titles: Record<string, string> = {};
+        allVideos.forEach((video: any) => {
+          const videoId = video.videoId || video.id;
+          if (videoIds.includes(videoId)) {
+            titles[videoId] = video.title || videoId;
+          }
+        });
+
+        console.log('[Dashboard] ✅ 從快取獲取到', Object.keys(titles).length, '個影片標題');
+        return titles;
+      }
+
+      console.warn('[Dashboard] ⚠️ Gist 快取不可用，影片將顯示 ID');
+      return {};
+    } catch (err) {
+      console.error('[Dashboard] ⚠️ 從快取獲取影片標題失敗:', err);
+      return {};
     }
   };
 
@@ -1950,6 +2037,83 @@ export function ChannelDashboard() {
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 訂閱來源分析 */}
+            {subscriberSources.length > 0 && (
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-pink-600" />
+                  訂閱來源分析
+                  <span className="text-sm font-normal text-gray-500">
+                    （帶來最多新訂閱的影片）
+                  </span>
+                </h3>
+                <div className="space-y-3">
+                  {subscriberSources.map((source, index) => (
+                    <div
+                      key={source.videoId}
+                      className="flex items-center gap-4 p-4 bg-gradient-to-r from-pink-50 to-transparent rounded-lg hover:from-pink-100 transition-colors"
+                    >
+                      {/* 排名 */}
+                      <div className="flex-shrink-0">
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                            index === 0
+                              ? 'bg-yellow-400 text-yellow-900'
+                              : index === 1
+                              ? 'bg-gray-300 text-gray-700'
+                              : index === 2
+                              ? 'bg-orange-400 text-orange-900'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          {index + 1}
+                        </div>
+                      </div>
+
+                      {/* 影片資訊 */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-900 truncate">
+                          {source.videoTitle}
+                        </div>
+                        <a
+                          href={`https://www.youtube.com/watch?v=${source.videoId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          {source.videoId}
+                        </a>
+                      </div>
+
+                      {/* 訂閱數 */}
+                      <div className="flex-shrink-0 text-right">
+                        <div className="text-lg font-bold text-pink-600">
+                          +{formatNumber(source.subscribersGained)}
+                        </div>
+                        <div className="text-xs text-gray-500">新訂閱</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 總計 */}
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">
+                      前 {subscriberSources.length} 支影片總計
+                    </span>
+                    <span className="text-xl font-bold text-pink-600">
+                      +
+                      {formatNumber(
+                        subscriberSources.reduce((sum, s) => sum + s.subscribersGained, 0)
+                      )}{' '}
+                      訂閱
+                    </span>
                   </div>
                 </div>
               </div>
