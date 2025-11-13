@@ -3794,91 +3794,88 @@ export function ChannelDashboard() {
                     <div className="hidden md:flex items-end justify-center gap-4 mb-6">
                       {/* 第二名 */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="w-16 h-16 bg-gradient-to-br from-gray-300 to-gray-500 rounded-full flex items-center justify-center shadow-xl ring-4 ring-gray-300 mb-3">
-                          <span className="text-3xl">🥈</span>
-                        </div>
-                        <div className="w-full bg-gradient-to-b from-gray-100 to-gray-200 rounded-t-2xl p-4 border-2 border-gray-300 shadow-lg" style={{ height: '200px' }}>
-                          <div className="text-center mb-2">
+                        <div className="w-full bg-gradient-to-b from-gray-100 to-gray-200 rounded-2xl p-4 border-2 border-gray-300 shadow-lg overflow-hidden" style={{ height: '280px' }}>
+                          <div className="text-center mb-3">
                             <div className="text-2xl font-bold text-gray-600">第 2 名</div>
                           </div>
-                          <div className="text-sm font-semibold text-gray-900 mb-3 line-clamp-2 h-10">
+                          {/* 影片縮圖 */}
+                          <div className="mb-3 rounded-lg overflow-hidden">
+                            <img
+                              src={`https://i.ytimg.com/vi/${subscriberSources[1].videoId}/mqdefault.jpg`}
+                              alt={subscriberSources[1].videoTitle}
+                              className="w-full h-24 object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[1].videoId}/default.jpg`;
+                              }}
+                            />
+                          </div>
+                          <div className="text-sm font-semibold text-gray-900 mb-2 line-clamp-2">
                             {subscriberSources[1].videoTitle}
                           </div>
                           <div className="text-center">
-                            <div className="text-3xl font-bold text-gray-700">
+                            <div className="text-2xl font-bold text-gray-700">
                               +{formatNumber(subscriberSources[1].subscribersGained)}
                             </div>
-                            <div className="text-xs text-gray-600 mb-2">新訂閱</div>
-                            <a
-                              href={`https://www.youtube.com/watch?v=${subscriberSources[1].videoId}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-500 hover:text-blue-700 hover:underline inline-flex items-center gap-1 justify-center"
-                            >
-                              <span>觀看影片</span>
-                              <span>↗</span>
-                            </a>
+                            <div className="text-xs text-gray-600">新訂閱</div>
                           </div>
                         </div>
                       </div>
 
                       {/* 第一名（中間最高） */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center shadow-2xl ring-4 ring-yellow-400 mb-3 animate-pulse">
-                          <span className="text-4xl">🥇</span>
-                        </div>
-                        <div className="w-full bg-gradient-to-b from-yellow-50 to-yellow-100 rounded-t-2xl p-5 border-2 border-yellow-400 shadow-2xl" style={{ height: '260px' }}>
+                        <div className="w-full bg-gradient-to-b from-yellow-50 to-yellow-100 rounded-2xl p-5 border-2 border-yellow-400 shadow-2xl overflow-hidden" style={{ height: '340px' }}>
                           <div className="text-center mb-3">
                             <div className="text-3xl font-bold text-yellow-700">第 1 名</div>
                             <div className="text-xs text-yellow-600">👑 冠軍</div>
                           </div>
-                          <div className="text-sm font-bold text-gray-900 mb-3 line-clamp-2 h-10">
+                          {/* 影片縮圖 */}
+                          <div className="mb-3 rounded-lg overflow-hidden shadow-md">
+                            <img
+                              src={`https://i.ytimg.com/vi/${subscriberSources[0].videoId}/mqdefault.jpg`}
+                              alt={subscriberSources[0].videoTitle}
+                              className="w-full h-28 object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[0].videoId}/default.jpg`;
+                              }}
+                            />
+                          </div>
+                          <div className="text-sm font-bold text-gray-900 mb-2 line-clamp-2">
                             {subscriberSources[0].videoTitle}
                           </div>
                           <div className="text-center">
-                            <div className="text-4xl font-bold text-red-600">
+                            <div className="text-3xl font-bold text-red-600">
                               +{formatNumber(subscriberSources[0].subscribersGained)}
                             </div>
-                            <div className="text-xs text-gray-600 mb-2">新訂閱</div>
-                            <a
-                              href={`https://www.youtube.com/watch?v=${subscriberSources[0].videoId}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-500 hover:text-blue-700 hover:underline inline-flex items-center gap-1 justify-center"
-                            >
-                              <span>觀看影片</span>
-                              <span>↗</span>
-                            </a>
+                            <div className="text-xs text-gray-600">新訂閱</div>
                           </div>
                         </div>
                       </div>
 
                       {/* 第三名 */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center shadow-xl ring-4 ring-orange-300 mb-3">
-                          <span className="text-3xl">🥉</span>
-                        </div>
-                        <div className="w-full bg-gradient-to-b from-orange-50 to-orange-100 rounded-t-2xl p-4 border-2 border-orange-300 shadow-lg" style={{ height: '180px' }}>
-                          <div className="text-center mb-2">
+                        <div className="w-full bg-gradient-to-b from-orange-50 to-orange-100 rounded-2xl p-4 border-2 border-orange-300 shadow-lg overflow-hidden" style={{ height: '260px' }}>
+                          <div className="text-center mb-3">
                             <div className="text-2xl font-bold text-orange-600">第 3 名</div>
                           </div>
-                          <div className="text-sm font-semibold text-gray-900 mb-3 line-clamp-2 h-10">
+                          {/* 影片縮圖 */}
+                          <div className="mb-3 rounded-lg overflow-hidden">
+                            <img
+                              src={`https://i.ytimg.com/vi/${subscriberSources[2].videoId}/mqdefault.jpg`}
+                              alt={subscriberSources[2].videoTitle}
+                              className="w-full h-20 object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[2].videoId}/default.jpg`;
+                              }}
+                            />
+                          </div>
+                          <div className="text-sm font-semibold text-gray-900 mb-2 line-clamp-2">
                             {subscriberSources[2].videoTitle}
                           </div>
                           <div className="text-center">
-                            <div className="text-3xl font-bold text-orange-700">
+                            <div className="text-2xl font-bold text-orange-700">
                               +{formatNumber(subscriberSources[2].subscribersGained)}
                             </div>
-                            <div className="text-xs text-gray-600 mb-2">新訂閱</div>
-                            <a
-                              href={`https://www.youtube.com/watch?v=${subscriberSources[2].videoId}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-500 hover:text-blue-700 hover:underline inline-flex items-center gap-1 justify-center"
-                            >
-                              <span>觀看影片</span>
-                              <span>↗</span>
-                            </a>
+                            <div className="text-xs text-gray-600">新訂閱</div>
                           </div>
                         </div>
                       </div>
@@ -3887,31 +3884,37 @@ export function ChannelDashboard() {
                     {/* 手機版：垂直堆疊 */}
                     <div className="md:hidden space-y-4 mb-6">
                       {subscriberSources.slice(0, 3).map((source, index) => {
-                        const medals = [
-                          { icon: '🥇', bg: 'from-yellow-50 to-yellow-100', border: 'border-yellow-400', text: 'text-yellow-700', ring: 'ring-yellow-400', label: '冠軍' },
-                          { icon: '🥈', bg: 'from-gray-50 to-gray-100', border: 'border-gray-400', text: 'text-gray-700', ring: 'ring-gray-300', label: '亞軍' },
-                          { icon: '🥉', bg: 'from-orange-50 to-orange-100', border: 'border-orange-400', text: 'text-orange-700', ring: 'ring-orange-300', label: '季軍' },
+                        const styles = [
+                          { bg: 'from-yellow-50 to-yellow-100', border: 'border-yellow-400', text: 'text-yellow-700', label: '冠軍' },
+                          { bg: 'from-gray-50 to-gray-100', border: 'border-gray-400', text: 'text-gray-700', label: '亞軍' },
+                          { bg: 'from-orange-50 to-orange-100', border: 'border-orange-400', text: 'text-orange-700', label: '季軍' },
                         ];
-                        const medal = medals[index];
+                        const style = styles[index];
 
                         return (
-                          <div key={source.videoId} className={`bg-gradient-to-r ${medal.bg} rounded-2xl p-4 border-2 ${medal.border} shadow-lg`}>
-                            <div className="flex items-center gap-3 mb-3">
-                              <div className={`w-14 h-14 bg-gradient-to-br ${index === 0 ? 'from-yellow-400 to-yellow-600' : index === 1 ? 'from-gray-300 to-gray-500' : 'from-orange-400 to-orange-600'} rounded-full flex items-center justify-center shadow-lg ring-2 ${medal.ring}`}>
-                                <span className="text-2xl">{medal.icon}</span>
+                          <div key={source.videoId} className={`bg-gradient-to-r ${style.bg} rounded-2xl p-4 border-2 ${style.border} shadow-lg`}>
+                            <div className="flex gap-3 mb-3">
+                              {/* 影片縮圖 */}
+                              <div className="flex-shrink-0 w-32 rounded-lg overflow-hidden">
+                                <img
+                                  src={`https://i.ytimg.com/vi/${source.videoId}/mqdefault.jpg`}
+                                  alt={source.videoTitle}
+                                  className="w-full h-18 object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.src = `https://i.ytimg.com/vi/${source.videoId}/default.jpg`;
+                                  }}
+                                />
                               </div>
                               <div className="flex-1">
-                                <div className={`text-xl font-bold ${medal.text}`}>第 {index + 1} 名</div>
-                                <div className="text-xs text-gray-600">{medal.label}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-2xl font-bold text-red-600">
+                                <div className={`text-xl font-bold ${style.text}`}>第 {index + 1} 名</div>
+                                <div className="text-xs text-gray-600 mb-2">{style.label}</div>
+                                <div className="text-xl font-bold text-red-600">
                                   +{formatNumber(source.subscribersGained)}
                                 </div>
                                 <div className="text-xs text-gray-600">新訂閱</div>
                               </div>
                             </div>
-                            <div className="text-sm font-semibold text-gray-900 mb-2">
+                            <div className="text-sm font-semibold text-gray-900 mb-2 line-clamp-2">
                               {source.videoTitle}
                             </div>
                             <a
@@ -3941,28 +3944,44 @@ export function ChannelDashboard() {
                       {subscriberSources.slice(3).map((source, index) => (
                         <div
                           key={source.videoId}
-                          className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:shadow-md transition-all"
+                          className="flex gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:shadow-md transition-all"
                         >
-                          <div className="flex-shrink-0 w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                            <span className="text-lg font-bold text-gray-600">{index + 4}</span>
+                          {/* 影片縮圖 */}
+                          <div className="flex-shrink-0 w-24 rounded-md overflow-hidden">
+                            <img
+                              src={`https://i.ytimg.com/vi/${source.videoId}/mqdefault.jpg`}
+                              alt={source.videoTitle}
+                              className="w-full h-16 object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = `https://i.ytimg.com/vi/${source.videoId}/default.jpg`;
+                              }}
+                            />
                           </div>
+                          {/* 排名 */}
+                          <div className="flex-shrink-0 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center self-start">
+                            <span className="text-sm font-bold text-gray-600">{index + 4}</span>
+                          </div>
+                          {/* 內容 */}
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-gray-900 truncate">
+                            <div className="text-sm font-medium text-gray-900 line-clamp-2 mb-1">
                               {source.videoTitle}
                             </div>
                             <a
                               href={`https://www.youtube.com/watch?v=${source.videoId}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs text-blue-500 hover:text-blue-700 hover:underline"
+                              className="text-xs text-blue-500 hover:text-blue-700 hover:underline inline-flex items-center gap-1"
                             >
-                              觀看 ↗
+                              <span>觀看</span>
+                              <span>↗</span>
                             </a>
                           </div>
+                          {/* 訂閱數 */}
                           <div className="flex-shrink-0 text-right">
                             <div className="text-base font-bold text-gray-700">
                               +{formatNumber(source.subscribersGained)}
                             </div>
+                            <div className="text-xs text-gray-500">新訂閱</div>
                           </div>
                         </div>
                       ))}
