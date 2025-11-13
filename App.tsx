@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { Loader } from './components/Loader';
@@ -6,6 +7,14 @@ import * as youtubeService from './services/youtubeService';
 import type { YouTubeVideo } from './types';
 import { YouTubeLogin } from './components/YouTubeLogin';
 import { VideoSelector } from './components/VideoSelector';
+import { VideoAnalytics } from './components/VideoAnalytics';
+import { VideoDetailPanel } from './components/VideoDetailPanel';
+import { QuotaDebugger } from './components/QuotaDebugger';
+import { ArticleWorkspace } from './components/ArticleWorkspace';
+import { ChannelAnalytics } from './components/ChannelAnalytics';
+import { GITHUB_GIST_ID } from './config';
+
+type ActiveTab = 'videos' | 'analytics' | 'articles' | 'channel-analytics';
 
 export default function App() {
   const [isInitializing, setIsInitializing] = useState(true);
@@ -18,6 +27,26 @@ export default function App() {
   const [showPrivateVideos, setShowPrivateVideos] = useState<boolean>(false);
   const [showUnlistedVideos, setShowUnlistedVideos] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('videos');
+  const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 0));
+  const [portalReady, setPortalReady] = useState(false);
+  const isDesktop = viewportWidth >= 1024;
+  const showDetailSidebar = viewportWidth >= 1280;
+  const useInlineDetail = !showDetailSidebar;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleResize = () => {
+      setViewportWidth(window.innerWidth);
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   const init = async () => {
     setIsInitializing(true);
@@ -28,7 +57,7 @@ export default function App() {
 
       if (youtubeService.isTokenValid()) {
         setIsLoggedIn(true);
-        await fetchVideos();
+        await fetchVideos({ reset: true, trigger: 'initial-load' });
       } else if (restored) {
         // 如果已恢復舊 token 但立即失效，清除狀態避免無限循環
         console.warn('Stored YouTube token expired; user needs to re-authenticate.');
@@ -44,7 +73,7 @@ export default function App() {
   useEffect(() => {
     init();
   }, []);
-  
+
   const handleLogin = async () => {
     try {
       await youtubeService.requestToken();
@@ -54,7 +83,7 @@ export default function App() {
         if (youtubeService.isTokenValid()) {
           clearInterval(interval);
           setIsLoggedIn(true);
-          fetchVideos();
+          fetchVideos({ reset: true, trigger: 'post-login' });
         }
       }, 1000);
 
@@ -80,9 +109,33 @@ export default function App() {
     setShowUnlistedVideos(false);
     setSearchQuery('');
     setError(null);
+    setSelectedVideoId(null);
+    setIsFilterPanelOpen(false);
   };
 
-  const fetchVideos = async (reset: boolean = true) => {
+  // 從 localStorage 合併本地更新
+  const mergeLocalUpdates = (videos: YouTubeVideo[]): YouTubeVideo[] => {
+    try {
+      const updatesJson = localStorage.getItem('videoMetadataUpdates');
+      if (!updatesJson) return videos;
+
+      const updates = JSON.parse(updatesJson);
+
+      return videos.map(video => {
+        const localUpdate = updates[video.id];
+        if (localUpdate) {
+          console.log(`[App] 合併本地更新: ${video.id}`, localUpdate);
+          return { ...video, ...localUpdate };
+        }
+        return video;
+      });
+    } catch (error) {
+      console.error('[App] 合併本地更新失敗:', error);
+      return videos;
+    }
+  };
+
+  const fetchVideos = async ({ reset = true, trigger }: { reset?: boolean; trigger?: string } = {}) => {
     setIsLoadingVideos(true);
     setError(null);
     try {
@@ -92,35 +145,170 @@ export default function App() {
         setNextPageToken(null);
       }
 
-      const result = await youtubeService.listVideos(
-        12,
-        reset ? undefined : nextPageToken || undefined,
-        showPrivateVideos,
-        searchQuery,
-        showUnlistedVideos
-      );
+      const actionTrigger = trigger ?? (reset ? 'initial-load' : 'load-more');
 
-      if (reset) {
-        setVideos(result.videos);
+      // 如果有搜尋關鍵字且有 GIST_ID，優先使用 Gist 快取搜尋（配額成本 0）
+      if (searchQuery && searchQuery.trim() && GITHUB_GIST_ID) {
+        console.log('[App] 使用 Gist 快取搜尋，關鍵字:', searchQuery);
+
+        const response = await fetch(
+          `/api/video-cache/search?gistId=${encodeURIComponent(GITHUB_GIST_ID)}&query=${encodeURIComponent(searchQuery.trim())}&maxResults=10000`
+        );
+
+        if (!response.ok) {
+          throw new Error(`快取搜尋失敗: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (!data.success) {
+          throw new Error(data.error || '快取搜尋失敗');
+        }
+
+        console.log(`[App] API 返回 ${data.videos.length} 支影片`);
+
+        // 將快取資料格式轉換為 YouTubeVideo 格式
+        const cacheVideos: YouTubeVideo[] = [];
+        const skippedVideos: any[] = [];
+
+        for (const v of data.videos) {
+          try {
+            // 檢查必要欄位
+            if (!v.videoId) {
+              skippedVideos.push({ reason: 'missing videoId', data: v });
+              continue;
+            }
+
+            cacheVideos.push({
+              id: v.videoId,
+              title: v.title || '(無標題)',
+              description: '', // 描述未包含在快取中，需要時才抓取
+              thumbnailUrl: v.thumbnail || '',
+              tags: v.tags || [],
+              categoryId: v.categoryId || '',
+              privacyStatus: v.privacyStatus || 'public',
+              publishedAt: v.publishedAt || '',
+              viewCount: v.viewCount || 0,
+              likeCount: v.likeCount || 0,
+              commentCount: v.commentCount || 0,
+            });
+          } catch (err: any) {
+            skippedVideos.push({ reason: err.message, data: v });
+          }
+        }
+
+        if (skippedVideos.length > 0) {
+          console.warn(`[App] ⚠️ 轉換時跳過 ${skippedVideos.length} 支影片:`);
+          console.table(skippedVideos);
+        }
+
+        console.log(`[App] 轉換後 ${cacheVideos.length} 支影片`);
+
+        // 過濾影片狀態
+        const filteredVideos = cacheVideos.filter(video => {
+          if (video.privacyStatus === 'public') return true;
+          if (video.privacyStatus === 'unlisted') return showUnlistedVideos;
+          if (video.privacyStatus === 'private') return showPrivateVideos;
+          return false;
+        });
+
+        // Debug: 顯示被過濾掉的影片
+        const filtered = cacheVideos.filter(video => {
+          if (video.privacyStatus === 'public') return false;
+          if (video.privacyStatus === 'unlisted' && showUnlistedVideos) return false;
+          if (video.privacyStatus === 'private' && showPrivateVideos) return false;
+          return true;
+        });
+
+        if (filtered.length > 0) {
+          console.log(`[App] 共 ${cacheVideos.length} 支影片，過濾掉 ${filtered.length} 支 (${filtered.map(v => v.privacyStatus).join(', ')})`);
+          console.table(filtered.map(v => ({
+            videoId: v.id,
+            title: v.title,
+            privacyStatus: v.privacyStatus,
+            publishedAt: v.publishedAt
+          })));
+        }
+
+        console.log(`[App] 過濾後 ${filteredVideos.length} 支影片`);
+
+        // 去重：確保每個影片 ID 只出現一次
+        const uniqueVideos = Array.from(
+          new Map(filteredVideos.map(video => [video.id, video])).values()
+        );
+
+        const duplicateCount = filteredVideos.length - uniqueVideos.length;
+        if (duplicateCount > 0) {
+          console.warn(`[App] ⚠️ 去重移除 ${duplicateCount} 支重複影片`);
+
+          // 找出重複的影片
+          const idCounts = new Map<string, number>();
+          filteredVideos.forEach(video => {
+            idCounts.set(video.id, (idCounts.get(video.id) || 0) + 1);
+          });
+          const duplicates = Array.from(idCounts.entries())
+            .filter(([_, count]) => count > 1)
+            .map(([id, count]) => ({
+              videoId: id,
+              count,
+              title: filteredVideos.find(v => v.id === id)?.title
+            }));
+          console.table(duplicates);
+        }
+
+        console.log(`[App] 最終顯示 ${uniqueVideos.length} 支影片`);
+
+        // 合併本地更新（覆蓋 Gist 快取中的舊資料）
+        const mergedVideos = mergeLocalUpdates(uniqueVideos);
+
+        setVideos(mergedVideos);
+        setNextPageToken(null);
+        setHasMore(false); // 快取搜尋一次返回所有結果
+        setSelectedVideoId(prev => {
+          if (prev && mergedVideos.some(video => video.id === prev)) {
+            return prev;
+          }
+          return showDetailSidebar ? mergedVideos[0]?.id ?? null : null;
+        });
+      } else {
+        // 無搜尋關鍵字或沒有 GIST_ID，使用 YouTube API
+        if (searchQuery && searchQuery.trim() && !GITHUB_GIST_ID) {
+          console.warn('[App] 未設定 GIST_ID，使用 YouTube API 搜尋（配額成本較高）');
+        }
+
+        // 增加單次載入數量到 24，減少 loadmore 次數
+        // 這樣可以在有搜尋關鍵字時，減少總配額消耗
+        const result = await youtubeService.listVideos(
+          24,
+          reset ? undefined : nextPageToken || undefined,
+          showPrivateVideos,
+          searchQuery,
+          showUnlistedVideos,
+          {
+            trigger: actionTrigger,
+            source: 'App.fetchVideos',
+            reset,
+          }
+        );
+
+        const existingIds = reset ? new Set<string>() : new Set(videos.map(v => v.id));
+        const dedupedVideos = reset
+          ? result.videos
+          : [...videos, ...result.videos.filter(video => !existingIds.has(video.id))];
+
+        // 額外確保去重：使用 Map 確保每個 ID 只出現一次
+        const uniqueVideos = Array.from(
+          new Map(dedupedVideos.map(video => [video.id, video])).values()
+        );
+
+        setVideos(uniqueVideos);
         setNextPageToken(result.nextPageToken);
         setHasMore(!!result.nextPageToken);
-      } else {
-        // 去重：過濾掉已經存在的影片
-        setVideos(prev => {
-          const existingIds = new Set(prev.map(v => v.id));
-          const newVideos = result.videos.filter(v => !existingIds.has(v.id));
-
-          // 如果沒有新影片但還有下一頁，自動載入下一頁
-          if (newVideos.length === 0 && result.nextPageToken) {
-            setNextPageToken(result.nextPageToken);
-            // 不要在這裡遞迴調用，讓使用者再按一次
-            setHasMore(true);
-          } else {
-            setNextPageToken(result.nextPageToken);
-            setHasMore(!!result.nextPageToken);
+        setSelectedVideoId(prev => {
+          if (prev && uniqueVideos.some(video => video.id === prev)) {
+            return prev;
           }
-
-          return [...prev, ...newVideos];
+          return showDetailSidebar ? uniqueVideos[0]?.id ?? null : null;
         });
       }
     } catch (e: any) {
@@ -133,7 +321,7 @@ export default function App() {
 
   const loadMoreVideos = async () => {
     if (!hasMore || isLoadingVideos) return;
-    await fetchVideos(false);
+    await fetchVideos({ reset: false, trigger: 'load-more' });
   };
 
   const handleTogglePrivateVideos = () => {
@@ -147,20 +335,253 @@ export default function App() {
   // Re-fetch videos when showPrivateVideos changes
   useEffect(() => {
     if (isLoggedIn) {
-      fetchVideos(true);
+      fetchVideos({ reset: true, trigger: 'privacy-filter-change' });
     }
   }, [showPrivateVideos, showUnlistedVideos]);
 
-  // Re-fetch videos when searchQuery changes (with debounce)
+  // 手動搜尋處理函數
+  const handleSearch = () => {
+    if (isLoggedIn) {
+      fetchVideos({ reset: true, trigger: 'search-query' });
+    }
+  };
+
+  // 處理 Enter 鍵搜尋
+  const handleSearchKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+
+  const handleResetFilters = () => {
+    setShowPrivateVideos(false);
+    setShowUnlistedVideos(false);
+    setSearchQuery('');
+  };
+
+  const handleVideoSelect = (videoId: string) => {
+    setSelectedVideoId(videoId);
+    if (!showDetailSidebar) {
+      const target = document.getElementById(`video-card-${videoId}`);
+      if (target) {
+        window.requestAnimationFrame(() => {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
+    }
+  };
+
+  // 更新影片列表中的特定影片資料
+  const handleVideoUpdate = (updatedVideo: Partial<YouTubeVideo> & { id: string }) => {
+    setVideos(prevVideos =>
+      prevVideos.map(video =>
+        video.id === updatedVideo.id
+          ? { ...video, ...updatedVideo }
+          : video
+      )
+    );
+  };
+
+  const selectedVideo = selectedVideoId
+    ? videos.find(video => video.id === selectedVideoId) ?? null
+    : null;
+
+  // 使用 Portal 渲染 Detail Panel 到指定位置
+  const renderDetailPanel = () => {
+    if (!selectedVideo || !portalReady) return null;
+
+    const detailPanelContent = (
+      <VideoDetailPanel
+        key={selectedVideo.id}
+        video={selectedVideo}
+        onVideoUpdate={handleVideoUpdate}
+      />
+    );
+
+    if (useInlineDetail) {
+      // 小螢幕：使用 Portal 渲染到選中影片的 slot 中
+      const targetSlot = document.getElementById(`detail-slot-${selectedVideo.id}`);
+      if (!targetSlot) return null;
+      return createPortal(detailPanelContent, targetSlot);
+    } else {
+      // 大螢幕：使用 Portal 渲染到 sidebar 的滾動容器中
+      const sidebarScroll = document.getElementById('detail-sidebar-scroll');
+      if (!sidebarScroll) return null;
+      return createPortal(detailPanelContent, sidebarScroll);
+    }
+  };
+
+  // 確保 Portal 目標容器已就緒
   useEffect(() => {
-    if (!isLoggedIn) return;
+    if (!selectedVideo) {
+      setPortalReady(false);
+      return;
+    }
 
-    const timer = setTimeout(() => {
-      fetchVideos(true);
-    }, 500); // 500ms debounce
+    // 使用 requestAnimationFrame 確保 DOM 已更新
+    const checkPortalTarget = () => {
+      if (useInlineDetail) {
+        const targetSlot = document.getElementById(`detail-slot-${selectedVideo.id}`);
+        setPortalReady(!!targetSlot);
+      } else {
+        const sidebarScroll = document.getElementById('detail-sidebar-scroll');
+        setPortalReady(!!sidebarScroll);
+      }
+    };
 
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+    requestAnimationFrame(checkPortalTarget);
+  }, [selectedVideo, useInlineDetail]);
+
+  useEffect(() => {
+    if (isDesktop) {
+      setIsFilterPanelOpen(false);
+    }
+  }, [isDesktop]);
+
+  useEffect(() => {
+    if (showDetailSidebar) {
+      setSelectedVideoId(prev => prev ?? (videos[0]?.id ?? null));
+    }
+  }, [showDetailSidebar, videos]);
+
+  const layoutTemplateColumns = useMemo(() => {
+    if (!isDesktop) {
+      return 'minmax(0, 1fr)';
+    }
+
+    if (showDetailSidebar) {
+      return 'minmax(280px, 340px) minmax(0, 1fr) clamp(320px, 30vw, 560px)';
+    }
+
+    return 'minmax(280px, 340px) minmax(0, 1fr)';
+  }, [isDesktop, showDetailSidebar]);
+
+  const hasActiveFilters = showPrivateVideos || showUnlistedVideos || Boolean(searchQuery);
+
+  const renderFilterControls = () => (
+    <div className="space-y-5">
+      <div className="relative">
+        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-red-600">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </span>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyPress={handleSearchKeyPress}
+          placeholder="搜尋影片標題（按 Enter 搜尋）..."
+          className="w-full rounded-full border border-neutral-300 bg-white pl-12 pr-24 py-3 text-sm text-neutral-900 shadow-sm transition focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 sm:text-base"
+        />
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="text-neutral-400 transition hover:text-neutral-600 focus:outline-none"
+              aria-label="清除搜尋"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+          <button
+            onClick={handleSearch}
+            className="text-red-600 transition hover:text-red-700 focus:outline-none"
+            aria-label="搜尋"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={handleToggleUnlistedVideos}
+          aria-pressed={showUnlistedVideos}
+          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 ${
+            showUnlistedVideos
+              ? 'border-red-500 bg-red-50/80 text-red-600 shadow-sm'
+              : 'border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50'
+          }`}
+        >
+          <span className="font-medium">顯示未公開影片</span>
+          <span
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              showUnlistedVideos ? 'bg-red-500' : 'bg-neutral-300'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                showUnlistedVideos ? 'translate-x-5' : 'translate-x-1'
+              }`}
+            />
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleTogglePrivateVideos}
+          aria-pressed={showPrivateVideos}
+          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 ${
+            showPrivateVideos
+              ? 'border-red-500 bg-red-50/80 text-red-600 shadow-sm'
+              : 'border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50'
+          }`}
+        >
+          <span className="font-medium">顯示私人影片</span>
+          <span
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              showPrivateVideos ? 'bg-red-500' : 'bg-neutral-300'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                showPrivateVideos ? 'translate-x-5' : 'translate-x-1'
+              }`}
+            />
+          </span>
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+        <div className="flex items-center gap-2 text-neutral-500">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-100 text-xs font-semibold text-red-600">
+            {videos.length}
+          </span>
+          <span>符合條件的影片</span>
+        </div>
+        <button
+          type="button"
+          onClick={handleResetFilters}
+          disabled={!hasActiveFilters}
+          className={`text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 ${
+            hasActiveFilters
+              ? 'text-red-600 hover:text-red-700'
+              : 'cursor-not-allowed text-neutral-300'
+          }`}
+        >
+          重設篩選
+        </button>
+      </div>
+
+      {searchQuery && !isLoadingVideos && (
+        <div className="rounded-lg border border-red-200 bg-red-50/70 px-3 py-2 text-sm text-red-600">
+          {videos.length > 0 ? (
+            <span>
+              找到 <span className="font-semibold">{videos.length}</span> 個包含「{searchQuery}」的影片
+            </span>
+          ) : (
+            <span>未找到包含「{searchQuery}」的影片，可試試其他標題關鍵字。</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   const renderContent = () => {
     if (isInitializing) {
@@ -171,116 +592,131 @@ export default function App() {
       return <YouTubeLogin onLogin={handleLogin} />;
     }
 
+    // 根據 activeTab 渲染不同內容
+    if (activeTab === 'analytics') {
+      return <VideoAnalytics />;
+    }
+
+    if (activeTab === 'articles') {
+      return <ArticleWorkspace />;
+    }
+
+    if (activeTab === 'channel-analytics') {
+      return <ChannelAnalytics />;
+    }
+
     return (
-      <>
-        <div className="mb-6 space-y-4">
-          {/* 搜尋框和篩選選項 */}
-          <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
-            {/* 搜尋框 */}
-            <div className="flex-1 relative">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#0077B6' }}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜尋影片標題或描述..."
-                className="w-full pl-10 pr-10 py-2.5 rounded-lg focus:outline-none focus:ring-2 transition-all"
-                style={{
-                  backgroundColor: 'rgba(202, 240, 248, 0.5)',
-                  border: '1px solid #90E0EF',
-                  color: '#03045E',
-                }}
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 hover:opacity-70 transition-opacity"
-                  style={{ color: '#0077B6' }}
-                  aria-label="清除搜尋"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
-
-            {/* 顯示未公開 / 私人影片開關 */}
-            <div className="flex flex-col sm:flex-row gap-4 sm:items-center justify-end md:justify-start">
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <span className="text-sm group-hover:opacity-80 transition-opacity" style={{ color: '#0077B6' }}>
-                  顯示未公開影片
-                </span>
-                <div className="relative">
-                  <input
-                    type="checkbox"
-                    checked={showUnlistedVideos}
-                    onChange={handleToggleUnlistedVideos}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all" style={{ backgroundColor: showUnlistedVideos ? '#0077B6' : '#90E0EF', borderColor: '#00B4D8' }}></div>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <span className="text-sm group-hover:opacity-80 transition-opacity" style={{ color: '#0077B6' }}>
-                  顯示私人影片
-                </span>
-                <div className="relative">
-                  <input
-                    type="checkbox"
-                    checked={showPrivateVideos}
-                    onChange={handleTogglePrivateVideos}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all" style={{ backgroundColor: showPrivateVideos ? '#0077B6' : '#90E0EF', borderColor: '#00B4D8' }}></div>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          {/* 搜尋結果提示 */}
-          {searchQuery && !isLoadingVideos && (
-            <div className="text-sm" style={{ color: '#0077B6' }}>
-              {videos.length > 0 ? (
-                <span>找到 {videos.length} 個包含「{searchQuery}」的影片</span>
-              ) : (
-                <span>未找到包含「{searchQuery}」的影片</span>
-              )}
+      <div className="space-x-0 space-y-6">
+        <div className="lg:hidden">
+          <button
+            type="button"
+            onClick={() => setIsFilterPanelOpen(prev => !prev)}
+            className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+          >
+            <span>搜尋與篩選</span>
+            <svg
+              className={`h-5 w-5 transition-transform ${isFilterPanelOpen ? 'rotate-180 text-red-600' : 'text-neutral-400'}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {isFilterPanelOpen && (
+            <div className="mt-4 rounded-2xl border border-neutral-200 bg-white/95 p-4 shadow-sm">
+              {renderFilterControls()}
             </div>
           )}
         </div>
 
-        <VideoSelector
-          videos={videos}
-          isLoading={isLoadingVideos}
-          error={error}
-          hasMore={hasMore}
-          onLoadMore={loadMoreVideos}
-        />
-      </>
+        <div
+          className="grid gap-6 lg:gap-6 xl:gap-8 2xl:gap-10"
+          style={{ gridTemplateColumns: layoutTemplateColumns }}
+        >
+          <aside className="mb-6 hidden lg:block xl:mb-0">
+            <div className="space-y-5 rounded-2xl border border-neutral-200 bg-white/95 p-5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80 lg:sticky lg:top-28">
+              <div className="space-y-1">
+                <h2 className="text-lg font-semibold text-neutral-900">搜尋與篩選</h2>
+                <p className="text-sm text-neutral-500">
+                  依標題、描述或公開設定快速鎖定需要優化的影片。
+                </p>
+              </div>
+              {renderFilterControls()}
+            </div>
+          </aside>
+
+          <section className="space-y-4">
+            <VideoSelector
+              videos={videos}
+              isLoading={isLoadingVideos}
+              error={error}
+              hasMore={hasMore}
+              onLoadMore={loadMoreVideos}
+              selectedVideoId={selectedVideoId}
+              onSelectVideo={handleVideoSelect}
+              showInlineDetail={useInlineDetail}
+            />
+          </section>
+
+          {/* Desktop sidebar - 獨立滾動容器 */}
+          <aside className="hidden xl:block">
+            {selectedVideo ? (
+              <div
+                className="lg:sticky lg:top-28 overflow-y-auto"
+                style={{
+                  maxHeight: 'calc(100vh - 8rem)',
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: '#d4d4d4 transparent',
+                }}
+                id="detail-sidebar-scroll"
+              >
+                {/* VideoDetailPanel 將由 Portal 渲染到這裡 */}
+              </div>
+            ) : (
+              <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-6 py-10 text-center text-neutral-500">
+                <div>
+                  <h3 className="text-lg font-semibold text-neutral-700">選擇左側影片以檢視內容</h3>
+                  <p className="mt-2 text-sm">包含影片預覽、近期數據與 Gemini 建議。</p>
+                </div>
+              </div>
+            )}
+          </aside>
+        </div>
+
+        {/* Detail Panel - 使用 Portal 動態渲染到目標位置 */}
+        {renderDetailPanel()}
+      </div>
     );
   };
   
   return (
-    <div className="min-h-screen font-sans flex flex-col" style={{ color: '#03045E' }}>
-      <Header isLoggedIn={isLoggedIn} onLogout={handleLogout} />
+    <div
+      className="min-h-screen font-sans flex flex-col bg-neutral-50 text-neutral-900"
+      style={{ color: '#1F1F1F' }}
+    >
+      <Header
+        isLoggedIn={isLoggedIn}
+        onLogout={handleLogout}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
       <main className="flex-grow p-4 md:p-8">
-        <div className="container mx-auto max-w-7xl">
+        <div className="container mx-auto max-w-[1400px]">
           {error && !isLoadingVideos && (
-             <div className="p-4 rounded-lg mb-4 text-center" style={{ backgroundColor: 'rgba(220, 38, 38, 0.1)', border: '1px solid #DC2626', color: '#DC2626' }}>
-                <p className="font-bold">An error occurred:</p>
-                <p>{error}</p>
-             </div>
+            <div
+              className="p-4 rounded-lg mb-4 text-center"
+              style={{ backgroundColor: '#FEE2E2', border: '1px solid #F87171', color: '#B91C1C' }}
+            >
+              <p className="font-bold">An error occurred:</p>
+              <p>{error}</p>
+            </div>
           )}
           {renderContent()}
         </div>
       </main>
       <Footer />
+      <QuotaDebugger />
     </div>
   );
 }

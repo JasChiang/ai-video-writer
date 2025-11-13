@@ -35,9 +35,17 @@ temp_videos/
 .env.local
 .env.*.local
 
+# Custom templates (organization-specific)
+services/prompts/templates-custom/
+custom-templates.json
+custom-templates.local.json
+
 # Claude Code local settings
 .claude/*.local.json
 ai-video-writer.tar.gz
 *.tar
-custom-templates.json
-custom-templates.local.json
+
+# Video cache update info
+cache-update-info.json
+server.pid
+quick-query.cjs
