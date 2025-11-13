@@ -3080,138 +3080,6 @@ export function ChannelDashboard() {
         </div>
       )}
 
-      {/* 熱門 Shorts 排行榜 */}
-      {topShorts.length > 0 && (
-        <div className={cardBaseClass}>
-          <div className="p-6">
-            <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-red-500" />
-              熱門 Shorts 排行榜
-            </h3>
-            <p className="text-sm text-gray-500 mb-4">時間範圍內表現最佳的 Shorts 短影片（按觀看次數排序）</p>
-
-            <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
-              {topShorts.map((video, index) => (
-                <div
-                  key={video.id}
-                  className="p-2 rounded-lg border border-red-100 hover:border-red-200 hover:bg-red-50/70 transition-colors flex flex-col items-center text-center gap-2 h-full"
-                >
-                  {/* 排名 */}
-                  <div className="self-start text-xs font-semibold text-red-500 flex items-center gap-1">
-                    <span className="text-sm">#{index + 1}</span>
-                    <span className="text-[11px] text-gray-400">Shorts</span>
-                  </div>
-
-                  {/* 縮圖與觀看次數 */}
-                  <div className="flex flex-col items-center w-full">
-                    <img
-                      src={video.thumbnailUrl}
-                      alt={video.title}
-                      className="w-full max-w-[105px] aspect-[9/16] object-cover rounded-lg shadow-sm"
-                    />
-                    <div className="mt-1 inline-flex items-center justify-center gap-1 text-sm text-red-600 w-full max-w-[105px] truncate">
-                      <Eye className="w-4 h-4 text-red-500 shrink-0" />
-                      <span className="font-semibold truncate">
-                        {formatFullNumber(video.viewCount)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 影片標題 */}
-                  <h4 className="text-[13px] font-medium text-gray-900 line-clamp-2 w-full">
-                    {video.title}
-                  </h4>
-
-                  {/* 互動數據 */}
-                  <div className="w-full flex items-center justify-center gap-2 text-xs font-semibold whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1 text-rose-600">
-                      <ThumbsUp className="w-4 h-4 shrink-0" />
-                      {formatFullNumber(video.likeCount)}
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-red-500">
-                      <MessageSquare className="w-4 h-4 shrink-0" />
-                      {formatFullNumber(video.commentCount)}
-                    </span>
-                    {video.avgViewPercentage > 0 && (
-                      <span className="inline-flex items-center gap-1 text-amber-600">
-                        <BarChart3 className="w-4 h-4 shrink-0" />
-                        {video.avgViewPercentage.toFixed(1)}%
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 熱門一般影片排行榜 */}
-      {topRegularVideos.length > 0 && (
-        <div className={cardBaseClass}>
-          <div className="p-6">
-            <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-amber-500" />
-              熱門一般影片排行榜
-            </h3>
-            <p className="text-sm text-gray-500 mb-4">時間範圍內表現最佳的一般影片（按觀看次數排序）</p>
-
-            <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
-              {topRegularVideos.map((video, index) => (
-                <div
-                  key={video.id}
-                  className="p-2 rounded-lg border border-amber-100 hover:border-amber-200 hover:bg-amber-50/70 transition-colors flex flex-col items-center text-center gap-2 h-full"
-                >
-                  {/* 排名 */}
-                  <div className="self-start text-xs font-semibold text-amber-500 flex items-center gap-1">
-                    <span className="text-sm">#{index + 1}</span>
-                    <span className="text-[11px] text-gray-400">影片</span>
-                  </div>
-
-                  {/* 縮圖與觀看次數 */}
-                  <div className="flex flex-col items-center w-full">
-                    <img
-                      src={video.thumbnailUrl}
-                      alt={video.title}
-                      className="w-full max-w-[105px] aspect-video object-cover rounded-lg shadow-sm"
-                    />
-                    <div className="mt-1 inline-flex items-center justify-center gap-1 text-sm text-amber-600 w-full max-w-[105px] truncate">
-                      <Eye className="w-4 h-4 text-amber-500 shrink-0" />
-                      <span className="font-semibold truncate">
-                        {formatFullNumber(video.viewCount)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 影片標題 */}
-                  <h4 className="text-[13px] font-medium text-gray-900 line-clamp-2 w-full">
-                    {video.title}
-                  </h4>
-
-                  {/* 互動數據 */}
-                  <div className="w-full flex items-center justify-center gap-2 text-xs font-semibold whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1 text-amber-600">
-                      <ThumbsUp className="w-4 h-4 shrink-0" />
-                      {formatFullNumber(video.likeCount)}
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-amber-500">
-                      <MessageSquare className="w-4 h-4 shrink-0" />
-                      {formatFullNumber(video.commentCount)}
-                    </span>
-                    {video.avgViewPercentage > 0 && (
-                      <span className="inline-flex items-center gap-1 text-orange-600">
-                        <BarChart3 className="w-4 h-4 shrink-0" />
-                        {video.avgViewPercentage.toFixed(1)}%
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 熱門影片列表 */}
       {sortedTopVideos.length > 0 && (
         <div className={cardBaseClass}>
@@ -3297,6 +3165,143 @@ export function ChannelDashboard() {
               })}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 並排顯示：Shorts 和一般影片排行榜 */}
+      {(topShorts.length > 0 || topRegularVideos.length > 0) && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {/* 熱門 Shorts 排行榜 */}
+          {topShorts.length > 0 && (
+            <div className={`${cardBaseClass} h-full flex flex-col`}>
+              <div className="p-6 flex-1 flex flex-col">
+                <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-red-500" />
+                  熱門 Shorts 排行榜
+                </h3>
+                <p className="text-sm text-gray-500 mb-4">時間範圍內表現最佳的 Shorts 短影片（按觀看次數排序）</p>
+
+                <div className="grid grid-cols-3 gap-3 flex-1 content-start">
+                  {topShorts.map((video, index) => (
+                    <div
+                      key={video.id}
+                      className="p-3 rounded-lg border border-red-100 hover:border-red-200 hover:bg-red-50/70 transition-colors flex flex-col items-center text-center gap-3 h-full"
+                    >
+                      {/* 排名 */}
+                      <div className="self-start text-xs font-semibold text-red-500 flex items-center gap-1">
+                        <span className="text-sm">#{index + 1}</span>
+                        <span className="text-[11px] text-gray-400">Shorts</span>
+                      </div>
+
+                      {/* 縮圖與觀看次數 */}
+                      <div className="flex flex-col items-center w-full">
+                        <img
+                          src={video.thumbnailUrl}
+                          alt={video.title}
+                          className="w-full aspect-[9/16] object-cover rounded-lg shadow-sm"
+                        />
+                        <div className="mt-2 inline-flex items-center justify-center gap-1 text-sm text-red-600 w-full truncate">
+                          <Eye className="w-4 h-4 text-red-500 shrink-0" />
+                          <span className="font-semibold truncate">
+                            {formatFullNumber(video.viewCount)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 影片標題 */}
+                      <h4 className="text-sm font-medium text-gray-900 line-clamp-2 w-full leading-relaxed">
+                        {video.title}
+                      </h4>
+
+                      {/* 互動數據 */}
+                      <div className="w-full flex items-center justify-center gap-3 text-xs font-semibold whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 text-rose-600">
+                          <ThumbsUp className="w-4 h-4 shrink-0" />
+                          {formatFullNumber(video.likeCount)}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-red-500">
+                          <MessageSquare className="w-4 h-4 shrink-0" />
+                          {formatFullNumber(video.commentCount)}
+                        </span>
+                        {video.avgViewPercentage > 0 && (
+                          <span className="inline-flex items-center gap-1 text-amber-600">
+                            <BarChart3 className="w-4 h-4 shrink-0" />
+                            {video.avgViewPercentage.toFixed(1)}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 熱門一般影片排行榜 */}
+          {topRegularVideos.length > 0 && (
+            <div className={`${cardBaseClass} h-full flex flex-col`}>
+              <div className="p-6 flex-1 flex flex-col">
+                <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-amber-500" />
+                  熱門一般影片排行榜
+                </h3>
+                <p className="text-sm text-gray-500 mb-4">時間範圍內表現最佳的一般影片（按觀看次數排序）</p>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 flex-1 content-start">
+                  {topRegularVideos.map((video, index) => (
+                    <div
+                      key={video.id}
+                      className="p-3 rounded-lg border border-amber-100 hover:border-amber-200 hover:bg-amber-50/70 transition-colors flex flex-col items-center text-center gap-3 h-full"
+                    >
+                      {/* 排名 */}
+                      <div className="self-start text-xs font-semibold text-amber-500 flex items-center gap-1">
+                        <span className="text-sm">#{index + 1}</span>
+                        <span className="text-[11px] text-gray-400">影片</span>
+                      </div>
+
+                      {/* 縮圖與觀看次數 */}
+                      <div className="flex flex-col items-center w-full">
+                        <img
+                          src={video.thumbnailUrl}
+                          alt={video.title}
+                          className="w-full aspect-video object-cover rounded-lg shadow-sm"
+                        />
+                        <div className="mt-2 inline-flex items-center justify-center gap-1 text-sm text-amber-600 w-full truncate">
+                          <Eye className="w-4 h-4 text-amber-500 shrink-0" />
+                          <span className="font-semibold truncate">
+                            {formatFullNumber(video.viewCount)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 影片標題 */}
+                      <h4 className="text-sm font-medium text-gray-900 line-clamp-2 w-full leading-relaxed">
+                        {video.title}
+                      </h4>
+
+                      {/* 互動數據 */}
+                      <div className="w-full flex items-center justify-center gap-3 text-xs font-semibold whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 text-amber-600">
+                          <ThumbsUp className="w-4 h-4 shrink-0" />
+                          {formatFullNumber(video.likeCount)}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-amber-500">
+                          <MessageSquare className="w-4 h-4 shrink-0" />
+                          {formatFullNumber(video.commentCount)}
+                        </span>
+                        {video.avgViewPercentage > 0 && (
+                          <span className="inline-flex items-center gap-1 text-orange-600">
+                            <BarChart3 className="w-4 h-4 shrink-0" />
+                            {video.avgViewPercentage.toFixed(1)}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
