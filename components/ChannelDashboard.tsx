@@ -298,6 +298,7 @@ export function ChannelDashboard() {
   const [topVideoMetric, setTopVideoMetric] = useState<'views' | 'avgViewPercent' | 'shares' | 'comments'>('views');
   const [contentTypeMetrics, setContentTypeMetrics] = useState<ContentTypeMetrics | null>(null);
   const [topShorts, setTopShorts] = useState<VideoItem[]>([]);
+  const [topRegularVideos, setTopRegularVideos] = useState<VideoItem[]>([]);
 
   const hasHydratedRef = useRef(false);
   const videoCacheRef = useRef<Record<string, any> | null>(null);
@@ -340,6 +341,7 @@ export function ChannelDashboard() {
         if (parsed?.subscribersComparison) setSubscribersComparison(parsed.subscribersComparison);
         if (parsed?.contentTypeMetrics) setContentTypeMetrics(parsed.contentTypeMetrics);
         if (Array.isArray(parsed?.topShorts)) setTopShorts(parsed.topShorts);
+        if (Array.isArray(parsed?.topRegularVideos)) setTopRegularVideos(parsed.topRegularVideos);
       }
     } catch (err) {
       console.warn('[Dashboard] ⚠️ 無法還原快取資料:', err);
@@ -389,6 +391,7 @@ export function ChannelDashboard() {
       topVideoMetric,
       contentTypeMetrics,
       topShorts,
+      topRegularVideos,
     };
 
     window.localStorage.setItem(DATA_STORAGE_KEY, JSON.stringify(payload));
@@ -416,6 +419,7 @@ export function ChannelDashboard() {
     topVideoMetric,
     contentTypeMetrics,
     topShorts,
+    topRegularVideos,
   ]);
 
   // 計算日期範圍
@@ -529,6 +533,9 @@ export function ChannelDashboard() {
 
         // 獲取熱門 Shorts 排行榜
         await fetchTopShorts(startDate, endDate, token);
+
+        // 獲取熱門一般影片排行榜
+        await fetchTopRegularVideos(startDate, endDate, token);
 
         // 獲取日趨勢與最佳時段
         await fetchTrendData(startDate, endDate, token);
@@ -948,6 +955,81 @@ export function ChannelDashboard() {
     } catch (err: any) {
       console.log('[Dashboard] ⚠️ 獲取熱門 Shorts 失敗:', err.message);
       setTopShorts([]);
+    }
+  };
+
+  // 獲取熱門一般影片排行榜（非 Shorts）
+  const fetchTopRegularVideos = async (startDate: Date, endDate: Date, token: string) => {
+    try {
+      console.log('[Dashboard] 🎥 從 Analytics API 獲取熱門一般影片...');
+
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      const response = await fetch(
+        `https://youtubeanalytics.googleapis.com/v2/reports?` +
+        `ids=channel==MINE` +
+        `&startDate=${formatDate(startDate)}` +
+        `&endDate=${formatDate(endDate)}` +
+        `&dimensions=video` +
+        `&filters=creatorContentType==VideoOnDemand` +
+        `&metrics=views,averageViewPercentage,shares,comments` +
+        `&sort=-views` +
+        `&maxResults=10`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('無法獲取一般影片數據');
+      }
+
+      const data = await response.json();
+
+      if (!data.rows || data.rows.length === 0) {
+        console.log('[Dashboard] ℹ️ 時間範圍內沒有一般影片數據');
+        setTopRegularVideos([]);
+        return;
+      }
+
+      // 從快取獲取影片詳情（使用統一的快取機制，只讀取一次）
+      const cache = await ensureVideoCache();
+      const allVideos = Object.values(cache);
+
+      // 匹配影片詳情
+      const topRegularVideosWithDetails = data.rows.slice(0, 10).map((row: any[]) => {
+        const videoId = row[0];
+        const views = parseInt(row[1]) || 0;
+        const avgViewPercent = parseFloat(row[2]) || 0;
+        const shares = parseInt(row[3]) || 0;
+        const comments = parseInt(row[4]) || 0;
+        const video = allVideos.find((v: any) => v.videoId === videoId || v.id === videoId);
+
+        return {
+          id: videoId,
+          title: video?.title || `影片 ${videoId}`,
+          viewCount: views,
+          likeCount: video?.likeCount || 0,
+          commentCount: comments || video?.commentCount || 0,
+          avgViewPercentage: avgViewPercent,
+          shareCount: shares || 0,
+          publishedAt: video?.publishedAt || '',
+          thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
+        };
+      });
+
+      console.log(`[Dashboard] 🏆 熱門一般影片: ${topRegularVideosWithDetails.length} 支`);
+      setTopRegularVideos(topRegularVideosWithDetails);
+    } catch (err: any) {
+      console.log('[Dashboard] ⚠️ 獲取熱門一般影片失敗:', err.message);
+      setTopRegularVideos([]);
     }
   };
 
@@ -2885,7 +2967,7 @@ export function ChannelDashboard() {
       </div>
 
       {/* 內容類型分析區塊標題 */}
-      {(contentTypeMetrics || topShorts.length > 0 || sortedTopVideos.length > 0) && (
+      {(contentTypeMetrics || topShorts.length > 0 || topRegularVideos.length > 0 || sortedTopVideos.length > 0) && (
         <h2 className="text-lg font-semibold text-gray-900 border-l-4 border-red-500 pl-3 mt-2">
           內容表現分析
         </h2>
@@ -3052,6 +3134,72 @@ export function ChannelDashboard() {
                     </span>
                     {video.avgViewPercentage > 0 && (
                       <span className="inline-flex items-center gap-1 text-amber-600">
+                        <BarChart3 className="w-4 h-4 shrink-0" />
+                        {video.avgViewPercentage.toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 熱門一般影片排行榜 */}
+      {topRegularVideos.length > 0 && (
+        <div className={cardBaseClass}>
+          <div className="p-6">
+            <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-amber-500" />
+              熱門一般影片排行榜
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">時間範圍內表現最佳的一般影片（按觀看次數排序）</p>
+
+            <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+              {topRegularVideos.map((video, index) => (
+                <div
+                  key={video.id}
+                  className="p-2 rounded-lg border border-amber-100 hover:border-amber-200 hover:bg-amber-50/70 transition-colors flex flex-col items-center text-center gap-2 h-full"
+                >
+                  {/* 排名 */}
+                  <div className="self-start text-xs font-semibold text-amber-500 flex items-center gap-1">
+                    <span className="text-sm">#{index + 1}</span>
+                    <span className="text-[11px] text-gray-400">影片</span>
+                  </div>
+
+                  {/* 縮圖與觀看次數 */}
+                  <div className="flex flex-col items-center w-full">
+                    <img
+                      src={video.thumbnailUrl}
+                      alt={video.title}
+                      className="w-full max-w-[105px] aspect-video object-cover rounded-lg shadow-sm"
+                    />
+                    <div className="mt-1 inline-flex items-center justify-center gap-1 text-sm text-amber-600 w-full max-w-[105px] truncate">
+                      <Eye className="w-4 h-4 text-amber-500 shrink-0" />
+                      <span className="font-semibold truncate">
+                        {formatFullNumber(video.viewCount)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 影片標題 */}
+                  <h4 className="text-[13px] font-medium text-gray-900 line-clamp-2 w-full">
+                    {video.title}
+                  </h4>
+
+                  {/* 互動數據 */}
+                  <div className="w-full flex items-center justify-center gap-2 text-xs font-semibold whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 text-amber-600">
+                      <ThumbsUp className="w-4 h-4 shrink-0" />
+                      {formatFullNumber(video.likeCount)}
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-amber-500">
+                      <MessageSquare className="w-4 h-4 shrink-0" />
+                      {formatFullNumber(video.commentCount)}
+                    </span>
+                    {video.avgViewPercentage > 0 && (
+                      <span className="inline-flex items-center gap-1 text-orange-600">
                         <BarChart3 className="w-4 h-4 shrink-0" />
                         {video.avgViewPercentage.toFixed(1)}%
                       </span>
