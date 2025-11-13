@@ -79,10 +79,28 @@ interface VideoItem {
   thumbnailUrl: string;
 }
 
+interface TrendTopVideo {
+  id: string;
+  title: string;
+  thumbnailUrl: string;
+  views: number;
+}
+
 interface TrendDataPoint {
   date: string;
   views: number;
   subscribers: number;
+  topVideo?: TrendTopVideo | null;
+}
+
+interface TrendChartCoordinate {
+  date: string;
+  views: number;
+  x: number;
+  y: number;
+  xPercent: number;
+  yPercent: number;
+  topVideo?: TrendTopVideo | null;
 }
 
 interface MonthlyDataPoint {
@@ -125,6 +143,7 @@ interface DeviceItem {
 }
 
 interface ViewingHourData {
+  dayOfWeek: number;       // 0=星期日, 6=星期六
   hour: number;            // 小時 (0-23)
   views: number;           // 觀看次數
 }
@@ -185,9 +204,20 @@ const TOP_VIDEO_METRICS = [
   { label: '留言次數', value: 'comments' as const },
 ];
 
+const DAY_OF_WEEK_LABELS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+const VIEWING_HOUR_BUCKETS = [
+  { label: '00:00-03:59', start: 0, end: 3 },
+  { label: '04:00-07:59', start: 4, end: 7 },
+  { label: '08:00-11:59', start: 8, end: 11 },
+  { label: '12:00-15:59', start: 12, end: 15 },
+  { label: '16:00-19:59', start: 16, end: 19 },
+  { label: '20:00-23:59', start: 20, end: 23 },
+];
+
 const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
   (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
+const YT_VIDEO_BASE_URL = 'https://www.youtube.com/watch?v=';
 
 // 使用本地時區格式化，避免 UTC 時區偏移
 const formatDateString = (date: Date) => {
@@ -257,6 +287,7 @@ export function ChannelDashboard() {
   const [geography, setGeography] = useState<GeographyItem[]>([]);
   const [devices, setDevices] = useState<DeviceItem[]>([]);
   const [viewingHours, setViewingHours] = useState<ViewingHourData[]>([]);
+  const [viewingHoursSource, setViewingHoursSource] = useState<'analytics' | 'cache' | 'none'>('none');
   const [subscriberSources, setSubscriberSources] = useState<SubscriberSourceItem[]>([]);
   const [avgViewDuration, setAvgViewDuration] = useState<number>(0);
   const [avgViewPercentage, setAvgViewPercentage] = useState<number>(0);
@@ -268,6 +299,7 @@ export function ChannelDashboard() {
   const [topShorts, setTopShorts] = useState<VideoItem[]>([]);
 
   const hasHydratedRef = useRef(false);
+  const videoCacheRef = useRef<Record<string, any> | null>(null);
 
   // 載入快取的日期與數據
   useEffect(() => {
@@ -293,9 +325,12 @@ export function ChannelDashboard() {
         if (Array.isArray(parsed?.trafficSources)) setTrafficSources(parsed.trafficSources);
         if (Array.isArray(parsed?.externalSources)) setExternalSources(parsed.externalSources);
         if (Array.isArray(parsed?.searchTerms)) setSearchTerms(parsed.searchTerms);
+        if (Array.isArray(parsed?.trendData)) setTrendData(parsed.trendData);
         if (Array.isArray(parsed?.demographics)) setDemographics(parsed.demographics);
         if (Array.isArray(parsed?.geography)) setGeography(parsed.geography);
         if (Array.isArray(parsed?.devices)) setDevices(parsed.devices);
+        if (Array.isArray(parsed?.viewingHours)) setViewingHours(parsed.viewingHours);
+        if (parsed?.viewingHoursSource) setViewingHoursSource(parsed.viewingHoursSource);
         if (Array.isArray(parsed?.subscriberSources)) setSubscriberSources(parsed.subscriberSources);
         if (typeof parsed?.avgViewDuration === 'number') setAvgViewDuration(parsed.avgViewDuration);
         if (typeof parsed?.avgViewPercentage === 'number') setAvgViewPercentage(parsed.avgViewPercentage);
@@ -338,9 +373,12 @@ export function ChannelDashboard() {
       trafficSources,
       externalSources,
       searchTerms,
+      trendData,
       demographics,
       geography,
       devices,
+      viewingHours,
+      viewingHoursSource,
       subscriberSources,
       avgViewDuration,
       avgViewPercentage,
@@ -360,9 +398,12 @@ export function ChannelDashboard() {
     trafficSources,
     externalSources,
     searchTerms,
+    trendData,
     demographics,
     geography,
     devices,
+    viewingHours,
+    viewingHoursSource,
     subscriberSources,
     avgViewDuration,
     avgViewPercentage,
@@ -487,6 +528,10 @@ export function ChannelDashboard() {
 
         // 獲取熱門 Shorts 排行榜
         await fetchTopShorts(startDate, endDate, token);
+
+        // 獲取日趨勢與最佳時段
+        await fetchTrendData(startDate, endDate, token);
+        await fetchViewingHoursData(startDate, endDate, token);
       } else {
         // Analytics API 不可用，回退到 Gist 快取方案
         console.log('[Dashboard] ℹ️  回退到 Gist 快取方案');
@@ -496,6 +541,8 @@ export function ChannelDashboard() {
           '如需真實時間段數據，請在 Google Cloud Console 啟用 YouTube Analytics API。'
         );
         await fetchVideosInRange(startDate, endDate);
+        setTrendData([]);
+        await generateViewingHoursFromCache(startDate, endDate);
       }
     } catch (err: any) {
       console.error('[Dashboard] ❌ 獲取儀錶板數據失敗:', err);
@@ -1619,35 +1666,253 @@ export function ChannelDashboard() {
     }
   };
 
-  // 獲取趨勢數據
-  const fetchTrendData = async (token: string) => {
+  const ensureVideoCache = async () => {
+    if (videoCacheRef.current) return videoCacheRef.current;
     try {
-      // 使用選定的日期範圍
-      const start = new Date(startDate);
-      const end = new Date(endDate);
+      console.log('[Dashboard] 💾 載入影片快取供趨勢使用...');
+      const response = await fetch(
+        `${API_BASE_URL}/video-cache/search?query=&maxResults=10000`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      if (!response.ok) {
+        throw new Error('無法獲取影片快取');
+      }
+      const data = await response.json();
+      const map: Record<string, any> = {};
+      (data.videos || []).forEach((video: any) => {
+        const id = video.videoId || video.id;
+        if (id) {
+          map[id] = video;
+        }
+      });
+      videoCacheRef.current = map;
+      console.log('[Dashboard] ✅ 影片快取載入完成:', Object.keys(map).length, '支影片');
+    } catch (err: any) {
+      console.warn('[Dashboard] ⚠️ 無法載入影片快取:', err.message);
+      videoCacheRef.current = {};
+    }
+    return videoCacheRef.current;
+  };
 
-      // 格式化日期為 YYYY-MM-DD
-      const formatDateStr = (date: Date) => date.toISOString().split('T')[0];
+  // 獲取趨勢數據
+  const fetchTrendData = async (start: Date, end: Date, token: string) => {
+    try {
+      console.log('[Dashboard] 📈 從 Analytics API 獲取日趨勢數據...');
+      const response = await fetch(
+        `https://youtubeanalytics.googleapis.com/v2/reports?` +
+        `ids=channel==MINE` +
+        `&startDate=${formatDateString(start)}` +
+        `&endDate=${formatDateString(end)}` +
+        `&dimensions=day` +
+        `&metrics=views,subscribersGained,subscribersLost` +
+        `&sort=day`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-      // 調用 YouTube Analytics API (如果有權限)
-      // 這裡暫時使用模擬數據,實際實作需要 Analytics API
-      const mockTrendData: TrendDataPoint[] = [];
-      const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-
-      for (let i = 0; i <= daysDiff; i++) {
-        const date = new Date(start);
-        date.setDate(start.getDate() + i);
-        mockTrendData.push({
-          date: formatDateStr(date),
-          views: Math.floor(Math.random() * 10000) + 5000,
-          subscribers: Math.floor(Math.random() * 100) + 50,
-        });
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.warn('[Dashboard] ⚠️ 無法獲取日趨勢數據:', errorData);
+        setTrendData([]);
+        return;
       }
 
-      setTrendData(mockTrendData);
-    } catch (err) {
-      console.error('獲取趨勢數據失敗:', err);
-      // 不拋出錯誤,允許儀錶板繼續顯示其他數據
+      const data = await response.json();
+      if (!Array.isArray(data.rows)) {
+        console.log('[Dashboard] ℹ️ 日趨勢沒有資料');
+        setTrendData([]);
+        return;
+      }
+
+      const trendMap = new Map<string, TrendDataPoint>();
+      data.rows.forEach((row: any[]) => {
+        const date = row[0];
+        trendMap.set(date, {
+          date,
+          views: parseInt(row[1]) || 0,
+          subscribers: (parseInt(row[2]) || 0) - (parseInt(row[3]) || 0),
+          topVideo: null,
+        });
+      });
+
+      // 取得每天觀看最高影片（以逐日 API 查詢）
+      try {
+        const cache = await ensureVideoCache();
+        for (const date of trendMap.keys()) {
+          try {
+            const topVideoResponse = await fetch(
+              `https://youtubeanalytics.googleapis.com/v2/reports?` +
+              `ids=channel==MINE` +
+              `&startDate=${date}` +
+              `&endDate=${date}` +
+              `&dimensions=video` +
+              `&metrics=views` +
+              `&sort=-views` +
+              `&maxResults=1`,
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              }
+            );
+
+            if (!topVideoResponse.ok) {
+              console.warn('[Dashboard] ⚠️ 單日熱門影片 API 失敗:', date);
+              continue;
+            }
+
+            const videoData = await topVideoResponse.json();
+            const row = videoData.rows?.[0];
+            if (!row) continue;
+
+            const videoId = row[0];
+            const views = parseInt(row[1]) || 0;
+            const target = trendMap.get(date);
+            if (!target) continue;
+
+            const metadata = cache?.[videoId];
+            target.topVideo = {
+              id: videoId,
+              views,
+              title: metadata?.title || `影片 ${videoId}`,
+              thumbnailUrl: metadata?.thumbnail || metadata?.thumbnailUrl || '',
+            };
+          } catch (perDayErr: any) {
+            console.warn('[Dashboard] ⚠️ 無法取得', date, '的熱門影片:', perDayErr.message);
+          }
+        }
+      } catch (nestedErr: any) {
+        console.warn('[Dashboard] ⚠️ 每日熱門影片處理失敗:', nestedErr.message);
+      }
+
+      const parsed: TrendDataPoint[] = Array.from(trendMap.values());
+      console.log('[Dashboard] ✅ 日趨勢資料筆數:', parsed.length);
+      setTrendData(parsed);
+    } catch (err: any) {
+      console.error('[Dashboard] ⚠️ 取得日趨勢失敗:', err.message);
+      setTrendData([]);
+    }
+  };
+
+  const generateViewingHoursFromCache = async (start: Date, end: Date) => {
+    try {
+      console.log('[Dashboard] 🗂️ 從影片快取估算最佳時段...');
+      const response = await fetch(
+        `${API_BASE_URL}/video-cache/search?query=&maxResults=10000`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('無法載入影片快取');
+      }
+
+      const data = await response.json();
+      const videos = Array.isArray(data.videos) ? data.videos : [];
+      const startTime = start.getTime();
+      const endTime = end.getTime();
+      const aggregates = new Map<string, number>();
+
+      videos.forEach((video: any) => {
+        if (!video.publishedAt) return;
+        const published = new Date(video.publishedAt);
+        const publishedTime = published.getTime();
+        if (Number.isNaN(publishedTime)) return;
+        if (publishedTime < startTime || publishedTime > endTime) return;
+
+        const dayOfWeek = published.getDay();
+        const hour = published.getHours();
+        const views = parseInt(video.viewCount || '0') || 0;
+        if (views <= 0) return;
+
+        const key = `${dayOfWeek}-${hour}`;
+        aggregates.set(key, (aggregates.get(key) || 0) + views);
+      });
+
+      const generated: ViewingHourData[] = Array.from(aggregates.entries()).map(([key, views]) => {
+        const [dayStr, hourStr] = key.split('-');
+        return {
+          dayOfWeek: parseInt(dayStr),
+          hour: parseInt(hourStr),
+          views,
+        };
+      });
+
+      console.log('[Dashboard] 🔁 使用影片快取估算完成:', generated.length, '筆');
+      setViewingHours(generated);
+      setViewingHoursSource(generated.length > 0 ? 'cache' : 'none');
+    } catch (err: any) {
+      console.error('[Dashboard] ⚠️ 無法從快取估算觀看時段:', err.message);
+      setViewingHours([]);
+      setViewingHoursSource('none');
+    }
+  };
+
+  const fetchViewingHoursData = async (start: Date, end: Date, token: string) => {
+    try {
+      console.log('[Dashboard] ⏰ 從 Analytics API 獲取觀看時段熱力數據...');
+      const response = await fetch(
+        `https://youtubeanalytics.googleapis.com/v2/reports?` +
+        `ids=channel==MINE` +
+        `&startDate=${formatDateString(start)}` +
+        `&endDate=${formatDateString(end)}` +
+        `&dimensions=day` +
+        `&metrics=views` +
+        `&sort=day`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.warn('[Dashboard] ⚠️ 無法取得觀看時段資料:', errorData);
+        await generateViewingHoursFromCache(start, end);
+        return;
+      }
+
+      const data = await response.json();
+      if (!Array.isArray(data.rows)) {
+        console.log('[Dashboard] ℹ️ 沒有觀看時段資料');
+        await generateViewingHoursFromCache(start, end);
+        return;
+      }
+
+      // 以日資料為基礎，推估觀眾最常在線的星期
+      const parsed: ViewingHourData[] = data.rows
+        .map((row: any[]) => {
+          const dateString = row[0];
+          const views = parseInt(row[1]) || 0;
+          const date = new Date(dateString);
+          const dayOfWeek = Number.isNaN(date.getDay()) ? 0 : date.getDay();
+          return {
+            dayOfWeek,
+            hour: 12, // 使用中午作為代表時段
+            views,
+          };
+        })
+        .filter((item) => !Number.isNaN(item.dayOfWeek));
+
+      console.log('[Dashboard] ✅ 觀看時段資料筆數 (日粒度):', parsed.length);
+      setViewingHours(parsed);
+      setViewingHoursSource(parsed.length > 0 ? 'analytics' : 'none');
+    } catch (err: any) {
+      console.error('[Dashboard] ⚠️ 取得觀看時段失敗:', err.message);
+      await generateViewingHoursFromCache(start, end);
     }
   };
 
@@ -1749,6 +2014,120 @@ export function ChannelDashboard() {
   }, [monthlyData]);
 
   const todayLabel = useMemo(() => formatDateString(new Date()), []);
+  const viewingHoursSubtitle = useMemo(() => {
+    switch (viewingHoursSource) {
+      case 'analytics':
+        return '依據 YouTube Analytics（日粒度）';
+      case 'cache':
+        return '依據歷來影片表現（估算）';
+      default:
+        return '依據觀眾實際上線時間';
+    }
+  }, [viewingHoursSource]);
+
+  const trendChartGeometry = useMemo(() => {
+    if (trendData.length === 0) {
+      return { points: '', coordinates: [] as TrendChartCoordinate[] };
+    }
+    const chartWidth = 600;
+    const chartHeight = 160;
+    const maxViews = Math.max(...trendData.map((item) => item.views));
+    const minViews = Math.min(...trendData.map((item) => item.views));
+    const range = Math.max(maxViews - minViews, 1);
+
+    const coordinates = trendData.map((point, index) => {
+      const x =
+        trendData.length === 1 ? chartWidth / 2 : (index / (trendData.length - 1)) * chartWidth;
+      const y = chartHeight - ((point.views - minViews) / range) * chartHeight;
+      return {
+        date: point.date,
+        views: point.views,
+        x,
+        y: Number.isFinite(y) ? y : chartHeight,
+        xPercent: (x / chartWidth) * 100,
+        yPercent: ((Number.isFinite(y) ? y : chartHeight) / chartHeight) * 100,
+        topVideo: point.topVideo,
+      } as TrendChartCoordinate;
+    });
+
+    return {
+      points: coordinates.map((coord) => `${coord.x},${coord.y}`).join(' '),
+      coordinates,
+    };
+  }, [trendData]);
+  const trendChartPoints = trendChartGeometry.points;
+  const trendChartCoordinates = trendChartGeometry.coordinates;
+
+  const trendSummary = useMemo(() => {
+    if (trendData.length === 0) return null;
+    const totalViews = trendData.reduce((sum, item) => sum + item.views, 0);
+    const averageViews = Math.round(totalViews / trendData.length);
+    const sortedByViews = [...trendData].sort((a, b) => b.views - a.views);
+    const bestDay = sortedByViews[0];
+    const firstDay = trendData[0];
+    const latestDay = trendData[trendData.length - 1];
+    const momentum = latestDay.views - firstDay.views;
+
+    return {
+      totalViews,
+      averageViews,
+      bestDay,
+      momentum,
+    };
+  }, [trendData]);
+
+  const bestPublishingSlots = useMemo(() => {
+    if (viewingHours.length === 0) return [];
+    return [...viewingHours]
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 3)
+      .map((slot, index) => ({
+        ...slot,
+        rank: index + 1,
+        label:
+          viewingHoursSource === 'analytics'
+            ? `${DAY_OF_WEEK_LABELS[slot.dayOfWeek] || '週?'} 全天`
+            : `${DAY_OF_WEEK_LABELS[slot.dayOfWeek] || '週?'} ${String(slot.hour).padStart(2, '0')}:00`,
+      }));
+  }, [viewingHours, viewingHoursSource]);
+
+  const viewingHourHeatmap = useMemo(() => {
+    if (viewingHours.length === 0) return null;
+    if (viewingHoursSource !== 'cache') return null;
+
+    const rows = VIEWING_HOUR_BUCKETS.map((bucket) => {
+      const values = DAY_OF_WEEK_LABELS.map((_, dayIndex) => {
+        const total = viewingHours
+          .filter(
+            (item) =>
+              item.dayOfWeek === dayIndex && item.hour >= bucket.start && item.hour <= bucket.end
+          )
+          .reduce((sum, item) => sum + item.views, 0);
+        return { dayIndex, views: total };
+      });
+      return { bucketLabel: bucket.label, values };
+    });
+
+    let maxValue = 0;
+    rows.forEach((row) => {
+      row.values.forEach((value) => {
+        if (value.views > maxValue) {
+          maxValue = value.views;
+        }
+      });
+    });
+
+    return {
+      rows: rows.map((row) => ({
+        bucketLabel: row.bucketLabel,
+        values: row.values.map((value) => ({
+          ...value,
+          intensity: maxValue > 0 ? value.views / maxValue : 0,
+        })),
+      })),
+      maxValue,
+    };
+  }, [viewingHours]);
 
   // 不自動監聽日期變化，只有點擊「刷新數據」按鈕才會調用 API
   // useEffect(() => {
@@ -2098,6 +2477,259 @@ export function ChannelDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {(trendData.length > 0 || viewingHours.length > 0 || error?.includes('Analytics API')) && (
+        <>
+          <h2 className="text-lg font-semibold text-gray-900 border-l-4 border-red-500 pl-3 mt-2">
+            趨勢走勢與建議發布時段
+          </h2>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className={`${cardBaseClass} p-6`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-red-500" />
+                  <h3 className="text-lg font-semibold text-gray-900">觀看趨勢走勢</h3>
+                </div>
+                <span className="text-xs text-gray-500">
+                  {startDate} ~ {endDate}
+                </span>
+              </div>
+              {trendData.length === 0 ? (
+                <div className="text-sm text-gray-500 bg-red-50 border border-red-100 rounded-xl p-4">
+                  目前無法從 Analytics API 取得趨勢資料，請確認專案已開啟
+                  YouTube Analytics API 權限後再刷新。
+                </div>
+              ) : (
+                <>
+                  <div className="relative w-full h-48">
+                    <svg
+                      viewBox="0 0 600 160"
+                      preserveAspectRatio="none"
+                      className="absolute inset-0 w-full h-full"
+                    >
+                      <defs>
+                        <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#fca5a5" stopOpacity="0.8" />
+                          <stop offset="100%" stopColor="#fee2e2" stopOpacity="0.2" />
+                        </linearGradient>
+                      </defs>
+                      <polyline
+                        fill="none"
+                        stroke="#ef4444"
+                        strokeWidth="3"
+                        strokeLinejoin="round"
+                        strokeLinecap="round"
+                        points={trendChartPoints}
+                      />
+                      <polygon
+                        fill="url(#trendGradient)"
+                        opacity="0.6"
+                        points={`${trendChartPoints} 600,160 0,160`}
+                      />
+                    </svg>
+                    <div className="absolute inset-0 pointer-events-none">
+                      {trendChartCoordinates.map((coord, idx) => (
+                        <div
+                          key={`${coord.date}-${idx}`}
+                          className="absolute"
+                          style={{
+                            left: `${coord.xPercent}%`,
+                            top: `${coord.yPercent}%`,
+                          }}
+                        >
+                          <div className="relative -translate-x-1/2 -translate-y-1/2 pointer-events-auto group">
+                            <span className="block w-3 h-3 rounded-full border-2 border-white bg-red-500 shadow"></span>
+                            <div className="pointer-events-none absolute left-1/2 top-0 mt-3 -translate-x-1/2 transform opacity-0 transition-all duration-200 group-hover:opacity-100 group-hover:-translate-y-full z-20">
+                              <div className="pointer-events-auto w-56 rounded-xl border border-red-100 bg-white p-3 shadow-xl">
+                                <div className="text-xs text-gray-500">
+                                  {formatDate(coord.date)} · {formatFullNumber(coord.views)} 次觀看
+                                </div>
+                                {coord.topVideo ? (
+                                  <div className="mt-2 flex items-start gap-3">
+                                    <a
+                                      href={`${YT_VIDEO_BASE_URL}${coord.topVideo.id}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="block w-20 h-12 overflow-hidden rounded-lg border border-gray-100 shadow-sm shrink-0"
+                                    >
+                                      {coord.topVideo.thumbnailUrl ? (
+                                        <img
+                                          src={coord.topVideo.thumbnailUrl}
+                                          alt={coord.topVideo.title}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      ) : (
+                                        <div className="w-full h-full bg-gray-100 flex items-center justify-center text-xs text-gray-500">
+                                          無縮圖
+                                        </div>
+                                      )}
+                                    </a>
+                                    <div className="flex-1">
+                                      <p className="text-sm font-semibold text-gray-900 line-clamp-2">
+                                        {coord.topVideo.title}
+                                      </p>
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        單日觀看 {formatFullNumber(coord.topVideo.views)} 次
+                                      </p>
+                                      <a
+                                        href={`${YT_VIDEO_BASE_URL}${coord.topVideo.id}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center text-xs text-red-600 font-semibold mt-1 hover:underline"
+                                      >
+                                        觀看影片 →
+                                      </a>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-gray-500 mt-2">
+                                    找不到當日熱門影片，請稍後重試。
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {trendSummary && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-sm">
+                      <div>
+                        <div className="text-gray-500">平均每日觀看</div>
+                        <div className="text-2xl font-bold text-gray-900">
+                          {formatFullNumber(trendSummary.averageViews)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-gray-500">最高峰</div>
+                        <div className="text-sm font-semibold text-gray-900">
+                          {formatDate(trendSummary.bestDay.date)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {formatFullNumber(trendSummary.bestDay.views)} 次觀看
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-gray-500">觀看動能</div>
+                        <div
+                          className={`text-2xl font-bold ${
+                            trendSummary.momentum >= 0 ? 'text-green-600' : 'text-red-600'
+                          }`}
+                        >
+                          {trendSummary.momentum >= 0 ? '+' : ''}
+                          {formatFullNumber(trendSummary.momentum)}
+                        </div>
+                        <div className="text-xs text-gray-500">最後一天 vs. 第一天</div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className={`${cardBaseClass} p-6`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-red-500" />
+                  <h3 className="text-lg font-semibold text-gray-900">建議發布時段</h3>
+                </div>
+                <span className="text-xs text-gray-500">{viewingHoursSubtitle}</span>
+              </div>
+
+              {viewingHours.length === 0 ? (
+                <div className="text-sm text-gray-500 bg-amber-50 border border-amber-100 rounded-xl p-4">
+                  尚未取得觀看時段資料。請確保已授權 YouTube Analytics API 並重新刷新，或擴大日期範圍。
+                </div>
+              ) : (
+                <>
+                  {bestPublishingSlots.length > 0 && (
+                    <div className="space-y-3">
+                      {bestPublishingSlots.map((slot) => (
+                        <div
+                          key={`${slot.dayOfWeek}-${slot.hour}`}
+                          className="flex items-center justify-between p-3 rounded-xl border border-red-100 bg-red-50/60"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="w-6 h-6 rounded-full bg-white text-red-600 text-sm font-bold flex items-center justify-center shadow">
+                              {slot.rank}
+                            </span>
+                            <div>
+                              <div className="text-sm font-semibold text-gray-900">{slot.label}</div>
+                              <div className="text-xs text-gray-500">
+                                平均觀看 {formatFullNumber(slot.views)} 次
+                              </div>
+                            </div>
+                          </div>
+                          <span className="text-[11px] text-red-600 bg-white border border-red-100 rounded-full px-3 py-1 shadow-sm">
+                            安排上片
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {viewingHoursSource === 'analytics' && (
+                    <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-4">
+                      目前 YouTube Analytics API 僅提供每日資料，建議時段依「哪一天觀看最高」估算。
+                    </p>
+                  )}
+
+                  {viewingHourHeatmap && (
+                    <div className="mt-5">
+                      <div className="text-xs text-gray-500 mb-2 flex items-center justify-between">
+                        <span>一週行事曆（越深代表觀眾越多）</span>
+                        <span className="text-[10px] text-gray-400">台灣時間</span>
+                      </div>
+                      <div className="grid grid-cols-8 gap-2 text-xs">
+                        <div />
+                        {DAY_OF_WEEK_LABELS.map((label) => (
+                          <div
+                            key={`header-${label}`}
+                            className="text-center text-[11px] font-semibold text-gray-500"
+                          >
+                            {label}
+                          </div>
+                        ))}
+                        {viewingHourHeatmap.rows.map((row) => (
+                          <React.Fragment key={row.bucketLabel}>
+                            <div className="text-right pr-2 text-[11px] text-gray-500 font-semibold">
+                              {row.bucketLabel}
+                            </div>
+                            {row.values.map((cell) => {
+                              const bgOpacity = 0.15 + cell.intensity * 0.65;
+                              return (
+                                <div
+                                  key={`${row.bucketLabel}-${cell.dayIndex}`}
+                                  className="h-12 rounded-lg border border-red-50 flex flex-col items-center justify-center"
+                                  style={{
+                                    backgroundColor: `rgba(239, 68, 68, ${bgOpacity.toFixed(3)})`,
+                                  }}
+                                >
+                                  <span className="text-xs font-semibold text-red-900">
+                                    {cell.views > 0 ? formatNumber(cell.views) : '—'}
+                                  </span>
+                                  <span className="text-[10px] text-red-900/70">次</span>
+                                </div>
+                              );
+                            })}
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {viewingHoursSource === 'cache' && !viewingHourHeatmap && (
+                    <p className="text-xs text-gray-500 mt-4">
+                      目前資料量不足以繪製行事曆，但已根據歷來影片表現排序最佳發布順位。
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </>
       )}
 
       {/* 過去 12 個月趨勢圖表 */}
