@@ -39,10 +39,23 @@ import {
 import * as taskQueue from './services/taskQueue.js';
 import { publishArticleToNotion, listNotionDatabases, getNotionDatabase } from './services/notionService.js';
 import { fetchAllVideoTitles, uploadToGist, loadFromGist, searchVideosFromCache } from './services/videoCacheService.js';
+import {
+  getMockDashboardData,
+  getMockChannelAnalyticsAggregate,
+  getMockVideoAnalytics,
+  getMockKeywordAnalysis,
+  getMockVideoCache
+} from './services/mockDataService.js';
 
 const execAsync = promisify(exec);
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Mock 資料模式設定
+const ENABLE_MOCK_DATA = process.env.ENABLE_MOCK_DATA === 'true';
+if (ENABLE_MOCK_DATA) {
+  console.log('🎭 Mock 資料模式已啟用 - 所有 dashboard API 將返回 mock 資料');
+}
 
 // 檔案保留天數設定（預設 7 天）
 const FILE_RETENTION_DAYS = parseInt(process.env.FILE_RETENTION_DAYS || '7', 10);
@@ -3018,6 +3031,66 @@ app.get('/api/gemini/file/:fileName(*)', async (req, res) => {
   }
 });
 
+// ==================== Channel Dashboard API ====================
+
+/**
+ * 獲取頻道儀表板資料 (Mock 模式)
+ * POST /api/dashboard/data
+ */
+app.post('/api/dashboard/data', async (req, res) => {
+  try {
+    if (!ENABLE_MOCK_DATA) {
+      return res.status(404).json({
+        error: 'This endpoint is only available in mock data mode'
+      });
+    }
+
+    const { startDate, endDate, topVideoMetric } = req.body;
+    console.log('[Dashboard API - Mock] 返回 mock 頻道儀表板資料');
+    const mockData = getMockDashboardData(startDate, endDate, topVideoMetric);
+    res.json({
+      success: true,
+      data: mockData
+    });
+  } catch (error) {
+    console.error('[Dashboard API] 錯誤:', error);
+    res.status(500).json({
+      error: 'Dashboard data fetch failed',
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * 獲取影片快取 (Mock 模式)
+ * GET /api/video-cache
+ */
+app.get('/api/video-cache', async (req, res) => {
+  try {
+    if (ENABLE_MOCK_DATA) {
+      console.log('[Video Cache - Mock] 返回 mock 影片快取資料');
+      const mockCache = getMockVideoCache();
+      return res.json({
+        success: true,
+        videos: mockCache
+      });
+    }
+
+    // 正常模式從 Gist 讀取
+    const cache = await loadFromGist();
+    res.json({
+      success: true,
+      videos: cache
+    });
+  } catch (error) {
+    console.error('[Video Cache] 錯誤:', error);
+    res.status(500).json({
+      error: 'Failed to load video cache',
+      message: error.message,
+    });
+  }
+});
+
 // ==================== YouTube Analytics API ====================
 
 /**
@@ -3027,6 +3100,14 @@ app.get('/api/gemini/file/:fileName(*)', async (req, res) => {
 app.post('/api/analytics/channel', async (req, res) => {
   try {
     const { accessToken, channelId, daysThreshold } = req.body;
+
+    // Mock 資料模式
+    if (ENABLE_MOCK_DATA) {
+      console.log('[Analytics API - Mock] 返回 mock 影片分析資料');
+      const yearsToFetch = daysThreshold ? Math.ceil(daysThreshold / 365) : 1;
+      const mockData = getMockVideoAnalytics(yearsToFetch);
+      return res.json(mockData);
+    }
 
     if (!accessToken || !channelId) {
       return res.status(400).json({
@@ -3069,6 +3150,16 @@ app.post('/api/analytics/channel', async (req, res) => {
 app.post('/api/analytics/keyword-analysis', async (req, res) => {
   try {
     const { videoData } = req.body;
+
+    // Mock 資料模式
+    if (ENABLE_MOCK_DATA) {
+      console.log('[Keyword Analysis - Mock] 返回 mock 關鍵字分析資料');
+      const mockData = getMockKeywordAnalysis(videoData?.videoId || 'mock');
+      return res.json({
+        success: true,
+        analysis: mockData.analysis
+      });
+    }
 
     if (!videoData || !videoData.title) {
       return res.status(400).json({
@@ -3530,6 +3621,20 @@ async function cleanupOldFiles(directory, retentionDays) {
 app.post('/api/channel-analytics/aggregate', async (req, res) => {
   try {
     const { accessToken, channelId, keywordGroups, dateRanges } = req.body;
+
+    // Mock 資料模式
+    if (ENABLE_MOCK_DATA) {
+      console.log('[Channel Analytics - Mock] 返回 mock 頻道分析聚合資料');
+      // 驗證基本參數格式
+      if (!keywordGroups || !Array.isArray(keywordGroups) || keywordGroups.length === 0) {
+        return res.status(400).json({ error: '缺少 keywordGroups 或格式錯誤' });
+      }
+      if (!dateRanges || !Array.isArray(dateRanges) || dateRanges.length === 0) {
+        return res.status(400).json({ error: '缺少 dateRanges 或格式錯誤' });
+      }
+      const mockData = getMockChannelAnalyticsAggregate(keywordGroups, dateRanges);
+      return res.json(mockData);
+    }
 
     // 驗證參數
     if (!accessToken) {
