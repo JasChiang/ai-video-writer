@@ -92,6 +92,7 @@ interface MonthlyDataPoint {
   subscribersGained: number;  // 新增訂閱
   subscribersLost: number;    // 取消訂閱
   subscribersNet: number;     // 淨增長 = subscribersGained - subscribersLost
+  isCurrentMonth?: boolean;   // 是否為本月至今
 }
 
 interface TrafficSourceItem {
@@ -1467,6 +1468,45 @@ export function ChannelDashboard() {
         }
       }
 
+      // 追加本月至今資料
+      try {
+        const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const monthKey = `${currentMonthStart.getFullYear()}-${String(currentMonthStart.getMonth() + 1).padStart(2, '0')}`;
+        const url = `https://youtubeanalytics.googleapis.com/v2/reports?` +
+          `ids=channel==MINE` +
+          `&startDate=${formatDate(currentMonthStart)}` +
+          `&endDate=${formatDate(today)}` +
+          `&metrics=views,estimatedMinutesWatched,subscribersGained,subscribersLost`;
+
+        const response = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.rows && data.rows.length > 0) {
+            const row = data.rows[0];
+            const subscribersGained = parseInt(row[2]) || 0;
+            const subscribersLost = parseInt(row[3]) || 0;
+            const subscribersNet = subscribersGained - subscribersLost;
+
+            monthlyDataPoints.push({
+              month: monthKey,
+              views: parseInt(row[0]) || 0,
+              watchTimeHours: Math.floor((parseInt(row[1]) || 0) / 60),
+              subscribersGained,
+              subscribersLost,
+              subscribersNet,
+              isCurrentMonth: true,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('[Dashboard] ⚠️ 無法獲取本月至今數據:', err);
+      }
+
       console.log('[Dashboard] ✅ 月度數據獲取成功:', monthlyDataPoints.length, '個月');
       console.log('[Dashboard] 📊 月度數據詳情:', monthlyDataPoints);
       setMonthlyData(monthlyDataPoints);
@@ -1699,6 +1739,16 @@ export function ChannelDashboard() {
       yearAgo: `${formatDateString(yearAgoStart)} ~ ${formatDateString(yearAgoEnd)}`,
     };
   }, [startDate, endDate]);
+
+  const monthlyMeta = useMemo(() => {
+    const hasCurrent = monthlyData.some((item) => item.isCurrentMonth);
+    return {
+      hasCurrent,
+      fullMonthsCount: hasCurrent ? monthlyData.length - 1 : monthlyData.length,
+    };
+  }, [monthlyData]);
+
+  const todayLabel = useMemo(() => formatDateString(new Date()), []);
 
   // 不自動監聽日期變化，只有點擊「刷新數據」按鈕才會調用 API
   // useEffect(() => {
@@ -2056,7 +2106,7 @@ export function ChannelDashboard() {
           過去 12 個月趨勢
           {monthlyData.length > 0 && (
             <span className="text-sm font-normal text-gray-500 ml-2">
-              ({monthlyData.length} 個月)
+              ({monthlyMeta.fullMonthsCount} 個完整月份{monthlyMeta.hasCurrent ? ' + 本月至今' : ''})
             </span>
           )}
         </h3>
@@ -2076,20 +2126,28 @@ export function ChannelDashboard() {
                   // 根據選擇的指標獲取值
                   let value = 0;
                   let color = '';
+                  let currentColor = '';
                   switch (selectedMetric) {
                     case 'views':
                       value = dataPoint.views;
                       color = 'bg-red-500 hover:bg-red-600';
+                      currentColor = 'bg-red-200 hover:bg-red-300 border border-dashed border-red-500';
                       break;
                     case 'watchTime':
                       value = dataPoint.watchTimeHours;
                       color = 'bg-rose-400 hover:bg-rose-500';
+                      currentColor = 'bg-rose-200 hover:bg-rose-300 border border-dashed border-rose-500';
                       break;
                     case 'subscribers':
                       value = dataPoint.subscribersNet; // 使用淨增長（新增 - 取消）
                       color = value >= 0 ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-300 hover:bg-gray-400';
+                      currentColor =
+                        value >= 0
+                          ? 'bg-red-200 hover:bg-red-400 border border-dashed border-red-500'
+                          : 'bg-gray-200 hover:bg-gray-300 border border-dashed border-gray-400';
                       break;
                   }
+                  const barClass = dataPoint.isCurrentMonth ? currentColor : color;
 
                   // 計算最大值用於比例
                   const maxValue = Math.max(
@@ -2131,24 +2189,29 @@ export function ChannelDashboard() {
                         {/* 柱狀條 */}
                         <div className="flex items-end justify-center w-full" style={{ height: '100%' }}>
                           <div
-                            className={`w-5 sm:w-6 ${color} rounded-t-full transition-all duration-300 cursor-pointer hover:opacity-80`}
+                            className={`w-5 sm:w-6 ${barClass} rounded-t-full transition-all duration-300 cursor-pointer hover:opacity-80`}
                             style={{
                               height: `${heightPercent}%`
                             }}
-                            title={`${dataPoint.month}: ${formatFullNumber(value)}`}
+                            title={`${dataPoint.month}${dataPoint.isCurrentMonth ? ' (至今)' : ''}: ${formatFullNumber(value)}`}
                           />
                         </div>
                       </div>
 
                       {/* 月份標籤（水平顯示）*/}
                       <div className="text-xs text-gray-600 mt-2 whitespace-nowrap">
-                        {dataPoint.month}
+                        {dataPoint.isCurrentMonth ? `${dataPoint.month} (至今)` : dataPoint.month}
                       </div>
                     </div>
                   );
                 })}
               </div>
             </div>
+            {monthlyMeta.hasCurrent && (
+              <p className="text-xs text-gray-500 mt-3 text-right">
+                本月至今資料更新至 {todayLabel}，數值尚未滿整月。
+              </p>
+            )}
           </>
         )}
       </div>
