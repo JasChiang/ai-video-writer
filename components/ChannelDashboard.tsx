@@ -3843,16 +3843,16 @@ export function ChannelDashboard() {
                     <div className="hidden md:flex items-end justify-center gap-4 mb-6">
                       {/* 第二名 */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="w-full bg-gradient-to-b from-gray-100 to-gray-200 rounded-2xl p-4 border-2 border-gray-300 shadow-lg overflow-hidden flex flex-col" style={{ height: '320px' }}>
+                        <div className="w-full bg-gradient-to-b from-gray-100 to-gray-200 rounded-2xl p-4 border-2 border-gray-300 shadow-lg overflow-hidden flex flex-col">
                           <div className="text-center mb-3">
                             <div className="text-2xl font-bold text-gray-600">第 2 名</div>
                           </div>
-                          {/* 影片縮圖 - 固定高度 */}
-                          <div className="mb-3 h-24 flex-shrink-0">
+                          {/* 影片縮圖 - 16:9 比例 */}
+                          <div className="mb-3 w-full aspect-video flex-shrink-0">
                             <img
                               src={`https://i.ytimg.com/vi/${subscriberSources[1].videoId}/mqdefault.jpg`}
                               alt={subscriberSources[1].videoTitle}
-                              className="w-full h-full object-contain rounded-lg"
+                              className="w-full h-full object-cover rounded-lg"
                               onError={(e) => {
                                 e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[1].videoId}/default.jpg`;
                               }}
@@ -3874,7 +3874,7 @@ export function ChannelDashboard() {
 
                       {/* 第一名（中間最高） */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="w-full bg-gradient-to-b from-yellow-50 to-yellow-100 rounded-2xl p-5 border-2 border-yellow-400 shadow-2xl overflow-hidden flex flex-col" style={{ height: '380px' }}>
+                        <div className="w-full bg-gradient-to-b from-yellow-50 to-yellow-100 rounded-2xl p-5 border-2 border-yellow-400 shadow-2xl overflow-hidden flex flex-col">
                           <div className="text-center mb-3">
                             <div className="text-3xl font-bold text-yellow-700">第 1 名</div>
                             <div className="text-xs text-yellow-600 flex items-center justify-center gap-1">
@@ -3882,12 +3882,12 @@ export function ChannelDashboard() {
                               冠軍
                             </div>
                           </div>
-                          {/* 影片縮圖 - 固定高度 */}
-                          <div className="mb-3 h-28 flex-shrink-0">
+                          {/* 影片縮圖 - 16:9 比例 */}
+                          <div className="mb-3 w-full aspect-video flex-shrink-0">
                             <img
                               src={`https://i.ytimg.com/vi/${subscriberSources[0].videoId}/mqdefault.jpg`}
                               alt={subscriberSources[0].videoTitle}
-                              className="w-full h-full object-contain rounded-lg"
+                              className="w-full h-full object-cover rounded-lg"
                               onError={(e) => {
                                 e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[0].videoId}/default.jpg`;
                               }}
@@ -3909,16 +3909,16 @@ export function ChannelDashboard() {
 
                       {/* 第三名 */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="w-full bg-gradient-to-b from-orange-50 to-orange-100 rounded-2xl p-4 border-2 border-orange-300 shadow-lg overflow-hidden flex flex-col" style={{ height: '300px' }}>
+                        <div className="w-full bg-gradient-to-b from-orange-50 to-orange-100 rounded-2xl p-4 border-2 border-orange-300 shadow-lg overflow-hidden flex flex-col">
                           <div className="text-center mb-3">
                             <div className="text-2xl font-bold text-orange-600">第 3 名</div>
                           </div>
-                          {/* 影片縮圖 - 固定高度 */}
-                          <div className="mb-3 h-20 flex-shrink-0">
+                          {/* 影片縮圖 - 16:9 比例 */}
+                          <div className="mb-3 w-full aspect-video flex-shrink-0">
                             <img
                               src={`https://i.ytimg.com/vi/${subscriberSources[2].videoId}/mqdefault.jpg`}
                               alt={subscriberSources[2].videoTitle}
-                              className="w-full h-full object-contain rounded-lg"
+                              className="w-full h-full object-cover rounded-lg"
                               onError={(e) => {
                                 e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[2].videoId}/default.jpg`;
                               }}
@@ -3957,7 +3957,7 @@ export function ChannelDashboard() {
                                 <img
                                   src={`https://i.ytimg.com/vi/${source.videoId}/mqdefault.jpg`}
                                   alt={source.videoTitle}
-                                  className="w-full h-18 object-contain rounded-lg"
+                                  className="w-full aspect-video object-cover rounded-lg"
                                   onError={(e) => {
                                     e.currentTarget.src = `https://i.ytimg.com/vi/${source.videoId}/default.jpg`;
                                   }}
@@ -4009,7 +4009,7 @@ export function ChannelDashboard() {
                             <img
                               src={`https://i.ytimg.com/vi/${source.videoId}/mqdefault.jpg`}
                               alt={source.videoTitle}
-                              className="w-full h-16 object-contain rounded-lg"
+                              className="w-full aspect-video object-cover rounded-lg"
                               onError={(e) => {
                                 e.currentTarget.src = `https://i.ytimg.com/vi/${source.videoId}/default.jpg`;
                               }}
