@@ -225,6 +225,14 @@ const API_BASE_URL =
   (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
 const YT_VIDEO_BASE_URL = 'https://www.youtube.com/watch?v=';
 const ENABLE_PUBLISHING_SLOTS = false;
+const ANALYTICS_DATA_DELAY_DAYS = 3; // API 數據比 YouTube Studio 晚 1 天，實際最晚僅能查到今天往前 3 天
+
+const getAnalyticsAvailableEndDate = () => {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() - ANALYTICS_DATA_DELAY_DAYS);
+  return date;
+};
 
 // 使用本地時區格式化，避免 UTC 時區偏移
 const formatDateString = (date: Date) => {
@@ -237,26 +245,38 @@ const formatDateString = (date: Date) => {
 // 計算快速日期範圍
 const getQuickDateRange = (range: QuickDateRange): { start: string; end: string } => {
   const today = new Date();
-  const endDate = new Date(today);
-  let startDate = new Date(today);
+  const analyticsEndDate = getAnalyticsAvailableEndDate();
+  let endDate = new Date(analyticsEndDate);
+  let startDate = new Date(endDate);
 
   switch (range) {
     case '7d':
-      startDate.setDate(today.getDate() - 6); // 包含今天共7天
+      startDate.setDate(endDate.getDate() - 6); // 包含今日可用日的 7 天
       break;
     case '30d':
-      startDate.setDate(today.getDate() - 29); // 包含今天共30天
+      startDate.setDate(endDate.getDate() - 29); // 包含今日可用日的 30 天
       break;
     case '90d':
-      startDate.setDate(today.getDate() - 89); // 包含今天共90天
+      startDate.setDate(endDate.getDate() - 89); // 包含今日可用日的 90 天
       break;
-    case 'this_month':
-      startDate = new Date(today.getFullYear(), today.getMonth(), 1); // 本月第一天
+    case 'this_month': {
+      const startOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const endOfCurrentMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      startDate = startOfCurrentMonth;
+      endDate = analyticsEndDate < endOfCurrentMonth ? new Date(analyticsEndDate) : endOfCurrentMonth;
       break;
-    case 'last_month':
-      startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1); // 上月第一天
-      endDate.setDate(0); // 上月最後一天
+    }
+    case 'last_month': {
+      const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+      startDate = startOfLastMonth;
+      endDate = analyticsEndDate < endOfLastMonth ? new Date(analyticsEndDate) : endOfLastMonth;
       break;
+    }
+  }
+
+  if (startDate > endDate) {
+    startDate = new Date(endDate);
   }
 
   return {
@@ -305,6 +325,18 @@ export function ChannelDashboard() {
   const [contentTypeMetrics, setContentTypeMetrics] = useState<ContentTypeMetrics | null>(null);
   const [topShorts, setTopShorts] = useState<VideoItem[]>([]);
   const [topRegularVideos, setTopRegularVideos] = useState<VideoItem[]>([]);
+  const analyticsAvailableDate = getAnalyticsAvailableEndDate();
+  const maxSelectableDate = formatDateString(analyticsAvailableDate);
+  const todayDate = new Date();
+  const startOfCurrentMonth = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
+  const endOfLastMonth = new Date(todayDate.getFullYear(), todayDate.getMonth(), 0);
+  const isCurrentMonthSelectable = analyticsAvailableDate >= startOfCurrentMonth;
+  const isLastMonthSelectable = analyticsAvailableDate >= endOfLastMonth;
+  const isQuickPresetDisabled = (value: QuickDateRange) => {
+    if (value === 'this_month') return !isCurrentMonthSelectable;
+    if (value === 'last_month') return !isLastMonthSelectable;
+    return false;
+  };
 
   const hasHydratedRef = useRef(false);
   const videoCacheRef = useRef<Record<string, any> | null>(null);
@@ -365,6 +397,26 @@ export function ChannelDashboard() {
       JSON.stringify({ startDate, endDate, topVideoMetric })
     );
   }, [startDate, endDate, topVideoMetric]);
+
+  // 受限於 API 數據延遲，確保選取的日期不會超出可查詢範圍
+  useEffect(() => {
+    let nextStart = startDate;
+    let nextEnd = endDate;
+
+    if (startDate > maxSelectableDate) {
+      nextStart = maxSelectableDate;
+    }
+    if (endDate > maxSelectableDate) {
+      nextEnd = maxSelectableDate;
+    }
+
+    if (nextStart !== startDate) {
+      setStartDate(nextStart);
+    }
+    if (nextEnd !== endDate) {
+      setEndDate(nextEnd);
+    }
+  }, [startDate, endDate, maxSelectableDate]);
 
   // 儲存儀表板數據
   useEffect(() => {
@@ -2310,19 +2362,32 @@ export function ChannelDashboard() {
               {QUICK_DATE_PRESETS.map((item) => {
                 const range = getQuickDateRange(item.value);
                 const isActive = startDate === range.start && endDate === range.end;
+                const disabled = isQuickPresetDisabled(item.value);
+                const showActive = isActive && !disabled;
 
                 return (
                   <button
                     key={item.value}
+                    type="button"
+                    disabled={disabled}
                     onClick={() => {
+                      if (disabled) return;
                       setStartDate(range.start);
                       setEndDate(range.end);
                     }}
                     className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all shadow-sm ${
-                      isActive
-                        ? 'bg-red-600 text-white border-red-600 shadow-red-200'
-                        : 'bg-white text-gray-600 border-red-100 hover:bg-red-50 hover:text-red-600'
+                      disabled
+                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                        : showActive
+                          ? 'bg-red-600 text-white border-red-600 shadow-red-200'
+                          : 'bg-white text-gray-600 border-red-100 hover:bg-red-50 hover:text-red-600'
                     }`}
+                    aria-disabled={disabled}
+                    title={
+                      disabled
+                        ? '尚未完整結算該月份的數據，暫時無法使用'
+                        : undefined
+                    }
                   >
                     {item.label}
                   </button>
@@ -2331,22 +2396,29 @@ export function ChannelDashboard() {
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-              {/* 日期範圍選擇器 */}
-              <div className="flex items-center gap-2 px-3 py-2 border border-red-100 rounded-xl bg-white shadow-inner">
-                <Calendar className="w-4 h-4 text-red-500" />
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="focus:outline-none text-sm text-gray-700"
-                />
-                <span className="text-gray-400">至</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="focus:outline-none text-sm text-gray-700"
-                />
+              <div className="flex flex-col gap-1">
+                {/* 日期範圍選擇器 */}
+                <div className="flex items-center gap-2 px-3 py-2 border border-red-100 rounded-xl bg-white shadow-inner">
+                  <Calendar className="w-4 h-4 text-red-500" />
+                  <input
+                    type="date"
+                    value={startDate}
+                    max={maxSelectableDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="focus:outline-none text-sm text-gray-700"
+                  />
+                  <span className="text-gray-400">至</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    max={maxSelectableDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="focus:outline-none text-sm text-gray-700"
+                  />
+                </div>
+                <p className="text-xs text-gray-400 text-left sm:text-right">
+                  API 最晚僅提供到 {maxSelectableDate}（比 YouTube Studio 晚 1 天）
+                </p>
               </div>
 
               {/* 刷新按鈕 */}
