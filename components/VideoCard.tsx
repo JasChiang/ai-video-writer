@@ -25,44 +25,46 @@ export function VideoCard({ video, isActive, onSelect, cardId }: VideoCardProps)
           onSelect(video.id);
         }
       }}
-      className={`group relative flex cursor-pointer gap-4 rounded-2xl border bg-white p-4 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 scroll-mt-28 ${
-        isActive ? 'border-red-500 shadow-lg' : 'border-neutral-200 shadow-sm hover:border-neutral-300'
+      className={`group relative flex cursor-pointer gap-4 rounded-xl border bg-white p-4 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF0000] focus-visible:ring-offset-2 scroll-mt-28 font-['Roboto',sans-serif] ${
+        isActive
+          ? 'border-[#FF0000] shadow-[0_2px_8px_rgba(255,0,0,0.15)]'
+          : 'border-[#E5E5E5] shadow-[0_1px_2px_rgba(0,0,0,0.1)] hover:border-[#909090] hover:shadow-[0_2px_8px_rgba(0,0,0,0.15)]'
       }`}
     >
-      <div className="relative h-24 w-40 flex-shrink-0 overflow-hidden rounded-xl bg-neutral-100 shadow-md sm:h-28 sm:w-48">
+      <div className="relative h-24 w-40 flex-shrink-0 overflow-hidden rounded-lg bg-[#F2F2F2] sm:h-28 sm:w-48">
         <img
           src={video.thumbnailUrl}
           alt={video.title}
-          className="h-full w-full object-cover transition duration-200 group-hover:scale-105"
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
         {video.duration && (
-          <span className="absolute bottom-2 right-2 rounded bg-black/75 px-2 py-0.5 text-xs font-semibold text-white">
+          <span className="absolute bottom-1.5 right-1.5 rounded bg-black/80 px-1.5 py-0.5 text-xs font-medium text-white">
             {formatDuration(video.duration)}
           </span>
         )}
         {isActive && (
-          <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-xs font-semibold text-red-600 shadow-sm">
-            檢視中
+          <span className="absolute left-2 top-2 rounded bg-[#FF0000] px-2 py-1 text-xs font-medium text-white shadow-md">
+            正在檢視
           </span>
         )}
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
-        <div className="space-y-1">
-          <h3 className="line-clamp-2 break-words text-base font-semibold text-neutral-900 sm:text-lg">
+      <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+        <div className="space-y-1.5">
+          <h3 className="line-clamp-2 break-words text-base font-medium text-[#030303] sm:text-lg leading-snug">
             {video.title}
           </h3>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500 sm:text-sm">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-[#606060] sm:text-sm">
             {video.privacyStatus && (
               <span
-                className="inline-flex items-center rounded-full px-2 py-0.5 font-medium"
+                className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium"
                 style={{ color: badge.color, backgroundColor: badge.bgColor }}
               >
                 {badge.text}
               </span>
             )}
             {video.viewCount && (
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1">
                 <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
                   <path
@@ -75,7 +77,7 @@ export function VideoCard({ video, isActive, onSelect, cardId }: VideoCardProps)
               </span>
             )}
             {video.publishedAt && (
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1">
                 <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
                   <path
                     fillRule="evenodd"
@@ -88,28 +90,39 @@ export function VideoCard({ video, isActive, onSelect, cardId }: VideoCardProps)
             )}
           </div>
         </div>
-        <div className="flex items-center justify-between gap-3 text-xs text-neutral-500 sm:text-sm">
+        <div className="flex items-center justify-between gap-3 text-xs text-[#606060] sm:text-sm">
           <div className="min-w-0 flex-1">
             {video.tags && video.tags.length > 0 ? (
-              <span className="block truncate">
+              <span className="block truncate text-[#065FD4]">
                 #{video.tags.slice(0, 2).join(' #')}
                 {video.tags.length > 2 ? ' ...' : ''}
               </span>
             ) : (
-              <span className="flex items-center gap-1 text-neutral-400">
+              <span className="flex items-center gap-1 text-[#909090]">
                 <svg className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                 </svg>
                 <span className="truncate">尚未設定標籤</span>
               </span>
             )}
           </div>
           <span
-            className={`inline-flex flex-shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition whitespace-nowrap ${
-              isActive ? 'bg-red-100 text-red-600' : 'bg-neutral-100 text-neutral-500 group-hover:bg-neutral-200'
+            className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200 whitespace-nowrap ${
+              isActive
+                ? 'bg-[#FF0000] text-white shadow-sm'
+                : 'bg-[#F2F2F2] text-[#606060] group-hover:bg-[#E5E5E5]'
             }`}
           >
-            {isActive ? '正在檢視' : '點擊檢視'}
+            {isActive ? (
+              <>
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                正在檢視
+              </>
+            ) : (
+              '點擊檢視'
+            )}
           </span>
         </div>
       </div>

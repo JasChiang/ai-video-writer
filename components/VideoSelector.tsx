@@ -26,16 +26,16 @@ export function VideoSelector({
 }: VideoSelectorProps) {
 
   return (
-    <div className="space-y-4">
-      <header className="flex flex-col gap-2 rounded-2xl border border-neutral-200 bg-white/95 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-5 font-['Roboto',sans-serif]">
+      <header className="flex flex-col gap-3 rounded-xl border border-[#E5E5E5] bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.1)] sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-900 sm:text-xl">影片清單</h2>
-          <p className="text-sm text-neutral-500">
+          <h2 className="text-xl font-medium text-[#030303] sm:text-2xl">影片清單</h2>
+          <p className="text-sm text-[#606060] mt-1">
             點擊影片即可瀏覽詳細內容、成效指標與 Gemini 建議。
           </p>
         </div>
-        <div className="flex items-center gap-2 text-sm text-neutral-500">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-sm font-semibold text-red-600">
+        <div className="flex items-center gap-2 text-sm text-[#606060]">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#F2F2F2] text-sm font-semibold text-[#030303]">
             {videos.length}
           </span>
           <span>條符合條件的影片</span>
@@ -43,28 +43,36 @@ export function VideoSelector({
       </header>
 
       {error && !isLoading && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-          {error}
+        <div className="rounded-xl border border-[#FCE8E8] bg-[#FEF7F7] px-4 py-3 text-sm text-[#C5221F] shadow-[0_1px_2px_rgba(0,0,0,0.1)]">
+          <div className="flex items-start gap-2">
+            <span className="font-medium">⚠</span>
+            <span>{error}</span>
+          </div>
         </div>
       )}
 
       {videos.length === 0 && !isLoading && !error && (
-        <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-6 py-10 text-center text-neutral-500">
-          <h3 className="text-base font-semibold text-neutral-700">尚未找到符合條件的影片</h3>
-          <p className="mt-2 text-sm">調整搜尋或篩選條件，再試一次。</p>
+        <div className="rounded-xl border border-dashed border-[#E5E5E5] bg-[#F9F9F9] px-6 py-12 text-center">
+          <div className="w-16 h-16 rounded-full bg-white mx-auto mb-4 flex items-center justify-center shadow-[0_1px_2px_rgba(0,0,0,0.1)]">
+            <svg className="w-8 h-8 text-[#606060]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <h3 className="text-base font-medium text-[#030303]">尚未找到符合條件的影片</h3>
+          <p className="mt-2 text-sm text-[#606060]">調整搜尋或篩選條件，再試一次。</p>
         </div>
       )}
 
       {/* 初次載入時顯示完整的 Loader */}
       {isLoading && videos.length === 0 && (
-        <div className="rounded-2xl border border-neutral-200 bg-white/90">
+        <div className="rounded-xl border border-[#E5E5E5] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.1)] p-8">
           <Loader />
         </div>
       )}
 
       {/* 影片列表 */}
       {videos.length > 0 && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {videos.map((video) => {
             const isActive = video.id === selectedVideoId;
             const cardId = `video-card-${video.id}`;
@@ -92,24 +100,27 @@ export function VideoSelector({
 
       {/* 載入更多按鈕或載入中狀態 */}
       {videos.length > 0 && (
-        <div className="flex justify-center pt-2">
+        <div className="flex justify-center pt-4">
           {isLoading ? (
-            <div className="flex flex-col items-center gap-3 rounded-2xl border border-neutral-200 bg-white/90 px-8 py-6">
+            <div className="flex flex-col items-center gap-3 rounded-xl border border-[#E5E5E5] bg-white px-8 py-6 shadow-[0_1px_2px_rgba(0,0,0,0.1)]">
               <div className="flex items-center gap-3">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-red-600 border-t-transparent"></div>
-                <span className="text-sm font-medium text-neutral-700">正在搜尋更多影片...</span>
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#FF0000] border-t-transparent"></div>
+                <span className="text-sm font-medium text-[#030303]">正在搜尋更多影片...</span>
               </div>
-              <span className="text-xs text-neutral-500">掃描頻道影片中，這可能需要一些時間</span>
+              <span className="text-xs text-[#606060]">掃描頻道影片中，這可能需要一些時間</span>
             </div>
           ) : hasMore ? (
             <button
               onClick={onLoadMore}
-              className="inline-flex items-center gap-2 rounded-full bg-red-600 px-6 py-3 font-semibold text-white shadow-lg transition hover:bg-red-700 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+              className="inline-flex items-center gap-2 rounded-full bg-[#FF0000] px-6 py-3 font-medium text-white shadow-[0_1px_4px_rgba(0,0,0,0.2)] transition-all duration-200 hover:bg-[#CC0000] hover:shadow-[0_2px_8px_rgba(0,0,0,0.3)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF0000] focus-visible:ring-offset-2"
             >
-              <span className="text-lg">↻</span> 載入更多影片
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              載入更多影片
             </button>
           ) : (
-            <div className="text-center text-sm text-neutral-500">
+            <div className="text-center text-sm text-[#606060]">
               已載入所有符合條件的影片
             </div>
           )}

@@ -459,9 +459,9 @@ export default function App() {
   const hasActiveFilters = showPrivateVideos || showUnlistedVideos || Boolean(searchQuery);
 
   const renderFilterControls = () => (
-    <div className="space-y-5">
+    <div className="space-y-4 font-['Roboto',sans-serif]">
       <div className="relative">
-        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-red-600">
+        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#606060]">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
@@ -472,23 +472,23 @@ export default function App() {
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyPress={handleSearchKeyPress}
           placeholder="搜尋影片標題（按 Enter 搜尋）..."
-          className="w-full rounded-full border border-neutral-300 bg-white pl-12 pr-24 py-3 text-sm text-neutral-900 shadow-sm transition focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 sm:text-base"
+          className="w-full rounded-full border border-[#CCCCCC] bg-[#F9F9F9] pl-12 pr-24 py-2.5 text-sm text-[#030303] transition-all duration-200 focus:border-[#065FD4] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#065FD4]/20 sm:text-base placeholder:text-[#909090]"
         />
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="text-neutral-400 transition hover:text-neutral-600 focus:outline-none"
+              className="text-[#606060] transition-colors duration-150 hover:text-[#030303] focus:outline-none p-1"
               aria-label="清除搜尋"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           )}
           <button
             onClick={handleSearch}
-            className="text-red-600 transition hover:text-red-700 focus:outline-none"
+            className="text-[#065FD4] transition-colors duration-150 hover:text-[#0553C1] focus:outline-none p-1"
             aria-label="搜尋"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -503,20 +503,20 @@ export default function App() {
           type="button"
           onClick={handleToggleUnlistedVideos}
           aria-pressed={showUnlistedVideos}
-          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 ${
+          className={`flex items-center justify-between gap-3 rounded-lg border px-4 py-3 text-left text-sm transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#065FD4] focus-visible:ring-offset-2 ${
             showUnlistedVideos
-              ? 'border-red-500 bg-red-50/80 text-red-600 shadow-sm'
-              : 'border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50'
+              ? 'border-[#065FD4] bg-[#E8F0FE] text-[#065FD4] shadow-sm'
+              : 'border-[#E5E5E5] bg-white text-[#030303] hover:border-[#909090] hover:bg-[#F9F9F9]'
           }`}
         >
           <span className="font-medium">顯示未公開影片</span>
           <span
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              showUnlistedVideos ? 'bg-red-500' : 'bg-neutral-300'
+            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors duration-200 ${
+              showUnlistedVideos ? 'bg-[#065FD4]' : 'bg-[#CCCCCC]'
             }`}
           >
             <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
                 showUnlistedVideos ? 'translate-x-5' : 'translate-x-1'
               }`}
             />
@@ -527,20 +527,20 @@ export default function App() {
           type="button"
           onClick={handleTogglePrivateVideos}
           aria-pressed={showPrivateVideos}
-          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 ${
+          className={`flex items-center justify-between gap-3 rounded-lg border px-4 py-3 text-left text-sm transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#065FD4] focus-visible:ring-offset-2 ${
             showPrivateVideos
-              ? 'border-red-500 bg-red-50/80 text-red-600 shadow-sm'
-              : 'border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50'
+              ? 'border-[#065FD4] bg-[#E8F0FE] text-[#065FD4] shadow-sm'
+              : 'border-[#E5E5E5] bg-white text-[#030303] hover:border-[#909090] hover:bg-[#F9F9F9]'
           }`}
         >
           <span className="font-medium">顯示私人影片</span>
           <span
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              showPrivateVideos ? 'bg-red-500' : 'bg-neutral-300'
+            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors duration-200 ${
+              showPrivateVideos ? 'bg-[#065FD4]' : 'bg-[#CCCCCC]'
             }`}
           >
             <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
                 showPrivateVideos ? 'translate-x-5' : 'translate-x-1'
               }`}
             />
@@ -549,20 +549,20 @@ export default function App() {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-        <div className="flex items-center gap-2 text-neutral-500">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-100 text-xs font-semibold text-red-600">
+        <div className="flex items-center gap-2 text-[#606060]">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#F2F2F2] text-xs font-semibold text-[#030303]">
             {videos.length}
           </span>
-          <span>符合條件的影片</span>
+          <span className="font-medium">符合條件的影片</span>
         </div>
         <button
           type="button"
           onClick={handleResetFilters}
           disabled={!hasActiveFilters}
-          className={`text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 ${
+          className={`text-sm font-medium transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#065FD4] focus-visible:ring-offset-2 rounded px-2 py-1 ${
             hasActiveFilters
-              ? 'text-red-600 hover:text-red-700'
-              : 'cursor-not-allowed text-neutral-300'
+              ? 'text-[#065FD4] hover:text-[#0553C1] hover:bg-[#E8F0FE]'
+              : 'cursor-not-allowed text-[#CCCCCC]'
           }`}
         >
           重設篩選
@@ -570,7 +570,7 @@ export default function App() {
       </div>
 
       {searchQuery && !isLoadingVideos && (
-        <div className="rounded-lg border border-red-200 bg-red-50/70 px-3 py-2 text-sm text-red-600">
+        <div className="rounded-lg border border-[#E8F0FE] bg-[#F8FBFF] px-4 py-3 text-sm text-[#065FD4]">
           {videos.length > 0 ? (
             <span>
               找到 <span className="font-semibold">{videos.length}</span> 個包含「{searchQuery}」的影片
@@ -606,16 +606,16 @@ export default function App() {
     }
 
     return (
-      <div className="space-x-0 space-y-6">
+      <div className="space-x-0 space-y-5 font-['Roboto',sans-serif]">
         <div className="lg:hidden">
           <button
             type="button"
             onClick={() => setIsFilterPanelOpen(prev => !prev)}
-            className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+            className="flex w-full items-center justify-between rounded-xl border border-[#E5E5E5] bg-white px-4 py-3 text-sm font-medium text-[#030303] shadow-[0_1px_2px_rgba(0,0,0,0.1)] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#065FD4] focus-visible:ring-offset-2 hover:bg-[#F9F9F9]"
           >
             <span>搜尋與篩選</span>
             <svg
-              className={`h-5 w-5 transition-transform ${isFilterPanelOpen ? 'rotate-180 text-red-600' : 'text-neutral-400'}`}
+              className={`h-5 w-5 transition-transform duration-200 ${isFilterPanelOpen ? 'rotate-180 text-[#065FD4]' : 'text-[#606060]'}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -624,7 +624,7 @@ export default function App() {
             </svg>
           </button>
           {isFilterPanelOpen && (
-            <div className="mt-4 rounded-2xl border border-neutral-200 bg-white/95 p-4 shadow-sm">
+            <div className="mt-3 rounded-xl border border-[#E5E5E5] bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.1)]">
               {renderFilterControls()}
             </div>
           )}
@@ -635,10 +635,10 @@ export default function App() {
           style={{ gridTemplateColumns: layoutTemplateColumns }}
         >
           <aside className="mb-6 hidden lg:block xl:mb-0">
-            <div className="space-y-5 rounded-2xl border border-neutral-200 bg-white/95 p-5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80 lg:sticky lg:top-28">
-              <div className="space-y-1">
-                <h2 className="text-lg font-semibold text-neutral-900">搜尋與篩選</h2>
-                <p className="text-sm text-neutral-500">
+            <div className="space-y-4 rounded-xl border border-[#E5E5E5] bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.1)] lg:sticky lg:top-28">
+              <div className="space-y-1.5">
+                <h2 className="text-lg font-medium text-[#030303]">搜尋與篩選</h2>
+                <p className="text-sm text-[#606060]">
                   依標題、描述或公開設定快速鎖定需要優化的影片。
                 </p>
               </div>
@@ -667,17 +667,22 @@ export default function App() {
                 style={{
                   maxHeight: 'calc(100vh - 8rem)',
                   scrollbarWidth: 'thin',
-                  scrollbarColor: '#d4d4d4 transparent',
+                  scrollbarColor: '#909090 transparent',
                 }}
                 id="detail-sidebar-scroll"
               >
                 {/* VideoDetailPanel 將由 Portal 渲染到這裡 */}
               </div>
             ) : (
-              <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-6 py-10 text-center text-neutral-500">
+              <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-[#E5E5E5] bg-[#F9F9F9] px-6 py-12 text-center">
                 <div>
-                  <h3 className="text-lg font-semibold text-neutral-700">選擇左側影片以檢視內容</h3>
-                  <p className="mt-2 text-sm">包含影片預覽、近期數據與 Gemini 建議。</p>
+                  <div className="w-16 h-16 rounded-full bg-white mx-auto mb-4 flex items-center justify-center shadow-[0_1px_2px_rgba(0,0,0,0.1)]">
+                    <svg className="w-8 h-8 text-[#606060]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-base font-medium text-[#030303]">選擇左側影片以檢視內容</h3>
+                  <p className="mt-2 text-sm text-[#606060]">包含影片預覽、近期數據與 Gemini 建議。</p>
                 </div>
               </div>
             )}
