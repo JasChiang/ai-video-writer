@@ -58,13 +58,18 @@ import {
   Tv,
   Gamepad2,
   Crown,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import * as youtubeService from '../services/youtubeService';
+import * as channelAnalyticsAIService from '../services/channelAnalyticsAIService';
 
 interface ChannelStats {
   // 頻道總體統計（不受時間範圍影響）
   totalSubscribers: number;
   totalViews: number;
+  totalVideos: number;         // 頻道總影片數
 
   // 時間範圍內的統計（基於 Analytics API）
   viewsInRange: number;        // 時間範圍內實際產生的觀看數
@@ -301,6 +306,12 @@ export function ChannelDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [channelStats, setChannelStats] = useState<ChannelStats | null>(null);
   const [topVideos, setTopVideos] = useState<VideoItem[]>([]);
+
+  // AI 分析相關狀態
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [showAnalysis, setShowAnalysis] = useState(false);
   const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
   const [selectedMetric, setSelectedMetric] = useState<ChartMetric>('views');
   const [monthlyData, setMonthlyData] = useState<MonthlyDataPoint[]>([]);
@@ -557,6 +568,7 @@ export function ChannelDashboard() {
         setChannelStats((prev) => ({
           totalSubscribers: prev?.totalSubscribers || 0,
           totalViews: prev?.totalViews || 0,
+          totalVideos: prev?.totalVideos || 0,
           viewsInRange: views,
           watchTimeHours: watchTimeHours,
           subscribersGained: subscribersNet, // 使用淨增長（新增 - 取消）
@@ -628,6 +640,59 @@ export function ChannelDashboard() {
     }
   };
 
+  // AI 頻道分析功能
+  const handleAnalyzeChannel = async () => {
+    if (!channelStats || topVideos.length === 0) {
+      setAnalysisError('請先載入頻道數據後再進行分析');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+    setAnalysisResult(null);
+    setShowAnalysis(true);
+
+    try {
+      console.log('[AI Analysis] 開始分析頻道表現...');
+
+      // 準備分析請求數據
+      const request: channelAnalyticsAIService.ChannelAnalysisRequest = {
+        startDate,
+        endDate,
+        channelId: '', // 如果有頻道 ID 可以添加
+        videos: topVideos.map(video => ({
+          videoId: video.id,
+          title: video.title,
+          publishedAt: video.publishedAt,
+          viewCount: video.viewCount,
+          likeCount: video.likeCount,
+          commentCount: video.commentCount,
+          tags: [],
+        })),
+        channelStats: {
+          totalViews: channelStats.totalViews,
+          subscriberCount: channelStats.totalSubscribers,
+          totalVideos: channelStats.totalVideos,
+        },
+      };
+
+      // 呼叫分析 API
+      const result = await channelAnalyticsAIService.analyzeChannelPerformance(request);
+
+      if (result.success && result.analysis) {
+        setAnalysisResult(result.analysis);
+        console.log('[AI Analysis] ✅ 分析完成');
+      } else {
+        throw new Error(result.error || '分析失敗');
+      }
+    } catch (err: any) {
+      console.error('[AI Analysis] ❌ 分析失敗:', err);
+      setAnalysisError(err.message || '分析過程發生錯誤');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   // 處理 Analytics API 數據
   const processAnalyticsData = async (analyticsData: any, startDate: Date, endDate: Date) => {
     try {
@@ -661,6 +726,7 @@ export function ChannelDashboard() {
       setChannelStats((prev) => ({
         totalSubscribers: prev?.totalSubscribers || 0,
         totalViews: prev?.totalViews || 0,
+        totalVideos: prev?.totalVideos || 0,
         viewsInRange: totalViews,
         watchTimeHours: watchTimeHours,
         subscribersGained: totalSubscribersGained,
@@ -746,12 +812,14 @@ export function ChannelDashboard() {
       console.log('[Dashboard] ✅ 頻道統計獲取成功:', {
         totalSubscribers: stats.subscriberCount,
         totalViews: stats.viewCount,
+        totalVideos: stats.videoCount,
       });
 
       // 只設置頻道總體統計，時間範圍內的統計由 fetchVideosInRange 設置
       setChannelStats((prev) => ({
         totalSubscribers: parseInt(stats.subscriberCount || '0'),
         totalViews: parseInt(stats.viewCount || '0'),
+        totalVideos: parseInt(stats.videoCount || '0'),
         viewsInRange: prev?.viewsInRange || 0,
         watchTimeHours: prev?.watchTimeHours || 0,
         subscribersGained: prev?.subscribersGained || 0,
@@ -1719,6 +1787,7 @@ export function ChannelDashboard() {
       setChannelStats((prev) => ({
         totalSubscribers: prev?.totalSubscribers || 0,
         totalViews: prev?.totalViews || 0,
+        totalVideos: prev?.totalVideos || 0,
         viewsInRange: totalViews,
         watchTimeHours: watchTimeHours,
         subscribersGained: 0, // 需要 Analytics API
@@ -2439,6 +2508,26 @@ export function ChannelDashboard() {
                   </>
                 )}
               </button>
+
+              {/* AI 分析按鈕 */}
+              <button
+                onClick={handleAnalyzeChannel}
+                disabled={isAnalyzing || !channelStats || topVideos.length === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-200 transition-colors hover:from-purple-700 hover:to-pink-700 disabled:cursor-not-allowed disabled:from-gray-300 disabled:to-gray-400 disabled:text-white/80 disabled:shadow-none"
+                title={!channelStats || topVideos.length === 0 ? '請先載入頻道數據' : 'AI 智能分析'}
+              >
+                {isAnalyzing ? (
+                  <>
+                    <Sparkles className="w-4 h-4 animate-pulse" />
+                    分析中...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    AI 分析
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -2495,6 +2584,118 @@ export function ChannelDashboard() {
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-700 shadow-inner">
           {error}
+        </div>
+      )}
+
+      {/* AI 分析結果顯示區塊 */}
+      {showAnalysis && (
+        <div className="rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50 to-pink-50 shadow-lg overflow-hidden">
+          <button
+            onClick={() => setShowAnalysis(!showAnalysis)}
+            className="w-full p-5 flex items-center justify-between hover:bg-purple-100/50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div className="text-left">
+                <strong className="text-lg text-purple-900 block">AI 智能分析報告</strong>
+                <span className="text-sm text-purple-600">基於 Gemini AI 的專業頻道分析</span>
+              </div>
+            </div>
+            {showAnalysis ? (
+              <ChevronUp className="w-5 h-5 text-purple-600" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-purple-600" />
+            )}
+          </button>
+
+          {showAnalysis && (
+            <div className="px-5 pb-5">
+              {isAnalyzing ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <Sparkles className="w-12 h-12 text-purple-600 animate-pulse mx-auto mb-4" />
+                    <p className="text-purple-900 font-semibold">AI 正在分析您的頻道數據...</p>
+                    <p className="text-sm text-purple-600 mt-2">這可能需要幾秒鐘時間</p>
+                  </div>
+                </div>
+              ) : analysisError ? (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
+                  <strong>分析失敗：</strong> {analysisError}
+                </div>
+              ) : analysisResult ? (
+                <div className="bg-white rounded-xl p-6 shadow-inner border border-purple-100">
+                  <div className="prose prose-sm max-w-none">
+                    {/* 使用簡單的 Markdown 渲染 */}
+                    {analysisResult.split('\n').map((line, index) => {
+                      // 處理標題
+                      if (line.startsWith('## ')) {
+                        return (
+                          <h2 key={index} className="text-xl font-bold mt-6 mb-3 text-purple-900 flex items-center gap-2">
+                            {line.replace('## ', '')}
+                          </h2>
+                        );
+                      }
+
+                      // 處理列表項目
+                      if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+                        const content = line.trim().substring(2);
+                        return (
+                          <div key={index} className="ml-4 mb-2 flex items-start gap-2">
+                            <span className="text-purple-600 mt-1">•</span>
+                            <span className="text-gray-700" dangerouslySetInnerHTML={{
+                              __html: content.replace(/\*\*(.*?)\*\*/g, '<strong class="text-purple-800">$1</strong>')
+                            }} />
+                          </div>
+                        );
+                      }
+
+                      // 處理表格分隔線（忽略）
+                      if (line.trim().match(/^\|[\s\-:]+\|/)) {
+                        return null;
+                      }
+
+                      // 處理表格行
+                      if (line.trim().startsWith('|')) {
+                        const cells = line.split('|').filter(cell => cell.trim());
+                        const isHeader = index > 0 && analysisResult.split('\n')[index + 1]?.match(/^\|[\s\-:]+\|/);
+
+                        return (
+                          <div key={index} className="flex border-b border-gray-200">
+                            {cells.map((cell, cellIndex) => (
+                              <div
+                                key={cellIndex}
+                                className={`flex-1 px-3 py-2 ${isHeader ? 'font-semibold bg-purple-50 text-purple-900' : 'text-gray-700'}`}
+                              >
+                                {cell.trim()}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
+
+                      // 處理空行
+                      if (line.trim() === '') {
+                        return <div key={index} className="h-2" />;
+                      }
+
+                      // 處理一般段落
+                      return (
+                        <p key={index} className="text-gray-700 mb-3 leading-relaxed" dangerouslySetInnerHTML={{
+                          __html: line.replace(/\*\*(.*?)\*\*/g, '<strong class="text-purple-800">$1</strong>')
+                        }} />
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  點擊上方「AI 分析」按鈕開始分析
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
