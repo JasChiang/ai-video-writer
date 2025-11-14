@@ -306,8 +306,16 @@ export function ChannelDashboard() {
   const [topShorts, setTopShorts] = useState<VideoItem[]>([]);
   const [topRegularVideos, setTopRegularVideos] = useState<VideoItem[]>([]);
 
+  // 簡報模式狀態
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
+  const [currentPresentationPage, setCurrentPresentationPage] = useState(0);
+  const [presentationPages, setPresentationPages] = useState<HTMLElement[][]>([]);
+  const [showCopiedToast, setShowCopiedToast] = useState(false);
+
   const hasHydratedRef = useRef(false);
   const videoCacheRef = useRef<Record<string, any> | null>(null);
+  const presentationContainerRef = useRef<HTMLDivElement>(null);
+  const contentSectionsRef = useRef<HTMLDivElement>(null);
 
   // 載入快取的日期與數據
   useEffect(() => {
@@ -365,6 +373,78 @@ export function ChannelDashboard() {
       JSON.stringify({ startDate, endDate, topVideoMetric })
     );
   }, [startDate, endDate, topVideoMetric]);
+
+  // URL 參數處理和自動進入簡報模式
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const presentationMode = urlParams.get('mode') === 'presentation';
+    const urlStart = urlParams.get('start');
+    const urlEnd = urlParams.get('end');
+
+    if (urlStart && urlEnd) {
+      setStartDate(urlStart);
+      setEndDate(urlEnd);
+    }
+
+    if (presentationMode) {
+      setTimeout(() => {
+        enterPresentationMode();
+        if (!channelStats) {
+          fetchDashboardData();
+        }
+      }, 100);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 監聽全螢幕變化（用戶按 ESC）
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && isPresentationMode) {
+        exitPresentationMode();
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, [isPresentationMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 鍵盤導航（左右鍵翻頁）
+  useEffect(() => {
+    if (!isPresentationMode) return;
+
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown') {
+        e.preventDefault();
+        setCurrentPresentationPage(prev => Math.min(prev + 1, presentationPages.length - 1));
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
+        e.preventDefault();
+        setCurrentPresentationPage(prev => Math.max(prev - 1, 0));
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        setCurrentPresentationPage(0);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        setCurrentPresentationPage(presentationPages.length - 1);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [isPresentationMode, presentationPages.length]);
+
+  // 監聽視窗大小變化，重新計算分頁
+  useEffect(() => {
+    if (!isPresentationMode) return;
+
+    const handleResize = () => {
+      calculatePresentationPages();
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isPresentationMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 儲存儀表板數據
   useEffect(() => {
@@ -442,6 +522,94 @@ export function ChannelDashboard() {
     });
 
     return { startDate: start, endDate: end };
+  };
+
+  // 智能分頁：根據螢幕高度自動分配區塊到不同頁面
+  const calculatePresentationPages = () => {
+    if (!contentSectionsRef.current) return;
+
+    const sections = Array.from(contentSectionsRef.current.querySelectorAll('.dashboard-section')) as HTMLElement[];
+    if (sections.length === 0) return;
+
+    const pageHeight = window.innerHeight - 200; // 預留導航欄和邊距
+    const pages: HTMLElement[][] = [];
+    let currentPage: HTMLElement[] = [];
+    let currentPageHeight = 0;
+
+    sections.forEach((section) => {
+      const sectionHeight = section.offsetHeight + 24; // 加上 gap
+
+      // 如果當前頁面加上這個區塊會超過高度，且當前頁已有內容，則開新頁
+      if (currentPageHeight + sectionHeight > pageHeight && currentPage.length > 0) {
+        pages.push(currentPage);
+        currentPage = [section];
+        currentPageHeight = sectionHeight;
+      } else {
+        currentPage.push(section);
+        currentPageHeight += sectionHeight;
+      }
+    });
+
+    // 加入最後一頁
+    if (currentPage.length > 0) {
+      pages.push(currentPage);
+    }
+
+    setPresentationPages(pages);
+    console.log(`[Presentation] 已計算分頁：共 ${pages.length} 頁`);
+  };
+
+  // 進入全螢幕簡報模式
+  const enterPresentationMode = async () => {
+    try {
+      if (presentationContainerRef.current) {
+        await presentationContainerRef.current.requestFullscreen();
+        setIsPresentationMode(true);
+        setCurrentPresentationPage(0);
+
+        // 等待 DOM 更新後計算分頁
+        setTimeout(() => {
+          calculatePresentationPages();
+        }, 100);
+
+        // 更新 URL
+        const url = new URL(window.location.href);
+        url.searchParams.set('mode', 'presentation');
+        url.searchParams.set('start', startDate);
+        url.searchParams.set('end', endDate);
+        window.history.replaceState({}, '', url.toString());
+      }
+    } catch (err) {
+      console.error('無法進入全螢幕模式:', err);
+      // 降級方案：不全螢幕但啟用簡報模式
+      setIsPresentationMode(true);
+      setCurrentPresentationPage(0);
+      setTimeout(() => {
+        calculatePresentationPages();
+      }, 100);
+    }
+  };
+
+  // 退出簡報模式
+  const exitPresentationMode = async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
+    } catch (err) {
+      console.error('退出全螢幕失敗:', err);
+    }
+
+    setIsPresentationMode(false);
+    setCurrentPresentationPage(0);
+    setPresentationPages([]);
+
+    // 移除 URL 參數
+    const url = new URL(window.location.href);
+    url.searchParams.delete('mode');
+    url.searchParams.delete('start');
+    url.searchParams.delete('end');
+    window.history.replaceState({}, '', url.toString());
   };
 
   // 獲取儀錶板數據
@@ -2281,9 +2449,85 @@ export function ChannelDashboard() {
   // }, [startDate, endDate]);
 
   return (
-    <div className="space-y-6">
+    <div
+      ref={presentationContainerRef}
+      className={isPresentationMode ? 'fixed inset-0 bg-white flex flex-col overflow-hidden' : ''}
+    >
+      {/* 簡報模式導航欄 */}
+      {isPresentationMode && presentationPages.length > 0 && (
+        <div className="flex items-center justify-between px-8 py-4 border-b border-red-100 bg-red-50/50 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-red-500 text-white flex items-center justify-center">
+              <BarChart3 className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">頻道數據儀表板</h2>
+              <p className="text-xs text-gray-600">{startDate} 至 {endDate}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {/* 頁面指示器 */}
+            <div className="flex items-center gap-2">
+              {presentationPages.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentPresentationPage(index)}
+                  className={`h-2 rounded-full transition-all ${
+                    index === currentPresentationPage
+                      ? 'w-8 bg-red-600'
+                      : 'w-2 bg-red-200 hover:bg-red-300'
+                  }`}
+                />
+              ))}
+            </div>
+
+            <span className="text-sm font-semibold text-gray-600">
+              {currentPresentationPage + 1} / {presentationPages.length}
+            </span>
+
+            {/* 導航按鈕 */}
+            <button
+              onClick={() => setCurrentPresentationPage(prev => Math.max(prev - 1, 0))}
+              disabled={currentPresentationPage === 0}
+              className="p-2 rounded-lg bg-white border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setCurrentPresentationPage(prev => Math.min(prev + 1, presentationPages.length - 1))}
+              disabled={currentPresentationPage === presentationPages.length - 1}
+              className="p-2 rounded-lg bg-white border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+
+            <button
+              onClick={exitPresentationMode}
+              className="px-4 py-2 rounded-lg bg-gray-600 text-white text-sm font-semibold hover:bg-gray-700"
+            >
+              退出簡報
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 內容區域 */}
+      <div
+        ref={contentSectionsRef}
+        className={isPresentationMode ? 'flex-1 overflow-y-auto px-8 py-6' : 'space-y-6'}
+        style={isPresentationMode && presentationPages.length > 0 ? {
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1.5rem'
+        } : undefined}
+      >
       {/* 標題區域 */}
-      <div className="rounded-2xl border border-red-100 bg-white shadow-md p-5 lg:p-6">
+      <div className={`rounded-2xl border border-red-100 bg-white shadow-md p-5 lg:p-6 ${isPresentationMode ? 'dashboard-section' : ''}`}>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2.5">
             <div className="inline-flex items-center gap-2.5">
@@ -2367,6 +2611,38 @@ export function ChannelDashboard() {
                   </>
                 )}
               </button>
+
+              {/* 簡報模式按鈕 */}
+              <button
+                onClick={isPresentationMode ? exitPresentationMode : enterPresentationMode}
+                className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2 text-sm font-semibold shadow-lg transition-colors ${
+                  isPresentationMode
+                    ? 'bg-gray-600 text-white shadow-gray-200 hover:bg-gray-700'
+                    : 'bg-white text-red-600 border border-red-200 shadow-red-100 hover:bg-red-50'
+                }`}
+              >
+                <Monitor className="w-4 h-4" />
+                {isPresentationMode ? '退出簡報' : '簡報模式'}
+              </button>
+
+              {/* 分享連結按鈕（簡報模式下顯示） */}
+              {isPresentationMode && (
+                <button
+                  onClick={() => {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('mode', 'presentation');
+                    url.searchParams.set('start', startDate);
+                    url.searchParams.set('end', endDate);
+                    navigator.clipboard.writeText(url.toString());
+                    setShowCopiedToast(true);
+                    setTimeout(() => setShowCopiedToast(false), 2000);
+                  }}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-green-200 transition-colors hover:bg-green-700"
+                >
+                  <Share2 className="w-4 h-4" />
+                  分享連結
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -4088,6 +4364,15 @@ export function ChannelDashboard() {
           </button>
         </div>
       )}
+
+      {/* 複製成功提示 Toast */}
+      {showCopiedToast && (
+        <div className="fixed bottom-8 right-8 bg-green-600 text-white px-6 py-3 rounded-xl shadow-2xl flex items-center gap-2 z-50">
+          <Share2 className="w-5 h-5" />
+          <span className="font-semibold">已複製分享連結！</span>
+        </div>
+      )}
+      </div>
     </div>
   );
 }
