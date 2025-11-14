@@ -2403,25 +2403,25 @@ export function ChannelDashboard() {
   // }, [startDate, endDate]);
 
   return (
-    <div className="space-y-5 font-['Roboto',sans-serif] bg-[#F9F9F9] min-h-screen p-6">
+    <div className="space-y-6 font-['Roboto',sans-serif] bg-[#FAFAFA] min-h-screen">
       {/* 標題區域 */}
-      <div className="rounded-xl border border-[#E5E5E5] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.1)] p-6 lg:p-8">
+      <div className="rounded-2xl border border-[#E5E5E5] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)] p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
-            <div className="inline-flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full bg-[#FF0000] text-white flex items-center justify-center shadow-md">
-                <BarChart3 className="w-6 h-6" />
+            <div className="inline-flex items-center gap-4">
+              <div className="h-14 w-14 rounded-full bg-gradient-to-br from-[#FF0000] to-[#CC0000] text-white flex items-center justify-center shadow-lg">
+                <BarChart3 className="w-7 h-7" />
               </div>
               <div>
-                <p className="text-xs font-medium uppercase tracking-wider text-[#606060]">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#909090] mb-1">
                   YouTube Analytics
                 </p>
-                <h2 className="text-3xl font-bold text-[#030303]">
+                <h2 className="text-[32px] font-bold text-[#0F0F0F] leading-tight">
                   頻道數據儀表板
                 </h2>
               </div>
             </div>
-            <p className="text-[#606060] text-sm leading-relaxed max-w-2xl">
+            <p className="text-[#606060] text-[15px] leading-relaxed max-w-2xl mt-2">
               深入了解您的頻道表現、觀眾互動與成長趨勢
             </p>
           </div>
@@ -2445,12 +2445,12 @@ export function ChannelDashboard() {
                       setStartDate(range.start);
                       setEndDate(range.end);
                     }}
-                    className={`px-4 py-2 text-sm font-medium rounded-full border transition-all duration-200 ${
+                    className={`px-5 py-2.5 text-[13px] font-semibold rounded-full border transition-all duration-200 ${
                       disabled
                         ? 'bg-[#F2F2F2] text-[#AAAAAA] border-[#E5E5E5] cursor-not-allowed'
                         : showActive
-                          ? 'bg-[#FF0000] text-white border-[#FF0000] shadow-[0_1px_4px_rgba(255,0,0,0.3)]'
-                          : 'bg-white text-[#030303] border-[#E5E5E5] hover:bg-[#F9F9F9] hover:border-[#909090]'
+                          ? 'bg-[#FF0000] text-white border-[#FF0000] shadow-[0_2px_6px_rgba(255,0,0,0.25)]'
+                          : 'bg-white text-[#0F0F0F] border-[#CCCCCC] hover:bg-[#F9F9F9] hover:border-[#909090] hover:shadow-sm'
                     }`}
                     aria-disabled={disabled}
                     title={
@@ -2466,27 +2466,27 @@ export function ChannelDashboard() {
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-2">
                 {/* 日期範圍選擇器 */}
-                <div className="flex items-center gap-2 px-4 py-2.5 border border-[#E5E5E5] rounded-lg bg-white">
-                  <Calendar className="w-4 h-4 text-[#606060]" />
+                <div className="flex items-center gap-3 px-5 py-3 border border-[#CCCCCC] rounded-xl bg-white shadow-sm hover:border-[#909090] transition-colors">
+                  <Calendar className="w-5 h-5 text-[#606060]" />
                   <input
                     type="date"
                     value={startDate}
                     max={maxSelectableDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="focus:outline-none text-sm text-[#030303] font-medium"
+                    className="focus:outline-none text-[13px] text-[#0F0F0F] font-semibold"
                   />
-                  <span className="text-[#909090]">至</span>
+                  <span className="text-[#909090] font-medium">至</span>
                   <input
                     type="date"
                     value={endDate}
                     max={maxSelectableDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="focus:outline-none text-sm text-[#030303] font-medium"
+                    className="focus:outline-none text-[13px] text-[#0F0F0F] font-semibold"
                   />
                 </div>
-                <p className="text-xs text-[#606060] text-left sm:text-right">
+                <p className="text-[11px] text-[#606060] text-left sm:text-right leading-tight">
                   API 最晚僅提供到 {maxSelectableDate}（比 YouTube Studio 晚 1 天）
                 </p>
               </div>
@@ -2495,7 +2495,7 @@ export function ChannelDashboard() {
               <button
                 onClick={fetchDashboardData}
                 disabled={isLoading}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FF0000] px-6 py-2.5 text-sm font-medium text-white shadow-[0_1px_4px_rgba(0,0,0,0.2)] transition-all duration-200 hover:bg-[#CC0000] hover:shadow-[0_2px_8px_rgba(0,0,0,0.3)] disabled:cursor-not-allowed disabled:bg-[#CCCCCC] disabled:shadow-none"
+                className="inline-flex items-center justify-center gap-2.5 rounded-full bg-gradient-to-r from-[#FF0000] to-[#CC0000] px-7 py-3 text-[13px] font-bold text-white shadow-[0_2px_8px_rgba(255,0,0,0.25)] transition-all duration-200 hover:shadow-[0_4px_12px_rgba(255,0,0,0.35)] hover:scale-[1.02] disabled:cursor-not-allowed disabled:bg-[#CCCCCC] disabled:shadow-none disabled:scale-100"
               >
                 {isLoading ? (
                   <>
@@ -2514,7 +2514,7 @@ export function ChannelDashboard() {
               <button
                 onClick={handleAnalyzeChannel}
                 disabled={isAnalyzing || !channelStats || topVideos.length === 0}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#065FD4] px-6 py-2.5 text-sm font-medium text-white shadow-[0_1px_4px_rgba(0,0,0,0.2)] transition-all duration-200 hover:bg-[#0553C1] hover:shadow-[0_2px_8px_rgba(0,0,0,0.3)] disabled:cursor-not-allowed disabled:bg-[#CCCCCC] disabled:shadow-none"
+                className="inline-flex items-center justify-center gap-2.5 rounded-full bg-gradient-to-r from-[#065FD4] to-[#0553C1] px-7 py-3 text-[13px] font-bold text-white shadow-[0_2px_8px_rgba(6,95,212,0.25)] transition-all duration-200 hover:shadow-[0_4px_12px_rgba(6,95,212,0.35)] hover:scale-[1.02] disabled:cursor-not-allowed disabled:bg-[#CCCCCC] disabled:shadow-none disabled:scale-100"
                 title={!channelStats || topVideos.length === 0 ? '請先載入頻道數據' : 'AI 智能分析'}
               >
                 {isAnalyzing ? (
@@ -2535,14 +2535,14 @@ export function ChannelDashboard() {
       </div>
 
       {/* 數據來源說明（可摺疊）*/}
-      <div className="rounded-xl border border-[#E5E5E5] bg-[#F9F9F9] shadow-[0_1px_2px_rgba(0,0,0,0.1)] overflow-hidden">
+      <div className="rounded-2xl border border-[#E5E5E5] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)] overflow-hidden">
         <button
           onClick={() => setShowDataSourceInfo(!showDataSourceInfo)}
-          className="w-full p-4 flex items-center justify-between hover:bg-[#F2F2F2] transition-colors duration-150"
+          className="w-full p-5 flex items-center justify-between hover:bg-[#F9F9F9] transition-colors duration-150"
         >
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-3">
             <BarChart3 className="w-5 h-5 text-[#065FD4]" />
-            <strong className="text-sm text-[#030303] font-medium">數據來源說明</strong>
+            <strong className="text-[13px] text-[#0F0F0F] font-semibold">數據來源說明</strong>
           </div>
           <svg
             className={`w-5 h-5 text-[#606060] transition-transform duration-200 ${showDataSourceInfo ? 'rotate-180' : ''}`}
@@ -2710,53 +2710,55 @@ export function ChannelDashboard() {
 
       {/* KPI 指標卡片（可點擊切換圖表）*/}
       {channelStats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {/* 觀看次數（時間範圍內）*/}
           <button
             onClick={() => setSelectedMetric('views')}
-            className={`${cardBaseClass} p-6 text-left ${
+            className={`rounded-2xl border bg-white shadow-sm transition-all duration-200 p-7 text-left hover:shadow-md ${
               selectedMetric === 'views'
-                ? 'border-[#FF0000] shadow-[0_2px_8px_rgba(255,0,0,0.15)]'
-                : ''
+                ? 'border-[#FF0000] shadow-[0_4px_12px_rgba(255,0,0,0.2)] ring-2 ring-[#FF0000]/10'
+                : 'border-[#E5E5E5] hover:border-[#CCCCCC]'
             }`}
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-[#606060] text-xs font-medium uppercase tracking-wide">觀看次數</div>
-              <Eye className={`w-5 h-5 ${selectedMetric === 'views' ? 'text-[#FF0000]' : 'text-[#909090]'}`} />
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-[#909090] text-[11px] font-bold uppercase tracking-wider">觀看次數</div>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedMetric === 'views' ? 'bg-[#FFE7E7]' : 'bg-[#F2F2F2]'}`}>
+                <Eye className={`w-5 h-5 ${selectedMetric === 'views' ? 'text-[#FF0000]' : 'text-[#909090]'}`} />
+              </div>
             </div>
-            <div className="text-[36px] font-bold text-[#030303] leading-none mb-2">
+            <div className="text-[42px] font-bold text-[#0F0F0F] leading-none mb-3">
               {formatNumber(channelStats.viewsInRange)}
             </div>
-            <div className="text-sm text-[#606060] mb-3">
+            <div className="text-[13px] text-[#606060] mb-4 font-medium">
               {formatFullNumber(channelStats.viewsInRange)} 次觀看
             </div>
             {viewsComparison && (
-              <div className="flex flex-col gap-2 text-xs border-t border-[#E5E5E5] pt-3">
+              <div className="flex flex-col gap-2.5 text-[11px] border-t border-[#E5E5E5] pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-[#606060] leading-tight">
-                    <div className="font-medium">較前期</div>
+                    <div className="font-semibold">較前期</div>
                     {comparisonDateRanges && (
-                      <div className="text-[10px] text-[#909090]">{comparisonDateRanges.previous}</div>
+                      <div className="text-[10px] text-[#909090] mt-0.5">{comparisonDateRanges.previous}</div>
                     )}
                   </div>
-                  <span className={`font-semibold ${viewsComparison.changeFromPrevious >= 0 ? 'text-[#0F9D58]' : 'text-[#C5221F]'}`}>
+                  <div className={`px-2.5 py-1 rounded-full font-bold ${viewsComparison.changeFromPrevious >= 0 ? 'bg-[#E6F4EA] text-[#137333]' : 'bg-[#FCE8E6] text-[#C5221F]'}`}>
                     {viewsComparison.changeFromPrevious >= 0 ? '↑' : '↓'} {Math.abs(viewsComparison.changeFromPreviousPercent).toFixed(1)}%
-                  </span>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-[#606060] leading-tight">
-                    <div className="font-medium">較去年同期</div>
+                    <div className="font-semibold">較去年同期</div>
                     {comparisonDateRanges && (
-                      <div className="text-[10px] text-[#909090]">{comparisonDateRanges.yearAgo}</div>
+                      <div className="text-[10px] text-[#909090] mt-0.5">{comparisonDateRanges.yearAgo}</div>
                     )}
                   </div>
-                  <span className={`font-semibold ${viewsComparison.changeFromYearAgo >= 0 ? 'text-[#0F9D58]' : 'text-[#C5221F]'}`}>
+                  <div className={`px-2.5 py-1 rounded-full font-bold ${viewsComparison.changeFromYearAgo >= 0 ? 'bg-[#E6F4EA] text-[#137333]' : 'bg-[#FCE8E6] text-[#C5221F]'}`}>
                     {viewsComparison.changeFromYearAgo >= 0 ? '↑' : '↓'} {Math.abs(viewsComparison.changeFromYearAgoPercent).toFixed(1)}%
-                  </span>
+                  </div>
                 </div>
               </div>
             )}
-            <div className="text-xs text-[#909090] mt-2">
+            <div className="text-[10px] text-[#909090] mt-3 leading-relaxed">
               {error?.includes('Analytics API')
                 ? '時間範圍內發布影片的累計數（備援模式）'
                 : '時間範圍內實際產生的觀看數'}
@@ -2766,45 +2768,47 @@ export function ChannelDashboard() {
           {/* 觀看時間（小時）*/}
           <button
             onClick={() => setSelectedMetric('watchTime')}
-            className={`${cardBaseClass} p-6 text-left ${
+            className={`rounded-2xl border bg-white shadow-sm transition-all duration-200 p-7 text-left hover:shadow-md ${
               selectedMetric === 'watchTime'
-                ? 'border-[#FF0000] shadow-[0_2px_8px_rgba(255,0,0,0.15)]'
-                : ''
+                ? 'border-[#FF0000] shadow-[0_4px_12px_rgba(255,0,0,0.2)] ring-2 ring-[#FF0000]/10'
+                : 'border-[#E5E5E5] hover:border-[#CCCCCC]'
             }`}
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-[#606060] text-xs font-medium uppercase tracking-wide">觀看時間</div>
-              <Clock className={`w-5 h-5 ${selectedMetric === 'watchTime' ? 'text-[#FF0000]' : 'text-[#909090]'}`} />
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-[#909090] text-[11px] font-bold uppercase tracking-wider">觀看時間</div>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedMetric === 'watchTime' ? 'bg-[#FFE7E7]' : 'bg-[#F2F2F2]'}`}>
+                <Clock className={`w-5 h-5 ${selectedMetric === 'watchTime' ? 'text-[#FF0000]' : 'text-[#909090]'}`} />
+              </div>
             </div>
-            <div className="text-[36px] font-bold text-[#030303] leading-none mb-2">
+            <div className="text-[42px] font-bold text-[#0F0F0F] leading-none mb-3">
               {formatNumber(channelStats.watchTimeHours)}
             </div>
-            <div className="text-sm text-[#606060] mb-3">
+            <div className="text-[13px] text-[#606060] mb-4 font-medium">
               {formatFullNumber(channelStats.watchTimeHours)} 小時
             </div>
             {watchTimeComparison && (
-              <div className="flex flex-col gap-2 text-xs border-t border-[#E5E5E5] pt-3">
+              <div className="flex flex-col gap-2.5 text-[11px] border-t border-[#E5E5E5] pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-[#606060] leading-tight">
-                    <div className="font-medium">較前期</div>
+                    <div className="font-semibold">較前期</div>
                     {comparisonDateRanges && (
-                      <div className="text-[10px] text-[#909090]">{comparisonDateRanges.previous}</div>
+                      <div className="text-[10px] text-[#909090] mt-0.5">{comparisonDateRanges.previous}</div>
                     )}
                   </div>
-                  <span className={`font-semibold ${watchTimeComparison.changeFromPrevious >= 0 ? 'text-[#0F9D58]' : 'text-[#C5221F]'}`}>
+                  <div className={`px-2.5 py-1 rounded-full font-bold ${watchTimeComparison.changeFromPrevious >= 0 ? 'bg-[#E6F4EA] text-[#137333]' : 'bg-[#FCE8E6] text-[#C5221F]'}`}>
                     {watchTimeComparison.changeFromPrevious >= 0 ? '↑' : '↓'} {Math.abs(watchTimeComparison.changeFromPreviousPercent).toFixed(1)}%
-                  </span>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-[#606060] leading-tight">
-                    <div className="font-medium">較去年同期</div>
+                    <div className="font-semibold">較去年同期</div>
                     {comparisonDateRanges && (
-                      <div className="text-[10px] text-[#909090]">{comparisonDateRanges.yearAgo}</div>
+                      <div className="text-[10px] text-[#909090] mt-0.5">{comparisonDateRanges.yearAgo}</div>
                     )}
                   </div>
-                  <span className={`font-semibold ${watchTimeComparison.changeFromYearAgo >= 0 ? 'text-[#0F9D58]' : 'text-[#C5221F]'}`}>
+                  <div className={`px-2.5 py-1 rounded-full font-bold ${watchTimeComparison.changeFromYearAgo >= 0 ? 'bg-[#E6F4EA] text-[#137333]' : 'bg-[#FCE8E6] text-[#C5221F]'}`}>
                     {watchTimeComparison.changeFromYearAgo >= 0 ? '↑' : '↓'} {Math.abs(watchTimeComparison.changeFromYearAgoPercent).toFixed(1)}%
-                  </span>
+                  </div>
                 </div>
               </div>
             )}
@@ -2818,49 +2822,51 @@ export function ChannelDashboard() {
           {/* 新增訂閱數 */}
           <button
             onClick={() => setSelectedMetric('subscribers')}
-            className={`${cardBaseClass} p-6 text-left ${
+            className={`rounded-2xl border bg-white shadow-sm transition-all duration-200 p-7 text-left hover:shadow-md ${
               selectedMetric === 'subscribers'
-                ? 'border-[#FF0000] shadow-[0_2px_8px_rgba(255,0,0,0.15)]'
-                : ''
+                ? 'border-[#FF0000] shadow-[0_4px_12px_rgba(255,0,0,0.2)] ring-2 ring-[#FF0000]/10'
+                : 'border-[#E5E5E5] hover:border-[#CCCCCC]'
             }`}
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-[#606060] text-xs font-medium uppercase tracking-wide">新增訂閱數</div>
-              <Users className={`w-5 h-5 ${selectedMetric === 'subscribers' ? 'text-[#FF0000]' : 'text-[#909090]'}`} />
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-[#909090] text-[11px] font-bold uppercase tracking-wider">新增訂閱數</div>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedMetric === 'subscribers' ? 'bg-[#FFE7E7]' : 'bg-[#F2F2F2]'}`}>
+                <Users className={`w-5 h-5 ${selectedMetric === 'subscribers' ? 'text-[#FF0000]' : 'text-[#909090]'}`} />
+              </div>
             </div>
-            <div className="text-[36px] font-bold text-[#030303] leading-none mb-2">
-              {formatNumber(channelStats.subscribersGained)}
+            <div className="text-[42px] font-bold text-[#0F0F0F] leading-none mb-3">
+              {channelStats.subscribersGained >= 0 ? '+' : ''}{formatNumber(channelStats.subscribersGained)}
             </div>
-            <div className="text-sm text-[#606060] mb-3">
-              {channelStats.subscribersGained >= 0 ? '+' : ''}{formatFullNumber(channelStats.subscribersGained)} 位訂閱者
+            <div className="text-[13px] text-[#606060] mb-4 font-medium">
+              {formatFullNumber(channelStats.subscribersGained)} 位訂閱者
             </div>
             {subscribersComparison && (
-              <div className="flex flex-col gap-2 text-xs border-t border-[#E5E5E5] pt-3">
+              <div className="flex flex-col gap-2.5 text-[11px] border-t border-[#E5E5E5] pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-[#606060] leading-tight">
-                    <div className="font-medium">較前期</div>
+                    <div className="font-semibold">較前期</div>
                     {comparisonDateRanges && (
-                      <div className="text-[10px] text-[#909090]">{comparisonDateRanges.previous}</div>
+                      <div className="text-[10px] text-[#909090] mt-0.5">{comparisonDateRanges.previous}</div>
                     )}
                   </div>
-                  <span className={`font-semibold ${subscribersComparison.changeFromPrevious >= 0 ? 'text-[#0F9D58]' : 'text-[#C5221F]'}`}>
+                  <div className={`px-2.5 py-1 rounded-full font-bold ${subscribersComparison.changeFromPrevious >= 0 ? 'bg-[#E6F4EA] text-[#137333]' : 'bg-[#FCE8E6] text-[#C5221F]'}`}>
                     {subscribersComparison.changeFromPrevious >= 0 ? '↑' : '↓'} {Math.abs(subscribersComparison.changeFromPreviousPercent).toFixed(1)}%
-                  </span>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-[#606060] leading-tight">
-                    <div className="font-medium">較去年同期</div>
+                    <div className="font-semibold">較去年同期</div>
                     {comparisonDateRanges && (
-                      <div className="text-[10px] text-[#909090]">{comparisonDateRanges.yearAgo}</div>
+                      <div className="text-[10px] text-[#909090] mt-0.5">{comparisonDateRanges.yearAgo}</div>
                     )}
                   </div>
-                  <span className={`font-semibold ${subscribersComparison.changeFromYearAgo >= 0 ? 'text-[#0F9D58]' : 'text-[#C5221F]'}`}>
+                  <div className={`px-2.5 py-1 rounded-full font-bold ${subscribersComparison.changeFromYearAgo >= 0 ? 'bg-[#E6F4EA] text-[#137333]' : 'bg-[#FCE8E6] text-[#C5221F]'}`}>
                     {subscribersComparison.changeFromYearAgo >= 0 ? '↑' : '↓'} {Math.abs(subscribersComparison.changeFromYearAgoPercent).toFixed(1)}%
-                  </span>
+                  </div>
                 </div>
               </div>
             )}
-            <div className="text-xs text-[#909090] mt-2">
+            <div className="text-[10px] text-[#909090] mt-3 leading-relaxed">
               {error?.includes('Analytics API')
                 ? '無法獲取（需要 Analytics API）'
                 : '時間範圍內新增訂閱數'}
@@ -2868,35 +2874,37 @@ export function ChannelDashboard() {
           </button>
 
           {/* 觀看指標（平均時長 + 完成度）*/}
-          <div className={`${cardBaseClass} p-6`}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-[#606060] text-xs font-medium uppercase tracking-wide">觀看指標</div>
-              <BarChart3 className="w-5 h-5 text-[#909090]" />
+          <div className="rounded-2xl border border-[#E5E5E5] bg-white shadow-sm transition-all duration-200 p-7 hover:shadow-md hover:border-[#CCCCCC]">
+            <div className="flex items-center justify-between mb-5">
+              <div className="text-[#909090] text-[11px] font-bold uppercase tracking-wider">觀看指標</div>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#F2F2F2]">
+                <BarChart3 className="w-5 h-5 text-[#909090]" />
+              </div>
             </div>
 
             {/* 平均觀看時長 */}
-            <div className="mb-4 pb-4 border-b border-[#E5E5E5]">
-              <div className="text-xs text-[#606060] mb-2 font-medium">平均觀看時長</div>
-              <div className="text-3xl font-bold text-[#030303] leading-none mb-1">
+            <div className="mb-5 pb-5 border-b border-[#E5E5E5]">
+              <div className="text-[11px] text-[#909090] mb-2 font-bold uppercase tracking-wider">平均觀看時長</div>
+              <div className="text-[36px] font-bold text-[#0F0F0F] leading-none mb-2">
                 {Math.floor(avgViewDuration / 60)}:{String(avgViewDuration % 60).padStart(2, '0')}
               </div>
-              <div className="text-xs text-[#909090]">
+              <div className="text-[12px] text-[#606060] font-medium">
                 {avgViewDuration} 秒
               </div>
             </div>
 
             {/* 平均觀看百分比 */}
             <div>
-              <div className="text-xs text-[#606060] mb-2 font-medium">平均完成度</div>
-              <div className="text-3xl font-bold text-[#030303] leading-none mb-1">
+              <div className="text-[11px] text-[#909090] mb-2 font-bold uppercase tracking-wider">平均完成度</div>
+              <div className="text-[36px] font-bold text-[#0F0F0F] leading-none mb-2">
                 {avgViewPercentage.toFixed(1)}%
               </div>
-              <div className="text-xs text-[#909090]">
+              <div className="text-[12px] text-[#606060] font-medium">
                 觀眾平均看完比例
               </div>
             </div>
 
-            <div className="text-xs text-[#909090] mt-3">
+            <div className="text-[10px] text-[#909090] mt-4 leading-relaxed">
               {error?.includes('Analytics API')
                 ? '無法獲取（需要 Analytics API）'
                 : '觀眾參與度指標'}
@@ -2904,6 +2912,123 @@ export function ChannelDashboard() {
           </div>
         </div>
       )}
+
+      {/* 過去 12 個月趨勢圖表 */}
+      <div className={`${cardBaseClass} p-6`}>
+        <h3 className="text-lg font-semibold mb-4">
+          過去 12 個月趨勢
+          {monthlyData.length > 0 && (
+            <span className="text-sm font-normal text-gray-500 ml-2">
+              ({monthlyMeta.fullMonthsCount} 個完整月份{monthlyMeta.hasCurrent ? ' + 本月至今' : ''})
+            </span>
+          )}
+        </h3>
+
+        {monthlyData.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <BarChart3 className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+            <p>暫無月度數據</p>
+            <p className="text-sm mt-2">請點擊「刷新數據」載入過去 12 個月的統計數據</p>
+          </div>
+        ) : (
+          <>
+            {/* 柱狀圖 */}
+            <div className="mt-6">
+              <div className="flex items-end justify-between gap-1 h-64 border-b border-l border-red-100 pb-2 pl-2">
+                {monthlyData.map((dataPoint, index) => {
+                  // 根據選擇的指標獲取值
+                  let value = 0;
+                  let color = '';
+                  let currentColor = '';
+                  switch (selectedMetric) {
+                    case 'views':
+                      value = dataPoint.views;
+                      color = 'bg-red-500 hover:bg-red-600';
+                      currentColor = 'bg-red-200 hover:bg-red-300 border border-dashed border-red-500';
+                      break;
+                    case 'watchTime':
+                      value = dataPoint.watchTimeHours;
+                      color = 'bg-rose-400 hover:bg-rose-500';
+                      currentColor = 'bg-rose-200 hover:bg-rose-300 border border-dashed border-rose-500';
+                      break;
+                    case 'subscribers':
+                      value = dataPoint.subscribersNet; // 使用淨增長（新增 - 取消）
+                      color = value >= 0 ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-300 hover:bg-gray-400';
+                      currentColor =
+                        value >= 0
+                          ? 'bg-red-200 hover:bg-red-400 border border-dashed border-red-500'
+                          : 'bg-gray-200 hover:bg-gray-300 border border-dashed border-gray-400';
+                      break;
+                  }
+                  const barClass = dataPoint.isCurrentMonth ? currentColor : color;
+
+                  // 計算最大值用於比例
+                  const maxValue = Math.max(
+                    ...monthlyData.map(d => {
+                      switch (selectedMetric) {
+                        case 'views': return d.views;
+                        case 'watchTime': return d.watchTimeHours;
+                        case 'subscribers': return Math.abs(d.subscribersNet); // 使用淨增長
+                        default: return 0;
+                      }
+                    })
+                  );
+
+                  // 計算高度百分比（最小 5%，最大 100%）
+                  const heightPercent = maxValue > 0 ? Math.max(5, (Math.abs(value) / maxValue) * 100) : 5;
+
+                  // 調試日誌（只在第一個月份打印）
+                  if (index === 0) {
+                    console.log('[Dashboard] 📊 柱狀圖渲染:', {
+                      selectedMetric,
+                      monthlyDataCount: monthlyData.length,
+                      firstDataPoint: dataPoint,
+                      value,
+                      maxValue,
+                      heightPercent,
+                      color
+                    });
+                  }
+
+                  return (
+                    <div key={index} className="flex-1 flex flex-col items-center group" style={{ height: '100%' }}>
+                      {/* 柱子區域 */}
+                      <div className="relative w-full flex-1 flex items-end justify-center">
+                        {/* 數值標籤（始終顯示）*/}
+                        <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 whitespace-nowrap">
+                          {formatFullNumber(value)}
+                        </div>
+
+                        {/* 柱狀條 */}
+                        <div className="flex items-end justify-center w-full" style={{ height: '100%' }}>
+                          <div
+                            className={`w-5 sm:w-6 ${barClass} rounded-t-full transition-all duration-300 cursor-pointer hover:opacity-80`}
+                            style={{
+                              height: `${heightPercent}%`
+                            }}
+                            title={`${dataPoint.month}${dataPoint.isCurrentMonth ? ' (至今)' : ''}: ${formatFullNumber(value)}`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* 月份標籤（水平顯示）*/}
+                      <div className="text-xs text-gray-600 mt-2 whitespace-nowrap">
+                        {dataPoint.isCurrentMonth ? `${dataPoint.month} (至今)` : dataPoint.month}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {monthlyMeta.hasCurrent && (
+              <p className="text-xs text-gray-500 mt-3 text-right">
+                本月至今資料更新至 {todayLabel}，數值尚未滿整月。
+              </p>
+            )}
+          </>
+        )}
+      </div>
+
 
       {(trendData.length > 0 || (ENABLE_PUBLISHING_SLOTS && viewingHours.length > 0) || error?.includes('Analytics API')) && (
         <>
@@ -3219,122 +3344,6 @@ export function ChannelDashboard() {
           </div>
         </>
       )}
-
-      {/* 過去 12 個月趨勢圖表 */}
-      <div className={`${cardBaseClass} p-6`}>
-        <h3 className="text-lg font-semibold mb-4">
-          過去 12 個月趨勢
-          {monthlyData.length > 0 && (
-            <span className="text-sm font-normal text-gray-500 ml-2">
-              ({monthlyMeta.fullMonthsCount} 個完整月份{monthlyMeta.hasCurrent ? ' + 本月至今' : ''})
-            </span>
-          )}
-        </h3>
-
-        {monthlyData.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            <BarChart3 className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-            <p>暫無月度數據</p>
-            <p className="text-sm mt-2">請點擊「刷新數據」載入過去 12 個月的統計數據</p>
-          </div>
-        ) : (
-          <>
-            {/* 柱狀圖 */}
-            <div className="mt-6">
-              <div className="flex items-end justify-between gap-1 h-64 border-b border-l border-red-100 pb-2 pl-2">
-                {monthlyData.map((dataPoint, index) => {
-                  // 根據選擇的指標獲取值
-                  let value = 0;
-                  let color = '';
-                  let currentColor = '';
-                  switch (selectedMetric) {
-                    case 'views':
-                      value = dataPoint.views;
-                      color = 'bg-red-500 hover:bg-red-600';
-                      currentColor = 'bg-red-200 hover:bg-red-300 border border-dashed border-red-500';
-                      break;
-                    case 'watchTime':
-                      value = dataPoint.watchTimeHours;
-                      color = 'bg-rose-400 hover:bg-rose-500';
-                      currentColor = 'bg-rose-200 hover:bg-rose-300 border border-dashed border-rose-500';
-                      break;
-                    case 'subscribers':
-                      value = dataPoint.subscribersNet; // 使用淨增長（新增 - 取消）
-                      color = value >= 0 ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-300 hover:bg-gray-400';
-                      currentColor =
-                        value >= 0
-                          ? 'bg-red-200 hover:bg-red-400 border border-dashed border-red-500'
-                          : 'bg-gray-200 hover:bg-gray-300 border border-dashed border-gray-400';
-                      break;
-                  }
-                  const barClass = dataPoint.isCurrentMonth ? currentColor : color;
-
-                  // 計算最大值用於比例
-                  const maxValue = Math.max(
-                    ...monthlyData.map(d => {
-                      switch (selectedMetric) {
-                        case 'views': return d.views;
-                        case 'watchTime': return d.watchTimeHours;
-                        case 'subscribers': return Math.abs(d.subscribersNet); // 使用淨增長
-                        default: return 0;
-                      }
-                    })
-                  );
-
-                  // 計算高度百分比（最小 5%，最大 100%）
-                  const heightPercent = maxValue > 0 ? Math.max(5, (Math.abs(value) / maxValue) * 100) : 5;
-
-                  // 調試日誌（只在第一個月份打印）
-                  if (index === 0) {
-                    console.log('[Dashboard] 📊 柱狀圖渲染:', {
-                      selectedMetric,
-                      monthlyDataCount: monthlyData.length,
-                      firstDataPoint: dataPoint,
-                      value,
-                      maxValue,
-                      heightPercent,
-                      color
-                    });
-                  }
-
-                  return (
-                    <div key={index} className="flex-1 flex flex-col items-center group" style={{ height: '100%' }}>
-                      {/* 柱子區域 */}
-                      <div className="relative w-full flex-1 flex items-end justify-center">
-                        {/* 數值標籤（始終顯示）*/}
-                        <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 whitespace-nowrap">
-                          {formatFullNumber(value)}
-                        </div>
-
-                        {/* 柱狀條 */}
-                        <div className="flex items-end justify-center w-full" style={{ height: '100%' }}>
-                          <div
-                            className={`w-5 sm:w-6 ${barClass} rounded-t-full transition-all duration-300 cursor-pointer hover:opacity-80`}
-                            style={{
-                              height: `${heightPercent}%`
-                            }}
-                            title={`${dataPoint.month}${dataPoint.isCurrentMonth ? ' (至今)' : ''}: ${formatFullNumber(value)}`}
-                          />
-                        </div>
-                      </div>
-
-                      {/* 月份標籤（水平顯示）*/}
-                      <div className="text-xs text-gray-600 mt-2 whitespace-nowrap">
-                        {dataPoint.isCurrentMonth ? `${dataPoint.month} (至今)` : dataPoint.month}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            {monthlyMeta.hasCurrent && (
-              <p className="text-xs text-gray-500 mt-3 text-right">
-                本月至今資料更新至 {todayLabel}，數值尚未滿整月。
-              </p>
-            )}
-          </>
-        )}
-      </div>
 
       {/* 內容類型分析區塊標題 */}
       {(contentTypeMetrics || topShorts.length > 0 || topRegularVideos.length > 0 || sortedTopVideos.length > 0) && (
