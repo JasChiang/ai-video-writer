@@ -3,7 +3,7 @@
  * 完全基於頻道儀表板和關鍵字報表的實際可用資料
  */
 
-export class NewPromptTemplates {
+export class PromptTemplates {
   /**
    * 頻道健康診斷（基於頻道儀表板資料）
    */
@@ -552,5 +552,3 @@ ${bottomVideos.slice(0, 10).map((v, i) => `${i + 1}. ${v.title}
 **開始分析。**`;
   }
 }
-
-export default NewPromptTemplates;
