@@ -2,23 +2,16 @@
  * Gemini Provider - 使用 Google Gemini 原生 API
  */
 
-import { GoogleGenAI } from '@google/generative-ai';
-import {
-  BaseAIProvider,
-  AIProviderConfig,
-  AIAnalysisRequest,
-  AIAnalysisResponse,
-} from './BaseAIProvider.js';
+import { GoogleGenAI } from '@google/genai';
+import { BaseAIProvider } from './BaseAIProvider.js';
 
 export class GeminiProvider extends BaseAIProvider {
-  private ai: GoogleGenAI;
-
-  constructor(config: AIProviderConfig) {
+  constructor(config) {
     super(config);
     this.ai = new GoogleGenAI({ apiKey: config.apiKey });
   }
 
-  async analyze(request: AIAnalysisRequest): Promise<AIAnalysisResponse> {
+  async analyze(request) {
     try {
       const response = await this.ai.models.generateContent({
         model: this.config.model,
@@ -44,18 +37,18 @@ export class GeminiProvider extends BaseAIProvider {
           totalTokens: response.usageMetadata?.totalTokenCount || 0,
         },
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error('[GeminiProvider] Error:', error);
       throw new Error(`Gemini API 錯誤: ${error.message}`);
     }
   }
 
-  async isAvailable(): Promise<boolean> {
+  async isAvailable() {
     return !!this.config.apiKey;
   }
 
   getModelInfo() {
-    const modelInfo: Record<string, any> = {
+    const modelInfo = {
       'gemini-2.5-flash': {
         name: 'Gemini 2.5 Flash',
         provider: 'Google',

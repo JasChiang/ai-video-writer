@@ -3,23 +3,17 @@
  * 支援 Claude, GPT-4, 和其他模型
  */
 
-import {
-  BaseAIProvider,
-  AIProviderConfig,
-  AIAnalysisRequest,
-  AIAnalysisResponse,
-} from './BaseAIProvider.js';
+import { BaseAIProvider } from './BaseAIProvider.js';
 
 export class OpenRouterProvider extends BaseAIProvider {
-  private baseURL = 'https://openrouter.ai/api/v1';
-
-  constructor(config: AIProviderConfig) {
+  constructor(config) {
     super(config);
+    this.baseURL = 'https://openrouter.ai/api/v1';
   }
 
-  async analyze(request: AIAnalysisRequest): Promise<AIAnalysisResponse> {
+  async analyze(request) {
     try {
-      const messages: any[] = [];
+      const messages = [];
 
       // 如果有 system prompt，加入 system message
       if (request.systemPrompt) {
@@ -73,19 +67,19 @@ export class OpenRouterProvider extends BaseAIProvider {
         },
         cost: data.usage?.total_cost, // OpenRouter 提供的成本
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error('[OpenRouterProvider] Error:', error);
       throw new Error(`OpenRouter API 錯誤: ${error.message}`);
     }
   }
 
-  async isAvailable(): Promise<boolean> {
+  async isAvailable() {
     return !!this.config.apiKey;
   }
 
   getModelInfo() {
     // OpenRouter 模型映射
-    const modelInfo: Record<string, any> = {
+    const modelInfo = {
       'anthropic/claude-3.5-sonnet': {
         name: 'Claude 3.5 Sonnet',
         provider: 'Anthropic',
@@ -139,7 +133,7 @@ export class OpenRouterProvider extends BaseAIProvider {
     );
   }
 
-  private getProviderName(): string {
+  getProviderName() {
     const model = this.config.model.toLowerCase();
     if (model.includes('claude')) return 'Anthropic';
     if (model.includes('gpt')) return 'OpenAI';

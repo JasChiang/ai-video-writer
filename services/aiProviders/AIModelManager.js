@@ -3,56 +3,18 @@
  * 支援智能推薦和手動選擇
  */
 
-import { BaseAIProvider, AIAnalysisRequest, AIAnalysisResponse } from './BaseAIProvider.js';
 import { GeminiProvider } from './GeminiProvider.js';
 import { OpenRouterProvider } from './OpenRouterProvider.js';
 
-export type AIModelType =
-  // Gemini Models (原生 API)
-  | 'gemini-2.5-flash'
-  | 'gemini-2.5-pro'
-  // Claude Models (via OpenRouter)
-  | 'anthropic/claude-3.5-sonnet'
-  | 'anthropic/claude-3-opus'
-  // OpenAI Models (via OpenRouter)
-  | 'openai/gpt-4'
-  | 'openai/gpt-4-turbo'
-  | 'openai/gpt-4o'
-  // 其他 OpenRouter 模型
-  | 'google/gemini-2.0-flash-exp'
-  | 'meta-llama/llama-3.1-70b-instruct';
-
-export type AnalysisType =
-  | 'subscriber-growth'
-  | 'view-optimization'
-  | 'content-strategy'
-  | 'audience-insights'
-  | 'comprehensive';
-
-export interface ModelConfig {
-  id: AIModelType;
-  name: string;
-  provider: string;
-  description: string;
-  cost: 'low' | 'medium' | 'high';
-  speedRating: number; // 1-5
-  qualityRating: number; // 1-5
-  bestFor: string[];
-  useOpenRouter: boolean;
-}
-
 export class AIModelManager {
-  private providers: Map<AIModelType, BaseAIProvider> = new Map();
-  private geminiApiKey: string | undefined;
-  private openRouterApiKey: string | undefined;
-
   constructor() {
+    this.providers = new Map();
     this.geminiApiKey = process.env.GEMINI_API_KEY;
     this.openRouterApiKey = process.env.OPENROUTER_API_KEY;
     this.initializeProviders();
   }
 
-  private initializeProviders() {
+  initializeProviders() {
     // 初始化 Gemini Models (使用原生 API)
     if (this.geminiApiKey) {
       this.providers.set(
@@ -147,10 +109,7 @@ export class AIModelManager {
   /**
    * 執行 AI 分析
    */
-  async analyze(
-    modelType: AIModelType,
-    request: AIAnalysisRequest
-  ): Promise<AIAnalysisResponse> {
+  async analyze(modelType, request) {
     const provider = this.providers.get(modelType);
 
     if (!provider) {
@@ -168,8 +127,8 @@ export class AIModelManager {
   /**
    * 獲取所有可用模型
    */
-  getAvailableModels(): ModelConfig[] {
-    const allModels: ModelConfig[] = [
+  getAvailableModels() {
+    const allModels = [
       // Gemini Models (原生 API)
       {
         id: 'gemini-2.5-flash',
@@ -261,15 +220,7 @@ export class AIModelManager {
   /**
    * 獲取特定模型的狀態
    */
-  async getModelStatus(modelType: AIModelType): Promise<{
-    available: boolean;
-    configured: boolean;
-    info?: ReturnType<BaseAIProvider['getModelInfo']>;
-    apiKeyStatus?: {
-      gemini: boolean;
-      openRouter: boolean;
-    };
-  }> {
+  async getModelStatus(modelType) {
     const provider = this.providers.get(modelType);
 
     if (!provider) {
@@ -299,8 +250,8 @@ export class AIModelManager {
   /**
    * 根據分析類型獲取推薦模型（智能推薦）
    */
-  getRecommendedModel(analysisType: AnalysisType): AIModelType | null {
-    const recommendations: Record<AnalysisType, AIModelType> = {
+  getRecommendedModel(analysisType) {
+    const recommendations = {
       'subscriber-growth': 'anthropic/claude-3.5-sonnet', // 策略分析
       'view-optimization': 'gemini-2.5-flash', // 快速優化建議
       'content-strategy': 'openai/gpt-4o', // 創意策略

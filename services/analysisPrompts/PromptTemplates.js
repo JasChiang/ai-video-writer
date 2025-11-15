@@ -3,46 +3,11 @@
  * 已根據 YouTube API 限制調整（無 CTR、回訪率等數據）
  */
 
-export type AnalysisType =
-  | 'subscriber-growth' // 訂閱成長分析
-  | 'view-optimization' // 觀看優化分析
-  | 'content-strategy' // 內容策略分析
-  | 'audience-insights' // 觀眾洞察分析
-  | 'comprehensive'; // 綜合分析
-
-export interface AnalysisPromptData {
-  type: AnalysisType;
-  dateRange: { startDate: string; endDate: string };
-  channelStats: {
-    subscriberCount: number;
-    totalViews: number;
-    totalVideos: number;
-  };
-  videos: Array<{
-    title: string;
-    publishedAt: string;
-    viewCount: number;
-    likeCount: number;
-    commentCount: number;
-    tags?: string[];
-  }>;
-  analytics?: {
-    subscribersGained?: number;
-    subscribersLost?: number;
-    avgViewDuration?: number;
-    avgViewPercentage?: number;
-    trafficSources?: any[];
-    demographics?: any[];
-    geography?: any[];
-    devices?: any[];
-  };
-}
-
 export class PromptTemplates {
   /**
    * 生成分析提示詞（主入口）
    */
-  static generatePrompt(data: AnalysisPromptData): string {
+  static generatePrompt(data) {
     const baseContext = this.buildBaseContext(data);
 
     switch (data.type) {
@@ -69,7 +34,7 @@ export class PromptTemplates {
   /**
    * 建立基礎上下文（所有分析共用）
    */
-  private static buildBaseContext(data: AnalysisPromptData): string {
+  static buildBaseContext(data) {
     const { dateRange, channelStats, videos } = data;
 
     const totalViews = videos.reduce((sum, v) => sum + v.viewCount, 0);
@@ -103,10 +68,7 @@ ${videos
   /**
    * 訂閱成長分析提示詞
    */
-  private static buildSubscriberGrowthPrompt(
-    baseContext: string,
-    data: AnalysisPromptData
-  ): string {
+  static buildSubscriberGrowthPrompt(baseContext, data) {
     return `**分析角色：** YouTube 頻道訂閱成長專家
 
 **核心目標：** 分析並提供具體建議，幫助頻道提升訂閱人數
@@ -178,10 +140,7 @@ ${
   /**
    * 觀看優化分析提示詞（已移除 CTR，改為流量來源和標題分析）
    */
-  private static buildViewOptimizationPrompt(
-    baseContext: string,
-    data: AnalysisPromptData
-  ): string {
+  static buildViewOptimizationPrompt(baseContext, data) {
     return `**分析角色：** YouTube 演算法優化專家
 
 **核心目標：** 分析並提供具體建議，幫助頻道提升觀看次數
@@ -197,7 +156,7 @@ ${
   data.analytics?.trafficSources
     ? data.analytics.trafficSources
         .map(
-          (source: any) =>
+          (source) =>
             `- ${source.sourceType}: ${source.views.toLocaleString()} 次觀看 (${source.percentage.toFixed(1)}%)`
         )
         .join('\n')
@@ -268,10 +227,7 @@ ${
   /**
    * 內容策略分析提示詞
    */
-  private static buildContentStrategyPrompt(
-    baseContext: string,
-    data: AnalysisPromptData
-  ): string {
+  static buildContentStrategyPrompt(baseContext, data) {
     return `**分析角色：** 內容策略顧問
 
 **核心目標：** 分析內容主題分佈，提供長期內容策略建議
@@ -323,10 +279,7 @@ ${baseContext}
   /**
    * 觀眾洞察分析提示詞（已移除回訪率和活躍度）
    */
-  private static buildAudienceInsightsPrompt(
-    baseContext: string,
-    data: AnalysisPromptData
-  ): string {
+  static buildAudienceInsightsPrompt(baseContext, data) {
     return `**分析角色：** 觀眾洞察分析師
 
 **核心目標：** 深入了解觀眾特徵和行為，提供精準的內容定位建議
@@ -424,10 +377,7 @@ ${
   /**
    * 綜合分析提示詞（原有的增長飛輪模型）
    */
-  private static buildComprehensivePrompt(
-    baseContext: string,
-    data: AnalysisPromptData
-  ): string {
+  static buildComprehensivePrompt(baseContext, data) {
     return `**分析角色：** YouTube 頻道的首席內容策略官
 
 **核心框架：** 基於「增長飛輪」模型，以「總觀看時長」為北極星指標
