@@ -64,6 +64,7 @@ import {
 } from 'lucide-react';
 import * as youtubeService from '../services/youtubeService';
 import * as channelAnalyticsAIService from '../services/channelAnalyticsAIService';
+import { ChannelAnalysisPanel } from './ChannelAnalysisPanel';
 
 interface ChannelStats {
   // 頻道總體統計（不受時間範圍影響）
@@ -2705,6 +2706,32 @@ export function ChannelDashboard() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* 新的多模型 AI 分析面板 */}
+      {channelStats && topVideos.length > 0 && (
+        <div className="mt-6">
+          <ChannelAnalysisPanel
+            channelId={currentChannel?.id || null}
+            dateRange={{ startDate, endDate }}
+            videos={topVideos.map(video => ({
+              videoId: video.id,
+              title: video.title,
+              publishedAt: video.publishedAt,
+              viewCount: video.viewCount,
+              likeCount: video.likeCount,
+              commentCount: video.commentCount,
+            }))}
+            channelStats={{
+              totalViews: channelStats.totalViews,
+              subscriberCount: channelStats.totalSubscribers,
+              totalVideos: channelStats.totalVideos,
+            }}
+            analytics={{
+              subscribersGained: channelStats.subscribersGained,
+            }}
+          />
         </div>
       )}
 
