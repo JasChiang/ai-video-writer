@@ -63,7 +63,6 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import * as youtubeService from '../services/youtubeService';
-import * as channelAnalyticsAIService from '../services/channelAnalyticsAIService';
 import { ChannelAnalysisPanel } from './ChannelAnalysisPanel';
 
 interface ChannelStats {
@@ -309,11 +308,6 @@ export function ChannelDashboard() {
   const [channelStats, setChannelStats] = useState<ChannelStats | null>(null);
   const [topVideos, setTopVideos] = useState<VideoItem[]>([]);
 
-  // AI 分析相關狀態
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [showAnalysis, setShowAnalysis] = useState(false);
   const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
   const [selectedMetric, setSelectedMetric] = useState<ChartMetric>('views');
   const [monthlyData, setMonthlyData] = useState<MonthlyDataPoint[]>([]);
@@ -639,59 +633,6 @@ export function ChannelDashboard() {
       setError(err.message || '獲取數據失敗');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  // AI 頻道分析功能
-  const handleAnalyzeChannel = async () => {
-    if (!channelStats || topVideos.length === 0) {
-      setAnalysisError('請先載入頻道數據後再進行分析');
-      return;
-    }
-
-    setIsAnalyzing(true);
-    setAnalysisError(null);
-    setAnalysisResult(null);
-    setShowAnalysis(true);
-
-    try {
-      console.log('[AI Analysis] 開始分析頻道表現...');
-
-      // 準備分析請求數據
-      const request: channelAnalyticsAIService.ChannelAnalysisRequest = {
-        startDate,
-        endDate,
-        channelId: '', // 如果有頻道 ID 可以添加
-        videos: topVideos.map(video => ({
-          videoId: video.id,
-          title: video.title,
-          publishedAt: video.publishedAt,
-          viewCount: video.viewCount,
-          likeCount: video.likeCount,
-          commentCount: video.commentCount,
-          tags: [],
-        })),
-        channelStats: {
-          totalViews: channelStats.totalViews,
-          subscriberCount: channelStats.totalSubscribers,
-          totalVideos: channelStats.totalVideos,
-        },
-      };
-
-      // 呼叫分析 API
-      const result = await channelAnalyticsAIService.analyzeChannelPerformance(request);
-
-      if (result.success && result.analysis) {
-        setAnalysisResult(result.analysis);
-        console.log('[AI Analysis] ✅ 分析完成');
-      } else {
-        throw new Error(result.error || '分析失敗');
-      }
-    } catch (err: any) {
-      console.error('[AI Analysis] ❌ 分析失敗:', err);
-      setAnalysisError(err.message || '分析過程發生錯誤');
-    } finally {
-      setIsAnalyzing(false);
     }
   };
 
@@ -2510,26 +2451,6 @@ export function ChannelDashboard() {
                   </>
                 )}
               </button>
-
-              {/* AI 分析按鈕 */}
-              <button
-                onClick={handleAnalyzeChannel}
-                disabled={isAnalyzing || !channelStats || topVideos.length === 0}
-                className="inline-flex items-center justify-center gap-2.5 rounded-full bg-gradient-to-r from-[#065FD4] to-[#0553C1] px-7 py-3 text-[13px] font-bold text-white shadow-[0_2px_8px_rgba(6,95,212,0.25)] transition-all duration-200 hover:shadow-[0_4px_12px_rgba(6,95,212,0.35)] hover:scale-[1.02] disabled:cursor-not-allowed disabled:bg-[#CCCCCC] disabled:shadow-none disabled:scale-100"
-                title={!channelStats || topVideos.length === 0 ? '請先載入頻道數據' : 'AI 智能分析'}
-              >
-                {isAnalyzing ? (
-                  <>
-                    <Sparkles className="w-4 h-4 animate-pulse" />
-                    分析中...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    AI 分析
-                  </>
-                )}
-              </button>
             </div>
           </div>
         </div>
@@ -2597,119 +2518,7 @@ export function ChannelDashboard() {
         </div>
       )}
 
-      {/* AI 分析結果顯示區塊 */}
-      {showAnalysis && (
-        <div className="rounded-xl border border-[#E5E5E5] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.1)] overflow-hidden">
-          <button
-            onClick={() => setShowAnalysis(!showAnalysis)}
-            className="w-full p-5 flex items-center justify-between hover:bg-[#F9F9F9] transition-colors duration-150"
-          >
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-[#065FD4] flex items-center justify-center shadow-md">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
-              <div className="text-left">
-                <strong className="text-lg text-[#030303] font-medium block">AI 智能分析報告</strong>
-                <span className="text-sm text-[#606060]">基於 Gemini AI 的專業頻道分析</span>
-              </div>
-            </div>
-            {showAnalysis ? (
-              <ChevronUp className="w-5 h-5 text-[#606060]" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-[#606060]" />
-            )}
-          </button>
-
-          {showAnalysis && (
-            <div className="px-5 pb-5">
-              {isAnalyzing ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="text-center">
-                    <Sparkles className="w-12 h-12 text-purple-600 animate-pulse mx-auto mb-4" />
-                    <p className="text-purple-900 font-semibold">AI 正在分析您的頻道數據...</p>
-                    <p className="text-sm text-purple-600 mt-2">這可能需要幾秒鐘時間</p>
-                  </div>
-                </div>
-              ) : analysisError ? (
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
-                  <strong>分析失敗：</strong> {analysisError}
-                </div>
-              ) : analysisResult ? (
-                <div className="bg-white rounded-xl p-6 shadow-inner border border-purple-100">
-                  <div className="prose prose-sm max-w-none">
-                    {/* 使用簡單的 Markdown 渲染 */}
-                    {analysisResult.split('\n').map((line, index) => {
-                      // 處理標題
-                      if (line.startsWith('## ')) {
-                        return (
-                          <h2 key={index} className="text-xl font-bold mt-6 mb-3 text-purple-900 flex items-center gap-2">
-                            {line.replace('## ', '')}
-                          </h2>
-                        );
-                      }
-
-                      // 處理列表項目
-                      if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
-                        const content = line.trim().substring(2);
-                        return (
-                          <div key={index} className="ml-4 mb-2 flex items-start gap-2">
-                            <span className="text-purple-600 mt-1">•</span>
-                            <span className="text-gray-700" dangerouslySetInnerHTML={{
-                              __html: content.replace(/\*\*(.*?)\*\*/g, '<strong class="text-purple-800">$1</strong>')
-                            }} />
-                          </div>
-                        );
-                      }
-
-                      // 處理表格分隔線（忽略）
-                      if (line.trim().match(/^\|[\s\-:]+\|/)) {
-                        return null;
-                      }
-
-                      // 處理表格行
-                      if (line.trim().startsWith('|')) {
-                        const cells = line.split('|').filter(cell => cell.trim());
-                        const isHeader = index > 0 && analysisResult.split('\n')[index + 1]?.match(/^\|[\s\-:]+\|/);
-
-                        return (
-                          <div key={index} className="flex border-b border-gray-200">
-                            {cells.map((cell, cellIndex) => (
-                              <div
-                                key={cellIndex}
-                                className={`flex-1 px-3 py-2 ${isHeader ? 'font-semibold bg-purple-50 text-purple-900' : 'text-gray-700'}`}
-                              >
-                                {cell.trim()}
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      }
-
-                      // 處理空行
-                      if (line.trim() === '') {
-                        return <div key={index} className="h-2" />;
-                      }
-
-                      // 處理一般段落
-                      return (
-                        <p key={index} className="text-gray-700 mb-3 leading-relaxed" dangerouslySetInnerHTML={{
-                          __html: line.replace(/\*\*(.*?)\*\*/g, '<strong class="text-purple-800">$1</strong>')
-                        }} />
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  點擊上方「AI 分析」按鈕開始分析
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 新的多模型 AI 分析面板 */}
+      {/* 多模型 AI 分析面板 */}
       {channelStats && topVideos.length > 0 && (
         <div className="mt-6">
           <ChannelAnalysisPanel

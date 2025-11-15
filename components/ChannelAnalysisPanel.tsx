@@ -74,11 +74,6 @@ export function ChannelAnalysisPanel({
 
   // 處理分析
   const handleAnalyze = async () => {
-    if (!channelId) {
-      setAnalysisError('請先登入 YouTube 帳號');
-      return;
-    }
-
     if (videos.length === 0) {
       setAnalysisError('沒有可分析的影片數據');
       return;
@@ -343,7 +338,6 @@ export function ChannelAnalysisPanel({
         onClick={handleAnalyze}
         disabled={
           isAnalyzing ||
-          !channelId ||
           videos.length === 0 ||
           (modelSelectionMode === 'manual' && !selectedModel) ||
           (modelSelectionMode === 'auto' && !recommendedModel)
