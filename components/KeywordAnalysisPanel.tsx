@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Settings, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 import { AIModelSelector, type AIModel } from './AIModelSelector';
-import ReactMarkdown from 'react-markdown';
+import { AnalysisMarkdown } from './AnalysisMarkdown';
 
 interface KeywordGroup {
   id: string;
@@ -406,10 +406,10 @@ export function KeywordAnalysisPanel({
           </div>
 
           <div
-            className="prose prose-sm max-w-none p-6 bg-white border-2 rounded-lg"
+            className="p-6 bg-white border-2 rounded-lg"
             style={{ borderColor: '#E5E7EB' }}
           >
-            <ReactMarkdown>{analysisResult.text}</ReactMarkdown>
+            <AnalysisMarkdown>{analysisResult.text}</AnalysisMarkdown>
           </div>
         </div>
       )}
