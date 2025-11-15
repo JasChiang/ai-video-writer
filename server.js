@@ -39,6 +39,8 @@ import {
 import * as taskQueue from './services/taskQueue.js';
 import { publishArticleToNotion, listNotionDatabases, getNotionDatabase } from './services/notionService.js';
 import { fetchAllVideoTitles, uploadToGist, loadFromGist, searchVideosFromCache } from './services/videoCacheService.js';
+import { AIModelManager } from './services/aiProviders/AIModelManager.js';
+import { PromptTemplates } from './services/analysisPrompts/PromptTemplates.js';
 
 const execAsync = promisify(exec);
 const app = express();
@@ -117,6 +119,10 @@ if (!process.env.GEMINI_API_KEY) {
 }
 
 console.log('✅ Gemini API Key loaded successfully');
+
+// 初始化 AI 模型管理器
+const aiManager = new AIModelManager();
+console.log('✅ AI Model Manager initialized');
 
 // CORS 配置 - 只允許指定的前端網址
 const corsOptions = {
@@ -3740,6 +3746,272 @@ app.post('/api/channel-analytics/clear-cache', (_req, res) => {
     console.error('[API] 清除快取錯誤:', error);
     res.status(500).json({
       error: error.message || '清除快取失敗',
+    });
+  }
+});
+
+// ==================== AI 頻道分析 API ====================
+
+/**
+ * 獲取可用的 AI 模型列表
+ * GET /api/ai-models/available
+ */
+app.get('/api/ai-models/available', async (req, res) => {
+  try {
+    const models = aiManager.getAvailableModels();
+
+    res.json({
+      success: true,
+      models,
+      count: models.length,
+    });
+  } catch (error) {
+    console.error('[AI Models] 獲取模型列表失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: '獲取模型列表失敗',
+      details: error.message,
+    });
+  }
+});
+
+/**
+ * 檢查特定模型狀態
+ * GET /api/ai-models/:modelId/status
+ */
+app.get('/api/ai-models/:modelId/status', async (req, res) => {
+  try {
+    const { modelId } = req.params;
+    const status = await aiManager.getModelStatus(modelId);
+
+    res.json({
+      success: true,
+      modelId,
+      status,
+    });
+  } catch (error) {
+    console.error('[AI Models] 檢查模型狀態失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: '檢查模型狀態失敗',
+      details: error.message,
+    });
+  }
+});
+
+/**
+ * 獲取推薦模型
+ * GET /api/ai-models/recommend?analysisType=subscriber-growth
+ */
+app.get('/api/ai-models/recommend', (req, res) => {
+  try {
+    const { analysisType } = req.query;
+
+    if (!analysisType) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少 analysisType 參數',
+      });
+    }
+
+    const recommendedModel = aiManager.getRecommendedModel(analysisType);
+
+    if (!recommendedModel) {
+      return res.status(404).json({
+        success: false,
+        error: '沒有可用的推薦模型',
+        suggestion: '請檢查 API Key 配置',
+      });
+    }
+
+    res.json({
+      success: true,
+      analysisType,
+      recommendedModel,
+    });
+  } catch (error) {
+    console.error('[AI Models] 獲取推薦模型失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: '獲取推薦模型失敗',
+      details: error.message,
+    });
+  }
+});
+
+/**
+ * AI 頻道分析（支援多模型、多分析類型）
+ * POST /api/analyze-channel
+ */
+app.post('/api/analyze-channel', async (req, res) => {
+  const {
+    startDate,
+    endDate,
+    channelId,
+    videos,
+    channelStats,
+    analytics,
+    modelType = 'gemini-2.5-flash', // 默認使用 Gemini Flash
+    analysisType = 'comprehensive', // 默認使用綜合分析
+  } = req.body;
+
+  // 驗證輸入
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: 'Missing startDate or endDate' });
+  }
+
+  if (!videos || !Array.isArray(videos)) {
+    return res.status(400).json({ error: 'Missing or invalid videos array' });
+  }
+
+  try {
+    console.log(`\n========== 📊 開始分析頻道表現 ==========`);
+    console.log(`[Channel Analysis] 模型: ${modelType}`);
+    console.log(`[Channel Analysis] 分析類型: ${analysisType}`);
+    console.log(`[Channel Analysis] 日期範圍: ${startDate} ~ ${endDate}`);
+    console.log(`[Channel Analysis] 影片數量: ${videos.length}`);
+
+    // 生成分析 Prompt
+    const prompt = PromptTemplates.generatePrompt({
+      type: analysisType,
+      dateRange: { startDate, endDate },
+      channelStats,
+      videos,
+      analytics,
+    });
+
+    console.log('[Channel Analysis] 📤 發送請求到 AI 模型...');
+
+    // 使用 AI 模型管理器進行分析
+    const response = await aiManager.analyze(modelType, {
+      prompt,
+      temperature: 0.7,
+      maxTokens: 4096,
+    });
+
+    console.log('[Channel Analysis] ✅ 分析完成');
+    console.log(`[Channel Analysis] 模型: ${response.model}`);
+    console.log(`[Channel Analysis] 提供者: ${response.provider}`);
+    console.log(
+      `[Channel Analysis] Token 使用: ${response.usage?.totalTokens || 'N/A'}`
+    );
+    if (response.cost) {
+      console.log(`[Channel Analysis] 成本: $${response.cost.toFixed(6)}`);
+    }
+    console.log(`[Channel Analysis] 結果長度: ${response.text.length} 字元`);
+
+    res.json({
+      success: true,
+      analysis: response.text,
+      metadata: {
+        model: response.model,
+        provider: response.provider,
+        analysisType,
+        usage: response.usage,
+        cost: response.cost,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('[Channel Analysis] ❌ 分析失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: '頻道分析失敗',
+      details: error.message,
+    });
+  }
+});
+
+/**
+ * 多模型協同分析
+ * POST /api/analyze-channel/multi-model
+ */
+app.post('/api/analyze-channel/multi-model', async (req, res) => {
+  const {
+    startDate,
+    endDate,
+    channelId,
+    videos,
+    channelStats,
+    analytics,
+    models, // 用戶指定的模型列表
+  } = req.body;
+
+  try {
+    console.log(`\n========== 📊 開始多模型協同分析 ==========`);
+
+    // 如果沒有指定模型，使用所有可用模型
+    let modelsToUse = models;
+    if (!modelsToUse || modelsToUse.length === 0) {
+      const availableModels = aiManager.getAvailableModels();
+      modelsToUse = availableModels.map((m) => m.id);
+    }
+
+    console.log(`[Multi-Model Analysis] 使用模型: ${modelsToUse.join(', ')}`);
+
+    // 並行執行多個模型分析
+    const analysisPromises = modelsToUse.map(async (modelType) => {
+      try {
+        const prompt = PromptTemplates.generatePrompt({
+          type: 'comprehensive',
+          dateRange: { startDate, endDate },
+          channelStats,
+          videos,
+          analytics,
+        });
+
+        const response = await aiManager.analyze(modelType, {
+          prompt,
+          temperature: 0.7,
+          maxTokens: 4096,
+        });
+
+        return {
+          model: response.model,
+          provider: response.provider,
+          analysis: response.text,
+          usage: response.usage,
+          cost: response.cost,
+          success: true,
+        };
+      } catch (error) {
+        console.error(`[Multi-Model Analysis] ${modelType} 分析失敗:`, error);
+        return {
+          model: modelType,
+          error: error.message,
+          success: false,
+        };
+      }
+    });
+
+    const results = await Promise.all(analysisPromises);
+
+    const successCount = results.filter((r) => r.success).length;
+    const totalCost = results.reduce((sum, r) => sum + (r.cost || 0), 0);
+
+    console.log('[Multi-Model Analysis] ✅ 分析完成');
+    console.log(`[Multi-Model Analysis] 成功: ${successCount}/${results.length}`);
+    if (totalCost > 0) {
+      console.log(`[Multi-Model Analysis] 總成本: $${totalCost.toFixed(6)}`);
+    }
+
+    res.json({
+      success: true,
+      results,
+      summary: {
+        total: results.length,
+        successful: successCount,
+        failed: results.length - successCount,
+        totalCost,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[Multi-Model Analysis] ❌ 分析失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: '多模型分析失敗',
+      details: error.message,
     });
   }
 });
