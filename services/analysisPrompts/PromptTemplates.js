@@ -103,8 +103,10 @@ export class PromptTemplates {
 - 新增訂閱：${channelStats.subscribersGained} 人
 - 發布影片：${channelStats.videosInRange} 支
 
-**熱門影片 Top 10：**
-${topVideos.length > 0 ? topVideos.slice(0, 10).map((v, i) => `${i + 1}. ${v.title || '未命名'}
+**時段內熱門影片 Top ${Math.min(topVideos.length, 50)}：**
+（注意：以下為此時段內表現最佳的 ${Math.min(topVideos.length, 50)} 支影片，頻道總共有 ${channelStats.totalVideos} 支影片）
+
+${topVideos.length > 0 ? topVideos.slice(0, 50).map((v, i) => `${i + 1}. ${v.title || '未命名'}
    - 觀看：${(v.viewCount || 0).toLocaleString()} | 讚：${(v.likeCount || 0).toLocaleString()} | 留言：${(v.commentCount || 0).toLocaleString()}
    - 互動率：${v.viewCount > 0 ? (((v.likeCount || 0) + (v.commentCount || 0)) / v.viewCount * 100).toFixed(2) : '0.00'}%`).join('\n\n') : '（暫無影片資料）'}
 

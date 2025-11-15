@@ -688,7 +688,7 @@ export function ChannelDashboard() {
   const fetchTopVideosFromAnalytics = async (analyticsRows: any[]) => {
     try {
       // Analytics rows: [videoId, views, watchTime, subs]
-      const topVideoIds = analyticsRows.slice(0, 10).map((row: any[]) => row[0]);
+      const topVideoIds = analyticsRows.slice(0, 50).map((row: any[]) => row[0]);
 
       // 從快取獲取影片詳情（使用統一的快取機制，只讀取一次）
       const cache = await ensureVideoCache();
@@ -700,7 +700,7 @@ export function ChannelDashboard() {
         console.log('[Dashboard] 🔍 快取影片範例:', allVideos[0]);
       }
 
-      const topVideosWithDetails = analyticsRows.slice(0, 10).map((row: any[]) => {
+      const topVideosWithDetails = analyticsRows.slice(0, 50).map((row: any[]) => {
         const videoId = row[0];
         const views = parseInt(row[1]) || 0;
         const avgViewPercent = parseFloat(row[2]) || 0;
@@ -861,7 +861,7 @@ export function ChannelDashboard() {
         `&metrics=views,averageViewPercentage,shares,comments` +
         `&dimensions=video` +
         `&sort=-views` +
-        `&maxResults=10`,
+        `&maxResults=50`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1746,11 +1746,11 @@ export function ChannelDashboard() {
         videosInRange: videosInRange.length,
       }));
 
-      // 按觀看次數排序並取前 10 名（從時間範圍內的影片）
+      // 按觀看次數排序並取前 50 名（從時間範圍內的影片）
       const topVideosInRange = videosInRange
         .filter((v: any) => v.viewCount && parseInt(v.viewCount) > 0)
         .sort((a: any, b: any) => parseInt(b.viewCount) - parseInt(a.viewCount))
-        .slice(0, 10)
+        .slice(0, 50)
         .map((v: any) => ({
           id: v.videoId || v.id,
           title: v.title,

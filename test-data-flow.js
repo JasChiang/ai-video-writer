@@ -16,18 +16,16 @@ const mockRequestData = {
     viewsInRange: 50000,
     watchTimeHours: 5000,
     subscribersGained: 1000,
-    videosInRange: 10,
+    videosInRange: 50,
   },
-  videos: [
-    {
-      videoId: 'video1',
-      title: '測試影片 1',
-      viewCount: 10000,
-      likeCount: 500,
-      commentCount: 100,
-      publishedAt: '2024-01-15',
-    },
-  ],
+  videos: Array.from({ length: 50 }, (_, i) => ({
+    videoId: `video${i + 1}`,
+    title: `測試影片 ${i + 1}`,
+    viewCount: 10000 - i * 100,
+    likeCount: 500 - i * 5,
+    commentCount: 100 - i,
+    publishedAt: '2024-01-15',
+  })),
   analytics: {
     subscribersGained: 1000,
     trafficSources: [
