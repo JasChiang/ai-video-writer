@@ -16,11 +16,9 @@ export interface AIModel {
 const modelIcons: Record<string, React.ComponentType<any>> = {
   'gemini-2.5-flash': Zap,
   'gemini-2.5-pro': Brain,
-  'anthropic/claude-3.5-sonnet': Target,
-  'anthropic/claude-3-opus': Brain,
-  'openai/gpt-4o': Sparkles,
-  'openai/gpt-4-turbo': Sparkles,
-  'openai/gpt-4': Sparkles,
+  'anthropic/claude-sonnet-4.5': Target,
+  'openai/gpt-5.1': Sparkles,
+  'x-ai/grok-4': Zap,
 };
 
 const costColors = {

@@ -80,35 +80,23 @@ export class OpenRouterProvider extends BaseAIProvider {
   getModelInfo() {
     // OpenRouter 模型映射
     const modelInfo = {
-      'anthropic/claude-3.5-sonnet': {
-        name: 'Claude 3.5 Sonnet',
+      'anthropic/claude-sonnet-4.5': {
+        name: 'Claude Sonnet 4.5',
         provider: 'Anthropic',
         cost: 'Medium',
-        description: '邏輯清晰、結構化輸出優秀',
+        description: '最新 Claude 模型，邏輯清晰、結構化輸出優秀',
       },
-      'anthropic/claude-3-opus': {
-        name: 'Claude 3 Opus',
-        provider: 'Anthropic',
-        cost: 'High',
-        description: '最強推理能力，適合複雜任務',
-      },
-      'openai/gpt-4': {
-        name: 'GPT-4',
+      'openai/gpt-5.1': {
+        name: 'GPT-5.1',
         provider: 'OpenAI',
         cost: 'High',
-        description: '創意豐富、語言表達多樣',
+        description: 'OpenAI 最新旗艦模型，頂級推理與創意能力',
       },
-      'openai/gpt-4-turbo': {
-        name: 'GPT-4 Turbo',
-        provider: 'OpenAI',
+      'x-ai/grok-4': {
+        name: 'Grok 4',
+        provider: 'xAI',
         cost: 'Medium',
-        description: '更快、更經濟的 GPT-4',
-      },
-      'openai/gpt-4o': {
-        name: 'GPT-4o',
-        provider: 'OpenAI',
-        cost: 'Medium',
-        description: 'OpenAI 最新多模態模型',
+        description: 'xAI 最新模型，快速反應，適合即時分析',
       },
       'google/gemini-2.0-flash-exp': {
         name: 'Gemini 2.0 Flash (Experimental)',

@@ -40,47 +40,30 @@ export class AIModelManager {
     if (this.openRouterApiKey) {
       // Claude Models
       this.providers.set(
-        'anthropic/claude-3.5-sonnet',
+        'anthropic/claude-sonnet-4.5',
         new OpenRouterProvider({
           apiKey: this.openRouterApiKey,
-          model: 'anthropic/claude-3.5-sonnet',
-          temperature: 0.7,
-        })
-      );
-
-      this.providers.set(
-        'anthropic/claude-3-opus',
-        new OpenRouterProvider({
-          apiKey: this.openRouterApiKey,
-          model: 'anthropic/claude-3-opus',
+          model: 'anthropic/claude-sonnet-4.5',
           temperature: 0.7,
         })
       );
 
       // OpenAI Models
       this.providers.set(
-        'openai/gpt-4',
+        'openai/gpt-5.1',
         new OpenRouterProvider({
           apiKey: this.openRouterApiKey,
-          model: 'openai/gpt-4',
+          model: 'openai/gpt-5.1',
           temperature: 0.7,
         })
       );
 
+      // Grok Models
       this.providers.set(
-        'openai/gpt-4-turbo',
+        'x-ai/grok-4',
         new OpenRouterProvider({
           apiKey: this.openRouterApiKey,
-          model: 'openai/gpt-4-turbo',
-          temperature: 0.7,
-        })
-      );
-
-      this.providers.set(
-        'openai/gpt-4o',
-        new OpenRouterProvider({
-          apiKey: this.openRouterApiKey,
-          model: 'openai/gpt-4o',
+          model: 'x-ai/grok-4',
           temperature: 0.7,
         })
       );
@@ -155,60 +138,40 @@ export class AIModelManager {
 
       // Claude Models (via OpenRouter)
       {
-        id: 'anthropic/claude-3.5-sonnet',
-        name: 'Claude 3.5 Sonnet',
+        id: 'anthropic/claude-sonnet-4.5',
+        name: 'Claude Sonnet 4.5',
         provider: 'Anthropic',
-        description: '邏輯清晰，結構化輸出優秀，適合策略規劃',
+        description: '最新 Claude 模型，邏輯清晰，結構化輸出優秀，適合策略規劃',
         cost: 'medium',
         speedRating: 4,
         qualityRating: 5,
         bestFor: ['策略規劃', '報告生成', '邏輯推理', '結構化分析'],
         useOpenRouter: true,
       },
-      {
-        id: 'anthropic/claude-3-opus',
-        name: 'Claude 3 Opus',
-        provider: 'Anthropic',
-        description: '最強推理能力，適合最複雜的分析任務',
-        cost: 'high',
-        speedRating: 2,
-        qualityRating: 5,
-        bestFor: ['複雜推理', '深度分析', '策略制定', '高品質輸出'],
-        useOpenRouter: true,
-      },
 
       // OpenAI Models (via OpenRouter)
       {
-        id: 'openai/gpt-4o',
-        name: 'GPT-4o',
+        id: 'openai/gpt-5.1',
+        name: 'GPT-5.1',
         provider: 'OpenAI',
-        description: 'OpenAI 最新模型，平衡速度與品質',
-        cost: 'medium',
-        speedRating: 4,
-        qualityRating: 5,
-        bestFor: ['全方位分析', '創意建議', '內容優化', '快速回應'],
-        useOpenRouter: true,
-      },
-      {
-        id: 'openai/gpt-4-turbo',
-        name: 'GPT-4 Turbo',
-        provider: 'OpenAI',
-        description: '更快、更經濟的 GPT-4，適合多數任務',
-        cost: 'medium',
-        speedRating: 4,
-        qualityRating: 4,
-        bestFor: ['內容創意', '標題建議', '文案優化', '通用分析'],
-        useOpenRouter: true,
-      },
-      {
-        id: 'openai/gpt-4',
-        name: 'GPT-4',
-        provider: 'OpenAI',
-        description: '創意豐富，語言表達多樣，經典 GPT-4',
+        description: 'OpenAI 最新旗艦模型，頂級推理與創意能力',
         cost: 'high',
-        speedRating: 3,
+        speedRating: 4,
         qualityRating: 5,
-        bestFor: ['創意策略', '內容企劃', '品牌定位', '深度分析'],
+        bestFor: ['全方位分析', '創意策略', '複雜推理', '深度洞察'],
+        useOpenRouter: true,
+      },
+
+      // Grok Models (via OpenRouter)
+      {
+        id: 'x-ai/grok-4',
+        name: 'Grok 4',
+        provider: 'xAI',
+        description: 'xAI 最新模型，快速反應，適合即時分析',
+        cost: 'medium',
+        speedRating: 5,
+        qualityRating: 4,
+        bestFor: ['即時分析', '快速洞察', '趨勢預測', '數據解讀'],
         useOpenRouter: true,
       },
     ];
@@ -252,10 +215,10 @@ export class AIModelManager {
    */
   getRecommendedModel(analysisType) {
     const recommendations = {
-      'subscriber-growth': 'anthropic/claude-3.5-sonnet', // 策略分析
+      'subscriber-growth': 'anthropic/claude-sonnet-4.5', // 策略分析
       'view-optimization': 'gemini-2.5-flash', // 快速優化建議
-      'content-strategy': 'openai/gpt-4o', // 創意策略
-      'audience-insights': 'anthropic/claude-3.5-sonnet', // 數據洞察
+      'content-strategy': 'openai/gpt-5.1', // 創意策略
+      'audience-insights': 'anthropic/claude-sonnet-4.5', // 數據洞察
       comprehensive: 'gemini-2.5-pro', // 綜合分析
     };
 

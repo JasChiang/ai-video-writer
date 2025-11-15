@@ -30,8 +30,9 @@
 - 使用 OpenRouter 統一接口
 - 需要 `OPENROUTER_API_KEY`
 - 支援模型：
-  - Claude 系列（`anthropic/claude-3.5-sonnet`, `anthropic/claude-3-opus`）
-  - GPT 系列（`openai/gpt-4o`, `openai/gpt-4-turbo`, `openai/gpt-4`）
+  - Claude 系列（`anthropic/claude-sonnet-4.5`）
+  - GPT 系列（`openai/gpt-5.1`）
+  - Grok 系列（`x-ai/grok-4`）
   - 其他 OpenRouter 支援的模型
 
 ---
@@ -54,15 +55,14 @@ export type AIModelType =
   | 'gemini-2.5-flash'
   | 'gemini-2.5-pro'
   // Claude Models (via OpenRouter)
-  | 'anthropic/claude-3.5-sonnet'
-  | 'anthropic/claude-3-opus'
+  | 'anthropic/claude-sonnet-4.5'
   // OpenAI Models (via OpenRouter)
-  | 'openai/gpt-4'
-  | 'openai/gpt-4-turbo'
-  | 'openai/gpt-4o'
+  | 'openai/gpt-5.1'
+  // Grok Models (via OpenRouter)
+  | 'x-ai/grok-4'
   // 🆕 在這裡添加新模型
-  | 'openai/o1'                           // 新增 GPT-o1
-  | 'anthropic/claude-opus-4'             // 新增 Claude Opus 4
+  | 'openai/o1'                           // 新增其他模型
+  | 'anthropic/claude-opus-4.5'           // 新增 Claude Opus 4.5
   | 'meta-llama/llama-3.2-90b-instruct';  // 新增 Llama 3.2
 ```
 

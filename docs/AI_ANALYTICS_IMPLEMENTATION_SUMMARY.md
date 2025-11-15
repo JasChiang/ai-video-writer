@@ -268,7 +268,7 @@ const analysis = await fetch('/api/analyze-channel', {
     endDate: '2025-01-15',
     videos: videos,
     channelStats: stats,
-    modelType: 'anthropic/claude-3.5-sonnet',  // 手動選擇 Claude
+    modelType: 'anthropic/claude-sonnet-4.5',  // 手動選擇 Claude Sonnet 4.5
     analysisType: 'content-strategy'
   })
 });
@@ -287,8 +287,8 @@ const comparison = await fetch('/api/analyze-channel/multi-model', {
     channelStats: stats,
     models: [
       'gemini-2.5-pro',
-      'anthropic/claude-3.5-sonnet',
-      'openai/gpt-4o'
+      'anthropic/claude-sonnet-4.5',
+      'openai/gpt-5.1'
     ]
   })
 });
@@ -395,13 +395,13 @@ Server running on http://localhost:3001
 
 ```
 ========== 📊 開始分析頻道表現 ==========
-[Channel Analysis] 模型: anthropic/claude-3.5-sonnet
+[Channel Analysis] 模型: anthropic/claude-sonnet-4.5
 [Channel Analysis] 分析類型: subscriber-growth
 [Channel Analysis] 日期範圍: 2025-01-01 ~ 2025-01-15
 [Channel Analysis] 影片數量: 95
 [Channel Analysis] 📤 發送請求到 AI 模型...
 [Channel Analysis] ✅ 分析完成
-[Channel Analysis] 模型: anthropic/claude-3.5-sonnet
+[Channel Analysis] 模型: anthropic/claude-sonnet-4.5
 [Channel Analysis] 提供者: Anthropic
 [Channel Analysis] Token 使用: 8245
 [Channel Analysis] 成本: $0.085324
