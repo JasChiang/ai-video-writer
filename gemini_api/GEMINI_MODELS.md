@@ -1,271 +1,58 @@
-<br />
+# 🤖 Gemini 模型概覽
 
-OUR MOST ADVANCED MODEL
+本文件提供 Google Gemini 模型家族的概覽，重點介紹與 AI Video Writer 專案相關的模型及其關鍵特性。AI Video Writer 主要利用 Gemini 的多模態能力進行文章生成、中繼資料提取和參考檔案分析。
 
-## Gemini 2.5 Pro
+## 💡 Gemini 模型家族
 
+Gemini 模型是 Google 開發的一系列強大多模態 AI 模型，能夠處理文字、圖像、音訊和影片等多種輸入類型。它們分為不同的版本，以滿足不同的性能、成本和應用需求。
 
-Our state-of-the-art thinking model, capable of reasoning over complex problems in code, math, and STEM, as well as analyzing large datasets, codebases, and documents using long context.
+### 核心模型系列
 
-### Expand to learn more
+1.  **Gemini 2.5 Flash (推薦)**
+    -   **定位**：AI Video Writer 專案主要使用的模型。
+    -   **特性**：在價格與性能之間取得最佳平衡。提供出色的多模態能力、低延遲和高吞吐量，非常適合需要快速響應和大規模處理的任務，例如文章生成和影片內容分析。
+    -   **輸入**：文字、圖像、影片、音訊。
+    -   **輸出**：文字。
+    -   **上下文窗口**：高達 1,048,576 Token，支援處理大量資訊。
 
-[Try in Google AI Studio](https://aistudio.google.com?model=gemini-2.5-pro)
+2.  **Gemini 2.5 Pro**
+    -   **定位**：更先進的思考模型。
+    -   **特性**：具備強大的推理能力，擅長處理程式碼、數學和 STEM 領域的複雜問題，並能分析大型數據集和文件。
+    -   **輸入**：文字、圖像、影片、PDF。
+    -   **輸出**：文字。
+    -   **上下文窗口**：高達 1,048,576 Token。
+    -   **適用場景**：適合需要深度理解和複雜推理的任務，例如更精細的內容分析或複雜的數據提取。
 
-#### Model details
+3.  **Gemini 2.5 Flash-Lite**
+    -   **定位**：極致快速且成本效益高的模型。
+    -   **特性**：在 `Flash` 系列中速度最快，針對成本效益和高吞吐量進行了優化。
+    -   **輸入**：文字、圖像、影片、音訊、PDF。
+    -   **輸出**：文字。
+    -   **適用場景**：適合對延遲極度敏感且成本預算嚴格的應用。
 
-### Gemini 2.5 Pro
+## 模型版本命名模式
 
-|                                         Property                                          |                                                                                                                                                                             Description                                                                                                                                                                              |
-|-------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| id_cardModel code                                                                         | `gemini-2.5-pro`                                                                                                                                                                                                                                                                                                                                                     |
-| saveSupported data types                                                                  | **Inputs** Audio, images, video, text, and PDF **Output** Text                                                                                                                                                                                                                                                                                                       |
-| token_autoToken limits^[\[\*\]](https://ai.google.dev/gemini-api/docs/models#token-size)^ | **Input token limit** 1,048,576 **Output token limit** 65,536                                                                                                                                                                                                                                                                                                        |
-| handymanCapabilities                                                                      | **Audio generation** Not supported **Batch API** Supported **Caching** Supported **Code execution** Supported **Function calling** Supported **Grounding with Google Maps** Supported **Image generation** Not supported **Live API** Not supported **Search grounding** Supported **Structured outputs** Supported **Thinking** Supported **URL context** Supported |
-| 123Versions                                                                               | Read the [model version patterns](https://ai.google.dev/gemini-api/docs/models/gemini#model-versions) for more details. - `Stable: gemini-2.5-pro`                                                                                                                                                                                                                   |
-| calendar_monthLatest update                                                               | June 2025                                                                                                                                                                                                                                                                                                                                                            |
-| cognition_2Knowledge cutoff                                                               | January 2025                                                                                                                                                                                                                                                                                                                                                         |
+Gemini 模型版本通常分為 `Stable` (穩定版)、`Preview` (預覽版)、`Latest` (最新版) 或 `Experimental` (實驗版)。
 
-### Gemini 2.5 Pro TTS
+-   **Stable (穩定版)**：指向特定的穩定模型，通常不會改變。建議生產應用程式使用。
+    -   範例：`gemini-2.5-flash`
+-   **Preview (預覽版)**：可用於生產，但可能會在至少 2 週通知後棄用。通常具有計費功能和更嚴格的速率限制。
+    -   範例：`gemini-2.5-flash-preview-09-2025`
+-   **Latest (最新版)**：指向特定模型變體的最新發布版本，可以是穩定版、預覽版或實驗版。此別名會隨每次新發布而更新。
+    -   範例：`gemini-flash-latest`
+-   **Experimental (實驗版)**：通常不適合生產使用，速率限制更嚴格。用於收集反饋和快速發布最新更新。不穩定且可用性可能隨時變更。
 
-|                                         Property                                          |                                                                                                                                                                                             Description                                                                                                                                                                                              |
-|-------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| id_cardModel code                                                                         | `gemini-2.5-pro-preview-tts`                                                                                                                                                                                                                                                                                                                                                                         |
-| saveSupported data types                                                                  | **Inputs** Text **Output** Audio                                                                                                                                                                                                                                                                                                                                                                     |
-| token_autoToken limits^[\[\*\]](https://ai.google.dev/gemini-api/docs/models#token-size)^ | **Input token limit** 8,000 **Output token limit** 16,000                                                                                                                                                                                                                                                                                                                                            |
-| handymanCapabilities                                                                      | **Audio generation** Supported **Batch API** Not Supported **Caching** Not supported **Code execution** Not supported **Function calling** Not supported **Grounding with Google Maps** Not supported **Image generation** Not supported **Live API** Not supported **Search grounding** Not supported **Structured outputs** Not supported **Thinking** Not supported **URL context** Not supported |
-| 123Versions                                                                               | Read the [model version patterns](https://ai.google.dev/gemini-api/docs/models/gemini#model-versions) for more details. - `gemini-2.5-pro-preview-tts`                                                                                                                                                                                                                                               |
-| calendar_monthLatest update                                                               | May 2025                                                                                                                                                                                                                                                                                                                                                                                             |
+## AI Video Writer 中的模型選擇
 
-FAST AND INTELLIGENT
+專案目前主要配置為使用 `gemini-2.5-flash` 模型，因為它在處理速度、多模態能力和成本效益之間提供了最佳平衡，非常適合快速生成文章和分析影片內容。
 
-## Gemini 2.5 Flash
+未來，專案可能會根據需求和成本考量，探索使用 `Gemini 2.5 Pro` 進行更深度的分析，或使用 `Gemini 2.5 Flash-Lite` 以進一步優化成本和速度。
 
+---
 
-Our best model in terms of price-performance, offering well-rounded capabilities. 2.5 Flash is best for large scale processing, low-latency, high volume tasks that require thinking, and agentic use cases.
+## 📚 相關文件
 
-### Expand to learn more
-
-[Try in Google AI Studio](https://aistudio.google.com?model=gemini-2.5-flash)
-
-#### Model details
-
-### Gemini 2.5 Flash
-
-|                                         Property                                          |                                                                                                                                                                             Description                                                                                                                                                                              |
-|-------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| id_cardModel code                                                                         | `gemini-2.5-flash`                                                                                                                                                                                                                                                                                                                                                   |
-| saveSupported data types                                                                  | **Inputs** Text, images, video, audio **Output** Text                                                                                                                                                                                                                                                                                                                |
-| token_autoToken limits^[\[\*\]](https://ai.google.dev/gemini-api/docs/models#token-size)^ | **Input token limit** 1,048,576 **Output token limit** 65,536                                                                                                                                                                                                                                                                                                        |
-| handymanCapabilities                                                                      | **Audio generation** Not supported **Batch API** Supported **Caching** Supported **Code execution** Supported **Function calling** Supported **Grounding with Google Maps** Supported **Image generation** Not supported **Live API** Not supported **Search grounding** Supported **Structured outputs** Supported **Thinking** Supported **URL context** Supported |
-| 123Versions                                                                               | Read the [model version patterns](https://ai.google.dev/gemini-api/docs/models/gemini#model-versions) for more details. - Stable: `gemini-2.5-flash`                                                                                                                                                                                                                 |
-| calendar_monthLatest update                                                               | June 2025                                                                                                                                                                                                                                                                                                                                                            |
-| cognition_2Knowledge cutoff                                                               | January 2025                                                                                                                                                                                                                                                                                                                                                         |
-
-### Gemini 2.5 Flash Preview
-
-|                                         Property                                          |                                                                                                                                                                               Description                                                                                                                                                                                |
-|-------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| id_cardModel code                                                                         | `gemini-2.5-flash-preview-09-2025`                                                                                                                                                                                                                                                                                                                                       |
-| saveSupported data types                                                                  | **Inputs** Text, images, video, audio **Output** Text                                                                                                                                                                                                                                                                                                                    |
-| token_autoToken limits^[\[\*\]](https://ai.google.dev/gemini-api/docs/models#token-size)^ | **Input token limit** 1,048,576 **Output token limit** 65,536                                                                                                                                                                                                                                                                                                            |
-| handymanCapabilities                                                                      | **Audio generation** Not supported **Batch API** Supported **Caching** Supported **Code execution** Supported **Function calling** Supported **Grounding with Google Maps** Not supported **Image generation** Not supported **Live API** Not supported **Search grounding** Supported **Structured outputs** Supported **Thinking** Supported **URL Context** Supported |
-| 123Versions                                                                               | Read the [model version patterns](https://ai.google.dev/gemini-api/docs/models/gemini#model-versions) for more details. - Preview: `gemini-2.5-flash-preview-09-2025`                                                                                                                                                                                                    |
-| calendar_monthLatest update                                                               | September 2025                                                                                                                                                                                                                                                                                                                                                           |
-| cognition_2Knowledge cutoff                                                               | January 2025                                                                                                                                                                                                                                                                                                                                                             |
-
-### Gemini 2.5 Flash Image
-
-|                                         Property                                          |                                                                                                                                                                                       Description                                                                                                                                                                                        |
-|-------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| id_cardModel code                                                                         | `gemini-2.5-flash-image`                                                                                                                                                                                                                                                                                                                                                                 |
-| saveSupported data types                                                                  | **Inputs** Images and text **Output** Images and text                                                                                                                                                                                                                                                                                                                                    |
-| token_autoToken limits^[\[\*\]](https://ai.google.dev/gemini-api/docs/models#token-size)^ | **Input token limit** 32,768 **Output token limit** 32,768                                                                                                                                                                                                                                                                                                                               |
-| handymanCapabilities                                                                      | **Audio generation** Not supported **Batch API** Supported **Caching** Supported **Code execution** Not Supported **Function calling** Not supported **Image generation** Supported **Grounding with Google Maps** Not supported **Live API** Not Supported **Search grounding** Not Supported **Structured outputs** Supported **Thinking** Not Supported **URL context** Not supported |
-| 123Versions                                                                               | Read the [model version patterns](https://ai.google.dev/gemini-api/docs/models/gemini#model-versions) for more details. - Stable: `gemini-2.5-flash-image` - Preview: `gemini-2.5-flash-image-preview`                                                                                                                                                                                   |
-| calendar_monthLatest update                                                               | October 2025                                                                                                                                                                                                                                                                                                                                                                             |
-| cognition_2Knowledge cutoff                                                               | June 2025                                                                                                                                                                                                                                                                                                                                                                                |
-
-### Gemini 2.5 Flash Live
-
-|                                         Property                                          |                                                                                                                                                                                     Description                                                                                                                                                                                      |
-|-------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| id_cardModel code                                                                         | `gemini-2.5-flash-native-audio-preview-09-2025`                                                                                                                                                                                                                                                                                                                                      |
-| saveSupported data types                                                                  | **Inputs** Audio, video, text **Output** Audio and text                                                                                                                                                                                                                                                                                                                              |
-| token_autoToken limits^[\[\*\]](https://ai.google.dev/gemini-api/docs/models#token-size)^ | **Input token limit** 128,000 **Output token limit** 8,000                                                                                                                                                                                                                                                                                                                           |
-| handymanCapabilities                                                                      | **Audio generation** Supported **Batch API** Not supported **Caching** Not supported **Code execution** Not supported **Function calling** Supported **Grounding with Google Maps** Not supported **Image generation** Not supported **Live API** Supported **Search grounding** Supported **Structured outputs** Not supported **Thinking** Supported **URL context** Not supported |
-| 123Versions                                                                               | Read the [model version patterns](https://ai.google.dev/gemini-api/docs/models/gemini#model-versions) for more details. - Preview: `gemini-2.5-flash-native-audio-preview-09-2025` - Preview: `gemini-live-2.5-flash-preview` - gemini-live-2.5-flash-preview will be deprecated on December 09, 2025                                                                                |
-| calendar_monthLatest update                                                               | September 2025                                                                                                                                                                                                                                                                                                                                                                       |
-| cognition_2Knowledge cutoff                                                               | January 2025                                                                                                                                                                                                                                                                                                                                                                         |
-
-### Gemini 2.5 Flash TTS
-
-|                                         Property                                          |                                                                                                                                                                                           Description                                                                                                                                                                                            |
-|-------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| id_cardModel code                                                                         | `gemini-2.5-flash-preview-tts`                                                                                                                                                                                                                                                                                                                                                                   |
-| saveSupported data types                                                                  | **Inputs** Text **Output** Audio                                                                                                                                                                                                                                                                                                                                                                 |
-| token_autoToken limits^[\[\*\]](https://ai.google.dev/gemini-api/docs/models#token-size)^ | **Input token limit** 8,000 **Output token limit** 16,000                                                                                                                                                                                                                                                                                                                                        |
-| handymanCapabilities                                                                      | **Audio generation** Supported **Batch API** Supported **Caching** Not supported **Code execution** Not supported **Function calling** Not supported **Grounding with Google Maps** Not supported **Image generation** Not supported **Live API** Not supported **Search grounding** Not supported **Structured outputs** Not supported **Thinking** Not supported **URL context** Not supported |
-| 123Versions                                                                               | Read the [model version patterns](https://ai.google.dev/gemini-api/docs/models/gemini#model-versions) for more details. - `gemini-2.5-flash-preview-tts`                                                                                                                                                                                                                                         |
-| calendar_monthLatest update                                                               | May 2025                                                                                                                                                                                                                                                                                                                                                                                         |
-
-ULTRA FAST
-
-## Gemini 2.5 Flash-Lite
-
-
-Our fastest flash model optimized for cost-efficiency and high throughput.
-
-### Expand to learn more
-
-[Try in Google AI Studio](https://aistudio.google.com?model=gemini-2.5-flash-lite)
-
-#### Model details
-
-### Gemini 2.5 Flash-Lite
-
-|                                         Property                                          |                                                                                                                                                                             Description                                                                                                                                                                              |
-|-------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| id_cardModel code                                                                         | `gemini-2.5-flash-lite`                                                                                                                                                                                                                                                                                                                                              |
-| saveSupported data types                                                                  | **Inputs** Text, image, video, audio, PDF **Output** Text                                                                                                                                                                                                                                                                                                            |
-| token_autoToken limits^[\[\*\]](https://ai.google.dev/gemini-api/docs/models#token-size)^ | **Input token limit** 1,048,576 **Output token limit** 65,536                                                                                                                                                                                                                                                                                                        |
-| handymanCapabilities                                                                      | **Audio generation** Not supported **Batch API** Supported **Caching** Supported **Code execution** Supported **Function calling** Supported **Grounding with Google Maps** Supported **Image generation** Not supported **Live API** Not supported **Search grounding** Supported **Structured outputs** Supported **Thinking** Supported **URL context** Supported |
-| 123Versions                                                                               | Read the [model version patterns](https://ai.google.dev/gemini-api/docs/models/gemini#model-versions) for more details. - Stable: `gemini-2.5-flash-lite`                                                                                                                                                                                                            |
-| calendar_monthLatest update                                                               | July 2025                                                                                                                                                                                                                                                                                                                                                            |
-| cognition_2Knowledge cutoff                                                               | January 2025                                                                                                                                                                                                                                                                                                                                                         |
-
-### Gemini 2.5 Flash-Lite Preview
-
-|                                         Property                                          |                                                                                                                                                                               Description                                                                                                                                                                                |
-|-------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| id_cardModel code                                                                         | `gemini-2.5-flash-lite-preview-09-2025`                                                                                                                                                                                                                                                                                                                                  |
-| saveSupported data types                                                                  | **Inputs** Text, image, video, audio, PDF **Output** Text                                                                                                                                                                                                                                                                                                                |
-| token_autoToken limits^[\[\*\]](https://ai.google.dev/gemini-api/docs/models#token-size)^ | **Input token limit** 1,048,576 **Output token limit** 65,536                                                                                                                                                                                                                                                                                                            |
-| handymanCapabilities                                                                      | **Audio generation** Not supported **Batch API** Supported **Caching** Supported **Code execution** Supported **Function calling** Supported **Grounding with Google Maps** Not supported **Image generation** Not supported **Live API** Not supported **Search grounding** Supported **Structured outputs** Supported **Thinking** Supported **URL context** Supported |
-| 123Versions                                                                               | Read the [model version patterns](https://ai.google.dev/gemini-api/docs/models/gemini#model-versions) for more details. - Preview: `gemini-2.5-flash-lite-preview-09-2025`                                                                                                                                                                                               |
-| calendar_monthLatest update                                                               | September 2025                                                                                                                                                                                                                                                                                                                                                           |
-| cognition_2Knowledge cutoff                                                               | January 2025                                                                                                                                                                                                                                                                                                                                                             |
-
-<br />
-
-## Previous Gemini Models
-
-OUR SECOND GENERATION WORKHORSE MODEL
-
-## Gemini 2.0 Flash
-
-
-Our second generation workhorse model, with a 1 million token context window.
-
-### Expand to learn more
-
-
-Gemini 2.0 Flash delivers next-gen features and improved capabilities,
-including superior speed, native tool use, and a 1M token
-context window.
-
-[Try in Google AI Studio](https://aistudio.google.com?model=gemini-2.0-flash)
-
-#### Model details
-
-### Gemini 2.0 Flash
-
-|                                         Property                                          |                                                                                                                                                                               Description                                                                                                                                                                               |
-|-------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| id_cardModel code                                                                         | `gemini-2.0-flash`                                                                                                                                                                                                                                                                                                                                                      |
-| saveSupported data types                                                                  | **Inputs** Audio, images, video, and text **Output** Text                                                                                                                                                                                                                                                                                                               |
-| token_autoToken limits^[\[\*\]](https://ai.google.dev/gemini-api/docs/models#token-size)^ | **Input token limit** 1,048,576 **Output token limit** 8,192                                                                                                                                                                                                                                                                                                            |
-| handymanCapabilities                                                                      | **Audio generation** Not supported **Batch API** Supported **Caching** Supported **Code execution** Supported **Function calling** Supported **Grounding with Google Maps** Supported **Image generation** Not supported **Live API** Supported **Search grounding** Supported **Structured outputs** Supported **Thinking** Experimental **URL context** Not supported |
-| 123Versions                                                                               | Read the [model version patterns](https://ai.google.dev/gemini-api/docs/models/gemini#model-versions) for more details. - Latest: `gemini-2.0-flash` - Stable: `gemini-2.0-flash-001` - Experimental: `gemini-2.0-flash-exp`                                                                                                                                            |
-| calendar_monthLatest update                                                               | February 2025                                                                                                                                                                                                                                                                                                                                                           |
-| cognition_2Knowledge cutoff                                                               | August 2024                                                                                                                                                                                                                                                                                                                                                             |
-
-### Gemini 2.0 Flash Image
-
-|                                         Property                                          |                                                                                                                                                                                       Description                                                                                                                                                                                        |
-|-------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| id_cardModel code                                                                         | `gemini-2.0-flash-preview-image-generation`                                                                                                                                                                                                                                                                                                                                              |
-| saveSupported data types                                                                  | **Inputs** Audio, images, video, and text **Output** Text and images                                                                                                                                                                                                                                                                                                                     |
-| token_autoToken limits^[\[\*\]](https://ai.google.dev/gemini-api/docs/models#token-size)^ | **Input token limit** 32,000 **Output token limit** 8,192                                                                                                                                                                                                                                                                                                                                |
-| handymanCapabilities                                                                      | **Audio generation** Not supported **Batch API** Supported **Caching** Supported **Code execution** Not Supported **Function calling** Not supported **Grounding with Google Maps** Not supported **Image generation** Supported **Live API** Not Supported **Search grounding** Not Supported **Structured outputs** Supported **Thinking** Not Supported **URL context** Not supported |
-| 123Versions                                                                               | Read the [model version patterns](https://ai.google.dev/gemini-api/docs/models/gemini#model-versions) for more details. - Preview: `gemini-2.0-flash-preview-image-generation` - gemini-2.0-flash-preview-image-generation is not currently supported in a number of countries in Europe, Middle East \& Africa                                                                          |
-| calendar_monthLatest update                                                               | May 2025                                                                                                                                                                                                                                                                                                                                                                                 |
-| cognition_2Knowledge cutoff                                                               | August 2024                                                                                                                                                                                                                                                                                                                                                                              |
-
-### Gemini 2.0 Flash Live
-
-|                                         Property                                          |                                                                                                                                                                                 Description                                                                                                                                                                                  |
-|-------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| id_cardModel code                                                                         | `gemini-2.0-flash-live-001` gemini-2.0-flash-live-001 will be deprecated on December 09, 2025                                                                                                                                                                                                                                                                                |
-| saveSupported data types                                                                  | **Inputs** Audio, video, and text **Output** Text, and audio                                                                                                                                                                                                                                                                                                                 |
-| token_autoToken limits^[\[\*\]](https://ai.google.dev/gemini-api/docs/models#token-size)^ | **Input token limit** 1,048,576 **Output token limit** 8,192                                                                                                                                                                                                                                                                                                                 |
-| handymanCapabilities                                                                      | **Audio generation** Supported **Batch API** Not supported **Caching** Not supported **Code execution** Supported **Function calling** Supported **Grounding with Google Maps** Not supported **Image generation** Not supported **Live API** Supported **Search grounding** Supported **Structured outputs** Supported **Thinking** Not supported **URL context** Supported |
-| 123Versions                                                                               | Read the [model version patterns](https://ai.google.dev/gemini-api/docs/models/gemini#model-versions) for more details. - Preview: `gemini-2.0-flash-live-001`                                                                                                                                                                                                               |
-| calendar_monthLatest update                                                               | April 2025                                                                                                                                                                                                                                                                                                                                                                   |
-| cognition_2Knowledge cutoff                                                               | August 2024                                                                                                                                                                                                                                                                                                                                                                  |
-
-OUR SECOND GENERATION FAST MODEL
-
-## Gemini 2.0 Flash-Lite
-
-
-Our second generation small workhorse model, with a 1 million token context window.
-
-### Expand to learn more
-
-A Gemini 2.0 Flash model optimized for cost efficiency and low latency.
-
-[Try in Google AI Studio](https://aistudio.google.com?model=gemini-2.0-flash-lite)
-
-#### Model details
-
-|                                         Property                                          |                                                                                                                                                                                       Description                                                                                                                                                                                        |
-|-------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| id_cardModel code                                                                         | `gemini-2.0-flash-lite`                                                                                                                                                                                                                                                                                                                                                                  |
-| saveSupported data types                                                                  | **Inputs** Audio, images, video, and text **Output** Text                                                                                                                                                                                                                                                                                                                                |
-| token_autoToken limits^[\[\*\]](https://ai.google.dev/gemini-api/docs/models#token-size)^ | **Input token limit** 1,048,576 **Output token limit** 8,192                                                                                                                                                                                                                                                                                                                             |
-| handymanCapabilities                                                                      | **Audio generation** Not supported **Batch API** Supported **Caching** Supported **Code execution** Not supported **Function calling** Supported **Grounding with Google Maps** Not supported **Image generation** Not supported **Live API** Not supported **Search grounding** Not supported **Structured outputs** Supported **Thinking** Not Supported **URL context** Not supported |
-| 123Versions                                                                               | Read the [model version patterns](https://ai.google.dev/gemini-api/docs/models/gemini#model-versions) for more details. - Latest: `gemini-2.0-flash-lite` - Stable: `gemini-2.0-flash-lite-001`                                                                                                                                                                                          |
-| calendar_monthLatest update                                                               | February 2025                                                                                                                                                                                                                                                                                                                                                                            |
-| cognition_2Knowledge cutoff                                                               | August 2024                                                                                                                                                                                                                                                                                                                                                                              |
-
-<br />
-
-## Model version name patterns
-
-Gemini models are available in either *stable* , *preview* , *latest* , or
-*experimental* versions.
-| **Note:** The following list refers to the model string naming convention as of September, 2025. Models released prior to that may have different naming conventions. Refer to the exact model string if you are using an older model.
-
-### Stable
-
-Points to a specific stable model. Stable models usually don't change. Most
-production apps should use a specific stable model.
-
-For example: `gemini-2.5-flash`.
-
-### Preview
-
-Points to a preview model which may be used for production. Preview model will
-typically have billing enabled, might come with more restrictive rate limits and
-will be deprecated with at least 2 weeks notice.
-
-For example: `gemini-2.5-flash-preview-09-2025`.
-
-### Latest
-
-Points to the latest release for a specific model variation. This can be a
-stable, preview or experimental release. This alias will get hot-swapped with
-every new release of a specific model variation. A **2-week notice** will
-be provided through email before the version behind latest is changed.
-
-For example: `gemini-flash-latest`.
-
-### Experimental
-
-Points to an experimental model which will typically be not be suitable for
-production use and come with more restrictive rate limits. We release
-experimental models to gather feedback and get our latest updates into the hands
-of developers quickly.
-
-Experimental models are not stable and availability of model endpoints is
-subject to change.
+-   [Google Gemini 官方模型文件](https://ai.google.dev/gemini-api/docs/models)
+-   [Gemini 圖像理解功能](./IMAGE_UNDERSTANDINGS.md)
+-   [Gemini 文件理解功能](./DOCUMENT_UNDERSTANDING.md)
+-   [Gemini 影片理解功能](./VIDEO_UNDERSTANDINGS.md)

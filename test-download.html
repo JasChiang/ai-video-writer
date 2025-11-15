@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>下載功能測試工具</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #dc2626;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            border-left: 4px solid #dc2626;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        button {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #b91c1c;
+        }
+        button.secondary {
+            background: #6b7280;
+        }
+        button.secondary:hover {
+            background: #4b5563;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .success {
+            background: #d1fae5;
+            border: 1px solid #10b981;
+            color: #065f46;
+        }
+        .error {
+            background: #fee2e2;
+            border: 1px solid #ef4444;
+            color: #991b1b;
+        }
+        .info {
+            background: #dbeafe;
+            border: 1px solid #3b82f6;
+            color: #1e40af;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .stat-box {
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 2px solid #dc2626;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #dc2626;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 下載功能測試工具</h1>
+        <p class="subtitle">測試 OAuth token、速率限制和帳號切換功能</p>
+
+        <!-- 統計資訊 -->
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-number" id="successCount">0</div>
+                <div class="stat-label">成功次數</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number" id="failCount">0</div>
+                <div class="stat-label">失敗次數</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number" id="rateLimitCount">0</div>
+                <div class="stat-label">速率限制觸發</div>
+            </div>
+        </div>
+
+        <!-- 測試 1: 單次下載 -->
+        <div class="test-section">
+            <h3>📤 測試 1: 單次下載請求</h3>
+            <label>伺服器 URL:</label>
+            <input type="text" id="serverUrl" value="http://localhost:3001" placeholder="http://localhost:3001">
+
+            <label>影片 ID:</label>
+            <input type="text" id="videoId" value="dQw4w9WgXcQ" placeholder="dQw4w9WgXcQ">
+
+            <label>Access Token (選填):</label>
+            <input type="text" id="accessToken" placeholder="留空表示未登入">
+
+            <button onclick="testSingleDownload()">🚀 發送請求</button>
+            <button class="secondary" onclick="clearResults()">🗑️ 清除結果</button>
+
+            <div id="singleResult"></div>
+        </div>
+
+        <!-- 測試 2: 批量測試 -->
+        <div class="test-section">
+            <h3>🔄 測試 2: 批量測試（速率限制）</h3>
+            <label>請求次數:</label>
+            <input type="number" id="batchCount" value="12" min="1" max="30">
+
+            <label>間隔時間（秒）:</label>
+            <input type="number" id="batchDelay" value="1" min="0" max="10" step="0.5">
+
+            <button onclick="testBatchDownload()">🔄 開始批量測試</button>
+            <button class="secondary" onclick="stopBatchTest()" id="stopBtn" disabled>⏹️ 停止</button>
+
+            <div id="batchResult"></div>
+        </div>
+
+        <!-- 測試 3: 檢查剩餘額度 -->
+        <div class="test-section">
+            <h3>📊 測試 3: 檢查剩餘額度</h3>
+            <p>發送一次請求來查看當前剩餘額度</p>
+            <button onclick="checkRemainingQuota()">🔍 檢查額度</button>
+
+            <div id="quotaResult"></div>
+        </div>
+    </div>
+
+    <script>
+        let successCount = 0;
+        let failCount = 0;
+        let rateLimitCount = 0;
+        let stopBatch = false;
+
+        function updateStats() {
+            document.getElementById('successCount').textContent = successCount;
+            document.getElementById('failCount').textContent = failCount;
+            document.getElementById('rateLimitCount').textContent = rateLimitCount;
+        }
+
+        function clearResults() {
+            document.getElementById('singleResult').innerHTML = '';
+            document.getElementById('batchResult').innerHTML = '';
+            document.getElementById('quotaResult').innerHTML = '';
+        }
+
+        async function testSingleDownload() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            const videoId = document.getElementById('videoId').value;
+            const accessToken = document.getElementById('accessToken').value;
+            const resultDiv = document.getElementById('singleResult');
+
+            resultDiv.innerHTML = '<div class="result info">⏳ 發送請求中...</div>';
+
+            try {
+                const response = await fetch(`${serverUrl}/api/download-video`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        videoId: videoId,
+                        accessToken: accessToken || undefined,
+                    }),
+                });
+
+                const data = await response.json();
+                const timestamp = new Date().toLocaleTimeString('zh-TW');
+
+                if (response.ok) {
+                    successCount++;
+                    updateStats();
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+                            ✅ 成功 (${response.status}) - ${timestamp}
+                            ${JSON.stringify(data, null, 2)}
+                        </div>
+                    `;
+                } else if (response.status === 429) {
+                    rateLimitCount++;
+                    updateStats();
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+                            ⚠️ 速率限制觸發 (${response.status}) - ${timestamp}
+                            訊息: ${data.message}
+                            等待時間: ${data.waitMinutes} 分鐘
+                            限制類型: ${data.limitType}
+                        </div>
+                    `;
+                } else {
+                    failCount++;
+                    updateStats();
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+                            ❌ 失敗 (${response.status}) - ${timestamp}
+                            ${JSON.stringify(data, null, 2)}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                failCount++;
+                updateStats();
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        ❌ 網路錯誤: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testBatchDownload() {
+            const count = parseInt(document.getElementById('batchCount').value);
+            const delay = parseFloat(document.getElementById('batchDelay').value) * 1000;
+            const serverUrl = document.getElementById('serverUrl').value;
+            const videoId = document.getElementById('videoId').value;
+            const accessToken = document.getElementById('accessToken').value;
+            const resultDiv = document.getElementById('batchResult');
+
+            stopBatch = false;
+            document.getElementById('stopBtn').disabled = false;
+
+            resultDiv.innerHTML = '<div class="result info">🔄 開始批量測試...</div>';
+
+            for (let i = 1; i <= count; i++) {
+                if (stopBatch) {
+                    resultDiv.innerHTML += `\n⏹️ 測試已停止於第 ${i-1} 次請求`;
+                    break;
+                }
+
+                try {
+                    const response = await fetch(`${serverUrl}/api/download-video`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            videoId: videoId,
+                            accessToken: accessToken || undefined,
+                        }),
+                    });
+
+                    const data = await response.json();
+                    const timestamp = new Date().toLocaleTimeString('zh-TW');
+                    let emoji = '';
+                    let className = '';
+
+                    if (response.ok) {
+                        successCount++;
+                        emoji = '✅';
+                        className = 'success';
+                    } else if (response.status === 429) {
+                        rateLimitCount++;
+                        emoji = '⚠️';
+                        className = 'error';
+                        resultDiv.innerHTML = `
+                            <div class="result ${className}">
+                                批量測試結果 (共 ${i} 次請求):
+                                ${emoji} 第 ${i} 次: HTTP ${response.status} - ${timestamp}
+                                ⚠️ 速率限制觸發！
+                                訊息: ${data.message}
+                                限制類型: ${data.limitType}
+
+                                📊 統計:
+                                - 成功: ${successCount}
+                                - 失敗: ${failCount}
+                                - 速率限制: ${rateLimitCount}
+                            </div>
+                        `;
+                        updateStats();
+                        break;
+                    } else {
+                        failCount++;
+                        emoji = '❌';
+                        className = 'error';
+                    }
+
+                    updateStats();
+
+                    resultDiv.innerHTML = `
+                        <div class="result ${className}">
+                            批量測試進度: ${i} / ${count}
+                            ${emoji} 第 ${i} 次: HTTP ${response.status} - ${timestamp}
+
+                            📊 目前統計:
+                            - 成功: ${successCount}
+                            - 失敗: ${failCount}
+                            - 速率限制: ${rateLimitCount}
+                        </div>
+                    `;
+
+                    if (i < count) {
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    }
+                } catch (error) {
+                    failCount++;
+                    updateStats();
+                    resultDiv.innerHTML += `\n❌ 第 ${i} 次失敗: ${error.message}`;
+                }
+            }
+
+            document.getElementById('stopBtn').disabled = true;
+        }
+
+        function stopBatchTest() {
+            stopBatch = true;
+            document.getElementById('stopBtn').disabled = true;
+        }
+
+        async function checkRemainingQuota() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            const videoId = document.getElementById('videoId').value;
+            const accessToken = document.getElementById('accessToken').value;
+            const resultDiv = document.getElementById('quotaResult');
+
+            resultDiv.innerHTML = '<div class="result info">🔍 檢查額度中...</div>';
+
+            try {
+                const response = await fetch(`${serverUrl}/api/download-video`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        videoId: videoId,
+                        accessToken: accessToken || undefined,
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (response.status === 429) {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+                            ⚠️ 已達速率限制
+                            訊息: ${data.message}
+                            等待時間: ${data.waitMinutes} 分鐘
+                            限制類型: ${data.limitType}
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+                            ✅ 額度檢查完成
+                            狀態: 可以繼續使用
+
+                            💡 提示: 查看伺服器日誌以了解剩餘次數
+                            例如: "Token: X remaining, IP: Y remaining"
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        ❌ 錯誤: ${error.message}
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

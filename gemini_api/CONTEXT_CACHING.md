@@ -1,264 +1,76 @@
-Python JavaScript Go REST
-
-In a typical AI workflow, you might pass the same input tokens over and over to
-a model. The Gemini API offers two different caching mechanisms:
-
-- Implicit caching (automatically enabled on Gemini 2.5 models, no cost saving guarantee)
-- Explicit caching (can be manually enabled on most models, cost saving guarantee)
-
-Explicit caching is useful in cases where you want to guarantee cost savings,
-but with some added developer work.
-
-## Implicit caching
-
-Implicit caching is enabled by default for all Gemini 2.5 models. We automatically
-pass on cost savings if your request hits caches. There is nothing you need to do
-in order to enable this. It is effective as of May 8th, 2025. The minimum input
-token count for context caching is 1,024 for 2.5 Flash and 4,096 for 2.5 Pro.
-
-To increase the chance of an implicit cache hit:
-
-- Try putting large and common contents at the beginning of your prompt
-- Try to send requests with similar prefix in a short amount of time
-
-You can see the number of tokens which were cache hits in the response object's
-`usage_metadata` field.
-
-## Explicit caching
+# 🧠 Gemini 上下文快取功能
 
-Using the Gemini API explicit caching feature, you can pass some content
-to the model once, cache the input tokens, and then refer to the cached tokens
-for subsequent requests. At certain volumes, using cached tokens is lower cost
-than passing in the same corpus of tokens repeatedly.
+本文件介紹 Google Gemini API 的上下文快取 (Context Caching) 功能，並探討其在 AI Video Writer 專案中提升效率和降低成本的潛在應用。
 
-When you cache a set of tokens, you can choose how long you want the cache to
-exist before the tokens are automatically deleted. This caching duration is
-called the *time to live* (TTL). If not set, the TTL defaults to 1 hour. The
-cost for caching depends on the input token size and how long you want the
-tokens to persist.
+## 💡 什麼是上下文快取？
 
-This section assumes that you've installed a Gemini SDK (or have curl installed)
-and that you've configured an API key, as shown in the
-[quickstart](https://ai.google.dev/gemini-api/docs/quickstart).
+在與 AI 模型互動時，我們經常需要重複傳遞相同的輸入內容（例如，冗長的系統指令、大型參考文件或影片）。上下文快取允許您將這些重複的輸入 Token 儲存起來，並在後續請求中引用，而無需每次都重新傳遞完整的內容。
 
-### Generate content using a cache
+Gemini API 提供兩種快取機制：
 
-The following example shows how to generate content using a cached system
-instruction and video file.  
-
-### Videos
-
-    import os
-    import pathlib
-    import requests
-    import time
-
-    from google import genai
-    from google.genai import types
-
-    client = genai.Client()
-
-    # Download video file
-    url = 'https://storage.googleapis.com/generativeai-downloads/data/SherlockJr._10min.mp4'
-    path_to_video_file = pathlib.Path('SherlockJr._10min.mp4')
-    if not path_to_video_file.exists():
-      with path_to_video_file.open('wb') as wf:
-        response = requests.get(url, stream=True)
-        for chunk in response.iter_content(chunk_size=32768):
-          wf.write(chunk)
+1.  **隱式快取 (Implicit Caching)**：
+    -   Gemini 2.5 模型預設啟用。
+    -   如果您的請求命中快取，Google 會自動提供成本節省。
+    -   無需額外開發工作即可受益。
+    -   為了增加命中率，建議將大型且常見的內容放在提示詞的開頭。
 
-    # Upload the video using the Files API
-    video_file = client.files.upload(file=path_to_video_file)
-
-    # Wait for the file to finish processing
-    while video_file.state.name == 'PROCESSING':
-      print('Waiting for video to be processed.')
-      time.sleep(2)
-      video_file = client.files.get(name=video_file.name)
+2.  **顯式快取 (Explicit Caching)**：
+    -   需要手動啟用，但能保證成本節省。
+    -   您可以將內容傳遞給模型一次，快取輸入 Token，然後在後續請求中引用這些快取 Token。
+    -   可以設定快取的存活時間 (TTL)，過期後自動刪除。
 
-    print(f'Video processing complete: {video_file.uri}')
+## 🚀 上下文快取的優勢
 
-    # You must use an explicit version suffix: "-flash-001", not just "-flash".
-    model='models/gemini-2.0-flash-001'
+-   **降低成本**：對於重複使用的內容，快取 Token 的成本通常低於每次都傳遞完整的 Token。
+-   **減少延遲**：模型處理快取內容的速度可能比處理完整內容更快。
+-   **提高一致性**：確保重複使用的上下文始終保持一致。
 
-    # Create a cache with a 5 minute TTL
-    cache = client.caches.create(
-        model=model,
-        config=types.CreateCachedContentConfig(
-          display_name='sherlock jr movie', # used to identify the cache
-          system_instruction=(
-              'You are an expert video analyzer, and your job is to answer '
-              'the user\'s query based on the video file you have access to.'
-          ),
-          contents=[video_file],
-          ttl="300s",
-      )
-    )
+## AI Video Writer 中的潛在應用
 
-    # Construct a GenerativeModel which uses the created cache.
-    response = client.models.generate_content(
-      model = model,
-      contents= (
-        'Introduce different characters in the movie by describing '
-        'their personality, looks, and names. Also list the timestamps '
-        'they were introduced for the first time.'),
-      config=types.GenerateContentConfig(cached_content=cache.name)
-    )
+AI Video Writer 專案涉及對影片和文件的分析，這些操作通常會包含大量重複的上下文（例如，影片的轉錄稿、用戶上傳的參考文件、固定的系統指令）。上下文快取功能可以應用於以下場景：
 
-    print(response.usage_metadata)
+-   **重複分析大型影片或文件**：如果用戶多次請求分析同一部影片或文件，可以快取其內容，減少每次請求的 Token 成本和處理時間。
+-   **複雜的系統指令**：對於文章生成或中繼資料生成中使用的冗長且固定的系統指令，可以將其快取，提高效率。
+-   **長期對話或多輪互動**：如果未來專案擴展到支援多輪對話，快取歷史對話上下文將非常有用。
 
-    # The output should look something like this:
-    #
-    # prompt_token_count: 696219
-    # cached_content_token_count: 696190
-    # candidates_token_count: 214
-    # total_token_count: 696433
+## 顯式快取的使用方式 (概念性範例)
 
-    print(response.text)
+雖然 AI Video Writer 目前的實作可能尚未直接使用顯式快取，但其概念如下：
 
-### PDFs
+1.  **創建快取**：將需要重複使用的內容（例如一個影片檔案或一段系統指令）上傳並創建一個快取物件，並設定其存活時間 (TTL)。
+    ```typescript
+    // 概念性程式碼
+    const cache = await ai.caches.create({
+      model: "gemini-2.5-flash",
+      config: {
+        displayName: "my-video-analysis-context",
+        systemInstruction: "你是一位專業的影片分析師...",
+        contents: [videoFile], // 引用已上傳的影片檔案
+        ttl: "3600s", // 快取存活 1 小時
+      },
+    });
+    ```
+2.  **使用快取生成內容**：在後續的 `generateContent` 請求中，直接引用快取物件的名稱。
+    ```typescript
+    // 概念性程式碼
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: "請總結這部影片的重點。",
+      config: {
+        cachedContent: cache.name, // 引用快取
+      },
+    });
+    ```
 
-    from google import genai
-    from google.genai import types
-    import io
-    import httpx
+## 限制與考量
 
-    client = genai.Client()
+-   **Token 門檻**：隱式快取和顯式快取都有最低 Token 數量的要求（例如 Gemini 2.5 Flash 為 1,024 Token）。
+-   **成本模型**：快取 Token 數和儲存時間 (TTL) 都會產生費用，但通常會比重複傳遞完整內容更經濟。
+-   **管理**：需要管理快取的生命週期（創建、更新、刪除）。
 
-    long_context_pdf_path = "https://www.nasa.gov/wp-content/uploads/static/history/alsj/a17/A17_FlightPlan.pdf"
+---
 
-    # Retrieve and upload the PDF using the File API
-    doc_io = io.BytesIO(httpx.get(long_context_pdf_path).content)
+## 📚 相關文件
 
-    document = client.files.upload(
-      file=doc_io,
-      config=dict(mime_type='application/pdf')
-    )
-
-    model_name = "gemini-2.0-flash-001"
-    system_instruction = "You are an expert analyzing transcripts."
-
-    # Create a cached content object
-    cache = client.caches.create(
-        model=model_name,
-        config=types.CreateCachedContentConfig(
-          system_instruction=system_instruction,
-          contents=[document],
-        )
-    )
-
-    # Display the cache details
-    print(f'{cache=}')
-
-    # Generate content using the cached prompt and document
-    response = client.models.generate_content(
-      model=model_name,
-      contents="Please summarize this transcript",
-      config=types.GenerateContentConfig(
-        cached_content=cache.name
-      ))
-
-    # (Optional) Print usage metadata for insights into the API call
-    print(f'{response.usage_metadata=}')
-
-    # Print the generated text
-    print('\n\n', response.text)
-
-### List caches
-
-It's not possible to retrieve or view cached content, but you can retrieve
-cache metadata (`name`, `model`, `display_name`, `usage_metadata`,
-`create_time`, `update_time`, and `expire_time`).
-
-To list metadata for all uploaded caches, use `CachedContent.list()`:  
-
-    for cache in client.caches.list():
-      print(cache)
-
-To fetch the metadata for one cache object, if you know its name, use `get`:  
-
-    client.caches.get(name=name)
-
-### Update a cache
-
-You can set a new `ttl` or `expire_time` for a cache. Changing anything else
-about the cache isn't supported.
-
-The following example shows how to update the `ttl` of a cache using
-`client.caches.update()`.  
-
-    from google import genai
-    from google.genai import types
-
-    client.caches.update(
-      name = cache.name,
-      config  = types.UpdateCachedContentConfig(
-          ttl='300s'
-      )
-    )
-
-To set the expiry time, it will accepts either a `datetime` object
-or an ISO-formatted datetime string (`dt.isoformat()`, like
-`2025-01-27T16:02:36.473528+00:00`). Your time must include a time zone
-(`datetime.utcnow()` doesn't attach a time zone,
-`datetime.now(datetime.timezone.utc)` does attach a time zone).  
-
-    from google import genai
-    from google.genai import types
-    import datetime
-
-    # You must use a time zone-aware time.
-    in10min = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)
-
-    client.caches.update(
-      name = cache.name,
-      config  = types.UpdateCachedContentConfig(
-          expire_time=in10min
-      )
-    )
-
-### Delete a cache
-
-The caching service provides a delete operation for manually removing content
-from the cache. The following example shows how to delete a cache:  
-
-    client.caches.delete(cache.name)
-
-### Explicit caching using the OpenAI library
-
-If you're using an [OpenAI library](https://ai.google.dev/gemini-api/docs/openai), you can enable
-explicit caching using the `cached_content` property on
-[`extra_body`](https://ai.google.dev/gemini-api/docs/openai#extra-body).
-
-## When to use explicit caching
-
-Context caching is particularly well suited to scenarios where a substantial
-initial context is referenced repeatedly by shorter requests. Consider using
-context caching for use cases such as:
-
-- Chatbots with extensive [system instructions](https://ai.google.dev/gemini-api/docs/system-instructions)
-- Repetitive analysis of lengthy video files
-- Recurring queries against large document sets
-- Frequent code repository analysis or bug fixing
-
-### How explicit caching reduces costs
-
-Context caching is a paid feature designed to reduce overall operational costs.
-Billing is based on the following factors:
-
-1. **Cache token count:** The number of input tokens cached, billed at a reduced rate when included in subsequent prompts.
-2. **Storage duration:** The amount of time cached tokens are stored (TTL), billed based on the TTL duration of cached token count. There are no minimum or maximum bounds on the TTL.
-3. **Other factors:** Other charges apply, such as for non-cached input tokens and output tokens.
-
-For up-to-date pricing details, refer to the Gemini API [pricing
-page](https://ai.google.dev/pricing). To learn how to count tokens, see the [Token
-guide](https://ai.google.dev/gemini-api/docs/tokens).
-
-### Additional considerations
-
-Keep the following considerations in mind when using context caching:
-
-- The *minimum* input token count for context caching is 1,024 for 2.5 Flash and 2,048 for 2.5 Pro. The *maximum* is the same as the maximum for the given model. (For more on counting tokens, see the [Token guide](https://ai.google.dev/gemini-api/docs/tokens)).
-- The model doesn't make any distinction between cached tokens and regular input tokens. Cached content is a prefix to the prompt.
-- There are no special rate or usage limits on context caching; the standard rate limits for `GenerateContent` apply, and token limits include cached tokens.
-- The number of cached tokens is returned in the `usage_metadata` from the create, get, and list operations of the cache service, and also in `GenerateContent` when using the cache.
+-   [Google Gemini 官方上下文快取文件](https://ai.google.dev/gemini-api/docs/context-caching)
+-   [Gemini Files API 說明](./FILES_API.md)

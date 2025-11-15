@@ -8,6 +8,10 @@ import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { generateFullPrompt } from './services/promptService.js';
 import { generateArticlePrompt } from './services/articlePromptService.js';
+import { AIModelManager } from './services/aiProviders/AIModelManager.js';
+import { PromptTemplates } from './services/analysisPrompts/PromptTemplates.js';
+import { aggregateChannelData, clearAnalyticsCache } from './services/channelAnalyticsService.js';
+import { searchVideosFromCache } from './services/videoCacheService.js';
 
 // 載入 .env.local 檔案
 dotenv.config({ path: '.env.local' });
@@ -27,6 +31,10 @@ if (!process.env.GEMINI_API_KEY) {
 }
 
 console.log('✅ Gemini API Key loaded successfully');
+
+// 初始化 AI 模型管理器
+const aiManager = new AIModelManager();
+console.log('✅ AI Model Manager initialized');
 
 app.use(cors());
 app.use(express.json());
@@ -1294,6 +1302,503 @@ app.delete('/api/cleanup/:videoId', (req, res) => {
   } catch (error) {
     console.error('Cleanup error:', error);
     res.status(500).json({ error: 'Cleanup failed' });
+  }
+});
+
+// ==================== AI 頻道分析 API ====================
+
+/**
+ * 獲取可用的 AI 模型列表
+ * GET /api/ai-models/available
+ */
+app.get('/api/ai-models/available', async (req, res) => {
+  try {
+    const models = aiManager.getAvailableModels();
+
+    res.json({
+      success: true,
+      models,
+      count: models.length,
+    });
+  } catch (error) {
+    console.error('[AI Models] 獲取模型列表失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: '獲取模型列表失敗',
+      details: error.message,
+    });
+  }
+});
+
+/**
+ * 檢查特定模型狀態
+ * GET /api/ai-models/:modelId/status
+ */
+app.get('/api/ai-models/:modelId/status', async (req, res) => {
+  try {
+    const { modelId } = req.params;
+    const status = await aiManager.getModelStatus(modelId);
+
+    res.json({
+      success: true,
+      modelId,
+      status,
+    });
+  } catch (error) {
+    console.error('[AI Models] 檢查模型狀態失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: '檢查模型狀態失敗',
+      details: error.message,
+    });
+  }
+});
+
+/**
+ * 獲取推薦模型
+ * GET /api/ai-models/recommend?analysisType=subscriber-growth
+ */
+app.get('/api/ai-models/recommend', (req, res) => {
+  try {
+    const { analysisType } = req.query;
+
+    if (!analysisType) {
+      return res.status(400).json({
+        success: false,
+        error: '缺少 analysisType 參數',
+      });
+    }
+
+    const recommendedModel = aiManager.getRecommendedModel(analysisType);
+
+    if (!recommendedModel) {
+      return res.status(404).json({
+        success: false,
+        error: '沒有可用的推薦模型',
+        suggestion: '請檢查 API Key 配置',
+      });
+    }
+
+    res.json({
+      success: true,
+      analysisType,
+      recommendedModel,
+    });
+  } catch (error) {
+    console.error('[AI Models] 獲取推薦模型失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: '獲取推薦模型失敗',
+      details: error.message,
+    });
+  }
+});
+
+/**
+ * AI 頻道分析（支援多模型、多分析類型）
+ * POST /api/analyze-channel
+ */
+app.post('/api/analyze-channel', async (req, res) => {
+  const {
+    startDate,
+    endDate,
+    channelId,
+    videos,
+    channelStats,
+    analytics,
+    modelType = 'gemini-2.5-flash', // 默認使用 Gemini Flash
+    analysisType = 'comprehensive', // 默認使用綜合分析
+  } = req.body;
+
+  // 驗證輸入
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: 'Missing startDate or endDate' });
+  }
+
+  if (!videos || !Array.isArray(videos)) {
+    return res.status(400).json({ error: 'Missing or invalid videos array' });
+  }
+
+  try {
+    console.log(`\n========== 📊 開始分析頻道表現 ==========`);
+    console.log(`[Channel Analysis] 模型: ${modelType}`);
+    console.log(`[Channel Analysis] 分析類型: ${analysisType}`);
+    console.log(`[Channel Analysis] 日期範圍: ${startDate} ~ ${endDate}`);
+    console.log(`[Channel Analysis] 影片數量: ${videos.length}`);
+
+    // 生成分析 Prompt
+    const prompt = PromptTemplates.generatePrompt({
+      type: analysisType,
+      dateRange: { startDate, endDate },
+      channelStats,
+      videos,
+      analytics,
+    });
+
+    console.log('[Channel Analysis] 📤 發送請求到 AI 模型...');
+
+    // 使用 AI 模型管理器進行分析
+    const response = await aiManager.analyze(modelType, {
+      prompt,
+      temperature: 0.7,
+      maxTokens: 4096,
+    });
+
+    console.log('[Channel Analysis] ✅ 分析完成');
+    console.log(`[Channel Analysis] 模型: ${response.model}`);
+    console.log(`[Channel Analysis] 提供者: ${response.provider}`);
+    console.log(
+      `[Channel Analysis] Token 使用: ${response.usage?.totalTokens || 'N/A'}`
+    );
+    if (response.cost) {
+      console.log(`[Channel Analysis] 成本: $${response.cost.toFixed(6)}`);
+    }
+    console.log(`[Channel Analysis] 結果長度: ${response.text.length} 字元`);
+
+    res.json({
+      success: true,
+      analysis: response.text,
+      metadata: {
+        model: response.model,
+        provider: response.provider,
+        analysisType,
+        usage: response.usage,
+        cost: response.cost,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('[Channel Analysis] ❌ 分析失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: '頻道分析失敗',
+      details: error.message,
+    });
+  }
+});
+
+/**
+ * 多模型協同分析
+ * POST /api/analyze-channel/multi-model
+ */
+app.post('/api/analyze-channel/multi-model', async (req, res) => {
+  const {
+    startDate,
+    endDate,
+    channelId,
+    videos,
+    channelStats,
+    analytics,
+    models, // 用戶指定的模型列表
+  } = req.body;
+
+  try {
+    console.log(`\n========== 📊 開始多模型協同分析 ==========`);
+
+    // 如果沒有指定模型，使用所有可用模型
+    let modelsToUse = models;
+    if (!modelsToUse || modelsToUse.length === 0) {
+      const availableModels = aiManager.getAvailableModels();
+      modelsToUse = availableModels.map((m) => m.id);
+    }
+
+    console.log(`[Multi-Model Analysis] 使用模型: ${modelsToUse.join(', ')}`);
+
+    // 並行執行多個模型分析
+    const analysisPromises = modelsToUse.map(async (modelType) => {
+      try {
+        const prompt = PromptTemplates.generatePrompt({
+          type: 'comprehensive',
+          dateRange: { startDate, endDate },
+          channelStats,
+          videos,
+          analytics,
+        });
+
+        const response = await aiManager.analyze(modelType, {
+          prompt,
+          temperature: 0.7,
+          maxTokens: 4096,
+        });
+
+        return {
+          model: response.model,
+          provider: response.provider,
+          analysis: response.text,
+          usage: response.usage,
+          cost: response.cost,
+          success: true,
+        };
+      } catch (error) {
+        console.error(`[Multi-Model Analysis] ${modelType} 分析失敗:`, error);
+        return {
+          model: modelType,
+          error: error.message,
+          success: false,
+        };
+      }
+    });
+
+    const results = await Promise.all(analysisPromises);
+
+    const successCount = results.filter((r) => r.success).length;
+    const totalCost = results.reduce((sum, r) => sum + (r.cost || 0), 0);
+
+    console.log('[Multi-Model Analysis] ✅ 分析完成');
+    console.log(`[Multi-Model Analysis] 成功: ${successCount}/${results.length}`);
+    if (totalCost > 0) {
+      console.log(`[Multi-Model Analysis] 總成本: $${totalCost.toFixed(6)}`);
+    }
+
+    res.json({
+      success: true,
+      results,
+      summary: {
+        total: results.length,
+        successful: successCount,
+        failed: results.length - successCount,
+        totalCost,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[Multi-Model Analysis] ❌ 分析失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: '多模型分析失敗',
+      details: error.message,
+    });
+  }
+});
+
+/**
+ * AI 關鍵字報表分析（支援多模型）
+ * POST /api/analyze-keywords
+ */
+app.post('/api/analyze-keywords', async (req, res) => {
+  const {
+    keywordGroups,      // 關鍵字組合列表
+    dateColumns,        // 日期列列表
+    analyticsData,      // 分析數據（{ groupId: { columnId: { views, likes, ... } } }）
+    selectedMetrics,    // 選中的指標
+    modelType = 'gemini-2.5-flash', // 使用的模型
+  } = req.body;
+
+  try {
+    console.log(`\n========== 🔍 開始關鍵字報表分析 ==========`);
+    console.log(`[Keyword Analysis] 模型: ${modelType}`);
+    console.log(`[Keyword Analysis] 關鍵字組合數: ${keywordGroups?.length || 0}`);
+    console.log(`[Keyword Analysis] 日期列數: ${dateColumns?.length || 0}`);
+
+    // 驗證必要參數
+    if (!keywordGroups || keywordGroups.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: '請提供至少一個關鍵字組合',
+      });
+    }
+
+    if (!dateColumns || dateColumns.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: '請提供至少一個日期範圍',
+      });
+    }
+
+    if (!analyticsData) {
+      return res.status(400).json({
+        success: false,
+        error: '請提供分析數據',
+      });
+    }
+
+    // 生成關鍵字分析 Prompt
+    const prompt = PromptTemplates.buildKeywordAnalysisPrompt({
+      keywordGroups,
+      dateColumns,
+      analyticsData,
+      selectedMetrics: selectedMetrics || ['views', 'likes', 'comments'],
+    });
+
+    console.log('[Keyword Analysis] 📤 發送請求到 AI 模型...');
+
+    // 調用 AI 模型分析
+    const response = await aiManager.analyze(modelType, {
+      prompt,
+      temperature: 0.7,
+      maxTokens: 4096,
+    });
+
+    console.log('[Keyword Analysis] ✅ 分析完成');
+    console.log(`[Keyword Analysis] 模型: ${response.model}`);
+    console.log(`[Keyword Analysis] 提供者: ${response.provider}`);
+    if (response.usage) {
+      console.log(`[Keyword Analysis] Token 使用: ${response.usage.totalTokens || 'N/A'}`);
+    }
+    if (response.cost) {
+      console.log(`[Keyword Analysis] 成本: $${response.cost.toFixed(6)}`);
+    }
+    console.log(`[Keyword Analysis] 結果長度: ${response.text?.length || 0} 字元`);
+
+    res.json({
+      success: true,
+      analysis: response.text,
+      metadata: {
+        model: response.model,
+        provider: response.provider,
+        usage: response.usage,
+        cost: response.cost,
+        keywordGroupCount: keywordGroups.length,
+        dateColumnCount: dateColumns.length,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('[Keyword Analysis] ❌ 分析失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: '關鍵字分析失敗',
+      details: error.message,
+    });
+  }
+});
+
+/**
+ * 頻道數據聚合（支援關鍵字過濾和多個日期範圍）
+ * POST /api/channel-analytics/aggregate
+ */
+app.post('/api/channel-analytics/aggregate', async (req, res) => {
+  try {
+    const { accessToken, channelId, keywordGroups, dateRanges } = req.body;
+
+    // 驗證參數
+    if (!accessToken) {
+      return res.status(400).json({ error: '缺少 accessToken' });
+    }
+
+    if (!channelId) {
+      return res.status(400).json({ error: '缺少 channelId' });
+    }
+
+    if (!keywordGroups || !Array.isArray(keywordGroups) || keywordGroups.length === 0) {
+      return res.status(400).json({ error: '缺少 keywordGroups 或格式錯誤' });
+    }
+
+    if (!dateRanges || !Array.isArray(dateRanges) || dateRanges.length === 0) {
+      return res.status(400).json({ error: '缺少 dateRanges 或格式錯誤' });
+    }
+
+    // 驗證 keywordGroups 格式
+    for (const group of keywordGroups) {
+      if (!group.name || typeof group.name !== 'string') {
+        return res.status(400).json({ error: 'keywordGroups 中的 name 必須為字符串' });
+      }
+      if (typeof group.keyword !== 'string') {
+        return res.status(400).json({ error: 'keywordGroups 中的 keyword 必須為字符串' });
+      }
+    }
+
+    // 驗證 dateRanges 格式
+    for (const range of dateRanges) {
+      if (!range.label || typeof range.label !== 'string') {
+        return res.status(400).json({ error: 'dateRanges 中的 label 必須為字符串' });
+      }
+      if (!range.startDate || typeof range.startDate !== 'string') {
+        return res.status(400).json({ error: 'dateRanges 中的 startDate 必須為字符串 (YYYY-MM-DD)' });
+      }
+      if (!range.endDate || typeof range.endDate !== 'string') {
+        return res.status(400).json({ error: 'dateRanges 中的 endDate 必須為字符串 (YYYY-MM-DD)' });
+      }
+    }
+
+    console.log('\n========== 📊 開始聚合頻道數據 ==========');
+    console.log(`[Channel Analytics] 頻道 ID: ${channelId}`);
+    console.log(`[Channel Analytics] 關鍵字組合數: ${keywordGroups.length}`);
+    console.log(`[Channel Analytics] 日期範圍數: ${dateRanges.length}`);
+
+    const result = await aggregateChannelData(
+      accessToken,
+      channelId,
+      keywordGroups,
+      dateRanges
+    );
+
+    console.log('[Channel Analytics] ✅ 數據聚合完成');
+    res.json(result);
+  } catch (error) {
+    console.error('[Channel Analytics] ❌ 數據聚合失敗:', error);
+    res.status(500).json({
+      error: error.message || '數據聚合失敗',
+      details: error.toString(),
+    });
+  }
+});
+
+/**
+ * 清除數據聚合快取
+ * POST /api/channel-analytics/clear-cache
+ */
+app.post('/api/channel-analytics/clear-cache', (_req, res) => {
+  try {
+    const result = clearAnalyticsCache();
+    res.json({
+      success: true,
+      message: `已清除 ${result.cleared} 筆快取`,
+      cleared: result.cleared,
+    });
+  } catch (error) {
+    console.error('[Channel Analytics] ❌ 清除快取失敗:', error);
+    res.status(500).json({
+      error: error.message || '清除快取失敗',
+    });
+  }
+});
+
+/**
+ * 影片快取搜尋 API
+ * GET /api/video-cache/search
+ * Query params: query, maxResults
+ */
+app.get('/api/video-cache/search', async (req, res) => {
+  try {
+    const { query, maxResults = 10000 } = req.query;
+    const gistId = process.env.GITHUB_GIST_ID;
+    const gistToken = process.env.GITHUB_GIST_TOKEN || null;
+
+    console.log('[API] 🔍 收到快取搜尋請求');
+    console.log(`[API] 🆔 Gist ID: ${gistId || '(未設定)'}`);
+    console.log(`[API] 🔑 搜尋關鍵字: ${query || '(無)'}`);
+    console.log(`[API] 📊 最大結果數: ${maxResults}`);
+
+    if (!gistId) {
+      console.log('[API] ❌ 缺少 GITHUB_GIST_ID 環境變數');
+      return res.status(400).json({
+        error: '缺少 GITHUB_GIST_ID 環境變數',
+        videos: [],
+      });
+    }
+
+    const videos = await searchVideosFromCache(
+      gistId,
+      query || '',
+      parseInt(maxResults) || 10000,
+      gistToken
+    );
+
+    console.log(`[API] ✅ 搜尋完成，返回 ${videos.length} 筆結果`);
+
+    res.json({
+      success: true,
+      query: query || '',
+      totalResults: videos.length,
+      videos: videos,
+    });
+  } catch (error) {
+    console.error('[API] ❌ 快取搜尋錯誤:', error.message);
+    res.status(500).json({
+      error: error.message || '搜尋影片快取失敗',
+      videos: [],
+    });
   }
 });
 
