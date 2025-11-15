@@ -695,6 +695,11 @@ export function ChannelDashboard() {
       const allVideos = Object.values(cache);
 
       // 匹配影片詳情
+      console.log('[Dashboard] 🔍 快取中的影片數量:', allVideos.length);
+      if (allVideos.length > 0) {
+        console.log('[Dashboard] 🔍 快取影片範例:', allVideos[0]);
+      }
+
       const topVideosWithDetails = analyticsRows.slice(0, 10).map((row: any[]) => {
         const videoId = row[0];
         const views = parseInt(row[1]) || 0;
@@ -702,6 +707,10 @@ export function ChannelDashboard() {
         const shares = parseInt(row[3]) || 0;
         const comments = parseInt(row[4]) || 0;
         const video = allVideos.find((v: any) => v.videoId === videoId || v.id === videoId);
+
+        if (!video) {
+          console.warn('[Dashboard] ⚠️ 找不到影片資料:', videoId);
+        }
 
         return {
           id: videoId,

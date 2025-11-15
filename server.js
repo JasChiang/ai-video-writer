@@ -11,6 +11,7 @@ import { generateArticlePrompt } from './services/articlePromptService.js';
 import { AIModelManager } from './services/aiProviders/AIModelManager.js';
 import { PromptTemplates } from './services/analysisPrompts/PromptTemplates.js';
 import { aggregateChannelData, clearAnalyticsCache } from './services/channelAnalyticsService.js';
+import { searchVideosFromCache } from './services/videoCacheService.js';
 
 // 載入 .env.local 檔案
 dotenv.config({ path: '.env.local' });
@@ -1749,6 +1750,54 @@ app.post('/api/channel-analytics/clear-cache', (_req, res) => {
     console.error('[Channel Analytics] ❌ 清除快取失敗:', error);
     res.status(500).json({
       error: error.message || '清除快取失敗',
+    });
+  }
+});
+
+/**
+ * 影片快取搜尋 API
+ * GET /api/video-cache/search
+ * Query params: query, maxResults
+ */
+app.get('/api/video-cache/search', async (req, res) => {
+  try {
+    const { query, maxResults = 10000 } = req.query;
+    const gistId = process.env.GITHUB_GIST_ID;
+    const gistToken = process.env.GITHUB_GIST_TOKEN || null;
+
+    console.log('[API] 🔍 收到快取搜尋請求');
+    console.log(`[API] 🆔 Gist ID: ${gistId || '(未設定)'}`);
+    console.log(`[API] 🔑 搜尋關鍵字: ${query || '(無)'}`);
+    console.log(`[API] 📊 最大結果數: ${maxResults}`);
+
+    if (!gistId) {
+      console.log('[API] ❌ 缺少 GITHUB_GIST_ID 環境變數');
+      return res.status(400).json({
+        error: '缺少 GITHUB_GIST_ID 環境變數',
+        videos: [],
+      });
+    }
+
+    const videos = await searchVideosFromCache(
+      gistId,
+      query || '',
+      parseInt(maxResults) || 10000,
+      gistToken
+    );
+
+    console.log(`[API] ✅ 搜尋完成，返回 ${videos.length} 筆結果`);
+
+    res.json({
+      success: true,
+      query: query || '',
+      totalResults: videos.length,
+      videos: videos,
+    });
+  } catch (error) {
+    console.error('[API] ❌ 快取搜尋錯誤:', error.message);
+    res.status(500).json({
+      error: error.message || '搜尋影片快取失敗',
+      videos: [],
     });
   }
 });
