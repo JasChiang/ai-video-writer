@@ -2546,8 +2546,12 @@ export function ChannelDashboard() {
             }))}
             channelStats={{
               totalViews: channelStats.totalViews,
-              subscriberCount: channelStats.totalSubscribers,
+              totalSubscribers: channelStats.totalSubscribers,
               totalVideos: channelStats.totalVideos,
+              viewsInRange: channelStats.viewsInRange,
+              watchTimeHours: channelStats.watchTimeHours,
+              subscribersGained: channelStats.subscribersGained,
+              videosInRange: channelStats.videosInRange,
             }}
             analytics={{
               subscribersGained: channelStats.subscribersGained,
@@ -2556,6 +2560,8 @@ export function ChannelDashboard() {
               demographics: demographics,
               geography: geography,
               devices: devices,
+              trendData: trendData,
+              monthlyData: monthlyData,
             }}
           />
         </div>

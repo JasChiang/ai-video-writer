@@ -14,7 +14,7 @@ export class PromptTemplates {
     const commonData = {
       dateRange,
       channelStats: {
-        totalSubscribers: channelStats?.totalSubscribers || 0,
+        totalSubscribers: channelStats?.totalSubscribers || channelStats?.subscriberCount || 0,
         totalViews: channelStats?.totalViews || 0,
         totalVideos: channelStats?.totalVideos || videos?.length || 0,
         viewsInRange: channelStats?.viewsInRange || videos?.reduce((sum, v) => sum + (v.viewCount || 0), 0) || 0,
@@ -23,8 +23,8 @@ export class PromptTemplates {
         videosInRange: channelStats?.videosInRange || videos?.length || 0,
       },
       topVideos: videos || [],
-      trendData: [],
-      monthlyData: [],
+      trendData: analytics?.trendData || [],
+      monthlyData: analytics?.monthlyData || [],
       trafficSources: analytics?.trafficSources || [],
       searchTerms: analytics?.searchTerms || [],
       demographics: analytics?.demographics || [],
