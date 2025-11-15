@@ -2531,6 +2531,9 @@ export function ChannelDashboard() {
               viewCount: video.viewCount,
               likeCount: video.likeCount,
               commentCount: video.commentCount,
+              thumbnailUrl: video.thumbnailUrl,
+              avgViewPercentage: video.avgViewPercentage,
+              shareCount: video.shareCount,
             }))}
             channelStats={{
               totalViews: channelStats.totalViews,
