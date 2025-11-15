@@ -23,6 +23,7 @@ export class PromptTemplates {
         videosInRange: channelStats?.videosInRange || videos?.length || 0,
       },
       topVideos: videos || [],
+      bottomVideos: analytics?.bottomVideos || [],
       trendData: analytics?.trendData || [],
       monthlyData: analytics?.monthlyData || [],
       trafficSources: analytics?.trafficSources || [],
@@ -64,6 +65,7 @@ export class PromptTemplates {
     const {
       channelStats,      // { totalSubscribers, totalViews, totalVideos, viewsInRange, watchTimeHours, subscribersGained, videosInRange }
       topVideos,         // 熱門影片列表
+      bottomVideos,      // 低效影片列表
       trendData,         // 趨勢資料
       monthlyData,       // 月度資料
       trafficSources,    // 流量來源
@@ -109,6 +111,13 @@ export class PromptTemplates {
 ${topVideos.length > 0 ? topVideos.slice(0, 50).map((v, i) => `${i + 1}. ${v.title || '未命名'}
    - 觀看：${(v.viewCount || 0).toLocaleString()} | 讚：${(v.likeCount || 0).toLocaleString()} | 留言：${(v.commentCount || 0).toLocaleString()}
    - 互動率：${v.viewCount > 0 ? (((v.likeCount || 0) + (v.commentCount || 0)) / v.viewCount * 100).toFixed(2) : '0.00'}%`).join('\n\n') : '（暫無影片資料）'}
+
+${bottomVideos && bottomVideos.length > 0 ? `**時段內低效影片 Bottom ${bottomVideos.length}：**
+（以下為此時段內表現最差的 ${bottomVideos.length} 支影片，用於對比分析）
+
+${bottomVideos.map((v, i) => `${i + 1}. ${v.title || '未命名'}
+   - 觀看：${(v.viewCount || 0).toLocaleString()} | 讚：${(v.likeCount || 0).toLocaleString()} | 留言：${(v.commentCount || 0).toLocaleString()}
+   - 互動率：${v.viewCount > 0 ? (((v.likeCount || 0) + (v.commentCount || 0)) / v.viewCount * 100).toFixed(2) : '0.00'}%`).join('\n\n')}` : ''}
 
 **流量來源分布：**
 ${trafficSources.length > 0 ? trafficSources.map(s => `- ${s.source || '未知'}: ${(s.views || 0).toLocaleString()} 次 (${(s.percentage || 0).toFixed(1)}%)`).join('\n') : '（暫無流量來源資料）'}
@@ -157,16 +166,26 @@ ${devices.length > 0 ? devices.map(d => `- ${d.deviceType || '未知'}: ${(d.vie
 - 流量結構診斷
 - 3 個具體優化策略（優先級排序）
 
-### 3. 熱門影片成功因素分析
+### 3. 高效 vs 低效影片對比分析
 
-**分析 Top 10 影片的共同特徵：**
+${bottomVideos && bottomVideos.length > 0 ? `**對比分析要點：**
+- 比較 Top 10 與 Bottom 10 影片的差異
+- 標題模式差異（數字、問句、關鍵字使用）
+- 主題類型差異（哪些主題表現好/差）
+- 互動率差異（為何有些影片互動低）
+- 發布時間差異（時機是否影響表現）
+
+**輸出：**
+1. 表格對比高效與低效影片的關鍵差異
+2. 找出 3-5 個明確的成功因素
+3. 識別 3-5 個應避免的失敗模式` : `**分析 Top 影片的共同特徵：**
 - 標題模式（是否使用數字、問句、實用型關鍵字）
 - 主題類型（評測、教學、娛樂等）
 - 互動率高低（找出互動磁鐵影片）
 - 發布時間模式
 
 **輸出：**
-表格展示 Top 3 影片的詳細分析 + 成功因素提煉
+表格展示 Top 3 影片的詳細分析 + 成功因素提煉`}
 
 ### 4. 觀眾洞察與內容定位
 

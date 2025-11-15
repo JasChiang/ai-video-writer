@@ -307,6 +307,7 @@ export function ChannelDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [channelStats, setChannelStats] = useState<ChannelStats | null>(null);
   const [topVideos, setTopVideos] = useState<VideoItem[]>([]);
+  const [bottomVideos, setBottomVideos] = useState<VideoItem[]>([]);
 
   const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
   const [selectedMetric, setSelectedMetric] = useState<ChartMetric>('views');
@@ -678,6 +679,11 @@ export function ChannelDashboard() {
 
       // 獲取熱門影片詳情（需要從 Gist 快取獲取標題和縮圖）
       await fetchTopVideosFromAnalytics(analyticsData.rows);
+
+      // 獲取低效影片詳情（如果有的話）
+      if (analyticsData.bottomVideos && analyticsData.bottomVideos.length > 0) {
+        await fetchBottomVideosFromAnalytics(analyticsData.bottomVideos);
+      }
     } catch (err) {
       console.error('[Dashboard] ❌ 處理 Analytics 數據失敗:', err);
       throw err;
@@ -729,6 +735,48 @@ export function ChannelDashboard() {
       setTopVideos(topVideosWithDetails);
     } catch (err) {
       console.error('[Dashboard] ⚠️  獲取熱門影片詳情失敗:', err);
+    }
+  };
+
+  // 從 Analytics 結果獲取低效影片
+  const fetchBottomVideosFromAnalytics = async (analyticsRows: any[]) => {
+    try {
+      // Analytics rows: [videoId, views, avgViewPercent, shares, comments]
+      const bottomVideoIds = analyticsRows.slice(0, 10).map((row: any[]) => row[0]);
+
+      // 從快取獲取影片詳情
+      const cache = await ensureVideoCache();
+      const allVideos = Object.values(cache);
+
+      const bottomVideosWithDetails = analyticsRows.slice(0, 10).map((row: any[]) => {
+        const videoId = row[0];
+        const views = parseInt(row[1]) || 0;
+        const avgViewPercent = parseFloat(row[2]) || 0;
+        const shares = parseInt(row[3]) || 0;
+        const comments = parseInt(row[4]) || 0;
+        const video = allVideos.find((v: any) => v.videoId === videoId || v.id === videoId);
+
+        if (!video) {
+          console.warn('[Dashboard] ⚠️ 找不到低效影片資料:', videoId);
+        }
+
+        return {
+          id: videoId,
+          title: video?.title || `影片 ${videoId}`,
+          viewCount: views,
+          likeCount: parseInt(video?.likeCount || '0'),
+          commentCount: comments,
+          avgViewPercentage: avgViewPercent,
+          shareCount: shares,
+          publishedAt: video?.publishedAt || '',
+          thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
+        };
+      });
+
+      console.log(`[Dashboard] 📉 Analytics 低效影片: ${bottomVideosWithDetails.length} 支`);
+      setBottomVideos(bottomVideosWithDetails);
+    } catch (err) {
+      console.error('[Dashboard] ⚠️  獲取低效影片詳情失敗:', err);
     }
   };
 
@@ -853,29 +901,58 @@ export function ChannelDashboard() {
       };
 
       // 影片級別數據：使用 video dimension，獲取每個影片的統計
-      const response = await fetch(
-        `https://youtubeanalytics.googleapis.com/v2/reports?` +
-        `ids=channel==MINE` +
-        `&startDate=${formatDate(startDate)}` +
-        `&endDate=${formatDate(endDate)}` +
-        `&metrics=views,averageViewPercentage,shares,comments` +
-        `&dimensions=video` +
-        `&sort=-views` +
-        `&maxResults=50`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      // 同時獲取高效和低效影片
+      const [topResponse, bottomResponse] = await Promise.all([
+        // Top 50 影片
+        fetch(
+          `https://youtubeanalytics.googleapis.com/v2/reports?` +
+          `ids=channel==MINE` +
+          `&startDate=${formatDate(startDate)}` +
+          `&endDate=${formatDate(endDate)}` +
+          `&metrics=views,averageViewPercentage,shares,comments` +
+          `&dimensions=video` +
+          `&sort=-views` +
+          `&maxResults=50`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        ),
+        // Bottom 10 影片（反向排序）
+        fetch(
+          `https://youtubeanalytics.googleapis.com/v2/reports?` +
+          `ids=channel==MINE` +
+          `&startDate=${formatDate(startDate)}` +
+          `&endDate=${formatDate(endDate)}` +
+          `&metrics=views,averageViewPercentage,shares,comments` +
+          `&dimensions=video` +
+          `&sort=views` +
+          `&maxResults=10`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        ),
+      ]);
 
-      if (!response.ok) {
-        throw new Error('無法獲取影片數據');
+      if (!topResponse.ok) {
+        throw new Error('無法獲取熱門影片數據');
       }
 
-      const data = await response.json();
-      console.log('[Dashboard] ✅ 影片級別數據獲取成功');
-      return data;
+      const data = await topResponse.json();
+      console.log('[Dashboard] ✅ 熱門影片數據獲取成功');
+
+      // 處理低效影片數據（可選）
+      let bottomData = null;
+      if (bottomResponse.ok) {
+        bottomData = await bottomResponse.json();
+        console.log('[Dashboard] ✅ 低效影片數據獲取成功');
+      }
+
+      // 將低效影片數據附加到返回對象
+      return { ...data, bottomVideos: bottomData?.rows || [] };
     } catch (err: any) {
       console.log('[Dashboard] ⚠️ 無法獲取影片數據:', err.message);
       return null;
@@ -2562,6 +2639,16 @@ export function ChannelDashboard() {
               devices: devices,
               trendData: trendData,
               monthlyData: monthlyData,
+              bottomVideos: bottomVideos.map(video => ({
+                videoId: video.id,
+                title: video.title,
+                viewCount: video.viewCount,
+                likeCount: video.likeCount,
+                commentCount: video.commentCount,
+                avgViewPercentage: video.avgViewPercentage,
+                shareCount: video.shareCount,
+                publishedAt: video.publishedAt,
+              })),
             }}
           />
         </div>
