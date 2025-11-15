@@ -9,6 +9,7 @@ import {
   type DateRange
 } from '../utils/dateRangeUtils';
 import { ChannelDashboard } from './ChannelDashboard';
+import { KeywordAnalysisPanel } from './KeywordAnalysisPanel';
 
 interface KeywordGroup {
   id: string;
@@ -795,6 +796,44 @@ export function ChannelAnalytics() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* AI 關鍵字分析面板 */}
+      {tableData.length > 0 && (
+        <div className="bg-white rounded-lg border-2 border-blue-200 p-6">
+          <div className="mb-4">
+            <h3 className="text-xl font-semibold flex items-center gap-2" style={{ color: '#03045E' }}>
+              <BarChart3 className="w-6 h-6" style={{ color: '#0077B6' }} />
+              AI 關鍵字分析
+            </h3>
+            <p className="text-sm mt-1" style={{ color: '#6B7280' }}>
+              使用 AI 分析關鍵字效能，獲取優化建議與內容策略
+            </p>
+          </div>
+
+          <KeywordAnalysisPanel
+            keywordGroups={keywordGroups}
+            dateColumns={dateColumns}
+            analyticsData={(() => {
+              // 將 tableData 轉換為 analyticsData 格式
+              const result: Record<string, Record<string, any>> = {};
+
+              tableData.forEach((row, index) => {
+                const groupId = keywordGroups[index]?.id;
+                if (!groupId) return;
+
+                result[groupId] = {};
+                dateColumns.forEach((column) => {
+                  const data = row.dateRanges[column.label];
+                  result[groupId][column.id] = data || { error: '無數據' };
+                });
+              });
+
+              return result;
+            })()}
+            selectedMetrics={selectedMetrics}
+          />
         </div>
       )}
         </div>

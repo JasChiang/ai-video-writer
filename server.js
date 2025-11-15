@@ -1569,6 +1569,98 @@ app.post('/api/analyze-channel/multi-model', async (req, res) => {
   }
 });
 
+/**
+ * AI 關鍵字報表分析（支援多模型）
+ * POST /api/analyze-keywords
+ */
+app.post('/api/analyze-keywords', async (req, res) => {
+  const {
+    keywordGroups,      // 關鍵字組合列表
+    dateColumns,        // 日期列列表
+    analyticsData,      // 分析數據（{ groupId: { columnId: { views, likes, ... } } }）
+    selectedMetrics,    // 選中的指標
+    modelType = 'gemini-2.5-flash', // 使用的模型
+  } = req.body;
+
+  try {
+    console.log(`\n========== 🔍 開始關鍵字報表分析 ==========`);
+    console.log(`[Keyword Analysis] 模型: ${modelType}`);
+    console.log(`[Keyword Analysis] 關鍵字組合數: ${keywordGroups?.length || 0}`);
+    console.log(`[Keyword Analysis] 日期列數: ${dateColumns?.length || 0}`);
+
+    // 驗證必要參數
+    if (!keywordGroups || keywordGroups.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: '請提供至少一個關鍵字組合',
+      });
+    }
+
+    if (!dateColumns || dateColumns.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: '請提供至少一個日期範圍',
+      });
+    }
+
+    if (!analyticsData) {
+      return res.status(400).json({
+        success: false,
+        error: '請提供分析數據',
+      });
+    }
+
+    // 生成關鍵字分析 Prompt
+    const prompt = PromptTemplates.buildKeywordAnalysisPrompt({
+      keywordGroups,
+      dateColumns,
+      analyticsData,
+      selectedMetrics: selectedMetrics || ['views', 'likes', 'comments'],
+    });
+
+    console.log('[Keyword Analysis] 📤 發送請求到 AI 模型...');
+
+    // 調用 AI 模型分析
+    const response = await aiManager.analyze(modelType, {
+      prompt,
+      temperature: 0.7,
+      maxTokens: 4096,
+    });
+
+    console.log('[Keyword Analysis] ✅ 分析完成');
+    console.log(`[Keyword Analysis] 模型: ${response.model}`);
+    console.log(`[Keyword Analysis] 提供者: ${response.provider}`);
+    if (response.usage) {
+      console.log(`[Keyword Analysis] Token 使用: ${response.usage.totalTokens || 'N/A'}`);
+    }
+    if (response.cost) {
+      console.log(`[Keyword Analysis] 成本: $${response.cost.toFixed(6)}`);
+    }
+    console.log(`[Keyword Analysis] 結果長度: ${response.text?.length || 0} 字元`);
+
+    res.json({
+      success: true,
+      analysis: response.text,
+      metadata: {
+        model: response.model,
+        provider: response.provider,
+        usage: response.usage,
+        cost: response.cost,
+        keywordGroupCount: keywordGroups.length,
+        dateColumnCount: dateColumns.length,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('[Keyword Analysis] ❌ 分析失敗:', error);
+    res.status(500).json({
+      success: false,
+      error: '關鍵字分析失敗',
+      details: error.message,
+    });
+  }
+});
+
 // 服務前端靜態檔案（Vite build 輸出的 dist）
 app.use(express.static(path.join(process.cwd(), 'dist')));
 

@@ -807,4 +807,255 @@ ${baseContext}
 - 必須有明確的優先順序（什麼該先做、什麼可以後做）
 `;
   }
+
+  /**
+   * 關鍵字分析提示詞
+   * 核心：關鍵字效能評估、YouTube SEO 優化、內容主題布局策略
+   */
+  static buildKeywordAnalysisPrompt(data) {
+    const { keywordGroups, dateColumns, analyticsData, selectedMetrics } = data;
+
+    // 建立關鍵字數據表格
+    let keywordDataTable = `\n**關鍵字組合效能數據：**\n\n`;
+    keywordDataTable += `| 關鍵字組合 | ${dateColumns.map(col => col.label).join(' | ')} |\n`;
+    keywordDataTable += `|${'-'.repeat(15)}|${dateColumns.map(() => '-'.repeat(15)).join('|')}|\n`;
+
+    keywordGroups.forEach((group) => {
+      const row = [group.name];
+      dateColumns.forEach((col) => {
+        const cellData = analyticsData[group.id]?.[col.id];
+        if (cellData && !cellData.error) {
+          const metrics = selectedMetrics.map((metric) => {
+            const metricData = AVAILABLE_METRICS.find(m => m.key === metric);
+            const value = cellData[metric];
+            if (value === undefined || value === null) return null;
+
+            let formattedValue = value.toLocaleString();
+            if (metricData.format === 'percentage') {
+              formattedValue = `${value.toFixed(1)}%`;
+            } else if (metricData.format === 'duration') {
+              formattedValue = `${value.toFixed(0)}s`;
+            }
+            return `${metricData.label}: ${formattedValue}`;
+          }).filter(Boolean).join(', ');
+          row.push(metrics || '無數據');
+        } else {
+          row.push(cellData?.error || '無數據');
+        }
+      });
+      keywordDataTable += `| ${row.join(' | ')} |\n`;
+    });
+
+    // 計算整體指標
+    let totalStats = {
+      totalViews: 0,
+      totalLikes: 0,
+      totalComments: 0,
+      totalVideos: 0,
+      avgEngagement: 0,
+    };
+
+    Object.values(analyticsData).forEach((groupData) => {
+      Object.values(groupData).forEach((cellData) => {
+        if (cellData && !cellData.error) {
+          totalStats.totalViews += cellData.views || 0;
+          totalStats.totalLikes += cellData.likes || 0;
+          totalStats.totalComments += cellData.comments || 0;
+          totalStats.totalVideos += cellData.videoCount || 0;
+        }
+      });
+    });
+
+    if (totalStats.totalViews > 0) {
+      totalStats.avgEngagement = ((totalStats.totalLikes + totalStats.totalComments) / totalStats.totalViews * 100);
+    }
+
+    return `**分析角色：** YouTube 關鍵字策略專家 & SEO 優化顧問
+
+**核心使命：** 診斷關鍵字效能，識別高價值關鍵字，提供 YouTube SEO 優化策略與內容布局建議
+
+**YouTube 關鍵字策略核心原理**
+YouTube 搜尋演算法的核心是「相關性 + 參與度 + 觀看時長」。成功的關鍵字策略需要：
+1. **高搜尋量關鍵字**：帶來大量曝光機會
+2. **高相關性**：符合頻道定位，吸引目標觀眾
+3. **中低競爭度**：避開紅海，找到藍海機會
+4. **長尾關鍵字**：精準觸及有明確需求的觀眾
+5. **系列化布局**：透過主題群組建立頻道權威
+
+${keywordDataTable}
+
+**整體效能指標：**
+- 總觀看次數：${totalStats.totalViews.toLocaleString()}
+- 總按讚數：${totalStats.totalLikes.toLocaleString()}
+- 總留言數：${totalStats.totalComments.toLocaleString()}
+- 影片總數：${totalStats.totalVideos}
+- **平均互動率：${totalStats.avgEngagement.toFixed(2)}%**（按讚 + 留言 / 觀看）
+
+**分析期間比較：**
+- 日期範圍：${dateColumns.map(col => col.label).join(' vs ')}
+- 關鍵字組合數：${keywordGroups.length} 個
+
+**⚠️ 分析策略與限制**
+- YouTube API 提供的數據為「已發布影片」在「特定時間範圍內」的實際觀看表現
+- 無法取得：關鍵字搜尋量、競爭度、CTR
+- 可用代理指標：
+  1. **觀看數** → 代理搜尋量和曝光力
+  2. **互動率（按讚率 + 留言率）** → 代理內容相關性和觀眾滿意度
+  3. **影片數量** → 代理內容覆蓋度
+  4. **時間序列對比** → 識別增長 vs 衰退的關鍵字
+
+**核心分析任務：**
+
+## 1. 關鍵字效能診斷（4 象限分類）
+
+基於「觀看數」和「互動率」，將所有關鍵字組合分類為 4 個象限：
+
+- **明星關鍵字**（高觀看 + 高互動）：
+  * 特徵：既有流量又有滿意度，是頻道的核心價值來源
+  * 策略：加倍投入，製作系列內容深化此主題
+  * 識別：哪些關鍵字落在此象限？
+
+- **潛力關鍵字**（低觀看 + 高互動）：
+  * 特徵：觀眾滿意度高但曝光不足，可能是 SEO 優化問題
+  * 策略：優化標題/標籤，提升搜尋可見度
+  * 識別：哪些關鍵字落在此象限？
+
+- **流量關鍵字**（高觀看 + 低互動）：
+  * 特徵：吸引點擊但內容不符期待，可能是點擊誘餌或內容品質問題
+  * 策略：提升內容深度和價值，或調整標題更符合實際內容
+  * 識別：哪些關鍵字落在此象限？
+
+- **低效關鍵字**（低觀看 + 低互動）：
+  * 特徵：既無流量也無滿意度，可能是紅海主題或定位錯誤
+  * 策略：停止投入，或重新包裝定位
+  * 識別：哪些關鍵字落在此象限？
+
+## 2. 時間序列趨勢分析
+
+對比不同時間範圍的數據，識別：
+- **增長中的關鍵字**（新時期觀看數 > 舊時期觀看數）：
+  * 意義：市場需求上升，或頻道在此主題的權威性提升
+  * 行動：乘勝追擊，加速產出相關內容
+
+- **衰退中的關鍵字**（新時期觀看數 < 舊時期觀看數）：
+  * 意義：市場需求下降，或競爭加劇，或內容過時
+  * 行動：診斷原因，決定是優化還是放棄
+
+- **穩定的關鍵字**（觀看數變化不大）：
+  * 意義：常青樹主題，或已達該主題的市場天花板
+  * 行動：維持現有產出節奏，關注競品動態
+
+## 3. 關鍵字覆蓋度與內容缺口
+
+- **覆蓋度評估：**
+  * 各關鍵字組合的影片數量是否均衡？
+  * 是否過度集中在某一主題，忽略其他潛力主題？
+
+- **內容缺口識別：**
+  * 基於現有關鍵字，還缺少哪些相關的子主題或延伸主題？
+  * 例如：若有「AI 應用」，是否缺少「AI 繪圖教學」、「AI 影片剪輯」等細分主題？
+
+- **長尾關鍵字機會：**
+  * 建議 5-10 個「長尾關鍵字」（問句形式、特定場景）
+  * 例如：「如何用 ChatGPT 寫行銷文案」、「Midjourney 新手常見問題」
+
+## 4. YouTube SEO 優化策略
+
+基於關鍵字數據，提供具體的 SEO 優化建議：
+
+### 標題優化
+- **關鍵字前置原則：** 將「明星關鍵字」放在標題前半部
+- **吸引力法則：** 結合數字、問句、實用性
+- **範例：** 針對表現最好的 3 個關鍵字，提供標題優化範例
+
+### 標籤策略
+- **主要標籤：** 使用「明星關鍵字」作為核心標籤
+- **次要標籤：** 加入「潛力關鍵字」和相關延伸詞
+- **長尾標籤：** 加入問句式長尾關鍵字
+- **範例：** 提供一組完整的標籤建議（15-20 個）
+
+### 描述優化
+- 前 80 字必須包含核心關鍵字
+- 加入時間戳記（章節標題中嵌入關鍵字）
+- 在描述中自然重複關鍵字 2-3 次（避免關鍵字堆砌）
+
+## 5. 內容布局策略建議
+
+- **明星關鍵字深化：**
+  * 將「明星關鍵字」發展為系列節目（例如：每週一集，共 12 集）
+  * 提供具體的系列規劃範例
+
+- **潛力關鍵字激活：**
+  * 優化現有影片的標題和標籤
+  * 製作「深度版」或「進階版」內容以提升價值
+
+- **新主題探索：**
+  * 基於內容缺口分析，建議 3-5 個新的關鍵字主題
+  * 評估各主題的機會度（搜尋潛力、競爭度、與頻道的契合度）
+
+- **內容發布節奏：**
+  * 建議各關鍵字主題的內容佔比（例如：明星主題 50%、潛力主題 30%、新主題 20%）
+  * 提供 3 個月的內容日曆範例
+
+## 6. 競品關鍵字分析（選填）
+
+若有明確的競品頻道，建議分析：
+- 競品在相同關鍵字上的表現
+- 競品使用但本頻道尚未覆蓋的關鍵字
+- 差異化關鍵字策略（避開紅海，找藍海）
+
+**輸出格式要求：**
+
+## 📊 關鍵字效能診斷（4 象限分類）
+（將每個關鍵字組合分類到明星/潛力/流量/低效象限，說明特徵和策略）
+
+## 📈 時間序列趨勢分析
+（識別增長中、衰退中、穩定的關鍵字，提供具體行動建議）
+
+## 💡 內容缺口與長尾關鍵字機會
+（列出缺少的子主題、建議 5-10 個長尾關鍵字）
+
+## 🔍 YouTube SEO 優化策略
+（標題優化範例、標籤策略、描述優化建議）
+
+## 🎯 內容布局策略
+（明星關鍵字系列規劃、潛力關鍵字激活、新主題探索、內容佔比建議）
+
+## 🚀 關鍵行動計畫（優先順序排序）
+**立即執行（本週內）：**
+1. ...
+2. ...
+
+**短期優化（1 個月內）：**
+1. ...
+2. ...
+
+**中期布局（3 個月內）：**
+1. ...
+2. ...
+
+## 📋 3 個月內容日曆範例
+（提供具體的內容排程建議，含關鍵字主題、建議標題、發布頻率）
+
+**撰寫規範：**
+- 使用台灣繁體中文
+- 提供可量化的目標（例如：3 個月內將明星關鍵字的觀看數提升 30%）
+- 每個建議都有具體執行步驟和範例
+- 中文、英文、數字之間加上半形空格
+- 必須基於實際數據進行分析，避免空泛建議
+`;
+  }
 }
+
+// 輔助常數（用於關鍵字分析）
+const AVAILABLE_METRICS = [
+  { key: 'views', label: '觀看次數', format: 'number' },
+  { key: 'estimatedMinutesWatched', label: '觀看時長', format: 'number' },
+  { key: 'averageViewDuration', label: '平均觀看時長', format: 'duration' },
+  { key: 'averageViewPercentage', label: '平均觀看百分比', format: 'percentage' },
+  { key: 'likes', label: '按讚數', format: 'number' },
+  { key: 'comments', label: '留言數', format: 'number' },
+  { key: 'shares', label: '分享數', format: 'number' },
+  { key: 'subscribersGained', label: '新增訂閱', format: 'number' },
+  { key: 'videoCount', label: '影片數', format: 'number' },
+];
