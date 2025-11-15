@@ -22,9 +22,12 @@ import {
   List,
 } from 'lucide-react';
 import type { Components } from 'react-markdown';
+import type { YouTubeVideo } from '../types';
+import { VideoPreviewCard } from './VideoPreviewCard';
 
 interface AnalysisMarkdownProps {
   children: string;
+  videos?: YouTubeVideo[]; // 影片数据，用于根据 ID 查找影片信息
 }
 
 // 章节图标映射
@@ -295,14 +298,88 @@ const components: Components = {
   ),
 };
 
-export function AnalysisMarkdown({ children }: AnalysisMarkdownProps) {
+// 辅助函数：根据 video ID 查找影片
+const findVideoById = (videoId: string, videos?: YouTubeVideo[]): YouTubeVideo | null => {
+  if (!videos || videos.length === 0) return null;
+  return videos.find((v) => v.id === videoId) || null;
+};
+
+// YouTube video ID 正则表达式 (11 个字符，字母数字_-)
+const VIDEO_ID_REGEX = /\b([a-zA-Z0-9_-]{11})\b/g;
+
+export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
+  // 预处理内容：识别 video ID 并替换为特殊标记
+  const processVideoIds = (text: string): string => {
+    if (!videos || videos.length === 0) return text;
+
+    return text.replace(VIDEO_ID_REGEX, (match, videoId) => {
+      const video = findVideoById(videoId, videos);
+      if (video) {
+        // 使用特殊标记，稍后在渲染时替换
+        return `__VIDEO_CARD:${videoId}__`;
+      }
+      return match;
+    });
+  };
+
+  // 创建自定义的 components，包含 video 数据
+  const componentsWithVideos: Components = {
+    ...components,
+    // 段落组件 - 识别并渲染 video 卡片
+    p: ({ children }) => {
+      const text = String(children);
+
+      // 检查是否包含 video 标记
+      if (text.includes('__VIDEO_CARD:')) {
+        const parts = text.split(/(__VIDEO_CARD:[a-zA-Z0-9_-]{11}__)/g);
+
+        return (
+          <div className="my-4 space-y-3">
+            {parts.map((part, index) => {
+              const match = part.match(/__VIDEO_CARD:([a-zA-Z0-9_-]{11})__/);
+              if (match) {
+                const videoId = match[1];
+                const video = findVideoById(videoId, videos);
+                if (video) {
+                  return (
+                    <div key={index} className="my-4">
+                      <VideoPreviewCard video={video} compact={true} />
+                    </div>
+                  );
+                }
+              }
+              // 普通文本
+              if (part && !part.startsWith('__VIDEO_CARD:')) {
+                return (
+                  <span key={index} className="leading-relaxed" style={{ color: '#03045E' }}>
+                    {part}
+                  </span>
+                );
+              }
+              return null;
+            })}
+          </div>
+        );
+      }
+
+      // 正常段落
+      return (
+        <p className="my-3 leading-relaxed" style={{ color: '#03045E' }}>
+          {children}
+        </p>
+      );
+    },
+  };
+
+  const processedContent = processVideoIds(children);
+
   return (
     <div className="analysis-markdown">
       <ReactMarkdown
-        components={components}
+        components={componentsWithVideos}
         remarkPlugins={[remarkGfm]}
       >
-        {children}
+        {processedContent}
       </ReactMarkdown>
     </div>
   );

@@ -419,7 +419,7 @@ export function ChannelAnalysisPanel({
             className="p-6 bg-white border-2 rounded-lg"
             style={{ borderColor: '#E5E7EB' }}
           >
-            <AnalysisMarkdown>{analysisResult.text}</AnalysisMarkdown>
+            <AnalysisMarkdown videos={videos}>{analysisResult.text}</AnalysisMarkdown>
           </div>
         </div>
       )}

@@ -19,6 +19,7 @@ interface KeywordAnalysisPanelProps {
   dateColumns: DateColumn[];
   analyticsData: Record<string, Record<string, any>>;
   selectedMetrics: string[];
+  videos?: any[]; // 可选的影片数据，用于在分析报告中显示影片卡片
 }
 
 type ModelSelectionMode = 'auto' | 'manual';
@@ -28,6 +29,7 @@ export function KeywordAnalysisPanel({
   dateColumns,
   analyticsData,
   selectedMetrics,
+  videos,
 }: KeywordAnalysisPanelProps) {
   // State
   const [modelSelectionMode, setModelSelectionMode] = useState<ModelSelectionMode>('auto');
@@ -409,7 +411,7 @@ export function KeywordAnalysisPanel({
             className="p-6 bg-white border-2 rounded-lg"
             style={{ borderColor: '#E5E7EB' }}
           >
-            <AnalysisMarkdown>{analysisResult.text}</AnalysisMarkdown>
+            <AnalysisMarkdown videos={videos}>{analysisResult.text}</AnalysisMarkdown>
           </div>
         </div>
       )}
