@@ -2713,7 +2713,7 @@ export function ChannelDashboard() {
       {channelStats && topVideos.length > 0 && (
         <div className="mt-6">
           <ChannelAnalysisPanel
-            channelId={currentChannel?.id || null}
+            channelId={null}
             dateRange={{ startDate, endDate }}
             videos={topVideos.map(video => ({
               videoId: video.id,
