@@ -1,172 +1,172 @@
 /**
- * 新版 Prompt Templates - 基于实际数据结构重新设计
- * 完全基于频道仪表板和关键字报表的实际可用数据
+ * 新版 Prompt Templates - 基於實際資料結構重新設計
+ * 完全基於頻道儀表板和關鍵字報表的實際可用資料
  */
 
 export class NewPromptTemplates {
   /**
-   * 频道健康诊断（基于频道仪表板数据）
+   * 頻道健康診斷（基於頻道儀表板資料）
    */
   static buildChannelHealthPrompt(data) {
     const {
       channelStats,      // { totalSubscribers, totalViews, totalVideos, viewsInRange, watchTimeHours, subscribersGained, videosInRange }
-      topVideos,         // 热门影片列表
-      trendData,         // 趋势数据
-      monthlyData,       // 月度数据
-      trafficSources,    // 流量来源
-      searchTerms,       // 搜索词
-      demographics,      // 人口统计
+      topVideos,         // 熱門影片列表
+      trendData,         // 趨勢資料
+      monthlyData,       // 月度資料
+      trafficSources,    // 流量來源
+      searchTerms,       // 搜尋詞
+      demographics,      // 人口統計
       geography,         // 地理分布
-      devices,           // 设备类型
+      devices,           // 設備類型
       dateRange,         // { startDate, endDate }
     } = data;
 
-    // 计算内容效率
+    // 計算內容效率
     const contentEfficiency = (channelStats.totalSubscribers / channelStats.totalVideos).toFixed(1);
 
-    // 计算平均观看时长（分钟/观看）
+    // 計算平均觀看時長（分鐘/觀看）
     const avgWatchMinutes = channelStats.viewsInRange > 0
       ? ((channelStats.watchTimeHours * 60) / channelStats.viewsInRange).toFixed(1)
       : 0;
 
-    return `**你是 YouTube 频道的首席策略顾问 (Chief Strategy Advisor)**
+    return `**你是 YouTube 頻道的首席策略顧問 (Chief Strategy Advisor)**
 
-**你的任务：** 基于频道的实际运营数据，提供全面的健康诊断和改善策略。
+**你的任務：** 基於頻道的實際營運資料，提供全面的健康診斷和改善策略。
 
-**核心分析框架：内容效率 × 观众粘性 × 流量健康度**
+**核心分析框架：內容效率 × 觀眾黏性 × 流量健康度**
 
-## 可用数据摘要
+## 可用資料摘要
 
-**频道基本指标：**
-- 总订阅者：${channelStats.totalSubscribers.toLocaleString()} 人
-- 总观看数：${channelStats.totalViews.toLocaleString()} 次
-- 总影片数：${channelStats.totalVideos} 支
-- 内容效率：${contentEfficiency} 订阅/影片 ${contentEfficiency < 20 ? '(警告：低于健康线)' : contentEfficiency < 50 ? '(需改进)' : contentEfficiency < 100 ? '(良好)' : '(优秀)'}
+**頻道基本指標：**
+- 總訂閱者：${channelStats.totalSubscribers.toLocaleString()} 人
+- 總觀看數：${channelStats.totalViews.toLocaleString()} 次
+- 總影片數：${channelStats.totalVideos} 支
+- 內容效率：${contentEfficiency} 訂閱/影片 ${contentEfficiency < 20 ? '(警告：低於健康線)' : contentEfficiency < 50 ? '(需改進)' : contentEfficiency < 100 ? '(良好)' : '(優秀)'}
 
-**分析期间 (${dateRange.startDate} ~ ${dateRange.endDate})：**
-- 观看数：${channelStats.viewsInRange.toLocaleString()} 次
-- 观看时长：${channelStats.watchTimeHours.toLocaleString()} 小时
-- 平均观看时长：${avgWatchMinutes} 分钟/次
-- 新增订阅：${channelStats.subscribersGained} 人
-- 发布影片：${channelStats.videosInRange} 支
+**分析期間 (${dateRange.startDate} ~ ${dateRange.endDate})：**
+- 觀看數：${channelStats.viewsInRange.toLocaleString()} 次
+- 觀看時長：${channelStats.watchTimeHours.toLocaleString()} 小時
+- 平均觀看時長：${avgWatchMinutes} 分鐘/次
+- 新增訂閱：${channelStats.subscribersGained} 人
+- 發布影片：${channelStats.videosInRange} 支
 
-**热门影片 Top 10：**
+**熱門影片 Top 10：**
 ${topVideos.slice(0, 10).map((v, i) => `${i + 1}. ${v.title}
-   - 观看：${v.viewCount.toLocaleString()} | 赞：${v.likeCount.toLocaleString()} | 评论：${v.commentCount.toLocaleString()}
-   - 互动率：${((v.likeCount + v.commentCount) / v.viewCount * 100).toFixed(2)}%`).join('\n\n')}
+   - 觀看：${v.viewCount.toLocaleString()} | 讚：${v.likeCount.toLocaleString()} | 留言：${v.commentCount.toLocaleString()}
+   - 互動率：${((v.likeCount + v.commentCount) / v.viewCount * 100).toFixed(2)}%`).join('\n\n')}
 
-**流量来源分布：**
+**流量來源分布：**
 ${trafficSources.map(s => `- ${s.source}: ${s.views.toLocaleString()} 次 (${s.percentage.toFixed(1)}%)`).join('\n')}
 
-**搜索关键词 Top 10：**
-${searchTerms.slice(0, 10).map((t, i) => `${i + 1}. "${t.term}" - ${t.views.toLocaleString()} 次观看`).join('\n')}
+**搜尋關鍵詞 Top 10：**
+${searchTerms.slice(0, 10).map((t, i) => `${i + 1}. "${t.term}" - ${t.views.toLocaleString()} 次觀看`).join('\n')}
 
-**观众人口统计：**
+**觀眾人口統計：**
 ${demographics.map(d => `- ${d.ageGroup} ${d.gender}: ${d.viewsPercentage.toFixed(1)}%`).join('\n')}
 
 **地理分布 Top 5：**
 ${geography.slice(0, 5).map((g, i) => `${i + 1}. ${g.country}: ${g.views.toLocaleString()} 次 (${g.percentage.toFixed(1)}%)`).join('\n')}
 
-**设备类型：**
+**設備類型：**
 ${devices.map(d => `- ${d.deviceType}: ${d.views.toLocaleString()} 次 (${d.percentage.toFixed(1)}%)`).join('\n')}
 
 ---
 
-## 你的分析任务
+## 你的分析任務
 
-### 1. 频道健康度总体诊断
+### 1. 頻道健康度總體診斷
 
-**评估以下指标并打分（0-100）：**
-- 内容效率健康度（订阅/影片比）
-- 观众留存健康度（平均观看时长）
-- 流量结构健康度（流量来源分布）
-- 增长势能健康度（订阅增长趋势）
+**評估以下指標並打分（0-100）：**
+- 內容效率健康度（訂閱/影片比）
+- 觀眾留存健康度（平均觀看時長）
+- 流量結構健康度（流量來源分布）
+- 增長勢能健康度（訂閱增長趨勢）
 
-**输出格式：**
-| 健康指标 | 评分 | 状态 | 诊断 |
+**輸出格式：**
+| 健康指標 | 評分 | 狀態 | 診斷 |
 |---------|------|------|------|
-| 内容效率 | XX/100 | 优秀/良好/需改进/危险 | 简述原因 |
-| 观众留存 | XX/100 | ... | ... |
-| 流量结构 | XX/100 | ... | ... |
-| 增长势能 | XX/100 | ... | ... |
+| 內容效率 | XX/100 | 優秀/良好/需改進/危險 | 簡述原因 |
+| 觀眾留存 | XX/100 | ... | ... |
+| 流量結構 | XX/100 | ... | ... |
+| 增長勢能 | XX/100 | ... | ... |
 
-### 2. 流量来源分析与优化建议
+### 2. 流量來源分析與優化建議
 
-**分析要点：**
-- 推荐流量（Suggested/Browse）占比是否健康（目标 >40%）？
-- 搜索流量占比如何？是否过度依赖？
-- 外部流量占比是否过高（警戒线 >50%）？
-- 最有价值的搜索关键词是什么？
+**分析要點：**
+- 推薦流量（Suggested/Browse）占比是否健康（目標 >40%）？
+- 搜尋流量占比如何？是否過度依賴？
+- 外部流量占比是否過高（警戒線 >50%）？
+- 最有價值的搜尋關鍵詞是什麼？
 
 **提供：**
-- 流量结构诊断
-- 3 个具体优化策略（优先级排序）
+- 流量結構診斷
+- 3 個具體優化策略（優先級排序）
 
-### 3. 热门影片成功因素分析
+### 3. 熱門影片成功因素分析
 
-**分析 Top 10 影片的共同特征：**
-- 标题模式（是否使用数字、问句、实用型关键字）
-- 主题类型（评测、教学、娱乐等）
-- 互动率高低（找出互动磁铁影片）
-- 发布时间模式
+**分析 Top 10 影片的共同特徵：**
+- 標題模式（是否使用數字、問句、實用型關鍵字）
+- 主題類型（評測、教學、娛樂等）
+- 互動率高低（找出互動磁鐵影片）
+- 發布時間模式
 
-**输出：**
-表格展示 Top 3 影片的详细分析 + 成功因素提炼
+**輸出：**
+表格展示 Top 3 影片的詳細分析 + 成功因素提煉
 
-### 4. 观众洞察与内容定位
+### 4. 觀眾洞察與內容定位
 
-**基于人口统计、地理、设备数据，回答：**
-- 核心观众画像是什么？（年龄、性别、地理位置）
-- 观看设备分布反映什么信息？
-- 内容定位是否匹配观众特征？
-- 有哪些未被满足的观众需求？
+**基於人口統計、地理、設備資料，回答：**
+- 核心觀眾畫像是什麼？（年齡、性別、地理位置）
+- 觀看設備分布反映什麼資訊？
+- 內容定位是否匹配觀眾特徵？
+- 有哪些未被滿足的觀眾需求？
 
-### 5. 关键改善策略（优先级排序）
+### 5. 關鍵改善策略（優先級排序）
 
-**立即执行（本月内）：**
-1. [具体策略]
-2. [具体策略]
-3. [具体策略]
+**立即執行（本月內）：**
+1. [具體策略]
+2. [具體策略]
+3. [具體策略]
 
-**短期优化（3 个月内）：**
-1. [具体策略]
-2. [具体策略]
+**短期優化（3 個月內）：**
+1. [具體策略]
+2. [具體策略]
 
-**长期战略（6-12 个月）：**
-1. [具体战略方向]
-2. [具体战略方向]
+**長期戰略（6-12 個月）：**
+1. [具體戰略方向]
+2. [具體戰略方向]
 
 ---
 
-## 输出要求
+## 輸出要求
 
-1. **使用 Markdown 表格**展示所有对比数据
-2. **使用 Mermaid 图表**：
-   - 流量来源饼图或条形图
-   - 健康度雷达图（如可行）
-3. **每个建议必须包含**：
-   - 具体执行步骤
-   - 预期成效（量化）
-   - 执行难度（低/中/高）
+1. **使用 Markdown 表格**展示所有對比資料
+2. **使用 Mermaid 圖表**：
+   - 流量來源餅圖或條形圖
+   - 健康度雷達圖（如可行）
+3. **每個建議必須包含**：
+   - 具體執行步驟
+   - 預期成效（量化）
+   - 執行難度（低/中/高）
 
-4. **撰写规范：**
-   - 使用台湾繁体中文
-   - 中英文、数字之间加半形空格
-   - 避免空泛建议，必须具体可执行
-   - 优先级明确（什么先做、什么后做）
+4. **撰寫規範：**
+   - 使用台灣繁體中文
+   - 中英文、數字之間加半形空格
+   - 避免空泛建議，必須具體可執行
+   - 優先級明確（什麼先做、什麼後做）
 
-**开始分析。**`;
+**開始分析。**`;
   }
 
   /**
-   * 内容单元效能分析（基于关键字报表数据）
+   * 內容單元效能分析（基於關鍵字報表資料）
    */
   static buildContentUnitPrompt(data) {
     const { keywordGroups, dateColumns, analyticsData, selectedMetrics } = data;
 
-    // 建立数据表格
-    let dataTable = `\n**内容单元效能数据：**\n\n`;
-    dataTable += `| 单元名称 | ${dateColumns.map(col => col.label).join(' | ')} |\n`;
+    // 建立資料表格
+    let dataTable = `\n**內容單元效能資料：**\n\n`;
+    dataTable += `| 單元名稱 | ${dateColumns.map(col => col.label).join(' | ')} |\n`;
     dataTable += `|${'-'.repeat(15)}|${dateColumns.map(() => '-'.repeat(20)).join('|')}|\n`;
 
     keywordGroups.forEach((group) => {
@@ -181,15 +181,15 @@ ${devices.map(d => `- ${d.deviceType}: ${d.views.toLocaleString()} 次 (${d.perc
             }
             return null;
           }).filter(Boolean).join(', ');
-          row.push(metrics || '无数据');
+          row.push(metrics || '無資料');
         } else {
-          row.push(cellData?.error || '无数据');
+          row.push(cellData?.error || '無資料');
         }
       });
       dataTable += `| ${row.join(' | ')} |\n`;
     });
 
-    // 计算总体统计
+    // 計算總體統計
     let totalStats = {
       totalViews: 0,
       totalLikes: 0,
@@ -211,347 +211,347 @@ ${devices.map(d => `- ${d.deviceType}: ${d.views.toLocaleString()} 次 (${d.perc
       });
     });
 
-    return `**你是 YouTube 内容策略分析师 (Content Strategy Analyst)**
+    return `**你是 YouTube 內容策略分析師 (Content Strategy Analyst)**
 
-**你的任务：** 分析不同内容单元的效能表现，识别明星单元与低效单元，提供资源配置建议。
+**你的任務：** 分析不同內容單元的效能表現，識別明星單元與低效單元，提供資源配置建議。
 
-## 可用数据摘要
+## 可用資料摘要
 
-**分析维度：**
-- 内容单元数量：${totalStats.unitCount} 个
-- 时间维度数量：${totalStats.dateRangeCount} 个
-- 总观看数：${totalStats.totalViews.toLocaleString()} 次
-- 总互动数：${(totalStats.totalLikes + totalStats.totalComments).toLocaleString()} 次
-- 总影片数：${totalStats.totalVideos} 支
-- 平均互动率：${totalStats.totalViews > 0 ? ((totalStats.totalLikes + totalStats.totalComments) / totalStats.totalViews * 100).toFixed(2) : 0}%
+**分析維度：**
+- 內容單元數量：${totalStats.unitCount} 個
+- 時間維度數量：${totalStats.dateRangeCount} 個
+- 總觀看數：${totalStats.totalViews.toLocaleString()} 次
+- 總互動數：${(totalStats.totalLikes + totalStats.totalComments).toLocaleString()} 次
+- 總影片數：${totalStats.totalVideos} 支
+- 平均互動率：${totalStats.totalViews > 0 ? ((totalStats.totalLikes + totalStats.totalComments) / totalStats.totalViews * 100).toFixed(2) : 0}%
 
 ${dataTable}
 
-**选中的分析指标：**
+**選中的分析指標：**
 ${selectedMetrics.map(m => `- ${m}`).join('\n')}
 
 ---
 
-## 你的分析任务
+## 你的分析任務
 
-### 1. 内容单元效能对比
+### 1. 內容單元效能對比
 
-**创建对比表格，包含：**
-- 单元名称
-- 平均观看数
-- 平均互动率
-- 影片数量
-- 效能评级（A/B/C/D）
-- 单元定位（明星/潜力/流量/低效）
+**創建對比表格，包含：**
+- 單元名稱
+- 平均觀看數
+- 平均互動率
+- 影片數量
+- 效能評級（A/B/C/D）
+- 單元定位（明星/潛力/流量/低效）
 
-### 2. 四象限分类
+### 2. 四象限分類
 
-**将所有单元分类到四象限：**
+**將所有單元分類到四象限：**
 
-使用 Mermaid quadrantChart 或 ASCII 图表展示：
+使用 Mermaid quadrantChart 或 ASCII 圖表展示：
 
 ```
-高互动 ↑
-     |  潜力单元     |  明星单元     |
-     |  (低观看高互动) |  (高观看高互动) |
-─────┼──────────────┼──────────────┤→ 高观看
-     |  低效单元     |  流量单元     |
-     |  (低观看低互动) |  (高观看低互动) |
-低互动 ↓
+高互動 ↑
+     |  潛力單元     |  明星單元     |
+     |  (低觀看高互動) |  (高觀看高互動) |
+─────┼──────────────┼──────────────┤→ 高觀看
+     |  低效單元     |  流量單元     |
+     |  (低觀看低互動) |  (高觀看低互動) |
+低互動 ↓
 ```
 
-**说明每个象限的含义和策略：**
-- 明星单元：核心资产，加倍投入
-- 潜力单元：SEO 优化，提升曝光
-- 流量单元：改善内容品质
-- 低效单元：停止或重新包装
+**說明每個象限的含義和策略：**
+- 明星單元：核心資產，加倍投入
+- 潛力單元：SEO 優化，提升曝光
+- 流量單元：改善內容品質
+- 低效單元：停止或重新包裝
 
-### 3. 时间序列趋势分析
+### 3. 時間序列趨勢分析
 
-**对比不同时间维度的数据，识别：**
-- 增长中的单元（新时期 > 旧时期）
-- 衰退中的单元（新时期 < 旧时期）
-- 稳定的单元（变化不大）
+**對比不同時間維度的資料，識別：**
+- 增長中的單元（新時期 > 舊時期）
+- 衰退中的單元（新時期 < 舊時期）
+- 穩定的單元（變化不大）
 
-**使用 ASCII 图表或表格展示趋势**
+**使用 ASCII 圖表或表格展示趨勢**
 
-### 4. 资源配置建议
+### 4. 資源配置建議
 
-**基于分析结果，提供：**
+**基於分析結果，提供：**
 
-**加倍投入（明星单元）：**
-- 具体单元名称
-- 建议动作（发展系列化、增加频率等）
-- 预期成效
+**加倍投入（明星單元）：**
+- 具體單元名稱
+- 建議動作（發展系列化、增加頻率等）
+- 預期成效
 
-**SEO 优化（潜力单元）：**
-- 具体单元名称
-- 优化建议（标题、标签、关键字）
-- 预期成效
+**SEO 優化（潛力單元）：**
+- 具體單元名稱
+- 優化建議（標題、標籤、關鍵字）
+- 預期成效
 
-**停止或转型（低效单元）：**
-- 具体单元名称
-- 建议动作（停止、重新包装、合并）
-- 资源转移计划
+**停止或轉型（低效單元）：**
+- 具體單元名稱
+- 建議動作（停止、重新包裝、合併）
+- 資源轉移計劃
 
-### 5. 关键行动计划
+### 5. 關鍵行動計劃
 
-**立即执行（本周内）：**
-1. [具体动作]
-2. [具体动作]
-3. [具体动作]
+**立即執行（本週內）：**
+1. [具體動作]
+2. [具體動作]
+3. [具體動作]
 
-**短期优化（1 个月内）：**
-1. [具体动作]
-2. [具体动作]
+**短期優化（1 個月內）：**
+1. [具體動作]
+2. [具體動作]
 
-**中期布局（3 个月内）：**
-1. [具体目标 + 预期成效]
-2. [具体目标 + 预期成效]
+**中期布局（3 個月內）：**
+1. [具體目標 + 預期成效]
+2. [具體目標 + 預期成效]
 
 ---
 
-## 输出要求
+## 輸出要求
 
-1. **必须使用 Markdown 表格**展示单元对比数据
-2. **必须使用视觉化图表**展示四象限分类
-3. **每个建议必须包含**：
-   - 具体单元名称
-   - 具体执行步骤
-   - 量化的预期成效
-4. **优先级明确**（用编号 1, 2, 3 排序）
+1. **必須使用 Markdown 表格**展示單元對比資料
+2. **必須使用視覺化圖表**展示四象限分類
+3. **每個建議必須包含**：
+   - 具體單元名稱
+   - 具體執行步驟
+   - 量化的預期成效
+4. **優先級明確**（用編號 1, 2, 3 排序）
 
-**开始分析。**`;
+**開始分析。**`;
   }
 
   /**
-   * 流量增长分析（基于流量来源和搜索词数据）
+   * 流量增長分析（基於流量來源和搜尋詞資料）
    */
   static buildTrafficGrowthPrompt(data) {
     const { trafficSources, searchTerms, topVideos, channelStats, dateRange } = data;
 
-    return `**你是 YouTube 流量增长专家 (Traffic Growth Expert)**
+    return `**你是 YouTube 流量增長專家 (Traffic Growth Expert)**
 
-**你的任务：** 分析流量来源结构，识别增长机会，提供流量优化策略。
+**你的任務：** 分析流量來源結構，識別增長機會，提供流量優化策略。
 
-## 可用数据
+## 可用資料
 
-**流量来源分布：**
+**流量來源分布：**
 ${trafficSources.map(s => `- ${s.source}: ${s.views.toLocaleString()} 次 (${s.percentage.toFixed(1)}%)`).join('\n')}
 
-**热门搜索关键词：**
+**熱門搜尋關鍵詞：**
 ${searchTerms.slice(0, 20).map((t, i) => `${i + 1}. "${t.term}" - ${t.views.toLocaleString()} 次`).join('\n')}
 
-**频道基本信息：**
-- 分析期间：${dateRange.startDate} ~ ${dateRange.endDate}
-- 总观看数：${channelStats.viewsInRange.toLocaleString()} 次
-- 新增订阅：${channelStats.subscribersGained} 人
+**頻道基本資訊：**
+- 分析期間：${dateRange.startDate} ~ ${dateRange.endDate}
+- 總觀看數：${channelStats.viewsInRange.toLocaleString()} 次
+- 新增訂閱：${channelStats.subscribersGained} 人
 
 ---
 
-## 你的分析任务
+## 你的分析任務
 
-### 1. 流量结构健康度诊断
+### 1. 流量結構健康度診斷
 
-**评估指标：**
-- 推荐流量占比（健康标准：>40%）
-- 搜索流量占比（健康标准：30-40%）
-- 外部流量占比（警戒线：<30%）
-- 频道页流量占比
-
-**提供：**
-- 健康度评分（0-100）
-- 诊断结论
-- 主要问题
-
-### 2. 搜索 SEO 机会分析
-
-**分析热门搜索词：**
-- 识别高价值关键词（观看数高）
-- 找出长尾关键词机会
-- 分析关键词主题分布
-- 发现内容缺口
+**評估指標：**
+- 推薦流量占比（健康標準：>40%）
+- 搜尋流量占比（健康標準：30-40%）
+- 外部流量占比（警戒線：<30%）
+- 頻道頁流量占比
 
 **提供：**
-- Top 10 最有价值关键词
-- 5 个长尾关键词机会
-- 3 个建议的新内容主题
+- 健康度評分（0-100）
+- 診斷結論
+- 主要問題
 
-### 3. 流量增长策略
+### 2. 搜尋 SEO 機會分析
 
-**基于流量结构，提供：**
+**分析熱門搜尋詞：**
+- 識別高價值關鍵詞（觀看數高）
+- 找出長尾關鍵詞機會
+- 分析關鍵詞主題分布
+- 發現內容缺口
 
-**如果推荐流量不足：**
-- 如何提升观看时长
-- 如何优化缩略图和标题
-- 如何建立系列化内容
+**提供：**
+- Top 10 最有價值關鍵詞
+- 5 個長尾關鍵詞機會
+- 3 個建議的新內容主題
 
-**如果搜索流量不足：**
-- SEO 优化策略
-- 关键字研究建议
-- 标题和描述优化
+### 3. 流量增長策略
 
-**如果过度依赖外部流量：**
-- 如何转化为内部流量
-- 如何提升频道粘性
-- 如何优化首页和播放列表
+**基於流量結構，提供：**
 
-### 4. 关键行动计划
+**如果推薦流量不足：**
+- 如何提升觀看時長
+- 如何優化縮圖和標題
+- 如何建立系列化內容
 
-**立即执行：**
-1. [具体策略]
-2. [具体策略]
+**如果搜尋流量不足：**
+- SEO 優化策略
+- 關鍵字研究建議
+- 標題和描述優化
 
-**短期目标（1-3 个月）：**
-1. [目标 + 量化指标]
-2. [目标 + 量化指标]
+**如果過度依賴外部流量：**
+- 如何轉化為內部流量
+- 如何提升頻道黏性
+- 如何優化首頁和播放清單
+
+### 4. 關鍵行動計劃
+
+**立即執行：**
+1. [具體策略]
+2. [具體策略]
+
+**短期目標（1-3 個月）：**
+1. [目標 + 量化指標]
+2. [目標 + 量化指標]
 
 ---
 
-## 输出要求
+## 輸出要求
 
-1. 使用 Mermaid 饼图或条形图展示流量分布
-2. 使用表格展示关键词分析
-3. 每个策略必须包含执行步骤和预期成效
+1. 使用 Mermaid 餅圖或條形圖展示流量分布
+2. 使用表格展示關鍵詞分析
+3. 每個策略必須包含執行步驟和預期成效
 
-**开始分析。**`;
+**開始分析。**`;
   }
 
   /**
-   * 观众洞察分析（基于人口统计、地理、设备数据）
+   * 觀眾洞察分析（基於人口統計、地理、設備資料）
    */
   static buildAudienceInsightsPrompt(data) {
     const { demographics, geography, devices, channelStats, topVideos } = data;
 
-    return `**你是 YouTube 观众洞察专家 (Audience Insights Expert)**
+    return `**你是 YouTube 觀眾洞察專家 (Audience Insights Expert)**
 
-**你的任务：** 深入分析观众特征，提供精准内容定位建议。
+**你的任務：** 深入分析觀眾特徵，提供精準內容定位建議。
 
-## 可用数据
+## 可用資料
 
-**人口统计：**
+**人口統計：**
 ${demographics.map(d => `- ${d.ageGroup} ${d.gender}: ${d.viewsPercentage.toFixed(1)}%`).join('\n')}
 
 **地理分布：**
 ${geography.map((g, i) => `${i + 1}. ${g.country}: ${g.views.toLocaleString()} 次 (${g.percentage.toFixed(1)}%)`).join('\n')}
 
-**设备类型：**
+**設備類型：**
 ${devices.map(d => `- ${d.deviceType}: ${d.views.toLocaleString()} 次 (${d.percentage.toFixed(1)}%)`).join('\n')}
 
 ---
 
-## 你的分析任务
+## 你的分析任務
 
-### 1. 核心观众画像
+### 1. 核心觀眾畫像
 
-**基于数据，描绘：**
-- 主要年龄层
-- 性别分布
+**基於資料，描繪：**
+- 主要年齡層
+- 性別分布
 - 地理位置
-- 观看设备偏好
+- 觀看設備偏好
 
-**输出：**
-核心观众画像描述 + 次要观众群体
+**輸出：**
+核心觀眾畫像描述 + 次要觀眾群體
 
-### 2. 内容定位建议
+### 2. 內容定位建議
 
-**基于观众特征，回答：**
-- 当前内容是否匹配观众？
-- 应该制作什么类型的内容？
-- 内容深度应该如何调整？
-- 发布时间应该如何优化？
+**基於觀眾特徵，回答：**
+- 當前內容是否匹配觀眾？
+- 應該製作什麼類型的內容？
+- 內容深度應該如何調整？
+- 發布時間應該如何優化？
 
-### 3. 设备优化建议
+### 3. 設備優化建議
 
-**基于设备分布，提供：**
-- 缩略图设计建议
-- 影片长度建议
-- 内容呈现方式建议
+**基於設備分布，提供：**
+- 縮圖設計建議
+- 影片長度建議
+- 內容呈現方式建議
 
-### 4. 地理扩展机会
+### 4. 地理擴展機會
 
-**分析地理数据，回答：**
-- 是否有潜力市场未开发？
-- 是否需要多语言字幕？
-- 内容主题是否需要本地化？
+**分析地理資料，回答：**
+- 是否有潛力市場未開發？
+- 是否需要多語言字幕？
+- 內容主題是否需要本地化？
 
 ---
 
-## 输出要求
+## 輸出要求
 
-1. 使用表格展示观众分布数据
-2. 使用 Mermaid 图表展示观众画像
-3. 提供 3-5 个具体的内容定位建议
+1. 使用表格展示觀眾分布資料
+2. 使用 Mermaid 圖表展示觀眾畫像
+3. 提供 3-5 個具體的內容定位建議
 
-**开始分析。**`;
+**開始分析。**`;
   }
 
   /**
-   * 影片效能优化（基于热门影片数据）
+   * 影片效能優化（基於熱門影片資料）
    */
   static buildVideoOptimizationPrompt(data) {
     const { topVideos, bottomVideos, channelStats } = data;
 
-    return `**你是 YouTube 影片优化专家 (Video Optimization Expert)**
+    return `**你是 YouTube 影片優化專家 (Video Optimization Expert)**
 
-**你的任务：** 分析高效与低效影片，提供影片优化策略。
+**你的任務：** 分析高效與低效影片，提供影片優化策略。
 
-## 可用数据
+## 可用資料
 
 **高效影片 Top 10：**
 ${topVideos.slice(0, 10).map((v, i) => `${i + 1}. ${v.title}
-   - 观看：${v.viewCount.toLocaleString()} | 赞：${v.likeCount.toLocaleString()} | 评论：${v.commentCount.toLocaleString()}
-   - 互动率：${((v.likeCount + v.commentCount) / v.viewCount * 100).toFixed(2)}%
-   - 发布日期：${v.publishedAt}`).join('\n\n')}
+   - 觀看：${v.viewCount.toLocaleString()} | 讚：${v.likeCount.toLocaleString()} | 留言：${v.commentCount.toLocaleString()}
+   - 互動率：${((v.likeCount + v.commentCount) / v.viewCount * 100).toFixed(2)}%
+   - 發布日期：${v.publishedAt}`).join('\n\n')}
 
 ${bottomVideos ? `**低效影片 Bottom 10：**
 ${bottomVideos.slice(0, 10).map((v, i) => `${i + 1}. ${v.title}
-   - 观看：${v.viewCount.toLocaleString()} | 赞：${v.likeCount.toLocaleString()} | 评论：${v.commentCount.toLocaleString()}
-   - 互动率：${((v.likeCount + v.commentCount) / v.viewCount * 100).toFixed(2)}%`).join('\n\n')}` : ''}
+   - 觀看：${v.viewCount.toLocaleString()} | 讚：${v.likeCount.toLocaleString()} | 留言：${v.commentCount.toLocaleString()}
+   - 互動率：${((v.likeCount + v.commentCount) / v.viewCount * 100).toFixed(2)}%`).join('\n\n')}` : ''}
 
 ---
 
-## 你的分析任务
+## 你的分析任務
 
 ### 1. 高效影片成功因素
 
-**分析 Top 10 影片的共同特征：**
-- 标题模式（数字、问句、实用型）
-- 主题类型
-- 发布时间模式
-- 互动率高低
+**分析 Top 10 影片的共同特徵：**
+- 標題模式（數字、問句、實用型）
+- 主題類型
+- 發布時間模式
+- 互動率高低
 
-**输出：**
-成功因素提炼 + 可复制的模式
+**輸出：**
+成功因素提煉 + 可複製的模式
 
-### 2. 低效影片诊断
+### 2. 低效影片診斷
 
-**分析 Bottom 10 影片的问题：**
-- 标题是否吸引人？
-- 主题是否符合观众期待？
-- 发布时间是否合适？
-- SEO 是否优化？
+**分析 Bottom 10 影片的問題：**
+- 標題是否吸引人？
+- 主題是否符合觀眾期待？
+- 發布時間是否合適？
+- SEO 是否優化？
 
-**输出：**
-问题诊断 + 改善建议
+**輸出：**
+問題診斷 + 改善建議
 
-### 3. 优化策略
+### 3. 優化策略
 
-**提供具体优化建议：**
-- 标题优化模板（3 个范例）
-- 缩略图优化建议
-- 标签和关键字策略
-- 发布时间优化
+**提供具體優化建議：**
+- 標題優化模板（3 個範例）
+- 縮圖優化建議
+- 標籤和關鍵字策略
+- 發布時間優化
 
 ---
 
-## 输出要求
+## 輸出要求
 
-1. 使用表格对比高效与低效影片
-2. 提供可直接使用的标题模板
-3. 每个建议必须具体可执行
+1. 使用表格對比高效與低效影片
+2. 提供可直接使用的標題模板
+3. 每個建議必須具體可執行
 
-**开始分析。**`;
+**開始分析。**`;
   }
 }
 
