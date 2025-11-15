@@ -1,539 +1,89 @@
-Gemini models can process videos, enabling many frontier developer use cases
-that would have historically required domain specific models.
-Some of Gemini's vision capabilities include the ability to:
+# 🎬 Gemini 影片理解功能
 
-- Describe, segment, and extract information from videos
-- Answer questions about video content
-- Refer to specific timestamps within a video
+本文件概述 Google Gemini 模型處理影片內容的能力，以及 AI Video Writer 專案如何利用這些功能來分析 YouTube 影片並生成相關內容。
 
-Gemini was built to be multimodal from the ground up and we continue to push the
-frontier of what is possible. This guide shows how to use the Gemini API to
-generate text responses based on video inputs.
+## 💡 Gemini 的影片分析能力
 
-## Video input
+Gemini 模型從底層設計上就是多模態的，能夠直接理解影片內容，這為開發者開啟了許多創新的應用場景。Gemini 的影片理解能力包括：
 
-You can provide videos as input to Gemini in the following ways:
+-   **描述、分割和提取資訊**：從影片中識別關鍵事件、物件和場景，並提取相關資訊。
+-   **回答影片內容相關問題**：根據影片內容回答用戶提出的問題。
+-   **參考影片中的特定時間戳**：能夠理解並回應影片中特定時間點的內容。
+-   **轉錄音訊和提供視覺描述**：處理影片的音軌和視覺幀，提供音訊轉錄和視覺內容描述。
 
-- [Upload a video file](https://ai.google.dev/gemini-api/docs/video-understanding#upload-video) using the File API before making a request to `generateContent`. Use this method for files larger than 20MB, videos longer than approximately 1 minute, or when you want to reuse the file across multiple requests.
-- [Pass inline video data](https://ai.google.dev/gemini-api/docs/video-understanding#inline-video) with the request to `generateContent`. Use this method for smaller files (\<20MB) and shorter durations.
-- [Pass YouTube URLs](https://ai.google.dev/gemini-api/docs/video-understanding#youtube) as part of your `generateContent` request.
+## 傳遞影片給 Gemini 模型
 
-### Upload a video file
+AI Video Writer 專案主要透過以下方式將影片內容傳遞給 Gemini 模型：
 
-You can use the [Files API](https://ai.google.dev/gemini-api/docs/files) to upload a video file.
-Always use the Files API when the total request size (including the file, text
-prompt, system instructions, etc.) is larger than 20 MB, the video duration is
-significant, or if you intend to use the same video in multiple prompts.
-The File API accepts video file formats directly.
+### 1. 直接傳遞 YouTube 網址 (推薦)
 
-The following code downloads the sample video, uploads it using the File API,
-waits for it to be processed, and then uses the file reference in
-a `generateContent` request.  
+這是 AI Video Writer 專案的核心功能之一。您可以直接將 YouTube 影片的 URL 傳遞給 Gemini API。
 
-### Python
+-   **優勢**：極大簡化了影片處理流程，無需下載影片，直接利用 YouTube 平台上的內容。
+-   **適用場景**：專案主要用於分析公開的 YouTube 影片。
+-   **限制**：
+    -   目前僅支援**公開影片**（不支援私人或未列出影片）。
+    -   免費方案下，每日可上傳的 YouTube 影片總時長有限制（例如 8 小時）。
+    -   Gemini 2.5 及更高版本模型支援單次請求最多 10 個影片。
 
-    from google import genai
+**範例 (JavaScript/TypeScript)**：
+```typescript
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-    client = genai.Client()
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); // 使用支援影片理解的模型
 
-    myfile = client.files.upload(file="path/to/sample.mp4")
-
-    response = client.models.generate_content(
-        model="gemini-2.5-flash", contents=[myfile, "Summarize this video. Then create a quiz with an answer key based on the information in this video."]
-    )
-
-    print(response.text)
-
-### JavaScript
-
-    import {
-      GoogleGenAI,
-      createUserContent,
-      createPartFromUri,
-    } from "@google/genai";
-
-    const ai = new GoogleGenAI({});
-
-    async function main() {
-      const myfile = await ai.files.upload({
-        file: "path/to/sample.mp4",
-        config: { mimeType: "video/mp4" },
-      });
-
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: createUserContent([
-          createPartFromUri(myfile.uri, myfile.mimeType),
-          "Summarize this video. Then create a quiz with an answer key based on the information in this video.",
-        ]),
-      });
-      console.log(response.text);
-    }
-
-    await main();
-
-### Go
-
-    uploadedFile, _ := client.Files.UploadFromPath(ctx, "path/to/sample.mp4", nil)
-
-    parts := []*genai.Part{
-        genai.NewPartFromText("Summarize this video. Then create a quiz with an answer key based on the information in this video."),
-        genai.NewPartFromURI(uploadedFile.URI, uploadedFile.MIMEType),
-    }
-
-    contents := []*genai.Content{
-        genai.NewContentFromParts(parts, genai.RoleUser),
-    }
-
-    result, _ := client.Models.GenerateContent(
-        ctx,
-        "gemini-2.5-flash",
-        contents,
-        nil,
-    )
-
-    fmt.Println(result.Text())
-
-### REST
-
-    VIDEO_PATH="path/to/sample.mp4"
-    MIME_TYPE=$(file -b --mime-type "${VIDEO_PATH}")
-    NUM_BYTES=$(wc -c < "${VIDEO_PATH}")
-    DISPLAY_NAME=VIDEO
-
-    tmp_header_file=upload-header.tmp
-
-    echo "Starting file upload..."
-    curl "https://generativelanguage.googleapis.com/upload/v1beta/files" \
-      -H "x-goog-api-key: $GEMINI_API_KEY" \
-      -D ${tmp_header_file} \
-      -H "X-Goog-Upload-Protocol: resumable" \
-      -H "X-Goog-Upload-Command: start" \
-      -H "X-Goog-Upload-Header-Content-Length: ${NUM_BYTES}" \
-      -H "X-Goog-Upload-Header-Content-Type: ${MIME_TYPE}" \
-      -H "Content-Type: application/json" \
-      -d "{'file': {'display_name': '${DISPLAY_NAME}'}}" 2> /dev/null
-
-    upload_url=$(grep -i "x-goog-upload-url: " "${tmp_header_file}" | cut -d" " -f2 | tr -d "\r")
-    rm "${tmp_header_file}"
-
-    echo "Uploading video data..."
-    curl "${upload_url}" \
-      -H "Content-Length: ${NUM_BYTES}" \
-      -H "X-Goog-Upload-Offset: 0" \
-      -H "X-Goog-Upload-Command: upload, finalize" \
-      --data-binary "@${VIDEO_PATH}" 2> /dev/null > file_info.json
-
-    file_uri=$(jq -r ".file.uri" file_info.json)
-    echo file_uri=$file_uri
-
-    echo "File uploaded successfully. File URI: ${file_uri}"
-
-    # --- 3. Generate content using the uploaded video file ---
-    echo "Generating content from video..."
-    curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
-        -H "x-goog-api-key: $GEMINI_API_KEY" \
-        -H 'Content-Type: application/json' \
-        -X POST \
-        -d '{
-          "contents": [{
-            "parts":[
-              {"file_data":{"mime_type": "'"${MIME_TYPE}"'", "file_uri": "'"${file_uri}"'"}},
-              {"text": "Summarize this video. Then create a quiz with an answer key based on the information in this video."}]
-            }]
-          }' 2> /dev/null > response.json
-
-    jq -r ".candidates[].content.parts[].text" response.json
-
-To learn more about working with media files, see
-[Files API](https://ai.google.dev/gemini-api/docs/files).
-
-### Pass video data inline
-
-Instead of uploading a video file using the File API, you can pass smaller
-videos directly in the request to `generateContent`. This is suitable for
-shorter videos under 20MB total request size.
-
-Here's an example of providing inline video data:  
-
-### Python
-
-    from google import genai
-    from google.genai import types
-
-    # Only for videos of size <20Mb
-    video_file_name = "/path/to/your/video.mp4"
-    video_bytes = open(video_file_name, 'rb').read()
-
-    client = genai.Client()
-    response = client.models.generate_content(
-        model='models/gemini-2.5-flash',
-        contents=types.Content(
-            parts=[
-                types.Part(
-                    inline_data=types.Blob(data=video_bytes, mime_type='video/mp4')
-                ),
-                types.Part(text='Please summarize the video in 3 sentences.')
-            ]
-        )
-    )
-
-### JavaScript
-
-    import { GoogleGenAI } from "@google/genai";
-    import * as fs from "node:fs";
-
-    const ai = new GoogleGenAI({});
-    const base64VideoFile = fs.readFileSync("path/to/small-sample.mp4", {
-      encoding: "base64",
-    });
-
-    const contents = [
-      {
-        inlineData: {
-          mimeType: "video/mp4",
-          data: base64VideoFile,
-        },
+async function analyzeYouTubeVideo(youtubeUrl: string, promptText: string) {
+  const result = await model.generateContent([
+    promptText,
+    {
+      fileData: {
+        fileUri: youtubeUrl,
       },
-      { text: "Please summarize the video in 3 sentences." }
-    ];
+    },
+  ]);
+  return result.response.text();
+}
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: contents,
-    });
-    console.log(response.text);
+// 範例使用
+// const youtubeVideoUrl = "https://www.youtube.com/watch?v=YOUR_VIDEO_ID";
+// const response = await analyzeYouTubeVideo(youtubeVideoUrl, "請總結這部影片的重點。");
+// console.log(response);
+```
 
-### REST
+### 2. 上傳影片檔案 (使用 Files API)
 
-**Note:** If you get an `Argument list too long` error, the base64 encoding of your file might be too long for the curl command line. Use the File API method instead for larger files.  
+對於非 YouTube 影片或需要更精細控制的場景，可以使用 Files API 上傳影片檔案。
 
-    VIDEO_PATH=/path/to/your/video.mp4
+-   **優勢**：適用於大於 20MB 的影片檔案，或需要重複使用相同影片的場景。
+-   **運作方式**：影片檔案會先透過 Gemini Files API 上傳，然後在 `generateContent` 請求中透過 `file_uri` 引用。
+-   **支援格式**：`video/mp4`, `video/mpeg`, `video/webm` 等多種格式。
 
-    if [[ "$(base64 --version 2>&1)" = *"FreeBSD"* ]]; then
-      B64FLAGS="--input"
-    else
-      B64FLAGS="-w0"
-    fi
+### 3. 內聯影片數據
 
-    curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
-        -H "x-goog-api-key: $GEMINI_API_KEY" \
-        -H 'Content-Type: application/json' \
-        -X POST \
-        -d '{
-          "contents": [{
-            "parts":[
-                {
-                  "inline_data": {
-                    "mime_type":"video/mp4",
-                    "data": "'$(base64 $B64FLAGS $VIDEO_PATH)'"
-                  }
-                },
-                {"text": "Please summarize the video in 3 sentences."}
-            ]
-          }]
-        }' 2> /dev/null
+-   **優勢**：適用於較小的影片檔案（總請求大小小於 20MB）。
+-   **運作方式**：影片數據會被編碼（通常是 Base64）並直接包含在 API 請求中。
 
-### Pass YouTube URLs
+## 影片分析的進階應用
 
-| **Preview:** The YouTube URL feature is in preview and is available at no charge. Pricing and rate limits are likely to change.
+-   **參考時間戳**：您可以在提示詞中指定 `MM:SS` 格式的時間戳，向模型詢問影片中特定時間點的內容。
+-   **轉錄與視覺描述**：Gemini 模型可以同時處理影片的音軌和視覺幀，提供音訊轉錄和視覺內容描述。模型會以每秒 1 幀 (1 FPS) 的速率對影片進行採樣。
+-   **自訂影片處理**：可以透過 `videoMetadata` 參數設定影片剪輯區間 (`start_offset`, `end_offset`) 或自訂採樣幀率 (`fps`)。
 
-You can pass YouTube URLs directly to Gemini API as part of your `generateContent`request as follows:  
+## 技術細節與限制
 
-### Python
+-   **支援模型**：所有 Gemini 2.0 和 2.5 模型都支援影片數據處理。
+-   **上下文窗口**：模型支援的影片時長取決於其上下文窗口大小（例如，1M Token 上下文窗口的模型可處理長達 1 小時的影片）。
+-   **Token 計算**：每秒影片的 Token 成本約為 300 Token (預設解析度)，其中包含幀（1 FPS 採樣）、音訊（1Kbps）和元數據。
+-   **最佳實踐**：
+    -   為獲得最佳結果，建議每個提示請求只使用一個影片。
+    -   如果文字提示與單一影片結合，建議將文字提示放在影片部分之後。
+    -   對於快速變化的視覺內容，1 FPS 的採樣率可能會遺漏細節。
 
-    response = client.models.generate_content(
-        model='models/gemini-2.5-flash',
-        contents=types.Content(
-            parts=[
-                types.Part(
-                    file_data=types.FileData(file_uri='https://www.youtube.com/watch?v=9hE5-98ZeCg')
-                ),
-                types.Part(text='Please summarize the video in 3 sentences.')
-            ]
-        )
-    )
+---
 
-### JavaScript
+## 📚 相關文件
 
-    import { GoogleGenerativeAI } from "@google/generative-ai";
-
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const result = await model.generateContent([
-      "Please summarize the video in 3 sentences.",
-      {
-        fileData: {
-          fileUri: "https://www.youtube.com/watch?v=9hE5-98ZeCg",
-        },
-      },
-    ]);
-    console.log(result.response.text());
-
-### Go
-
-    package main
-
-    import (
-      "context"
-      "fmt"
-      "os"
-      "google.golang.org/genai"
-    )
-
-    func main() {
-      ctx := context.Background()
-      client, err := genai.NewClient(ctx, nil)
-      if err != nil {
-          log.Fatal(err)
-      }
-
-      parts := []*genai.Part{
-          genai.NewPartFromText("Please summarize the video in 3 sentences."),
-          genai.NewPartFromURI("https://www.youtube.com/watch?v=9hE5-98ZeCg","video/mp4"),
-      }
-
-      contents := []*genai.Content{
-          genai.NewContentFromParts(parts, genai.RoleUser),
-      }
-
-      result, _ := client.Models.GenerateContent(
-          ctx,
-          "gemini-2.5-flash",
-          contents,
-          nil,
-      )
-
-      fmt.Println(result.Text())
-    }
-
-### REST
-
-    curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
-        -H "x-goog-api-key: $GEMINI_API_KEY" \
-        -H 'Content-Type: application/json' \
-        -X POST \
-        -d '{
-          "contents": [{
-            "parts":[
-                {"text": "Please summarize the video in 3 sentences."},
-                {
-                  "file_data": {
-                    "file_uri": "https://www.youtube.com/watch?v=9hE5-98ZeCg"
-                  }
-                }
-            ]
-          }]
-        }' 2> /dev/null
-
-**Limitations:**
-
-- For the free tier, you can't upload more than 8 hours of YouTube video per day.
-- For the paid tier, there is no limit based on video length.
-- For models prior to Gemini 2.5, you can upload only 1 video per request. For Gemini 2.5 and later models, you can upload a maximum of 10 videos per request.
-- You can only upload public videos (not private or unlisted videos).
-
-## Refer to timestamps in the content
-
-You can ask questions about specific points in time within the video using
-timestamps of the form `MM:SS`.  
-
-### Python
-
-    prompt = "What are the examples given at 00:05 and 00:10 supposed to show us?" # Adjusted timestamps for the NASA video
-
-### JavaScript
-
-    const prompt = "What are the examples given at 00:05 and 00:10 supposed to show us?";
-
-### Go
-
-        prompt := []*genai.Part{
-            genai.NewPartFromURI(currentVideoFile.URI, currentVideoFile.MIMEType),
-             // Adjusted timestamps for the NASA video
-            genai.NewPartFromText("What are the examples given at 00:05 and " +
-                "00:10 supposed to show us?"),
-        }
-
-### REST
-
-    PROMPT="What are the examples given at 00:05 and 00:10 supposed to show us?"
-
-## Transcribe video and provide visual descriptions
-
-The Gemini models can transcribe and provide visual descriptions of video
-content by processing both the audio track and visual frames. For visual
-descriptions, the model samples the video at a rate of **1 frame per second**.
-This sampling rate may affect the level of detail in the descriptions,
-particularly for videos with rapidly changing visuals.  
-
-### Python
-
-    prompt = "Transcribe the audio from this video, giving timestamps for salient events in the video. Also provide visual descriptions."
-
-### JavaScript
-
-    const prompt = "Transcribe the audio from this video, giving timestamps for salient events in the video. Also provide visual descriptions.";
-
-### Go
-
-        prompt := []*genai.Part{
-            genai.NewPartFromURI(currentVideoFile.URI, currentVideoFile.MIMEType),
-            genai.NewPartFromText("Transcribe the audio from this video, giving timestamps for salient events in the video. Also " +
-                "provide visual descriptions."),
-        }
-
-### REST
-
-    PROMPT="Transcribe the audio from this video, giving timestamps for salient events in the video. Also provide visual descriptions."
-
-## Customize video processing
-
-You can customize video processing in the Gemini API by setting clipping
-intervals or providing custom frame rate sampling.
-| **Tip:** Video clipping and frames per second (FPS) are supported by all models, but the quality is significantly higher from 2.5 series models.
-
-### Set clipping intervals
-
-You can clip video by specifying `videoMetadata` with start and end offsets.  
-
-### Python
-
-    from google import genai
-    from google.genai import types
-
-    client = genai.Client()
-    response = client.models.generate_content(
-        model='models/gemini-2.5-flash',
-        contents=types.Content(
-            parts=[
-                types.Part(
-                    file_data=types.FileData(file_uri='https://www.youtube.com/watch?v=XEzRZ35urlk'),
-                    video_metadata=types.VideoMetadata(
-                        start_offset='1250s',
-                        end_offset='1570s'
-                    )
-                ),
-                types.Part(text='Please summarize the video in 3 sentences.')
-            ]
-        )
-    )
-
-### JavaScript
-
-    import { GoogleGenAI } from '@google/genai';
-    const ai = new GoogleGenAI({});
-    const model = 'gemini-2.5-flash';
-
-    async function main() {
-    const contents = [
-      {
-        role: 'user',
-        parts: [
-          {
-            fileData: {
-              fileUri: 'https://www.youtube.com/watch?v=9hE5-98ZeCg',
-              mimeType: 'video/*',
-            },
-            videoMetadata: {
-              startOffset: '40s',
-              endOffset: '80s',
-            }
-          },
-          {
-            text: 'Please summarize the video in 3 sentences.',
-          },
-        ],
-      },
-    ];
-
-    const response = await ai.models.generateContent({
-      model,
-      contents,
-    });
-
-    console.log(response.text)
-
-    }
-
-    await main();
-
-### Set a custom frame rate
-
-You can set custom frame rate sampling by passing an `fps` argument to
-`videoMetadata`.
-**Note:** Due to built-in per image based safety checks, the same video may get blocked at some fps and not at others due to different extracted frames.  
-
-### Python
-
-    from google import genai
-    from google.genai import types
-
-    # Only for videos of size <20Mb
-    video_file_name = "/path/to/your/video.mp4"
-    video_bytes = open(video_file_name, 'rb').read()
-
-    client = genai.Client()
-    response = client.models.generate_content(
-        model='models/gemini-2.5-flash',
-        contents=types.Content(
-            parts=[
-                types.Part(
-                    inline_data=types.Blob(
-                        data=video_bytes,
-                        mime_type='video/mp4'),
-                    video_metadata=types.VideoMetadata(fps=5)
-                ),
-                types.Part(text='Please summarize the video in 3 sentences.')
-            ]
-        )
-    )
-
-By default 1 frame per second (FPS) is sampled from the video. You might want to
-set low FPS (\< 1) for long videos. This is especially useful for mostly static
-videos (e.g. lectures). If you want to capture more details in rapidly changing
-visuals, consider setting a higher FPS value.
-
-## Supported video formats
-
-Gemini supports the following video format MIME types:
-
-- `video/mp4`
-- `video/mpeg`
-- `video/mov`
-- `video/avi`
-- `video/x-flv`
-- `video/mpg`
-- `video/webm`
-- `video/wmv`
-- `video/3gpp`
-
-## Technical details about videos
-
-- **Supported models \& context** : All Gemini 2.0 and 2.5 models can process video data.
-  - Models with a 2M context window can process videos up to 2 hours long at default media resolution or 6 hours long at low media resolution, while models with a 1M context window can process videos up to 1 hour long at default media resolution or 3 hours long at low media resolution.
-- **File API processing** : When using the File API, videos are stored at 1 frame per second (FPS) and audio is processed at 1Kbps (single channel). Timestamps are added every second.
-  - These rates are subject to change in the future for improvements in inference.
-  - You can override the 1 FPS sampling rate by [setting a custom frame rate](https://ai.google.dev/gemini-api/docs/video-understanding#custom-frame-rate).
-- **Token calculation** : Each second of video is tokenized as follows:
-  - Individual frames (sampled at 1 FPS):
-    - If [`mediaResolution`](https://ai.google.dev/api/generate-content#MediaResolution) is set to low, frames are tokenized at 66 tokens per frame.
-    - Otherwise, frames are tokenized at 258 tokens per frame.
-  - Audio: 32 tokens per second.
-  - Metadata is also included.
-  - Total: Approximately 300 tokens per second of video at default media resolution, or 100 tokens per second of video at low media resolution.
-- **Timestamp format** : When referring to specific moments in a video within your prompt, use the `MM:SS` format (e.g., `01:15` for 1 minute and 15 seconds).
-- **Best practices** :
-  - Use only one video per prompt request for optimal results.
-  - If combining text and a single video, place the text prompt *after* the video part in the `contents` array.
-  - Be aware that fast action sequences might lose detail due to the 1 FPS sampling rate. Consider slowing down such clips if necessary.
-
-## What's next
-
-This guide shows how to upload video files and generate text outputs from video
-inputs. To learn more, see the following resources:
-
-- [System instructions](https://ai.google.dev/gemini-api/docs/text-generation#system-instructions): System instructions let you steer the behavior of the model based on your specific needs and use cases.
-- [Files API](https://ai.google.dev/gemini-api/docs/files): Learn more about uploading and managing files for use with Gemini.
-- [File prompting strategies](https://ai.google.dev/gemini-api/docs/files#prompt-guide): The Gemini API supports prompting with text, image, audio, and video data, also known as multimodal prompting.
-- [Safety guidance](https://ai.google.dev/gemini-api/docs/safety-guidance): Sometimes generative AI models produce unexpected outputs, such as outputs that are inaccurate, biased, or offensive. Post-processing and human evaluation are essential to limit the risk of harm from such outputs.
+-   [Gemini Files API 說明](./FILES_API.md)
+-   [Gemini 圖像理解功能](./IMAGE_UNDERSTANDINGS.md)
+-   [Google Gemini 官方影片理解文件](https://ai.google.dev/gemini-api/docs/video-understanding)
