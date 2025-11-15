@@ -5,6 +5,59 @@
 
 export class PromptTemplates {
   /**
+   * 統一入口：根據分析類型生成對應的 Prompt（兼容舊版調用）
+   */
+  static generatePrompt(data) {
+    const { type, dateRange, channelStats, videos, analytics } = data;
+
+    // 準備通用資料結構（兼容層）
+    const commonData = {
+      dateRange,
+      channelStats: channelStats || {
+        totalSubscribers: 0,
+        totalViews: 0,
+        totalVideos: videos?.length || 0,
+        viewsInRange: videos?.reduce((sum, v) => sum + (v.viewCount || 0), 0) || 0,
+        watchTimeHours: 0,
+        subscribersGained: analytics?.subscribersGained || 0,
+        videosInRange: videos?.length || 0,
+      },
+      topVideos: videos || [],
+      trendData: [],
+      monthlyData: [],
+      trafficSources: analytics?.trafficSources || [],
+      searchTerms: analytics?.searchTerms || [],
+      demographics: analytics?.demographics || [],
+      geography: analytics?.geography || [],
+      devices: analytics?.devices || [],
+    };
+
+    // 根據分析類型調用對應方法
+    switch (type) {
+      case 'comprehensive':
+      case 'subscriber-growth':
+      case 'content-strategy':
+        return this.buildChannelHealthPrompt(commonData);
+
+      case 'view-optimization':
+        return this.buildVideoOptimizationPrompt({
+          topVideos: videos || [],
+          bottomVideos: null,
+          channelStats: commonData.channelStats,
+        });
+
+      case 'audience-insights':
+        return this.buildAudienceInsightsPrompt(commonData);
+
+      case 'traffic-growth':
+        return this.buildTrafficGrowthPrompt(commonData);
+
+      default:
+        return this.buildChannelHealthPrompt(commonData);
+    }
+  }
+
+  /**
    * 頻道健康診斷（基於頻道儀表板資料）
    */
   static buildChannelHealthPrompt(data) {
