@@ -1441,7 +1441,7 @@ app.post('/api/analyze-channel', async (req, res) => {
     const response = await aiManager.analyze(modelType, {
       prompt,
       temperature: 0.7,
-      maxTokens: 4096,
+      maxTokens: 8192,
     });
 
     console.log('[Channel Analysis] ✅ 分析完成');
@@ -1518,7 +1518,7 @@ app.post('/api/analyze-channel/multi-model', async (req, res) => {
         const response = await aiManager.analyze(modelType, {
           prompt,
           temperature: 0.7,
-          maxTokens: 4096,
+          maxTokens: 8192,
         });
 
         return {
@@ -1626,7 +1626,7 @@ app.post('/api/analyze-keywords', async (req, res) => {
     const response = await aiManager.analyze(modelType, {
       prompt,
       temperature: 0.7,
-      maxTokens: 4096,
+      maxTokens: 8192,
     });
 
     console.log('[Keyword Analysis] ✅ 分析完成');
