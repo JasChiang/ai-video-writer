@@ -10,6 +10,7 @@ import { generateFullPrompt } from './services/promptService.js';
 import { generateArticlePrompt } from './services/articlePromptService.js';
 import { AIModelManager } from './services/aiProviders/AIModelManager.js';
 import { PromptTemplates } from './services/analysisPrompts/PromptTemplates.js';
+import { aggregateChannelData, clearAnalyticsCache } from './services/channelAnalyticsService.js';
 
 // 載入 .env.local 檔案
 dotenv.config({ path: '.env.local' });
@@ -1657,6 +1658,97 @@ app.post('/api/analyze-keywords', async (req, res) => {
       success: false,
       error: '關鍵字分析失敗',
       details: error.message,
+    });
+  }
+});
+
+/**
+ * 頻道數據聚合（支援關鍵字過濾和多個日期範圍）
+ * POST /api/channel-analytics/aggregate
+ */
+app.post('/api/channel-analytics/aggregate', async (req, res) => {
+  try {
+    const { accessToken, channelId, keywordGroups, dateRanges } = req.body;
+
+    // 驗證參數
+    if (!accessToken) {
+      return res.status(400).json({ error: '缺少 accessToken' });
+    }
+
+    if (!channelId) {
+      return res.status(400).json({ error: '缺少 channelId' });
+    }
+
+    if (!keywordGroups || !Array.isArray(keywordGroups) || keywordGroups.length === 0) {
+      return res.status(400).json({ error: '缺少 keywordGroups 或格式錯誤' });
+    }
+
+    if (!dateRanges || !Array.isArray(dateRanges) || dateRanges.length === 0) {
+      return res.status(400).json({ error: '缺少 dateRanges 或格式錯誤' });
+    }
+
+    // 驗證 keywordGroups 格式
+    for (const group of keywordGroups) {
+      if (!group.name || typeof group.name !== 'string') {
+        return res.status(400).json({ error: 'keywordGroups 中的 name 必須為字符串' });
+      }
+      if (typeof group.keyword !== 'string') {
+        return res.status(400).json({ error: 'keywordGroups 中的 keyword 必須為字符串' });
+      }
+    }
+
+    // 驗證 dateRanges 格式
+    for (const range of dateRanges) {
+      if (!range.label || typeof range.label !== 'string') {
+        return res.status(400).json({ error: 'dateRanges 中的 label 必須為字符串' });
+      }
+      if (!range.startDate || typeof range.startDate !== 'string') {
+        return res.status(400).json({ error: 'dateRanges 中的 startDate 必須為字符串 (YYYY-MM-DD)' });
+      }
+      if (!range.endDate || typeof range.endDate !== 'string') {
+        return res.status(400).json({ error: 'dateRanges 中的 endDate 必須為字符串 (YYYY-MM-DD)' });
+      }
+    }
+
+    console.log('\n========== 📊 開始聚合頻道數據 ==========');
+    console.log(`[Channel Analytics] 頻道 ID: ${channelId}`);
+    console.log(`[Channel Analytics] 關鍵字組合數: ${keywordGroups.length}`);
+    console.log(`[Channel Analytics] 日期範圍數: ${dateRanges.length}`);
+
+    const result = await aggregateChannelData(
+      accessToken,
+      channelId,
+      keywordGroups,
+      dateRanges
+    );
+
+    console.log('[Channel Analytics] ✅ 數據聚合完成');
+    res.json(result);
+  } catch (error) {
+    console.error('[Channel Analytics] ❌ 數據聚合失敗:', error);
+    res.status(500).json({
+      error: error.message || '數據聚合失敗',
+      details: error.toString(),
+    });
+  }
+});
+
+/**
+ * 清除數據聚合快取
+ * POST /api/channel-analytics/clear-cache
+ */
+app.post('/api/channel-analytics/clear-cache', (_req, res) => {
+  try {
+    const result = clearAnalyticsCache();
+    res.json({
+      success: true,
+      message: `已清除 ${result.cleared} 筆快取`,
+      cleared: result.cleared,
+    });
+  } catch (error) {
+    console.error('[Channel Analytics] ❌ 清除快取失敗:', error);
+    res.status(500).json({
+      error: error.message || '清除快取失敗',
     });
   }
 });
