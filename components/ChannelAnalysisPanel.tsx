@@ -19,6 +19,7 @@ interface ChannelAnalysisPanelProps {
     avgViewDuration?: number;
     avgViewPercentage?: number;
     trafficSources?: any[];
+    searchTerms?: any[];
     demographics?: any[];
     geography?: any[];
     devices?: any[];

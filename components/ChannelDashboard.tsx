@@ -2539,6 +2539,11 @@ export function ChannelDashboard() {
             }}
             analytics={{
               subscribersGained: channelStats.subscribersGained,
+              trafficSources: trafficSources,
+              searchTerms: searchTerms,
+              demographics: demographics,
+              geography: geography,
+              devices: devices,
             }}
           />
         </div>
