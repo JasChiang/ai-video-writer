@@ -13,14 +13,14 @@ export class PromptTemplates {
     // 準備通用資料結構（兼容層）
     const commonData = {
       dateRange,
-      channelStats: channelStats || {
-        totalSubscribers: 0,
-        totalViews: 0,
-        totalVideos: videos?.length || 0,
-        viewsInRange: videos?.reduce((sum, v) => sum + (v.viewCount || 0), 0) || 0,
-        watchTimeHours: 0,
-        subscribersGained: analytics?.subscribersGained || 0,
-        videosInRange: videos?.length || 0,
+      channelStats: {
+        totalSubscribers: channelStats?.totalSubscribers || 0,
+        totalViews: channelStats?.totalViews || 0,
+        totalVideos: channelStats?.totalVideos || videos?.length || 0,
+        viewsInRange: channelStats?.viewsInRange || videos?.reduce((sum, v) => sum + (v.viewCount || 0), 0) || 0,
+        watchTimeHours: channelStats?.watchTimeHours || 0,
+        subscribersGained: channelStats?.subscribersGained || analytics?.subscribersGained || 0,
+        videosInRange: channelStats?.videosInRange || videos?.length || 0,
       },
       topVideos: videos || [],
       trendData: [],
@@ -104,24 +104,24 @@ export class PromptTemplates {
 - 發布影片：${channelStats.videosInRange} 支
 
 **熱門影片 Top 10：**
-${topVideos.slice(0, 10).map((v, i) => `${i + 1}. ${v.title}
-   - 觀看：${v.viewCount.toLocaleString()} | 讚：${v.likeCount.toLocaleString()} | 留言：${v.commentCount.toLocaleString()}
-   - 互動率：${((v.likeCount + v.commentCount) / v.viewCount * 100).toFixed(2)}%`).join('\n\n')}
+${topVideos.length > 0 ? topVideos.slice(0, 10).map((v, i) => `${i + 1}. ${v.title || '未命名'}
+   - 觀看：${(v.viewCount || 0).toLocaleString()} | 讚：${(v.likeCount || 0).toLocaleString()} | 留言：${(v.commentCount || 0).toLocaleString()}
+   - 互動率：${v.viewCount > 0 ? (((v.likeCount || 0) + (v.commentCount || 0)) / v.viewCount * 100).toFixed(2) : '0.00'}%`).join('\n\n') : '（暫無影片資料）'}
 
 **流量來源分布：**
-${trafficSources.map(s => `- ${s.source}: ${s.views.toLocaleString()} 次 (${s.percentage.toFixed(1)}%)`).join('\n')}
+${trafficSources.length > 0 ? trafficSources.map(s => `- ${s.source || '未知'}: ${(s.views || 0).toLocaleString()} 次 (${(s.percentage || 0).toFixed(1)}%)`).join('\n') : '（暫無流量來源資料）'}
 
 **搜尋關鍵詞 Top 10：**
-${searchTerms.slice(0, 10).map((t, i) => `${i + 1}. "${t.term}" - ${t.views.toLocaleString()} 次觀看`).join('\n')}
+${searchTerms.length > 0 ? searchTerms.slice(0, 10).map((t, i) => `${i + 1}. "${t.term || '未知'}" - ${(t.views || 0).toLocaleString()} 次觀看`).join('\n') : '（暫無搜尋詞資料）'}
 
 **觀眾人口統計：**
-${demographics.map(d => `- ${d.ageGroup} ${d.gender}: ${d.viewsPercentage.toFixed(1)}%`).join('\n')}
+${demographics.length > 0 ? demographics.map(d => `- ${d.ageGroup || '未知'} ${d.gender || ''}: ${(d.viewsPercentage || 0).toFixed(1)}%`).join('\n') : '（暫無人口統計資料）'}
 
 **地理分布 Top 5：**
-${geography.slice(0, 5).map((g, i) => `${i + 1}. ${g.country}: ${g.views.toLocaleString()} 次 (${g.percentage.toFixed(1)}%)`).join('\n')}
+${geography.length > 0 ? geography.slice(0, 5).map((g, i) => `${i + 1}. ${g.country || '未知'}: ${(g.views || 0).toLocaleString()} 次 (${(g.percentage || 0).toFixed(1)}%)`).join('\n') : '（暫無地理分布資料）'}
 
 **設備類型：**
-${devices.map(d => `- ${d.deviceType}: ${d.views.toLocaleString()} 次 (${d.percentage.toFixed(1)}%)`).join('\n')}
+${devices.length > 0 ? devices.map(d => `- ${d.deviceType || '未知'}: ${(d.views || 0).toLocaleString()} 次 (${(d.percentage || 0).toFixed(1)}%)`).join('\n') : '（暫無設備資料）'}
 
 ---
 
