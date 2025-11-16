@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { exec } from 'child_process';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';
@@ -34,6 +35,19 @@ const PORT = process.env.PORT || 3001;
 
 // 檔案保留天數設定（預設 7 天）
 const FILE_RETENTION_DAYS = parseInt(process.env.FILE_RETENTION_DAYS || '7', 10);
+
+// Notion OAuth 狀態儲存（簡易 in-memory）
+const notionStateStore = new Map();
+const NOTION_STATE_TTL_MS = 5 * 60 * 1000; // 5 分鐘有效
+
+function pruneExpiredNotionStates() {
+  const now = Date.now();
+  for (const [state, meta] of notionStateStore.entries()) {
+    if (now - meta.createdAt > NOTION_STATE_TTL_MS) {
+      notionStateStore.delete(state);
+    }
+  }
+}
 
 // 驗證 API Key
 if (!process.env.GEMINI_API_KEY) {
@@ -248,30 +262,47 @@ app.get('/api/templates', async (req, res) => {
  * GET /api/notion/oauth/url
  */
 app.get('/api/notion/oauth/url', (req, res) => {
-  const notionClientId = process.env.NOTION_CLIENT_ID;
-  const { origin } = req.query;
+  try {
+    const clientId = process.env.NOTION_CLIENT_ID;
+    const redirectUri = process.env.NOTION_REDIRECT_URI;
 
-  // 根據客戶端來源決定 redirect URI
-  const notionRedirectUri = origin
-    ? `${origin}/notion-callback`
-    : (process.env.NOTION_REDIRECT_URI || 'http://localhost:3000/notion-callback');
+    if (!clientId || !redirectUri) {
+      return res.status(400).json({
+        error: 'Notion OAuth 尚未設定，請在環境變數加入 NOTION_CLIENT_ID 及 NOTION_REDIRECT_URI。',
+      });
+    }
 
-  if (!notionClientId) {
-    return res.status(500).json({
-      error: 'Notion integration not configured',
-      details: 'NOTION_CLIENT_ID not found in environment variables'
+    pruneExpiredNotionStates();
+
+    // 透過 query 明確帶入前端來源，避免瀏覽器省略 Origin header 時無法判別
+    let requestOrigin = null;
+    if (typeof req.query.origin === 'string' && req.query.origin) {
+      requestOrigin = req.query.origin;
+    } else if (Array.isArray(req.query.origin) && req.query.origin.length > 0) {
+      requestOrigin = req.query.origin[0];
+    } else if (req.headers.origin) {
+      requestOrigin = req.headers.origin;
+    }
+
+    const state = crypto.randomBytes(16).toString('hex');
+    notionStateStore.set(state, {
+      createdAt: Date.now(),
+      origin: requestOrigin,
     });
+
+    const notionAuthUrl = new URL('https://api.notion.com/v1/oauth/authorize');
+    notionAuthUrl.searchParams.set('response_type', 'code');
+    notionAuthUrl.searchParams.set('owner', 'user');
+    notionAuthUrl.searchParams.set('client_id', clientId);
+    notionAuthUrl.searchParams.set('redirect_uri', redirectUri);
+    notionAuthUrl.searchParams.set('state', state);
+    notionAuthUrl.searchParams.set('scope', 'databases.read,databases.write');
+
+    res.json({ url: notionAuthUrl.toString(), state });
+  } catch (error) {
+    console.error('[Notion] 產生授權 URL 失敗:', error);
+    res.status(500).json({ error: '無法產生 Notion 授權網址' });
   }
-
-  // 生成隨機 state 用於安全驗證
-  const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-
-  const authUrl = `https://api.notion.com/v1/oauth/authorize?client_id=${notionClientId}&response_type=code&owner=user&redirect_uri=${encodeURIComponent(notionRedirectUri)}&state=${state}`;
-
-  res.json({
-    url: authUrl,
-    state
-  });
 });
 
 /**
@@ -1011,7 +1042,7 @@ app.post('/api/generate-article-url', async (req, res) => {
       screenshots: result.screenshots,  // 返回截圖規劃
       videoId,  // 返回 videoId 供後續截圖使用
       usedYouTubeUrl: true,
-      screenshotsPlanned: true,  // 標記截圖已規劃但未執行
+      needsScreenshots: true,  // 標記截圖已規劃但未執行
       screenshotsCount: result.screenshots.length
     });
 
@@ -1109,7 +1140,7 @@ app.post('/api/generate-article-url-async', async (req, res) => {
         screenshots: result.screenshots,  // 返回截圖規劃
         videoId,  // 返回 videoId 供後續截圖使用
         usedYouTubeUrl: true,
-        screenshotsPlanned: true,  // 標記截圖已規劃但未執行
+        needsScreenshots: true,  // 標記截圖已規劃但未執行
         screenshotsCount: result.screenshots.length
       };
     });
