@@ -95,7 +95,7 @@ git remote -v
 - **分支名稱**: `claude/ai-analytics-multi-model-012AQzaW8ttmKGPeZjKHg5G1`
 - **最新 commit**: `b773aa7 docs: Add server restart guide for new API endpoints`
 - **包含功能**:
-  - ✅ AI 多模型支持（Gemini、Claude、GPT、DeepSeek）
+  - ✅ AI 多模型支持（Gemini、Claude、GPT、Grok）
   - ✅ 頻道分析儀表板
   - ✅ 關鍵字分析面板
   - ✅ 影片快取系統

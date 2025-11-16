@@ -44,8 +44,8 @@ Server running on http://localhost:3001
 - 支援的模型：
   - Gemini 2.5 Flash / Pro
   - Claude Sonnet 4.5
-  - GPT-4.5 Turbo
-  - DeepSeek V3
+  - GPT-5.1
+  - Grok 4
 
 ### 2. 頻道分析功能
 - **ChannelAnalytics**: 頻道數據視覺化
