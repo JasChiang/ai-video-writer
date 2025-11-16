@@ -2700,206 +2700,268 @@ export function ChannelDashboard() {
         </div>
       )}
 
-      {/* KPI 指標卡片（可點擊切換圖表）*/}
+      {/* KPI 指標卡片（可點擊切換圖表）- 緊湊型設計 */}
       {channelStats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* 觀看次數（時間範圍內）*/}
           <button
             onClick={() => setSelectedMetric('views')}
-            className={`rounded-2xl border bg-white shadow-sm transition-all duration-200 p-7 text-left hover:shadow-md ${
+            className={`group relative overflow-hidden rounded-lg border bg-gradient-to-br from-white to-gray-50/30 shadow-sm transition-all duration-300 p-4 text-left hover:shadow-lg ${
               selectedMetric === 'views'
-                ? 'border-[#FF0000] shadow-[0_4px_12px_rgba(255,0,0,0.2)] ring-2 ring-[#FF0000]/10'
-                : 'border-[#E5E5E5] hover:border-[#CCCCCC]'
+                ? 'border-red-500 shadow-red-100 ring-1 ring-red-500/20'
+                : 'border-gray-200 hover:border-gray-300'
             }`}
+            style={{ fontFamily: '"JetBrains Mono", "Consolas", monospace' }}
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-[#909090] text-[11px] font-bold uppercase tracking-wider">觀看次數</div>
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedMetric === 'views' ? 'bg-[#FFE7E7]' : 'bg-[#F2F2F2]'}`}>
-                <Eye className={`w-5 h-5 ${selectedMetric === 'views' ? 'text-[#FF0000]' : 'text-[#909090]'}`} />
-              </div>
-            </div>
-            <div className="text-[42px] font-bold text-[#0F0F0F] leading-none mb-3">
-              {formatNumber(channelStats.viewsInRange)}
-            </div>
-            <div className="text-[13px] text-[#606060] mb-4 font-medium">
-              {formatFullNumber(channelStats.viewsInRange)} 次觀看
-            </div>
-            {viewsComparison && (
-              <div className="flex flex-col gap-2.5 text-[11px] border-t border-[#E5E5E5] pt-4">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-[#606060] leading-tight">
-                    <div className="font-semibold">較前期</div>
-                    {comparisonDateRanges && (
-                      <div className="text-[10px] text-[#909090] mt-0.5">{comparisonDateRanges.previous}</div>
-                    )}
-                  </div>
-                  <div className={`px-2.5 py-1 rounded-full font-bold ${viewsComparison.changeFromPrevious >= 0 ? 'bg-[#E6F4EA] text-[#137333]' : 'bg-[#FCE8E6] text-[#C5221F]'}`}>
-                    {viewsComparison.changeFromPrevious >= 0 ? '↑' : '↓'} {Math.abs(viewsComparison.changeFromPreviousPercent).toFixed(1)}%
-                  </div>
+            {/* 背景裝飾 */}
+            <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl transition-opacity duration-300 ${
+              selectedMetric === 'views' ? 'opacity-10 bg-red-500' : 'opacity-0'
+            }`} />
+
+            <div className="relative">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Eye className={`w-5 h-5 transition-colors ${selectedMetric === 'views' ? 'text-red-500' : 'text-gray-500'}`} />
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-600">觀看次數</span>
                 </div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-[#606060] leading-tight">
-                    <div className="font-semibold">較去年同期</div>
-                    {comparisonDateRanges && (
-                      <div className="text-[10px] text-[#909090] mt-0.5">{comparisonDateRanges.yearAgo}</div>
-                    )}
-                  </div>
-                  <div className={`px-2.5 py-1 rounded-full font-bold ${viewsComparison.changeFromYearAgo >= 0 ? 'bg-[#E6F4EA] text-[#137333]' : 'bg-[#FCE8E6] text-[#C5221F]'}`}>
-                    {viewsComparison.changeFromYearAgo >= 0 ? '↑' : '↓'} {Math.abs(viewsComparison.changeFromYearAgoPercent).toFixed(1)}%
-                  </div>
+                {selectedMetric === 'views' && (
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                )}
+              </div>
+
+              {/* 主數字 */}
+              <div className="mb-2">
+                <div className="text-4xl font-bold text-gray-900 leading-none tracking-tight">
+                  {formatNumber(channelStats.viewsInRange)}
+                </div>
+                <div className="text-[11px] text-gray-600 mt-1.5 font-medium">
+                  {formatFullNumber(channelStats.viewsInRange)} 次觀看
                 </div>
               </div>
-            )}
-            <div className="text-[10px] text-[#909090] mt-3 leading-relaxed">
-              {error?.includes('Analytics API')
-                ? '時間範圍內發布影片的累計數（備援模式）'
-                : '時間範圍內實際產生的觀看數'}
+
+              {/* 比較數據 - 橫向緊湊佈局 */}
+              {viewsComparison && (
+                <div className="flex gap-2.5 text-[10px] mt-3 pt-3 border-t border-gray-200">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-gray-500 font-semibold mb-0.5">較前期</div>
+                    {comparisonDateRanges && (
+                      <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.previous}</div>
+                    )}
+                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${
+                      viewsComparison.changeFromPrevious >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      <span>{viewsComparison.changeFromPrevious >= 0 ? '↑' : '↓'}</span>
+                      <span>{Math.abs(viewsComparison.changeFromPreviousPercent).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-gray-500 font-semibold mb-0.5">較去年同期</div>
+                    {comparisonDateRanges && (
+                      <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.yearAgo}</div>
+                    )}
+                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${
+                      viewsComparison.changeFromYearAgo >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      <span>{viewsComparison.changeFromYearAgo >= 0 ? '↑' : '↓'}</span>
+                      <span>{Math.abs(viewsComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </button>
 
           {/* 觀看時間（小時）*/}
           <button
             onClick={() => setSelectedMetric('watchTime')}
-            className={`rounded-2xl border bg-white shadow-sm transition-all duration-200 p-7 text-left hover:shadow-md ${
+            className={`group relative overflow-hidden rounded-lg border bg-gradient-to-br from-white to-gray-50/30 shadow-sm transition-all duration-300 p-4 text-left hover:shadow-lg ${
               selectedMetric === 'watchTime'
-                ? 'border-[#FF0000] shadow-[0_4px_12px_rgba(255,0,0,0.2)] ring-2 ring-[#FF0000]/10'
-                : 'border-[#E5E5E5] hover:border-[#CCCCCC]'
+                ? 'border-red-500 shadow-red-100 ring-1 ring-red-500/20'
+                : 'border-gray-200 hover:border-gray-300'
             }`}
+            style={{ fontFamily: '"JetBrains Mono", "Consolas", monospace' }}
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-[#909090] text-[11px] font-bold uppercase tracking-wider">觀看時間</div>
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedMetric === 'watchTime' ? 'bg-[#FFE7E7]' : 'bg-[#F2F2F2]'}`}>
-                <Clock className={`w-5 h-5 ${selectedMetric === 'watchTime' ? 'text-[#FF0000]' : 'text-[#909090]'}`} />
-              </div>
-            </div>
-            <div className="text-[42px] font-bold text-[#0F0F0F] leading-none mb-3">
-              {formatNumber(channelStats.watchTimeHours)}
-            </div>
-            <div className="text-[13px] text-[#606060] mb-4 font-medium">
-              {formatFullNumber(channelStats.watchTimeHours)} 小時
-            </div>
-            {watchTimeComparison && (
-              <div className="flex flex-col gap-2.5 text-[11px] border-t border-[#E5E5E5] pt-4">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-[#606060] leading-tight">
-                    <div className="font-semibold">較前期</div>
-                    {comparisonDateRanges && (
-                      <div className="text-[10px] text-[#909090] mt-0.5">{comparisonDateRanges.previous}</div>
-                    )}
-                  </div>
-                  <div className={`px-2.5 py-1 rounded-full font-bold ${watchTimeComparison.changeFromPrevious >= 0 ? 'bg-[#E6F4EA] text-[#137333]' : 'bg-[#FCE8E6] text-[#C5221F]'}`}>
-                    {watchTimeComparison.changeFromPrevious >= 0 ? '↑' : '↓'} {Math.abs(watchTimeComparison.changeFromPreviousPercent).toFixed(1)}%
-                  </div>
+            {/* 背景裝飾 */}
+            <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl transition-opacity duration-300 ${
+              selectedMetric === 'watchTime' ? 'opacity-10 bg-red-500' : 'opacity-0'
+            }`} />
+
+            <div className="relative">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Clock className={`w-5 h-5 transition-colors ${selectedMetric === 'watchTime' ? 'text-red-500' : 'text-gray-500'}`} />
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-600">觀看時間</span>
                 </div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-[#606060] leading-tight">
-                    <div className="font-semibold">較去年同期</div>
-                    {comparisonDateRanges && (
-                      <div className="text-[10px] text-[#909090] mt-0.5">{comparisonDateRanges.yearAgo}</div>
-                    )}
-                  </div>
-                  <div className={`px-2.5 py-1 rounded-full font-bold ${watchTimeComparison.changeFromYearAgo >= 0 ? 'bg-[#E6F4EA] text-[#137333]' : 'bg-[#FCE8E6] text-[#C5221F]'}`}>
-                    {watchTimeComparison.changeFromYearAgo >= 0 ? '↑' : '↓'} {Math.abs(watchTimeComparison.changeFromYearAgoPercent).toFixed(1)}%
-                  </div>
+                {selectedMetric === 'watchTime' && (
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                )}
+              </div>
+
+              {/* 主數字 */}
+              <div className="mb-2">
+                <div className="text-4xl font-bold text-gray-900 leading-none tracking-tight">
+                  {formatNumber(channelStats.watchTimeHours)}
+                </div>
+                <div className="text-[11px] text-gray-600 mt-1.5 font-medium">
+                  {formatFullNumber(channelStats.watchTimeHours)} 小時
                 </div>
               </div>
-            )}
-            <div className="text-xs text-[#909090] mt-2">
-              {error?.includes('Analytics API')
-                ? '估算值（基於平均觀看時長）'
-                : '時間範圍內實際觀看時長'}
+
+              {/* 比較數據 */}
+              {watchTimeComparison && (
+                <div className="flex gap-2.5 text-[10px] mt-3 pt-3 border-t border-gray-200">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-gray-500 font-semibold mb-0.5">較前期</div>
+                    {comparisonDateRanges && (
+                      <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.previous}</div>
+                    )}
+                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${
+                      watchTimeComparison.changeFromPrevious >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      <span>{watchTimeComparison.changeFromPrevious >= 0 ? '↑' : '↓'}</span>
+                      <span>{Math.abs(watchTimeComparison.changeFromPreviousPercent).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-gray-500 font-semibold mb-0.5">較去年同期</div>
+                    {comparisonDateRanges && (
+                      <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.yearAgo}</div>
+                    )}
+                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${
+                      watchTimeComparison.changeFromYearAgo >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      <span>{watchTimeComparison.changeFromYearAgo >= 0 ? '↑' : '↓'}</span>
+                      <span>{Math.abs(watchTimeComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </button>
 
           {/* 新增訂閱數 */}
           <button
             onClick={() => setSelectedMetric('subscribers')}
-            className={`rounded-2xl border bg-white shadow-sm transition-all duration-200 p-7 text-left hover:shadow-md ${
+            className={`group relative overflow-hidden rounded-lg border bg-gradient-to-br from-white to-gray-50/30 shadow-sm transition-all duration-300 p-4 text-left hover:shadow-lg ${
               selectedMetric === 'subscribers'
-                ? 'border-[#FF0000] shadow-[0_4px_12px_rgba(255,0,0,0.2)] ring-2 ring-[#FF0000]/10'
-                : 'border-[#E5E5E5] hover:border-[#CCCCCC]'
+                ? 'border-red-500 shadow-red-100 ring-1 ring-red-500/20'
+                : 'border-gray-200 hover:border-gray-300'
             }`}
+            style={{ fontFamily: '"JetBrains Mono", "Consolas", monospace' }}
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-[#909090] text-[11px] font-bold uppercase tracking-wider">新增訂閱數</div>
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedMetric === 'subscribers' ? 'bg-[#FFE7E7]' : 'bg-[#F2F2F2]'}`}>
-                <Users className={`w-5 h-5 ${selectedMetric === 'subscribers' ? 'text-[#FF0000]' : 'text-[#909090]'}`} />
-              </div>
-            </div>
-            <div className="text-[42px] font-bold text-[#0F0F0F] leading-none mb-3">
-              {channelStats.subscribersGained >= 0 ? '+' : ''}{formatNumber(channelStats.subscribersGained)}
-            </div>
-            <div className="text-[13px] text-[#606060] mb-4 font-medium">
-              {formatFullNumber(channelStats.subscribersGained)} 位訂閱者
-            </div>
-            {subscribersComparison && (
-              <div className="flex flex-col gap-2.5 text-[11px] border-t border-[#E5E5E5] pt-4">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-[#606060] leading-tight">
-                    <div className="font-semibold">較前期</div>
-                    {comparisonDateRanges && (
-                      <div className="text-[10px] text-[#909090] mt-0.5">{comparisonDateRanges.previous}</div>
-                    )}
-                  </div>
-                  <div className={`px-2.5 py-1 rounded-full font-bold ${subscribersComparison.changeFromPrevious >= 0 ? 'bg-[#E6F4EA] text-[#137333]' : 'bg-[#FCE8E6] text-[#C5221F]'}`}>
-                    {subscribersComparison.changeFromPrevious >= 0 ? '↑' : '↓'} {Math.abs(subscribersComparison.changeFromPreviousPercent).toFixed(1)}%
-                  </div>
+            {/* 背景裝飾 */}
+            <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl transition-opacity duration-300 ${
+              selectedMetric === 'subscribers' ? 'opacity-10 bg-red-500' : 'opacity-0'
+            }`} />
+
+            <div className="relative">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Users className={`w-5 h-5 transition-colors ${selectedMetric === 'subscribers' ? 'text-red-500' : 'text-gray-500'}`} />
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-600">新增訂閱數</span>
                 </div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-[#606060] leading-tight">
-                    <div className="font-semibold">較去年同期</div>
-                    {comparisonDateRanges && (
-                      <div className="text-[10px] text-[#909090] mt-0.5">{comparisonDateRanges.yearAgo}</div>
-                    )}
-                  </div>
-                  <div className={`px-2.5 py-1 rounded-full font-bold ${subscribersComparison.changeFromYearAgo >= 0 ? 'bg-[#E6F4EA] text-[#137333]' : 'bg-[#FCE8E6] text-[#C5221F]'}`}>
-                    {subscribersComparison.changeFromYearAgo >= 0 ? '↑' : '↓'} {Math.abs(subscribersComparison.changeFromYearAgoPercent).toFixed(1)}%
-                  </div>
+                {selectedMetric === 'subscribers' && (
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                )}
+              </div>
+
+              {/* 主數字 */}
+              <div className="mb-2">
+                <div className="text-4xl font-bold text-gray-900 leading-none tracking-tight">
+                  {channelStats.subscribersGained >= 0 ? '+' : ''}{formatNumber(channelStats.subscribersGained)}
+                </div>
+                <div className="text-[11px] text-gray-600 mt-1.5 font-medium">
+                  {formatFullNumber(channelStats.subscribersGained)} 位訂閱者
                 </div>
               </div>
-            )}
-            <div className="text-[10px] text-[#909090] mt-3 leading-relaxed">
-              {error?.includes('Analytics API')
-                ? '無法獲取（需要 Analytics API）'
-                : '時間範圍內新增訂閱數'}
+
+              {/* 比較數據 */}
+              {subscribersComparison && (
+                <div className="flex gap-2.5 text-[10px] mt-3 pt-3 border-t border-gray-200">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-gray-500 font-semibold mb-0.5">較前期</div>
+                    {comparisonDateRanges && (
+                      <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.previous}</div>
+                    )}
+                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${
+                      subscribersComparison.changeFromPrevious >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      <span>{subscribersComparison.changeFromPrevious >= 0 ? '↑' : '↓'}</span>
+                      <span>{Math.abs(subscribersComparison.changeFromPreviousPercent).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-gray-500 font-semibold mb-0.5">較去年同期</div>
+                    {comparisonDateRanges && (
+                      <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.yearAgo}</div>
+                    )}
+                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${
+                      subscribersComparison.changeFromYearAgo >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      <span>{subscribersComparison.changeFromYearAgo >= 0 ? '↑' : '↓'}</span>
+                      <span>{Math.abs(subscribersComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </button>
 
-          {/* 觀看指標（平均時長 + 完成度）*/}
-          <div className="rounded-2xl border border-[#E5E5E5] bg-white shadow-sm transition-all duration-200 p-7 hover:shadow-md hover:border-[#CCCCCC]">
-            <div className="flex items-center justify-between mb-5">
-              <div className="text-[#909090] text-[11px] font-bold uppercase tracking-wider">觀看指標</div>
-              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#F2F2F2]">
-                <BarChart3 className="w-5 h-5 text-[#909090]" />
+          {/* 觀看指標（平均時長 + 完成度）- 雙指標緊湊佈局 */}
+          <div
+            className="relative overflow-hidden rounded-lg border border-gray-200 bg-gradient-to-br from-white to-gray-50/30 shadow-sm transition-all duration-300 p-4 hover:shadow-lg hover:border-gray-300"
+            style={{ fontFamily: '"JetBrains Mono", "Consolas", monospace' }}
+          >
+            <div className="relative">
+              {/* Header */}
+              <div className="flex items-center gap-2 mb-3">
+                <BarChart3 className="w-5 h-5 text-gray-500" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-600">觀看指標</span>
               </div>
-            </div>
 
-            {/* 平均觀看時長 */}
-            <div className="mb-5 pb-5 border-b border-[#E5E5E5]">
-              <div className="text-[11px] text-[#909090] mb-2 font-bold uppercase tracking-wider">平均觀看時長</div>
-              <div className="text-[36px] font-bold text-[#0F0F0F] leading-none mb-2">
-                {Math.floor(avgViewDuration / 60)}:{String(avgViewDuration % 60).padStart(2, '0')}
-              </div>
-              <div className="text-[12px] text-[#606060] font-medium">
-                {avgViewDuration} 秒
-              </div>
-            </div>
+              {/* 雙列佈局 - 更緊湊 */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* 平均觀看時長 */}
+                <div className="border-r border-gray-200 pr-3">
+                  <div className="text-[10px] text-gray-500 font-semibold mb-1.5">平均觀看時長</div>
+                  <div className="text-3xl font-bold text-gray-900 leading-none mb-1.5">
+                    {Math.floor(avgViewDuration / 60)}:{String(avgViewDuration % 60).padStart(2, '0')}
+                  </div>
+                  <div className="text-[10px] text-gray-600 font-medium">
+                    {avgViewDuration} 秒
+                  </div>
+                </div>
 
-            {/* 平均觀看百分比 */}
-            <div>
-              <div className="text-[11px] text-[#909090] mb-2 font-bold uppercase tracking-wider">平均完成度</div>
-              <div className="text-[36px] font-bold text-[#0F0F0F] leading-none mb-2">
-                {avgViewPercentage.toFixed(1)}%
+                {/* 平均觀看百分比 */}
+                <div className="pl-0">
+                  <div className="text-[10px] text-gray-500 font-semibold mb-1.5">平均完成度</div>
+                  <div className="text-3xl font-bold text-gray-900 leading-none mb-1.5">
+                    {avgViewPercentage.toFixed(1)}%
+                  </div>
+                  <div className="text-[10px] text-gray-600 font-medium">
+                    觀眾平均看完比例
+                  </div>
+                </div>
               </div>
-              <div className="text-[12px] text-[#606060] font-medium">
-                觀眾平均看完比例
-              </div>
-            </div>
 
-            <div className="text-[10px] text-[#909090] mt-4 leading-relaxed">
-              {error?.includes('Analytics API')
-                ? '無法獲取（需要 Analytics API）'
-                : '觀眾參與度指標'}
+              {/* 進度條視覺化 */}
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-gray-500 to-gray-700 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(avgViewPercentage, 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="text-[10px] text-gray-500 mt-2 leading-relaxed">
+                {error?.includes('Analytics API')
+                  ? '無法獲取（需要 Analytics API）'
+                  : '觀眾參與度指標'}
+              </div>
             </div>
           </div>
         </div>
