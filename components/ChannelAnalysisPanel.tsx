@@ -111,8 +111,12 @@ export function ChannelAnalysisPanel({
           videos: topVideosData,
           channelStats: {
             totalViews: channelStats.totalViews,
-            subscriberCount: channelStats.subscriberCount,
+            totalSubscribers: channelStats.totalSubscribers,
             totalVideos: channelStats.totalVideos,
+            viewsInRange: channelStats.viewsInRange,
+            watchTimeHours: channelStats.watchTimeHours,
+            subscribersGained: channelStats.subscribersGained,
+            videosInRange: channelStats.videosInRange,
           },
           analytics,
           modelType: modelToUse,
