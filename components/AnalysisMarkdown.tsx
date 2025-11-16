@@ -1,6 +1,6 @@
 /**
  * AnalysisMarkdown - 增强的 Markdown 渲染组件
- * 支持 Mermaid 图表、表格美化、章节图标
+ * 支持 Mermaid 图表、Chart.js 本地图表、表格美化、章节图标
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -21,9 +21,31 @@ import {
   Zap,
   List,
 } from 'lucide-react';
+import {
+  Chart as ChartJS,
+  ArcElement,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { Pie, Bar } from 'react-chartjs-2';
 import type { Components } from 'react-markdown';
 import type { YouTubeVideo } from '../types';
 import { VideoPreviewCard } from './VideoPreviewCard';
+
+// 註冊 Chart.js 組件
+ChartJS.register(
+  ArcElement,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 interface AnalysisMarkdownProps {
   children: string;
@@ -156,6 +178,95 @@ const MermaidDiagram: React.FC<{ chart: string }> = ({ chart }) => {
   }, [chart]);
 
   return <div ref={ref} className="my-6 flex justify-center" />;
+};
+
+// Chart.js 圖表組件
+interface ChartData {
+  type: 'pie' | 'bar';
+  title?: string;
+  labels: string[];
+  values: number[];
+  colors?: string[];
+}
+
+const ChartJSComponent: React.FC<{ data: ChartData }> = ({ data }) => {
+  const defaultColors = [
+    '#0077B6', // 主色
+    '#0096C7', // 副色
+    '#00B4D8', // 輔助色 1
+    '#48CAE4', // 輔助色 2
+    '#90E0EF', // 輔助色 3
+    '#ADE8F4', // 輔助色 4
+    '#CAF0F8', // 輔助色 5
+    '#FF6B6B', // 對比色 1
+    '#FFA500', // 對比色 2
+    '#32CD32', // 對比色 3
+  ];
+
+  const chartData = {
+    labels: data.labels,
+    datasets: [
+      {
+        label: data.title || '數據',
+        data: data.values,
+        backgroundColor: data.colors || defaultColors.slice(0, data.values.length),
+        borderColor: '#FFFFFF',
+        borderWidth: 2,
+      },
+    ],
+  };
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: {
+      legend: {
+        position: 'bottom' as const,
+        labels: {
+          padding: 15,
+          font: {
+            size: 12,
+          },
+          color: '#03045E',
+        },
+      },
+      title: {
+        display: !!data.title,
+        text: data.title,
+        font: {
+          size: 16,
+          weight: 'bold' as const,
+        },
+        color: '#03045E',
+        padding: {
+          bottom: 20,
+        },
+      },
+      tooltip: {
+        callbacks: {
+          label: function (context: any) {
+            const label = context.label || '';
+            const value = context.parsed || context.raw;
+            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+            const percentage = ((value / total) * 100).toFixed(1);
+            return `${label}: ${value.toLocaleString()} (${percentage}%)`;
+          },
+        },
+      },
+    },
+  };
+
+  return (
+    <div className="my-6 p-6 bg-white border-2 rounded-lg" style={{ borderColor: '#E5E7EB' }}>
+      <div style={{ maxWidth: '500px', margin: '0 auto' }}>
+        {data.type === 'pie' ? (
+          <Pie data={chartData} options={options} />
+        ) : (
+          <Bar data={chartData} options={options} />
+        )}
+      </div>
+    </div>
+  );
 };
 
 // 自定义 Markdown 组件
@@ -328,6 +439,37 @@ const findVideoById = (videoId: string, videos?: YouTubeVideo[]): YouTubeVideo |
 const VIDEO_ID_REGEX = /\b([a-zA-Z0-9_-]{11})\b/g;
 
 export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
+  // 存儲解析出的圖表數據
+  const [charts, setCharts] = React.useState<Map<string, ChartData>>(new Map());
+
+  // 預處理內容：識別圖表並替換為特殊標記
+  const processCharts = (text: string): string => {
+    const chartRegex = /<!--\s*CHART:(PIE|BAR)\s*\n([\s\S]*?)\n-->/g;
+    const newCharts = new Map<string, ChartData>();
+    let chartIndex = 0;
+
+    const processed = text.replace(chartRegex, (match, type, jsonData) => {
+      try {
+        const data = JSON.parse(jsonData.trim());
+        const chartId = `chart-${chartIndex++}`;
+        newCharts.set(chartId, {
+          type: type.toLowerCase() as 'pie' | 'bar',
+          title: data.title,
+          labels: data.labels,
+          values: data.values,
+          colors: data.colors,
+        });
+        return `__CHART:${chartId}__`;
+      } catch (error) {
+        console.error('Failed to parse chart data:', error);
+        return match; // 保留原始內容
+      }
+    });
+
+    setCharts(newCharts);
+    return processed;
+  };
+
   // 预处理内容：识别 video ID 并替换为特殊标记
   const processVideoIds = (text: string): string => {
     if (!videos || videos.length === 0) return text;
@@ -342,12 +484,24 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
     });
   };
 
-  // 创建自定义的 components，包含 video 数据
+  // 创建自定义的 components，包含 video 和 chart 数据
   const componentsWithVideos: Components = {
     ...components,
-    // 段落组件 - 识别并渲染 video 卡片
+    // 段落组件 - 识别并渲染 video 卡片和圖表
     p: ({ children }) => {
       const text = String(children);
+
+      // 检查是否包含圖表标记
+      if (text.includes('__CHART:')) {
+        const chartMatch = text.match(/__CHART:(chart-\d+)__/);
+        if (chartMatch) {
+          const chartId = chartMatch[1];
+          const chartData = charts.get(chartId);
+          if (chartData) {
+            return <ChartJSComponent data={chartData} />;
+          }
+        }
+      }
 
       // 检查是否包含 video 标记
       if (text.includes('__VIDEO_CARD:')) {
@@ -391,7 +545,13 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
     },
   };
 
-  const processedContent = processVideoIds(children);
+  // 依序處理：圖表 -> 影片 ID
+  const processedContent = React.useMemo(() => {
+    let content = children;
+    content = processCharts(content);
+    content = processVideoIds(content);
+    return content;
+  }, [children]);
 
   return (
     <div className="analysis-markdown">
