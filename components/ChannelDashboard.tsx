@@ -62,8 +62,37 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+  ChartOptions,
+} from 'chart.js';
+import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import * as youtubeService from '../services/youtubeService';
 import { ChannelAnalysisPanel } from './ChannelAnalysisPanel';
+
+// 註冊 Chart.js 組件
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
 
 interface ChannelStats {
   // 頻道總體統計（不受時間範圍影響）
@@ -2889,93 +2918,138 @@ export function ChannelDashboard() {
           </div>
         ) : (
           <>
-            {/* 柱狀圖 */}
-            <div className="mt-6">
-              <div className="flex items-end justify-between gap-1 h-64 border-b border-l border-red-100 pb-2 pl-2">
-                {monthlyData.map((dataPoint, index) => {
-                  // 根據選擇的指標獲取值
-                  let value = 0;
-                  let color = '';
-                  let currentColor = '';
-                  switch (selectedMetric) {
-                    case 'views':
-                      value = dataPoint.views;
-                      color = 'bg-red-500 hover:bg-red-600';
-                      currentColor = 'bg-red-200 hover:bg-red-300 border border-dashed border-red-500';
-                      break;
-                    case 'watchTime':
-                      value = dataPoint.watchTimeHours;
-                      color = 'bg-rose-400 hover:bg-rose-500';
-                      currentColor = 'bg-rose-200 hover:bg-rose-300 border border-dashed border-rose-500';
-                      break;
-                    case 'subscribers':
-                      value = dataPoint.subscribersNet; // 使用淨增長（新增 - 取消）
-                      color = value >= 0 ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-300 hover:bg-gray-400';
-                      currentColor =
-                        value >= 0
-                          ? 'bg-red-200 hover:bg-red-400 border border-dashed border-red-500'
-                          : 'bg-gray-200 hover:bg-gray-300 border border-dashed border-gray-400';
-                      break;
-                  }
-                  const barClass = dataPoint.isCurrentMonth ? currentColor : color;
-
-                  // 計算最大值用於比例
-                  const maxValue = Math.max(
-                    ...monthlyData.map(d => {
-                      switch (selectedMetric) {
-                        case 'views': return d.views;
-                        case 'watchTime': return d.watchTimeHours;
-                        case 'subscribers': return Math.abs(d.subscribersNet); // 使用淨增長
-                        default: return 0;
-                      }
-                    })
-                  );
-
-                  // 計算高度百分比（最小 5%，最大 100%）
-                  const heightPercent = maxValue > 0 ? Math.max(5, (Math.abs(value) / maxValue) * 100) : 5;
-
-                  // 調試日誌（只在第一個月份打印）
-                  if (index === 0) {
-                    console.log('[Dashboard] 📊 柱狀圖渲染:', {
-                      selectedMetric,
-                      monthlyDataCount: monthlyData.length,
-                      firstDataPoint: dataPoint,
-                      value,
-                      maxValue,
-                      heightPercent,
-                      color
-                    });
-                  }
-
-                  return (
-                    <div key={index} className="flex-1 flex flex-col items-center group" style={{ height: '100%' }}>
-                      {/* 柱子區域 */}
-                      <div className="relative w-full flex-1 flex items-end justify-center">
-                        {/* 數值標籤（始終顯示）*/}
-                        <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 whitespace-nowrap">
-                          {formatFullNumber(value)}
-                        </div>
-
-                        {/* 柱狀條 */}
-                        <div className="flex items-end justify-center w-full" style={{ height: '100%' }}>
-                          <div
-                            className={`w-5 sm:w-6 ${barClass} rounded-t-full transition-all duration-300 cursor-pointer hover:opacity-80`}
-                            style={{
-                              height: `${heightPercent}%`
-                            }}
-                            title={`${dataPoint.month}${dataPoint.isCurrentMonth ? ' (至今)' : ''}: ${formatFullNumber(value)}`}
-                          />
-                        </div>
-                      </div>
-
-                      {/* 月份標籤（水平顯示）*/}
-                      <div className="text-xs text-gray-600 mt-2 whitespace-nowrap">
-                        {dataPoint.isCurrentMonth ? `${dataPoint.month} (至今)` : dataPoint.month}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+            {/* Chart.js 柱狀圖 */}
+            <div className="mt-6 h-80">
+              <Bar
+                data={{
+                  labels: monthlyData.map(d => d.isCurrentMonth ? `${d.month} (至今)` : d.month),
+                  datasets: [
+                    {
+                      label: selectedMetric === 'views' ? '觀看次數' : selectedMetric === 'watchTime' ? '觀看時長（小時）' : '訂閱淨增長',
+                      data: monthlyData.map(d => {
+                        switch (selectedMetric) {
+                          case 'views': return d.views;
+                          case 'watchTime': return d.watchTimeHours;
+                          case 'subscribers': return d.subscribersNet;
+                          default: return 0;
+                        }
+                      }),
+                      backgroundColor: monthlyData.map((d, index) => {
+                        const isCurrentMonth = d.isCurrentMonth;
+                        switch (selectedMetric) {
+                          case 'views':
+                            return isCurrentMonth ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.8)';
+                          case 'watchTime':
+                            return isCurrentMonth ? 'rgba(251, 113, 133, 0.4)' : 'rgba(251, 113, 133, 0.8)';
+                          case 'subscribers':
+                            const value = monthlyData[index].subscribersNet;
+                            if (isCurrentMonth) {
+                              return value >= 0 ? 'rgba(220, 38, 38, 0.4)' : 'rgba(209, 213, 219, 0.4)';
+                            }
+                            return value >= 0 ? 'rgba(220, 38, 38, 0.8)' : 'rgba(209, 213, 219, 0.8)';
+                          default:
+                            return 'rgba(239, 68, 68, 0.8)';
+                        }
+                      }),
+                      borderColor: monthlyData.map((d, index) => {
+                        const isCurrentMonth = d.isCurrentMonth;
+                        switch (selectedMetric) {
+                          case 'views':
+                            return isCurrentMonth ? '#ef4444' : '#ef4444';
+                          case 'watchTime':
+                            return isCurrentMonth ? '#fb7185' : '#fb7185';
+                          case 'subscribers':
+                            const value = monthlyData[index].subscribersNet;
+                            return value >= 0 ? '#dc2626' : '#d1d5db';
+                          default:
+                            return '#ef4444';
+                        }
+                      }),
+                      borderWidth: monthlyData.map(d => d.isCurrentMonth ? 2 : 0),
+                      borderDash: monthlyData.map(d => d.isCurrentMonth ? [5, 5] : []),
+                      borderRadius: 8,
+                      borderSkipped: false,
+                    },
+                  ],
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      display: false,
+                    },
+                    tooltip: {
+                      backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                      titleColor: '#374151',
+                      bodyColor: '#6b7280',
+                      borderColor: '#fca5a5',
+                      borderWidth: 1,
+                      padding: 12,
+                      displayColors: true,
+                      titleFont: {
+                        size: 13,
+                        weight: '600',
+                      },
+                      bodyFont: {
+                        size: 12,
+                      },
+                      callbacks: {
+                        label: (context) => {
+                          const value = context.parsed.y;
+                          const index = context.dataIndex;
+                          const dataPoint = monthlyData[index];
+                          let label = '';
+                          switch (selectedMetric) {
+                            case 'views':
+                              label = `觀看次數：${formatFullNumber(value)}`;
+                              break;
+                            case 'watchTime':
+                              label = `觀看時長：${formatFullNumber(value)} 小時`;
+                              break;
+                            case 'subscribers':
+                              label = `訂閱淨增長：${value >= 0 ? '+' : ''}${formatFullNumber(value)}`;
+                              break;
+                          }
+                          if (dataPoint.isCurrentMonth) {
+                            label += ' (本月至今)';
+                          }
+                          return label;
+                        },
+                      },
+                    },
+                  },
+                  scales: {
+                    x: {
+                      grid: {
+                        display: false,
+                      },
+                      ticks: {
+                        color: '#6b7280',
+                        font: {
+                          size: 11,
+                        },
+                        maxRotation: 45,
+                        minRotation: 45,
+                      },
+                    },
+                    y: {
+                      beginAtZero: true,
+                      grid: {
+                        color: '#fee2e2',
+                        drawBorder: false,
+                      },
+                      ticks: {
+                        color: '#6b7280',
+                        font: {
+                          size: 11,
+                        },
+                        callback: (value) => formatNumber(value as number),
+                      },
+                    },
+                  },
+                }}
+              />
             </div>
             {monthlyMeta.hasCurrent && (
               <p className="text-xs text-gray-500 mt-3 text-right">
@@ -3010,97 +3084,110 @@ export function ChannelDashboard() {
                 </div>
               ) : (
                 <>
-                  <div className="relative w-full h-48">
-                    <svg
-                      viewBox="0 0 600 160"
-                      preserveAspectRatio="none"
-                      className="absolute inset-0 w-full h-full"
-                    >
-                      <defs>
-                        <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#fca5a5" stopOpacity="0.8" />
-                          <stop offset="100%" stopColor="#fee2e2" stopOpacity="0.2" />
-                        </linearGradient>
-                      </defs>
-                      <polyline
-                        fill="none"
-                        stroke="#ef4444"
-                        strokeWidth="3"
-                        strokeLinejoin="round"
-                        strokeLinecap="round"
-                        points={trendChartPoints}
-                      />
-                      <polygon
-                        fill="url(#trendGradient)"
-                        opacity="0.6"
-                        points={`${trendChartPoints} 600,160 0,160`}
-                      />
-                    </svg>
-                    <div className="absolute inset-0 pointer-events-none">
-                      {trendChartCoordinates.map((coord, idx) => (
-                        <div
-                          key={`${coord.date}-${idx}`}
-                          className="absolute"
-                          style={{
-                            left: `${coord.xPercent}%`,
-                            top: `${coord.yPercent}%`,
-                          }}
-                        >
-                          <div className="relative -translate-x-1/2 -translate-y-1/2 pointer-events-auto group">
-                            <span className="block w-3 h-3 rounded-full border-2 border-white bg-red-500 shadow"></span>
-                            <div className="pointer-events-none absolute left-1/2 top-0 mt-3 -translate-x-1/2 transform opacity-0 transition-all duration-200 group-hover:opacity-100 group-hover:-translate-y-full z-20">
-                              <div className="pointer-events-auto w-56 rounded-xl border border-red-100 bg-white p-3 shadow-xl">
-                                <div className="text-xs text-gray-500">
-                                  {formatDate(coord.date)} · {formatFullNumber(coord.views)} 次觀看
-                                </div>
-                                {coord.topVideo ? (
-                                  <div className="mt-2 flex items-start gap-3">
-                                    <a
-                                      href={`${YT_VIDEO_BASE_URL}${coord.topVideo.id}`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="block w-20 h-12 overflow-hidden rounded-lg border border-gray-100 shadow-sm shrink-0"
-                                    >
-                                      {coord.topVideo.thumbnailUrl ? (
-                                        <img
-                                          src={coord.topVideo.thumbnailUrl}
-                                          alt={coord.topVideo.title}
-                                          className="w-full h-full object-cover"
-                                        />
-                                      ) : (
-                                        <div className="w-full h-full bg-gray-100 flex items-center justify-center text-xs text-gray-500">
-                                          無縮圖
-                                        </div>
-                                      )}
-                                    </a>
-                                    <div className="flex-1">
-                                      <p className="text-sm font-semibold text-gray-900 line-clamp-2">
-                                        {coord.topVideo.title}
-                                      </p>
-                                      <p className="text-xs text-gray-500 mt-1">
-                                        單日觀看 {formatFullNumber(coord.topVideo.views)} 次
-                                      </p>
-                                      <a
-                                        href={`${YT_VIDEO_BASE_URL}${coord.topVideo.id}`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="inline-flex items-center text-xs text-red-600 font-semibold mt-1 hover:underline"
-                                      >
-                                        觀看影片 →
-                                      </a>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <p className="text-xs text-gray-500 mt-2">
-                                    找不到當日熱門影片，請稍後重試。
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="relative w-full h-72">
+                    <Line
+                      data={{
+                        labels: trendData.map(d => formatDate(d.date)),
+                        datasets: [
+                          {
+                            label: '每日觀看次數',
+                            data: trendData.map(d => d.views),
+                            borderColor: '#ef4444',
+                            backgroundColor: (context) => {
+                              const ctx = context.chart.ctx;
+                              const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+                              gradient.addColorStop(0, 'rgba(239, 68, 68, 0.5)');
+                              gradient.addColorStop(0.5, 'rgba(252, 165, 165, 0.25)');
+                              gradient.addColorStop(1, 'rgba(254, 226, 226, 0.05)');
+                              return gradient;
+                            },
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                            pointBackgroundColor: '#ef4444',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            pointHoverBackgroundColor: '#dc2626',
+                            pointHoverBorderColor: '#fff',
+                            pointHoverBorderWidth: 3,
+                          },
+                        ],
+                      }}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                          mode: 'index',
+                          intersect: false,
+                        },
+                        plugins: {
+                          legend: {
+                            display: false,
+                          },
+                          tooltip: {
+                            backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                            titleColor: '#374151',
+                            bodyColor: '#6b7280',
+                            borderColor: '#fca5a5',
+                            borderWidth: 1,
+                            padding: 12,
+                            displayColors: false,
+                            titleFont: {
+                              size: 13,
+                              weight: '600',
+                            },
+                            bodyFont: {
+                              size: 12,
+                            },
+                            callbacks: {
+                              label: (context) => {
+                                const views = context.parsed.y;
+                                const index = context.dataIndex;
+                                const topVideo = trendData[index]?.topVideo;
+                                let lines = [`觀看次數：${formatFullNumber(views)}`];
+                                if (topVideo) {
+                                  lines.push('');
+                                  lines.push(`當日熱門：${topVideo.title.substring(0, 40)}...`);
+                                  lines.push(`單日觀看：${formatFullNumber(topVideo.views)} 次`);
+                                }
+                                return lines;
+                              },
+                            },
+                          },
+                        },
+                        scales: {
+                          x: {
+                            grid: {
+                              display: false,
+                            },
+                            ticks: {
+                              color: '#6b7280',
+                              font: {
+                                size: 11,
+                              },
+                              maxRotation: 45,
+                              minRotation: 45,
+                            },
+                          },
+                          y: {
+                            beginAtZero: true,
+                            grid: {
+                              color: '#fee2e2',
+                              drawBorder: false,
+                            },
+                            ticks: {
+                              color: '#6b7280',
+                              font: {
+                                size: 11,
+                              },
+                              callback: (value) => formatNumber(value as number),
+                            },
+                          },
+                        },
+                      }}
+                    />
                   </div>
                   {trendSummary && (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-sm">
@@ -3658,53 +3745,106 @@ export function ChannelDashboard() {
               熱門流量來源
             </h3>
             <div className="flex flex-col items-center">
-              {/* 甜甜圈圖 */}
-              <div className="relative w-48 h-48 mb-6">
-                <div
-                  className="w-full h-full rounded-full"
-                  style={{
-                    background: `conic-gradient(${trafficSources
-                      .map((source, index) => {
-                        const colors = ['#dc2626', '#ef4444', '#f87171', '#fb923c', '#fbbf24'];
-                        const color = colors[index % colors.length];
-                        const start = trafficSources
-                          .slice(0, index)
-                          .reduce((sum, s) => sum + s.percentage, 0);
-                        const end = start + source.percentage;
-                        return `${color} ${start}% ${end}%`;
-                      })
-                      .join(', ')})`,
+              {/* Chart.js 甜甜圈圖 */}
+              <div className="relative w-72 h-72 mb-6">
+                <Doughnut
+                  data={{
+                    labels: trafficSources.map(s => translateTrafficSource(s.source)),
+                    datasets: [
+                      {
+                        data: trafficSources.map(s => s.views),
+                        backgroundColor: [
+                          '#dc2626', // red-600
+                          '#ef4444', // red-500
+                          '#f87171', // red-400
+                          '#fb923c', // orange-400
+                          '#fbbf24', // amber-400
+                          '#a855f7', // purple-500
+                          '#06b6d4', // cyan-500
+                          '#10b981', // emerald-500
+                        ],
+                        borderColor: '#ffffff',
+                        borderWidth: 3,
+                        hoverBorderWidth: 4,
+                        hoverBorderColor: '#ffffff',
+                      },
+                    ],
                   }}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    cutout: '65%',
+                    plugins: {
+                      legend: {
+                        display: false,
+                      },
+                      tooltip: {
+                        backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                        titleColor: '#374151',
+                        bodyColor: '#6b7280',
+                        borderColor: '#fca5a5',
+                        borderWidth: 1,
+                        padding: 12,
+                        displayColors: true,
+                        titleFont: {
+                          size: 13,
+                          weight: '600',
+                        },
+                        bodyFont: {
+                          size: 12,
+                        },
+                        callbacks: {
+                          label: (context) => {
+                            const index = context.dataIndex;
+                            const source = trafficSources[index];
+                            return [
+                              `觀看次數：${formatFullNumber(source.views)}`,
+                              `佔比：${source.percentage.toFixed(1)}%`
+                            ];
+                          },
+                        },
+                      },
+                    },
+                  }}
+                  plugins={[{
+                    id: 'centerText',
+                    beforeDraw: (chart) => {
+                      const { ctx, chartArea: { width, height } } = chart;
+                      ctx.save();
+                      const totalViews = trafficSources.reduce((sum, s) => sum + s.views, 0);
+                      ctx.font = 'bold 24px sans-serif';
+                      ctx.fillStyle = '#111827';
+                      ctx.textAlign = 'center';
+                      ctx.textBaseline = 'middle';
+                      ctx.fillText(formatNumber(totalViews), width / 2, height / 2 - 10);
+                      ctx.font = '12px sans-serif';
+                      ctx.fillStyle = '#6b7280';
+                      ctx.fillText('總觀看', width / 2, height / 2 + 15);
+                      ctx.restore();
+                    },
+                  }]}
                 />
-                {/* 中心白色圓圈 */}
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-28 h-28 bg-white rounded-full flex items-center justify-center shadow-inner">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-900">
-                      {trafficSources.reduce((sum, s) => sum + s.views, 0) > 0
-                        ? formatNumber(trafficSources.reduce((sum, s) => sum + s.views, 0))
-                        : '0'}
-                    </div>
-                    <div className="text-xs text-gray-500">總觀看</div>
-                  </div>
-                </div>
               </div>
 
               {/* 圖例 */}
               <div className="w-full space-y-2">
                 {trafficSources.map((source, index) => {
                   const colors = [
-                    { bg: 'bg-red-600', dot: 'bg-red-600' },
-                    { bg: 'bg-red-500', dot: 'bg-red-500' },
-                    { bg: 'bg-red-400', dot: 'bg-red-400' },
-                    { bg: 'bg-orange-400', dot: 'bg-orange-400' },
-                    { bg: 'bg-amber-400', dot: 'bg-amber-400' },
+                    { hex: '#dc2626', bg: 'bg-red-600' },
+                    { hex: '#ef4444', bg: 'bg-red-500' },
+                    { hex: '#f87171', bg: 'bg-red-400' },
+                    { hex: '#fb923c', bg: 'bg-orange-400' },
+                    { hex: '#fbbf24', bg: 'bg-amber-400' },
+                    { hex: '#a855f7', bg: 'bg-purple-500' },
+                    { hex: '#06b6d4', bg: 'bg-cyan-500' },
+                    { hex: '#10b981', bg: 'bg-emerald-500' },
                   ];
                   const color = colors[index % colors.length];
 
                   return (
                     <div key={index} className="flex items-center justify-between py-1.5">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className={`w-3 h-3 rounded-full ${color.dot}`} />
+                        <div className={`w-3 h-3 rounded-full ${color.bg}`} />
                         <span className="text-sm text-gray-700 truncate">{translateTrafficSource(source.source)}</span>
                       </div>
                       <div className="flex items-center gap-3 ml-2">
@@ -3985,79 +4125,112 @@ export function ChannelDashboard() {
                   觀看裝置分佈
                 </h3>
 
-                {/* 橫向柱狀圖 */}
-                <div className="space-y-4">
-                  {devices.map((device, index) => {
-                    // 翻譯裝置類型
-                    const deviceNames: { [key: string]: string } = {
-                      DESKTOP: '桌面電腦',
-                      MOBILE: '手機',
-                      TABLET: '平板',
-                      TV: '電視',
-                      GAME_CONSOLE: '遊戲主機',
-                    };
-                    const deviceName = deviceNames[device.deviceType] || device.deviceType;
-
-                    // 裝置圖示
-                    const DeviceIcon = (() => {
-                      switch (device.deviceType) {
-                        case 'DESKTOP': return Monitor;
-                        case 'MOBILE': return Smartphone;
-                        case 'TABLET': return Tablet;
-                        case 'TV': return Tv;
-                        case 'GAME_CONSOLE': return Gamepad2;
-                        default: return Smartphone;
-                      }
-                    })();
-
-                    // 顏色
-                    const colors = [
-                      '#dc2626', // red-600
-                      '#f59e0b', // amber-500
-                      '#8b5cf6', // violet-500
-                      '#06b6d4', // cyan-500
-                      '#ec4899', // pink-500
-                    ];
-                    const color = colors[index % colors.length];
-
-                    const maxViews = Math.max(...devices.map(d => d.views));
-                    const barWidth = (device.views / maxViews) * 100;
-
-                    return (
-                      <div key={index} className="space-y-1.5">
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-2">
-                            <DeviceIcon className="w-5 h-5" style={{ color }} />
-                            <span className="font-medium text-gray-700">
-                              {deviceName}
-                            </span>
-                          </div>
-                          <span className="text-gray-900 font-semibold whitespace-nowrap">
-                            {formatFullNumber(device.views)} 次
-                          </span>
-                        </div>
-                        <div className="relative">
-                          <div className="w-full bg-gray-100 rounded-full h-7 overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-3"
-                              style={{
-                                width: `${barWidth}%`,
-                                backgroundColor: color,
-                              }}
-                            >
-                              <span className="text-sm font-semibold text-white">
-                                {device.percentage.toFixed(1)}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                {/* Chart.js 橫向柱狀圖 */}
+                <div className="h-72 mb-4">
+                  <Bar
+                    data={{
+                      labels: devices.map(d => {
+                        const deviceNames: { [key: string]: string } = {
+                          DESKTOP: '桌面電腦',
+                          MOBILE: '手機',
+                          TABLET: '平板',
+                          TV: '電視',
+                          GAME_CONSOLE: '遊戲主機',
+                        };
+                        return deviceNames[d.deviceType] || d.deviceType;
+                      }),
+                      datasets: [
+                        {
+                          label: '觀看次數',
+                          data: devices.map(d => d.views),
+                          backgroundColor: [
+                            'rgba(220, 38, 38, 0.8)',   // red-600
+                            'rgba(245, 158, 11, 0.8)',  // amber-500
+                            'rgba(139, 92, 246, 0.8)',  // violet-500
+                            'rgba(6, 182, 212, 0.8)',   // cyan-500
+                            'rgba(236, 72, 153, 0.8)',  // pink-500
+                          ],
+                          borderColor: [
+                            '#dc2626',
+                            '#f59e0b',
+                            '#8b5cf6',
+                            '#06b6d4',
+                            '#ec4899',
+                          ],
+                          borderWidth: 2,
+                          borderRadius: 6,
+                        },
+                      ],
+                    }}
+                    options={{
+                      indexAxis: 'y',
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          display: false,
+                        },
+                        tooltip: {
+                          backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                          titleColor: '#374151',
+                          bodyColor: '#6b7280',
+                          borderColor: '#fca5a5',
+                          borderWidth: 1,
+                          padding: 12,
+                          displayColors: true,
+                          titleFont: {
+                            size: 13,
+                            weight: '600',
+                          },
+                          bodyFont: {
+                            size: 12,
+                          },
+                          callbacks: {
+                            label: (context) => {
+                              const index = context.dataIndex;
+                              const device = devices[index];
+                              return [
+                                `觀看次數：${formatFullNumber(device.views)}`,
+                                `佔比：${device.percentage.toFixed(1)}%`
+                              ];
+                            },
+                          },
+                        },
+                      },
+                      scales: {
+                        x: {
+                          beginAtZero: true,
+                          grid: {
+                            color: '#fee2e2',
+                            drawBorder: false,
+                          },
+                          ticks: {
+                            color: '#6b7280',
+                            font: {
+                              size: 11,
+                            },
+                            callback: (value) => formatNumber(value as number),
+                          },
+                        },
+                        y: {
+                          grid: {
+                            display: false,
+                          },
+                          ticks: {
+                            color: '#374151',
+                            font: {
+                              size: 12,
+                              weight: '600',
+                            },
+                          },
+                        },
+                      },
+                    }}
+                  />
                 </div>
 
                 {/* 總計 */}
-                <div className="mt-6 pt-6 border-t border-gray-200">
+                <div className="mt-4 pt-4 border-t border-gray-200">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-700">
                       總觀看次數
