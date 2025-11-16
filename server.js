@@ -25,6 +25,7 @@ import {
   getArticleTemplateStatus,
   listAvailableArticleTemplates,
 } from './services/articlePromptService.js';
+import { publishArticleToNotion, listNotionDatabases, getNotionDatabase } from './services/notionService.js';
 
 // 載入 .env.local 檔案
 dotenv.config({ path: '.env.local' });
@@ -548,6 +549,63 @@ app.post('/api/notion/oauth/callback', async (req, res) => {
     res.status(500).json({
       error: 'OAuth callback failed',
       details: error.message
+    });
+  }
+});
+
+/**
+ * 取得 Notion 資料庫列表
+ * POST /api/notion/databases
+ */
+app.post('/api/notion/databases', async (req, res) => {
+  try {
+    const { notionToken, pageSize, startCursor } = req.body || {};
+
+    if (!notionToken) {
+      return res.status(400).json({
+        error: '缺少 Notion Access Token',
+      });
+    }
+
+    const parsedPageSize = pageSize ? parseInt(pageSize, 10) : undefined;
+
+    const result = await listNotionDatabases(notionToken, {
+      pageSize: parsedPageSize,
+      startCursor: startCursor || undefined,
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('[Notion] 取得資料庫列表失敗:', error);
+    const statusCode = error?.statusCode && Number.isInteger(error.statusCode) ? error.statusCode : 500;
+    res.status(statusCode).json({
+      error: error.message || '取得 Notion 資料庫列表失敗',
+    });
+  }
+});
+
+/**
+ * 取得指定 Notion 資料庫的欄位資訊
+ * POST /api/notion/database-info
+ */
+app.post('/api/notion/database-info', async (req, res) => {
+  try {
+    const { notionToken, databaseId } = req.body || {};
+
+    if (!notionToken || !databaseId) {
+      return res.status(400).json({
+        error: '缺少 Notion Access Token 或資料庫 ID',
+      });
+    }
+
+    const databaseInfo = await getNotionDatabase(notionToken, databaseId);
+
+    res.json(databaseInfo);
+  } catch (error) {
+    console.error('[Notion] 取得資料庫資訊失敗:', error);
+    const statusCode = error?.statusCode && Number.isInteger(error.statusCode) ? error.statusCode : 500;
+    res.status(statusCode).json({
+      error: error.message || '取得 Notion 資料庫資訊失敗',
     });
   }
 });
