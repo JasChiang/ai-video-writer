@@ -106,16 +106,18 @@ export class PromptTemplates {
 - 發布影片：${channelStats.videosInRange} 支
 
 **時段內熱門影片 Top ${Math.min(topVideos.length, 50)}：**
-（注意：以下為此時段內表現最佳的 ${Math.min(topVideos.length, 50)} 支影片，頻道總共有 ${channelStats.totalVideos} 支影片）
+（重要說明：以下為「${dateRange.startDate} ~ ${dateRange.endDate}」期間內**表現最佳**的 ${Math.min(topVideos.length, 50)} 支影片，**並非期間內上傳的影片**。這些影片可能在此期間之前就已發布，只是在此期間表現特別好。此期間**實際上傳的影片數**為 ${channelStats.videosInRange} 支，頻道總共有 ${channelStats.totalVideos} 支影片）
 
 ${topVideos.length > 0 ? topVideos.slice(0, 50).map((v, i) => `${i + 1}. ${v.title || '未命名'}
+   - 發布日期：${v.publishedAt ? new Date(v.publishedAt).toLocaleDateString('zh-TW') : '未知'}
    - 觀看：${(v.viewCount || 0).toLocaleString()} | 讚：${(v.likeCount || 0).toLocaleString()} | 留言：${(v.commentCount || 0).toLocaleString()}
    - 互動率：${v.viewCount > 0 ? (((v.likeCount || 0) + (v.commentCount || 0)) / v.viewCount * 100).toFixed(2) : '0.00'}%`).join('\n\n') : '（暫無影片資料）'}
 
 ${bottomVideos && bottomVideos.length > 0 ? `**時段內低效影片 Bottom ${bottomVideos.length}：**
-（以下為此時段內表現最差的 ${bottomVideos.length} 支影片，用於對比分析）
+（以下為此時段內表現最差的 ${bottomVideos.length} 支影片，用於對比分析。同樣地，這些影片不一定是期間內上傳）
 
 ${bottomVideos.map((v, i) => `${i + 1}. ${v.title || '未命名'}
+   - 發布日期：${v.publishedAt ? new Date(v.publishedAt).toLocaleDateString('zh-TW') : '未知'}
    - 觀看：${(v.viewCount || 0).toLocaleString()} | 讚：${(v.likeCount || 0).toLocaleString()} | 留言：${(v.commentCount || 0).toLocaleString()}
    - 互動率：${v.viewCount > 0 ? (((v.likeCount || 0) + (v.commentCount || 0)) / v.viewCount * 100).toFixed(2) : '0.00'}%`).join('\n\n')}` : ''}
 
@@ -173,19 +175,27 @@ ${bottomVideos && bottomVideos.length > 0 ? `**對比分析要點：**
 - 標題模式差異（數字、問句、關鍵字使用）
 - 主題類型差異（哪些主題表現好/差）
 - 互動率差異（為何有些影片互動低）
-- 發布時間差異（時機是否影響表現）
+- **發布日期分析（重要）：**
+  - 區分「期間內上傳的新片」vs「期間前上傳的舊片」
+  - 新片 vs 舊片的表現差異（舊片是否有長尾效應？）
+  - 是否有舊片突然爆紅？原因可能是什麼？
+  - Top 50 中有多少是新片、多少是舊片？
 
 **輸出：**
-1. 表格對比高效與低效影片的關鍵差異
+1. 表格對比高效與低效影片的關鍵差異（包含發布日期欄位）
 2. 找出 3-5 個明確的成功因素
-3. 識別 3-5 個應避免的失敗模式` : `**分析 Top 影片的共同特徵：**
+3. 識別 3-5 個應避免的失敗模式
+4. 新片 vs 舊片表現分析` : `**分析 Top 影片的共同特徵：**
 - 標題模式（是否使用數字、問句、實用型關鍵字）
 - 主題類型（評測、教學、娛樂等）
 - 互動率高低（找出互動磁鐵影片）
-- 發布時間模式
+- **發布日期分析：**
+  - 區分「期間內上傳的新片」vs「期間前上傳的舊片」
+  - 新片 vs 舊片的表現差異
+  - 是否有舊片長尾效應？
 
 **輸出：**
-表格展示 Top 3 影片的詳細分析 + 成功因素提煉`}
+表格展示 Top 3 影片的詳細分析 + 成功因素提煉（包含發布日期）`}
 
 ### 4. 觀眾洞察與內容定位
 
