@@ -16,6 +16,14 @@ import {
   getQuotaSnapshot as getServerQuotaSnapshot,
   resetQuotaSnapshot as resetServerQuotaSnapshot,
 } from './services/quotaTracker.js';
+import taskManager from './services/taskManager.js';
+import {
+  enableArticleTemplates,
+  disableArticleTemplates,
+  refreshArticleTemplates,
+  getArticleTemplateStatus,
+  listAvailableArticleTemplates,
+} from './services/articlePromptService.js';
 
 // 載入 .env.local 檔案
 dotenv.config({ path: '.env.local' });
@@ -99,6 +107,230 @@ app.post('/api/quota/server/reset', (_req, res) => {
     res.status(500).json({
       error: 'FAILED_TO_RESET_SERVER_QUOTA',
       details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+// ==================== 任務管理 API ====================
+
+/**
+ * 獲取任務狀態
+ * GET /api/task/:taskId
+ */
+app.get('/api/task/:taskId', (req, res) => {
+  const { taskId } = req.params;
+
+  const task = taskManager.getTask(taskId);
+  if (!task) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+
+  res.json(task);
+});
+
+/**
+ * 刪除/取消任務
+ * DELETE /api/task/:taskId
+ */
+app.delete('/api/task/:taskId', (req, res) => {
+  const { taskId } = req.params;
+
+  const deleted = taskManager.deleteTask(taskId);
+  if (!deleted) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+
+  res.json({ success: true, message: 'Task deleted' });
+});
+
+// ==================== 模板管理 API ====================
+
+/**
+ * 啟用自訂模板
+ * POST /api/templates/enable
+ */
+app.post('/api/templates/enable', (req, res) => {
+  try {
+    enableArticleTemplates();
+    res.json({ success: true, message: 'Custom templates enabled' });
+  } catch (error) {
+    console.error('[Templates] Enable error:', error);
+    res.status(500).json({
+      error: 'Failed to enable templates',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * 停用自訂模板
+ * POST /api/templates/disable
+ */
+app.post('/api/templates/disable', (req, res) => {
+  try {
+    disableArticleTemplates();
+    res.json({ success: true, message: 'Custom templates disabled' });
+  } catch (error) {
+    console.error('[Templates] Disable error:', error);
+    res.status(500).json({
+      error: 'Failed to disable templates',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * 刷新模板
+ * POST /api/templates/refresh
+ */
+app.post('/api/templates/refresh', async (req, res) => {
+  try {
+    const result = await refreshArticleTemplates();
+    res.json({
+      success: true,
+      message: 'Templates refreshed',
+      ...result
+    });
+  } catch (error) {
+    console.error('[Templates] Refresh error:', error);
+    res.status(500).json({
+      error: 'Failed to refresh templates',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * 獲取模板狀態
+ * GET /api/templates/status
+ */
+app.get('/api/templates/status', (req, res) => {
+  try {
+    const status = getArticleTemplateStatus();
+    res.json(status);
+  } catch (error) {
+    console.error('[Templates] Status error:', error);
+    res.status(500).json({
+      error: 'Failed to get template status',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * 列出可用模板
+ * GET /api/templates
+ */
+app.get('/api/templates', async (req, res) => {
+  try {
+    const templates = await listAvailableArticleTemplates();
+    res.json({
+      success: true,
+      templates
+    });
+  } catch (error) {
+    console.error('[Templates] List error:', error);
+    res.status(500).json({
+      error: 'Failed to list templates',
+      details: error.message
+    });
+  }
+});
+
+// ==================== Notion 整合 API ====================
+
+/**
+ * 獲取 Notion OAuth URL
+ * GET /api/notion/oauth/url
+ */
+app.get('/api/notion/oauth/url', (req, res) => {
+  const notionClientId = process.env.NOTION_CLIENT_ID;
+  const { origin } = req.query;
+
+  // 根據客戶端來源決定 redirect URI
+  const notionRedirectUri = origin
+    ? `${origin}/notion-callback`
+    : (process.env.NOTION_REDIRECT_URI || 'http://localhost:3000/notion-callback');
+
+  if (!notionClientId) {
+    return res.status(500).json({
+      error: 'Notion integration not configured',
+      details: 'NOTION_CLIENT_ID not found in environment variables'
+    });
+  }
+
+  // 生成隨機 state 用於安全驗證
+  const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+
+  const authUrl = `https://api.notion.com/v1/oauth/authorize?client_id=${notionClientId}&response_type=code&owner=user&redirect_uri=${encodeURIComponent(notionRedirectUri)}&state=${state}`;
+
+  res.json({
+    url: authUrl,
+    state
+  });
+});
+
+/**
+ * Notion OAuth 回調處理
+ * POST /api/notion/oauth/callback
+ */
+app.post('/api/notion/oauth/callback', async (req, res) => {
+  const { code, state } = req.body;
+
+  if (!code) {
+    return res.status(400).json({
+      error: 'Missing authorization code'
+    });
+  }
+
+  const notionClientId = process.env.NOTION_CLIENT_ID;
+  const notionClientSecret = process.env.NOTION_CLIENT_SECRET;
+  const notionRedirectUri = process.env.NOTION_REDIRECT_URI || 'http://localhost:3000/notion-callback';
+
+  if (!notionClientId || !notionClientSecret) {
+    return res.status(500).json({
+      error: 'Notion integration not configured properly'
+    });
+  }
+
+  try {
+    // Exchange code for access token
+    const tokenResponse = await fetch('https://api.notion.com/v1/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`${notionClientId}:${notionClientSecret}`).toString('base64')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: notionRedirectUri,
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.error('[Notion OAuth] Token exchange failed:', errorText);
+      throw new Error('Failed to exchange authorization code for token');
+    }
+
+    const tokenData = await tokenResponse.json();
+
+    res.json({
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token || null,
+      workspaceId: tokenData.workspace_id || null,
+      workspaceName: tokenData.workspace_name || null,
+      workspaceIcon: tokenData.workspace_icon || null,
+      botId: tokenData.bot_id || null,
+      duplicatedTemplateId: tokenData.duplicated_template_id || null,
+    });
+
+  } catch (error) {
+    console.error('[Notion OAuth] Callback error:', error);
+    res.status(500).json({
+      error: 'OAuth callback failed',
+      details: error.message
     });
   }
 });
@@ -360,6 +592,75 @@ app.post('/api/analyze-video-url', async (req, res) => {
     console.error('Analysis error:', error);
     res.status(500).json({
       error: 'Failed to analyze video via YouTube URL',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * 使用 YouTube URL 直接分析影片（異步版本，適合手機端）
+ * POST /api/analyze-video-url-async
+ * Body: { videoId: string, prompt: string, videoTitle: string }
+ */
+app.post('/api/analyze-video-url-async', async (req, res) => {
+  const { videoId, prompt, videoTitle } = req.body;
+
+  if (!videoId || !isValidVideoId(videoId)) {
+    return res.status(400).json({ error: 'Missing or invalid videoId format' });
+  }
+
+  try {
+    console.log(`\n========== 🤖 [異步] 使用 YouTube URL 分析影片 ==========`);
+    console.log(`[Analyze URL Async] Video ID: ${videoId}`);
+    console.log(`[Analyze URL Async] Video Title: ${videoTitle}`);
+
+    // 創建異步任務
+    const taskId = await taskManager.executeTask('analyze-video-url', async (tid, tm) => {
+      const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+      tm.updateProgress(tid, 10, '正在初始化 Gemini AI...');
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+      tm.updateProgress(tid, 30, '正在生成 SEO 強化內容...');
+      const fullPrompt = generateFullPrompt(videoTitle, prompt);
+
+      tm.updateProgress(tid, 50, '正在使用 YouTube URL 分析影片...');
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { fileData: { fileUri: youtubeUrl } },
+              { text: fullPrompt }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: "application/json",
+          maxOutputTokens: 8192,
+        },
+      });
+
+      tm.updateProgress(tid, 90, '正在解析 Gemini 回應...');
+      const result = JSON.parse(response.text);
+
+      console.log(`[Analyze URL Async] ✅ 分析完成: ${result.titleA}`);
+
+      return {
+        success: true,
+        metadata: result,
+        usedYouTubeUrl: true
+      };
+    });
+
+    console.log(`[Analyze URL Async] Task created: ${taskId}`);
+    res.json({ taskId });
+
+  } catch (error) {
+    console.error('[Analyze URL Async] Error:', error);
+    res.status(500).json({
+      error: 'Failed to create async analysis task',
       details: error.message
     });
   }
@@ -680,56 +981,198 @@ app.post('/api/generate-article-url', async (req, res) => {
 
       console.log(`[Article URL] ✅ 文章生成成功! 找到 ${result.screenshots.length} 個截圖時間點`);
       console.log(`[Article URL] 標題 A: ${result.titleA}`);
+      console.log(`[Article URL] 截圖規劃已生成，等待使用者手動觸發截圖`);
     } catch (parseError) {
       console.error('[Article URL] ❌ JSON parsing error:', parseError.message);
       throw new Error(`無法解析 Gemini 回應為 JSON 格式。錯誤：${parseError.message}`);
     }
 
-    // 步驟 2: 下載影片用於截圖
-    console.log('[Article URL] 步驟 2/3: 下載影片以進行截圖...');
+    console.log(`========== 文章生成完成 ==========\n`);
 
-    // 根據截圖品質決定影片解析度
-    // quality=2（高畫質截圖）→ 下載 1080p 影片（至少 720p）
-    // quality=20（壓縮截圖）→ 下載 720p 影片（至少 480p）
-    let formatSelector;
-    if (quality <= 10) {
-      // 高品質：優先 1080p，次選 720p，最後接受 >=480p 或最佳
-      formatSelector = '"bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/best"';
-      console.log(`[Article URL] 截圖品質: ${quality}（高畫質）→ 目標影片解析度: 1080p (退回 720p)`);
-    } else {
-      // 壓縮：優先 720p，次選 480p，最後接受 360p 或最佳
-      formatSelector = '"bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]/best"';
-      console.log(`[Article URL] 截圖品質: ${quality}（壓縮）→ 目標影片解析度: 720p (退回 480p)`);
+    res.json({
+      success: true,
+      titleA: result.titleA,
+      titleB: result.titleB,
+      titleC: result.titleC,
+      article: result.article_text,
+      seo_description: result.seo_description,
+      image_urls: [],  // 空陣列，等待使用者手動截圖
+      screenshots: result.screenshots,  // 返回截圖規劃
+      videoId,  // 返回 videoId 供後續截圖使用
+      usedYouTubeUrl: true,
+      screenshotsPlanned: true,  // 標記截圖已規劃但未執行
+      screenshotsCount: result.screenshots.length
+    });
+
+  } catch (error) {
+    console.error('Article generation error:', error);
+
+    res.status(500).json({
+      error: 'Failed to generate article via YouTube URL',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * 使用 YouTube URL 生成文章（異步版本，適合手機端）
+ * POST /api/generate-article-url-async
+ * Body: { videoId: string, prompt: string, videoTitle: string, quality?: number }
+ */
+app.post('/api/generate-article-url-async', async (req, res) => {
+  const { videoId, prompt, videoTitle, quality = 2, uploadedFiles, accessToken, templateId, referenceUrls, referenceVideos } = req.body;
+
+  if (!videoId || !isValidVideoId(videoId)) {
+    return res.status(400).json({ error: 'Missing or invalid videoId format' });
+  }
+
+  try {
+    console.log(`\n========== 📝 [異步] 使用 YouTube URL 生成文章 ==========`);
+    console.log(`[Article URL Async] Video ID: ${videoId}`);
+    console.log(`[Article URL Async] Video Title: ${videoTitle}`);
+
+    // 創建異步任務
+    const taskId = await taskManager.executeTask('generate-article-url', async (tid, tm) => {
+      const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      const outputPath = path.join(DOWNLOAD_DIR, `${videoId}.mp4`);
+
+      tm.updateProgress(tid, 5, '正在檢查 FFmpeg 安裝...');
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+      // 步驟 1: 使用 YouTube URL 生成文章與截圖時間點
+      tm.updateProgress(tid, 10, '正在使用 YouTube URL 分析影片...');
+      const fullPrompt = await generateArticlePrompt(videoTitle, prompt, templateId);
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { fileData: { fileUri: youtubeUrl } },
+              { text: fullPrompt }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: "application/json",
+        },
+      });
+
+      tm.updateProgress(tid, 30, '正在解析 Gemini 回應...');
+      const result = JSON.parse(response.text);
+
+      if (!result.titleA || !result.titleB || !result.titleC || !result.article_text || !result.screenshots) {
+        throw new Error('Missing required fields in response');
+      }
+
+      console.log(`[Article URL Async] ✅ 文章生成成功! 找到 ${result.screenshots.length} 個截圖時間點`);
+      console.log(`[Article URL Async] 截圖規劃已生成，等待使用者手動觸發截圖`);
+
+      tm.updateProgress(tid, 90, '文章生成完成');
+
+      return {
+        success: true,
+        titleA: result.titleA,
+        titleB: result.titleB,
+        titleC: result.titleC,
+        article: result.article_text,
+        seo_description: result.seo_description,
+        image_urls: [],  // 空陣列，等待使用者手動截圖
+        screenshots: result.screenshots,  // 返回截圖規劃
+        videoId,  // 返回 videoId 供後續截圖使用
+        usedYouTubeUrl: true,
+        screenshotsPlanned: true,  // 標記截圖已規劃但未執行
+        screenshotsCount: result.screenshots.length
+      };
+    });
+
+    console.log(`[Article URL Async] Task created: ${taskId}`);
+    res.json({ taskId });
+
+  } catch (error) {
+    console.error('[Article URL Async] Error:', error);
+    res.status(500).json({
+      error: 'Failed to create async article generation task',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * 手動執行截圖（使用者觸發）
+ * POST /api/capture-screenshots
+ * Body: { videoId: string, screenshots: array, quality?: number }
+ */
+app.post('/api/capture-screenshots', async (req, res) => {
+  const { videoId, screenshots, quality = 2 } = req.body;
+
+  if (!videoId || !isValidVideoId(videoId)) {
+    return res.status(400).json({ error: 'Missing or invalid videoId format' });
+  }
+
+  if (!screenshots || !Array.isArray(screenshots)) {
+    return res.status(400).json({ error: 'Missing or invalid screenshots array' });
+  }
+
+  const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  const outputPath = path.join(DOWNLOAD_DIR, `${videoId}.mp4`);
+
+  try {
+    console.log(`\n========== 📸 開始執行截圖 ==========`);
+    console.log(`[Capture Screenshots] Video ID: ${videoId}`);
+    console.log(`[Capture Screenshots] 截圖數量: ${screenshots.length}`);
+    console.log(`[Capture Screenshots] 截圖品質: ${quality}`);
+
+    // 檢查 FFmpeg 是否安裝
+    try {
+      await execAsync('ffmpeg -version');
+    } catch (error) {
+      return res.status(500).json({
+        error: 'FFmpeg is not installed',
+        details: 'Please install FFmpeg first'
+      });
     }
 
-    const commandParts = [
-      'yt-dlp',
-      '-f', formatSelector,
-      '--merge-output-format', 'mp4',
-      '-o', `"${outputPath}"`,
-      '--retries', '5',
-      '--fragment-retries', '5',
-      `"${youtubeUrl}"`,
-    ];
-
-    const command = commandParts.join(' ');
-    console.log(`[Article URL] Executing: ${command}`);
-
-    await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
-
+    // 檢查影片是否已經下載，如果沒有則下載
     if (!fs.existsSync(outputPath)) {
-      throw new Error('Video download failed - file not found');
+      console.log('[Capture Screenshots] 影片尚未下載，開始下載...');
+
+      let formatSelector;
+      if (quality <= 10) {
+        formatSelector = '"bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/best"';
+      } else {
+        formatSelector = '"bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]/best"';
+      }
+
+      const commandParts = [
+        'yt-dlp',
+        '-f', formatSelector,
+        '--merge-output-format', 'mp4',
+        '-o', `"${outputPath}"`,
+        '--retries', '5',
+        '--fragment-retries', '5',
+        `"${youtubeUrl}"`,
+      ];
+
+      const command = commandParts.join(' ');
+      await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
+
+      if (!fs.existsSync(outputPath)) {
+        throw new Error('Video download failed');
+      }
+
+      console.log('[Capture Screenshots] ✅ 影片下載完成');
+    } else {
+      console.log('[Capture Screenshots] 使用已存在的影片檔案');
     }
 
-    console.log(`[Article URL] ✅ 影片下載完成: ${outputPath}`);
-
-    // 步驟 3: 使用 FFmpeg 截取畫面
-    console.log('[Article URL] 步驟 3/3: 正在截取關鍵畫面...');
-    console.log(`[Article URL] 截圖品質設定: ${quality} (2=最高, 31=最低)`);
-
+    // 執行截圖
+    console.log('[Capture Screenshots] 開始截取畫面...');
     const imageUrls = [];
-    for (let i = 0; i < result.screenshots.length; i++) {
-      const screenshot = result.screenshots[i];
+
+    for (let i = 0; i < screenshots.length; i++) {
+      const screenshot = screenshots[i];
       const timestamp = screenshot.timestamp_seconds;
       const currentSeconds = timeToSeconds(timestamp);
 
@@ -740,20 +1183,20 @@ app.post('/api/generate-article-url', async (req, res) => {
         { offset: 2, label: 'after' }
       ];
 
-      console.log(`[Article URL] 截圖組 ${i + 1}/${result.screenshots.length} - 時間點: ${timestamp} - 原因: ${screenshot.reason_for_screenshot}`);
+      console.log(`[Capture Screenshots] 截圖組 ${i + 1}/${screenshots.length} - 時間點: ${timestamp}`);
 
       for (const { offset, label } of offsets) {
         const targetSeconds = Math.max(0, currentSeconds + offset);
-        const targetTime = secondsToTime(targetSeconds); // 僅用於檔名
+        const targetTime = secondsToTime(targetSeconds);
         const outputFilename = `${videoId}_screenshot_${i}_${label}_${targetTime.replace(':', '-')}.jpg`;
         const screenshotPath = path.join(IMAGES_DIR, outputFilename);
 
         try {
           await captureScreenshot(outputPath, targetSeconds, screenshotPath, quality);
           screenshotGroup.push(`/images/${outputFilename}`);
-          console.log(`[Article URL] ✅ 截圖已儲存: ${outputFilename} (${label}: ${targetSeconds}s)`);
+          console.log(`[Capture Screenshots] ✅ 截圖已儲存: ${outputFilename}`);
         } catch (error) {
-          console.error(`[Article URL] ❌ 截圖失敗 (時間點 ${targetSeconds}s, ${label}):`, error.message);
+          console.error(`[Capture Screenshots] ❌ 截圖失敗:`, error.message);
         }
       }
 
@@ -762,27 +1205,106 @@ app.post('/api/generate-article-url', async (req, res) => {
       }
     }
 
-    // 保留暫存影片檔案供後續重新截圖使用
-    console.log(`[Article URL] ✅ 已完成截圖，暫存檔案保留供後續使用: ${outputPath}`);
-    console.log(`========== 文章生成完成 ==========\n`);
+    console.log(`[Capture Screenshots] ✅ 截圖完成，共 ${imageUrls.length} 組`);
+    console.log(`========== 截圖完成 ==========\n`);
 
     res.json({
       success: true,
-      titleA: result.titleA,
-      titleB: result.titleB,
-      titleC: result.titleC,
-      article: result.article_text,
-      seo_description: result.seo_description,
       image_urls: imageUrls,
-      screenshots: result.screenshots,
-      usedYouTubeUrl: true
+      screenshotsCount: imageUrls.length
     });
 
   } catch (error) {
-    console.error('Article generation error:', error);
-
+    console.error('[Capture Screenshots] Error:', error);
     res.status(500).json({
-      error: 'Failed to generate article via YouTube URL',
+      error: 'Failed to capture screenshots',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * 從任意 URL 生成文章（異步版本）
+ * POST /api/generate-article-from-url-async
+ * Body: { url: string, prompt: string, uploadedFiles?: any[], templateId?: string, referenceUrls?: string[], referenceVideos?: string[] }
+ */
+app.post('/api/generate-article-from-url-async', async (req, res) => {
+  const { url, prompt, uploadedFiles = [], templateId = 'default', referenceUrls = [], referenceVideos = [] } = req.body;
+
+  if (!url) {
+    return res.status(400).json({ error: 'Missing required parameter: url' });
+  }
+
+  try {
+    console.log(`\n========== 📝 [異步] 從 URL 生成文章 ==========`);
+    console.log(`[Article URL-Only Async] URL: ${url}`);
+
+    // 創建異步任務
+    const taskId = await taskManager.executeTask('generate-article-from-url', async (tid, tm) => {
+      tm.updateProgress(tid, 10, '正在初始化 Gemini AI...');
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+      tm.updateProgress(tid, 30, '正在從 URL 獲取內容...');
+
+      // 構建 prompt
+      const fullPrompt = `請根據以下網址的內容生成一篇文章：
+
+網址：${url}
+
+${prompt ? `額外要求：${prompt}` : ''}
+
+請生成包含以下內容的 JSON 格式回應：
+{
+  "titleA": "標題 A",
+  "titleB": "標題 B",
+  "titleC": "標題 C",
+  "article_text": "文章內容",
+  "seo_description": "SEO 描述"
+}`;
+
+      tm.updateProgress(tid, 50, '正在使用 Gemini AI 分析內容並生成文章...');
+
+      // 使用 Gemini 分析 URL
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: fullPrompt }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: "application/json",
+          maxOutputTokens: 8192,
+        },
+      });
+
+      tm.updateProgress(tid, 90, '正在解析 Gemini 回應...');
+      const result = JSON.parse(response.text);
+
+      console.log(`[Article URL-Only Async] ✅ 文章生成完成: ${result.titleA}`);
+
+      return {
+        success: true,
+        titleA: result.titleA,
+        titleB: result.titleB,
+        titleC: result.titleC,
+        article: result.article_text,
+        seo_description: result.seo_description,
+        image_urls: [],
+        screenshots: []
+      };
+    });
+
+    console.log(`[Article URL-Only Async] Task created: ${taskId}`);
+    res.json({ taskId });
+
+  } catch (error) {
+    console.error('[Article URL-Only Async] Error:', error);
+    res.status(500).json({
+      error: 'Failed to create async article generation task from URL',
       details: error.message
     });
   }
