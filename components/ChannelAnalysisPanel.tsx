@@ -45,7 +45,6 @@ export function ChannelAnalysisPanel({
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [multiModelMode, setMultiModelMode] = useState(false);
 
   // 載入可用模型
   useEffect(() => {
@@ -316,27 +315,6 @@ export function ChannelAnalysisPanel({
           </div>
         )}
       </div>
-
-      {/* 多模型對比選項 */}
-      {availableModels.length >= 2 && (
-        <div className="border-t pt-4">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={multiModelMode}
-              onChange={(e) => setMultiModelMode(e.target.checked)}
-              disabled={isAnalyzing}
-              className="rounded border-gray-300"
-            />
-            <span className="text-sm" style={{ color: '#03045E' }}>
-              使用所有可用模型進行對比分析
-              <span className="text-xs ml-1" style={{ color: '#6B7280' }}>
-                (會同時使用多個 AI 模型，並對比分析結果，成本會增加)
-              </span>
-            </span>
-          </label>
-        </div>
-      )}
 
       {/* 分析按鈕 */}
       <button
