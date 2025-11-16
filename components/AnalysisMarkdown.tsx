@@ -194,15 +194,20 @@ const ChartJSComponent: React.FC<{ data: ChartData }> = ({ data }) => {
   const safeValues = Array.isArray(data.values) ? data.values : [];
   const safeColors = Array.isArray(data.colors) ? data.colors : undefined;
 
+  const numericValues = safeValues.every(
+    (value) => typeof value === 'number' && Number.isFinite(value)
+  );
   const hasValidData =
-    safeLabels.length > 0 && safeLabels.length === safeValues.length;
+    safeLabels.length > 0 &&
+    safeLabels.length === safeValues.length &&
+    numericValues;
 
   if (!hasValidData) {
     return (
       <div className="my-6 p-6 bg-red-50 border-2 border-red-200 rounded-lg">
         <p className="text-red-700 font-semibold mb-2">圖表資料無效</p>
         <p className="text-sm text-red-600">
-          無法渲染 Chart.js 圖表，請檢查 labels / values 是否為等長陣列。
+          無法渲染 Chart.js 圖表，請檢查 labels / values 是否為等長且為數值的陣列。
         </p>
       </div>
     );

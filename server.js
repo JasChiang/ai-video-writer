@@ -1522,6 +1522,132 @@ app.post('/api/analyze-channel', async (req, res) => {
 });
 
 /**
+ * 頻道分析（SSE 串流版）
+ * POST /api/analyze-channel/stream
+ */
+app.post('/api/analyze-channel/stream', async (req, res) => {
+  const {
+    startDate,
+    endDate,
+    channelId,
+    videos,
+    channelStats,
+    analytics,
+    modelType = 'gemini-2.5-flash',
+    analysisType = 'comprehensive',
+  } = req.body;
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  const sendEvent = (event, data) => {
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  const heartbeat = setInterval(() => {
+    sendEvent('ping', {});
+  }, 25000);
+
+  const cleanup = () => {
+    clearInterval(heartbeat);
+  };
+
+  const abortController = new AbortController();
+  req.on('close', () => {
+    abortController.abort();
+    cleanup();
+  });
+
+  try {
+    if (!startDate || !endDate) {
+      throw new Error('Missing startDate or endDate');
+    }
+
+    if (!videos || !Array.isArray(videos)) {
+      throw new Error('Missing or invalid videos array');
+    }
+
+    sendEvent('stage', { id: 'prepare', status: 'active' });
+
+    const prompt = PromptTemplates.generatePrompt({
+      type: analysisType,
+      dateRange: { startDate, endDate },
+      channelStats,
+      videos,
+      analytics,
+    });
+
+    sendEvent('stage', { id: 'prepare', status: 'completed' });
+    sendEvent('stage', { id: 'request', status: 'active' });
+
+    let finalResult = null;
+
+    await aiManager.streamAnalyze(
+      modelType,
+      {
+        prompt,
+        temperature: 0.7,
+        maxTokens: getMaxTokensForModel(modelType),
+        abortSignal: abortController.signal,
+      },
+      {
+        onChunk: (text) => {
+          if (text) {
+            sendEvent('chunk', { text });
+          }
+        },
+        onComplete: (result) => {
+          finalResult = result;
+        },
+      }
+    );
+
+    sendEvent('stage', { id: 'request', status: 'completed' });
+    sendEvent('stage', { id: 'render', status: 'active' });
+
+    if (!finalResult) {
+      throw new Error('分析結果為空');
+    }
+
+    sendEvent('complete', {
+      text: finalResult.text,
+      metadata: {
+        model: finalResult.model,
+        provider: finalResult.provider,
+        usage: finalResult.usage,
+        cost: finalResult.cost,
+        finishReason: finalResult.finishReason,
+        analysisType,
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    sendEvent('stage', { id: 'render', status: 'completed' });
+    sendEvent('end', { success: true });
+    cleanup();
+    res.end();
+  } catch (error) {
+    const isAbortError =
+      error.name === 'AbortError' ||
+      (typeof error.message === 'string' && error.message.includes('串流已中止'));
+
+    if (!isAbortError) {
+      console.error('[Channel Analysis SSE] ❌ 串流分析失敗:', error);
+      sendEvent('error', {
+        message: error.message || '串流分析失敗',
+      });
+    } else {
+      console.warn('[Channel Analysis SSE] 串流被中止');
+    }
+    cleanup();
+    res.end();
+  }
+});
+
+/**
  * 多模型協同分析
  * POST /api/analyze-channel/multi-model
  */

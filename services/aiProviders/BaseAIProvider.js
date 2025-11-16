@@ -17,6 +17,32 @@ export class BaseAIProvider {
   }
 
   /**
+   * 是否支援串流輸出
+   * @returns {boolean}
+   */
+  supportsStreaming() {
+    return false;
+  }
+
+  /**
+   * 串流分析：預設退化為一次性分析
+   * @param {Object} request
+   * @param {Object} handlers
+   * @param {(chunk: string) => void} handlers.onChunk
+   * @returns {Promise<Object>}
+   */
+  async streamAnalyze(request, handlers = {}) {
+    const result = await this.analyze(request);
+    if (result?.text && typeof handlers.onChunk === 'function') {
+      handlers.onChunk(result.text);
+    }
+    if (typeof handlers.onComplete === 'function') {
+      handlers.onComplete(result);
+    }
+    return result;
+  }
+
+  /**
    * 檢查 Provider 是否可用（API Key 是否已配置）
    * @returns {Promise<boolean>}
    */

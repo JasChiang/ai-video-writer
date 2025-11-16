@@ -108,6 +108,37 @@ export class AIModelManager {
     return provider.analyze(request);
   }
 
+  async streamAnalyze(modelType, request, handlers = {}) {
+    const provider = this.providers.get(modelType);
+
+    if (!provider) {
+      throw new Error(`模型 ${modelType} 不可用。請檢查 API Key 配置。`);
+    }
+
+    const isAvailable = await provider.isAvailable();
+    if (!isAvailable) {
+      throw new Error(`模型 ${modelType} 配置不正確。`);
+    }
+
+    if (typeof provider.streamAnalyze === 'function') {
+      return provider.streamAnalyze(request, handlers);
+    }
+
+    // Fallback：不支援串流時直接執行一次性分析
+    const result = await provider.analyze(request);
+    if (handlers?.onChunk && result?.text) {
+      handlers.onChunk(result.text);
+    }
+    if (handlers?.onComplete) {
+      handlers.onComplete(result);
+    }
+    return result;
+  }
+
+  getProvider(modelType) {
+    return this.providers.get(modelType) || null;
+  }
+
   /**
    * 獲取所有可用模型
    */
