@@ -1613,7 +1613,7 @@ app.post('/api/analyze-keywords', async (req, res) => {
     }
 
     // 生成關鍵字分析 Prompt
-    const prompt = PromptTemplates.buildKeywordAnalysisPrompt({
+    const prompt = PromptTemplates.buildContentUnitPrompt({
       keywordGroups,
       dateColumns,
       analyticsData,
