@@ -2479,30 +2479,30 @@ export function ChannelDashboard() {
   return (
     <div className="space-y-6 font-['Roboto',sans-serif] bg-[#FAFAFA] min-h-screen">
       {/* 標題區域 */}
-      <div className="rounded-2xl border border-[#E5E5E5] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)] p-8">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-3">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#FF1D1D] via-[#E30000] to-[#B20000] text-white shadow-[0_20px_60px_rgba(255,0,0,0.25)] p-8">
+        <div className="absolute -right-10 -top-10 w-56 h-56 bg-white/10 rounded-full blur-3xl" />
+        <div className="absolute -left-12 bottom-0 w-48 h-48 bg-black/10 rounded-full blur-2xl" />
+        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-4">
             <div className="inline-flex items-center gap-4">
-              <div className="h-14 w-14 rounded-full bg-gradient-to-br from-[#FF0000] to-[#CC0000] text-white flex items-center justify-center shadow-lg">
+              <div className="h-14 w-14 rounded-2xl bg-white/15 border border-white/30 text-white flex items-center justify-center shadow-lg shadow-black/20">
                 <BarChart3 className="w-7 h-7" />
               </div>
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#909090] mb-1">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/70 mb-1">
                   YouTube Analytics
                 </p>
-                <h2 className="text-[32px] font-bold text-[#0F0F0F] leading-tight">
-                  頻道數據儀表板
-                </h2>
+                <h2 className="text-[32px] font-extrabold leading-tight">頻道數據儀表板</h2>
               </div>
             </div>
-            <p className="text-[#606060] text-[15px] leading-relaxed max-w-2xl mt-2">
-              深入了解您的頻道表現、觀眾互動與成長趨勢
+            <p className="text-white/80 text-[15px] leading-relaxed max-w-2xl">
+              深入了解頻道表現、觀眾互動與成長趨勢，掌握每一次流量波動。
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 w-full lg:w-auto">
+          <div className="flex flex-col gap-4 w-full lg:w-auto bg-white/10 border border-white/20 rounded-3xl p-5 shadow-lg shadow-black/15 backdrop-blur-[2px]">
             {/* 快速篩選器 */}
-            <div className="flex flex-wrap gap-1.5 justify-start lg:justify-end">
+            <div className="flex flex-wrap gap-1.5 justify-start">
               {QUICK_DATE_PRESETS.map((item) => {
                 const range = getQuickDateRange(item.value);
                 const isActive = startDate === range.start && endDate === range.end;
@@ -2519,12 +2519,12 @@ export function ChannelDashboard() {
                       setStartDate(range.start);
                       setEndDate(range.end);
                     }}
-                    className={`px-5 py-2.5 text-[13px] font-semibold rounded-full border transition-all duration-200 ${
+                    className={`px-4 py-2 text-[13px] font-semibold rounded-full border transition-all duration-200 ${
                       disabled
-                        ? 'bg-[#F2F2F2] text-[#AAAAAA] border-[#E5E5E5] cursor-not-allowed'
+                        ? 'bg-white/10 text-white/40 border-white/10 cursor-not-allowed'
                         : showActive
-                          ? 'bg-[#FF0000] text-white border-[#FF0000] shadow-[0_2px_6px_rgba(255,0,0,0.25)]'
-                          : 'bg-white text-[#0F0F0F] border-[#CCCCCC] hover:bg-[#F9F9F9] hover:border-[#909090] hover:shadow-sm'
+                          ? 'bg-white text-[#C30000] border-transparent shadow-[0_2px_10px_rgba(255,255,255,0.35)]'
+                          : 'bg-transparent text-white border-white/40 hover:bg-white/10 hover:border-white/60'
                     }`}
                     aria-disabled={disabled}
                     title={
@@ -2539,28 +2539,28 @@ export function ChannelDashboard() {
               })}
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-              <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-2 flex-1">
                 {/* 日期範圍選擇器 */}
-                <div className="flex items-center gap-3 px-5 py-3 border border-[#CCCCCC] rounded-xl bg-white shadow-sm hover:border-[#909090] transition-colors">
-                  <Calendar className="w-5 h-5 text-[#606060]" />
+                <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-white text-[#0F0F0F] shadow-[0_6px_30px_rgba(0,0,0,0.08)]">
+                  <Calendar className="w-5 h-5 text-[#E30000]" />
                   <input
                     type="date"
                     value={startDate}
                     max={maxSelectableDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="focus:outline-none text-[13px] text-[#0F0F0F] font-semibold"
+                    className="flex-1 bg-transparent focus:outline-none text-[13px] font-semibold"
                   />
-                  <span className="text-[#909090] font-medium">至</span>
+                  <span className="text-[#7A7A7A] font-medium">至</span>
                   <input
                     type="date"
                     value={endDate}
                     max={maxSelectableDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="focus:outline-none text-[13px] text-[#0F0F0F] font-semibold"
+                    className="flex-1 bg-transparent focus:outline-none text-[13px] font-semibold"
                   />
                 </div>
-                <p className="text-[11px] text-[#606060] text-left sm:text-right leading-tight">
+                <p className="text-[11px] text-white/80 text-left sm:text-right leading-tight">
                   API 最晚僅提供到 {maxSelectableDate}（比 YouTube Studio 晚 1 天）
                 </p>
               </div>
@@ -2569,7 +2569,7 @@ export function ChannelDashboard() {
               <button
                 onClick={fetchDashboardData}
                 disabled={isLoading}
-                className="inline-flex items-center justify-center gap-2.5 rounded-full bg-gradient-to-r from-[#FF0000] to-[#CC0000] px-7 py-3 text-[13px] font-bold text-white shadow-[0_2px_8px_rgba(255,0,0,0.25)] transition-all duration-200 hover:shadow-[0_4px_12px_rgba(255,0,0,0.35)] hover:scale-[1.02] disabled:cursor-not-allowed disabled:bg-[#CCCCCC] disabled:shadow-none disabled:scale-100"
+                className="inline-flex items-center justify-center gap-2.5 rounded-full bg-white/95 text-[#B20000] px-8 py-3 text-[13px] font-bold shadow-[0_10px_35px_rgba(0,0,0,0.15)] transition-all duration-200 hover:bg-white hover:shadow-[0_15px_40px_rgba(0,0,0,0.25)] hover:scale-[1.02] disabled:cursor-not-allowed disabled:bg-white/30 disabled:text-white/60 disabled:shadow-none disabled:scale-100"
               >
                 {isLoading ? (
                   <>
@@ -2592,10 +2592,10 @@ export function ChannelDashboard() {
       <div className="rounded-2xl border border-[#E5E5E5] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)] overflow-hidden">
         <button
           onClick={() => setShowDataSourceInfo(!showDataSourceInfo)}
-          className="w-full p-5 flex items-center justify-between hover:bg-[#F9F9F9] transition-colors duration-150"
+          className="w-full p-5 flex items-center justify-between hover:bg-[#FFF5F5] transition-colors duration-150"
         >
           <div className="flex items-center gap-3">
-            <BarChart3 className="w-5 h-5 text-[#065FD4]" />
+            <BarChart3 className="w-5 h-5 text-[#FF3B30]" />
             <strong className="text-[13px] text-[#0F0F0F] font-semibold">數據來源說明</strong>
           </div>
           <svg
@@ -4190,11 +4190,11 @@ export function ChannelDashboard() {
                 {/* 圖例 */}
                 <div className="flex justify-center gap-6 mb-6">
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-blue-500 rounded"></div>
+                    <div className="w-4 h-4 bg-[#FF4B4B] rounded"></div>
                     <span className="text-sm text-gray-600">男性</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-pink-500 rounded"></div>
+                    <div className="w-4 h-4 bg-[#FF9EB5] rounded"></div>
                     <span className="text-sm text-gray-600">女性</span>
                   </div>
                 </div>
@@ -4228,7 +4228,7 @@ export function ChannelDashboard() {
                               </span>
                               <div className="w-full bg-gray-50 rounded-l-md h-8 flex items-center justify-end overflow-hidden">
                                 <div
-                                  className="bg-blue-500 h-full transition-all duration-500"
+                                  className="h-full transition-all duration-500 bg-[#FF4B4B]"
                                   style={{ width: `${maleWidth}%` }}
                                 ></div>
                               </div>
@@ -4247,7 +4247,7 @@ export function ChannelDashboard() {
                             <div className="flex items-center w-full">
                               <div className="w-full bg-gray-50 rounded-r-md h-8 flex items-center overflow-hidden">
                                 <div
-                                  className="bg-pink-500 h-full transition-all duration-500"
+                                  className="h-full transition-all duration-500 bg-[#FF9EB5]"
                                   style={{ width: `${femaleWidth}%` }}
                                 ></div>
                               </div>
@@ -4585,7 +4585,7 @@ export function ChannelDashboard() {
                               href={`https://www.youtube.com/watch?v=${source.videoId}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs text-blue-500 hover:text-blue-700 hover:underline inline-flex items-center gap-1"
+                              className="text-xs text-[#FF3B30] hover:text-[#C92A21] hover:underline inline-flex items-center gap-1"
                             >
                               <span>觀看影片</span>
                               <span>↗</span>
@@ -4634,7 +4634,7 @@ export function ChannelDashboard() {
                               href={`https://www.youtube.com/watch?v=${source.videoId}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs text-blue-500 hover:text-blue-700 hover:underline inline-flex items-center gap-1"
+                              className="text-xs text-[#FF3B30] hover:text-[#C92A21] hover:underline inline-flex items-center gap-1"
                             >
                               <span>觀看</span>
                               <span>↗</span>
