@@ -126,7 +126,27 @@ const MermaidDiagram: React.FC<{ chart: string }> = ({ chart }) => {
         } catch (error) {
           console.error('Mermaid rendering error:', error);
           if (ref.current) {
-            ref.current.innerHTML = `<pre class="bg-red-50 p-4 rounded text-red-700 text-sm">${error}</pre>`;
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            ref.current.innerHTML = `
+              <div class="bg-red-50 border-2 border-red-200 rounded-lg p-6 my-4">
+                <div class="flex items-start gap-3 mb-3">
+                  <div class="text-red-600 text-2xl">⚠️</div>
+                  <div class="flex-1">
+                    <h4 class="font-semibold text-red-800 mb-2">Mermaid 圖表語法錯誤</h4>
+                    <p class="text-red-700 text-sm mb-3">${errorMessage}</p>
+                    <details class="text-sm">
+                      <summary class="cursor-pointer text-red-600 hover:text-red-800 font-medium mb-2">
+                        查看原始語法
+                      </summary>
+                      <pre class="bg-white border border-red-200 rounded p-3 overflow-x-auto text-xs text-gray-800 mt-2">${chart.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+                    </details>
+                    <p class="text-xs text-gray-600 mt-3">
+                      💡 提示：AI 生成的圖表語法有誤，請嘗試重新分析或聯繫開發者。
+                    </p>
+                  </div>
+                </div>
+              </div>
+            `;
           }
         }
       };
