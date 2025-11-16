@@ -444,7 +444,7 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
 
   // 預處理內容：識別圖表並替換為特殊標記
   const processCharts = (text: string): string => {
-    const chartRegex = /<!--\s*CHART:(PIE|BAR)\s*\n([\s\S]*?)\n-->/g;
+    const chartRegex = /<!--\s*CHART:(PIE|BAR)\s*(?:\r?\n)?([\s\S]*?)(?:\r?\n)?-->/g;
     const newCharts = new Map<string, ChartData>();
     let chartIndex = 0;
 

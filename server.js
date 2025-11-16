@@ -12,6 +12,10 @@ import { AIModelManager } from './services/aiProviders/AIModelManager.js';
 import { PromptTemplates } from './services/analysisPrompts/PromptTemplates.js';
 import { aggregateChannelData, clearAnalyticsCache } from './services/channelAnalyticsService.js';
 import { searchVideosFromCache } from './services/videoCacheService.js';
+import {
+  getQuotaSnapshot as getServerQuotaSnapshot,
+  resetQuotaSnapshot as resetServerQuotaSnapshot,
+} from './services/quotaTracker.js';
 
 // 載入 .env.local 檔案
 dotenv.config({ path: '.env.local' });
@@ -61,6 +65,33 @@ app.get('/app-config.js', (_req, res) => {
     YOUTUBE_SCOPES: 'https://www.googleapis.com/auth/youtube',
   };
   res.type('application/javascript').send(`window.__APP_CONFIG__ = ${JSON.stringify(cfg)};`);
+});
+
+// Quota debugging endpoints
+app.get('/api/quota/server', (_req, res) => {
+  try {
+    const snapshot = getServerQuotaSnapshot();
+    res.json(snapshot);
+  } catch (error) {
+    console.error('[Quota] Failed to fetch server quota snapshot:', error);
+    res.status(500).json({
+      error: 'FAILED_TO_FETCH_SERVER_QUOTA',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+app.post('/api/quota/server/reset', (_req, res) => {
+  try {
+    resetServerQuotaSnapshot();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[Quota] Failed to reset server quota snapshot:', error);
+    res.status(500).json({
+      error: 'FAILED_TO_RESET_SERVER_QUOTA',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
 });
 
 // ==================== 安全性驗證函數 ====================

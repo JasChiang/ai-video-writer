@@ -55,7 +55,7 @@ console.log('- 使用 HTML 註釋格式');
 console.log('- 內嵌 JSON 數據');
 
 // 測試圖表解析正則表達式
-const chartRegex = /<!--\s*CHART:(PIE|BAR)\s*\n([\s\S]*?)\n-->/g;
+const chartRegex = /<!--\s*CHART:(PIE|BAR)\s*(?:\r?\n)?([\s\S]*?)(?:\r?\n)?-->/g;
 
 console.log('\n' + '='.repeat(80));
 console.log('開始解析...');

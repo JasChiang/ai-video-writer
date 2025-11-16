@@ -63,231 +63,106 @@ export class PromptTemplates {
    */
   static buildChannelHealthPrompt(data) {
     const {
-      channelStats,      // { totalSubscribers, totalViews, totalVideos, viewsInRange, watchTimeHours, subscribersGained, videosInRange }
-      topVideos,         // 熱門影片列表
-      bottomVideos,      // 低效影片列表
-      trendData,         // 趨勢資料
-      monthlyData,       // 月度資料
-      trafficSources,    // 流量來源
-      searchTerms,       // 搜尋詞
-      demographics,      // 人口統計
-      geography,         // 地理分布
-      devices,           // 設備類型
-      dateRange,         // { startDate, endDate }
+      channelStats,
+      topVideos = [],
+      bottomVideos = [],
+      trafficSources = [],
+      searchTerms = [],
+      demographics = [],
+      geography = [],
+      devices = [],
+      dateRange,
     } = data;
 
-    // 計算內容效率
-    const contentEfficiency = (channelStats.totalSubscribers / channelStats.totalVideos).toFixed(1);
-
-    // 計算平均觀看時長（分鐘/觀看）
+    const contentEfficiency = channelStats.totalVideos > 0
+      ? (channelStats.totalSubscribers / channelStats.totalVideos).toFixed(1)
+      : '0.0';
     const avgWatchMinutes = channelStats.viewsInRange > 0
       ? ((channelStats.watchTimeHours * 60) / channelStats.viewsInRange).toFixed(1)
-      : 0;
+      : '0.0';
 
-    return `**你是 YouTube 頻道的首席策略顧問 (Chief Strategy Advisor)**
+    const topVideoSummary = topVideos.slice(0, 20).map((video, index) => {
+      const published = video.publishedAt ? video.publishedAt.split('T')[0] : '未知日期';
+      return `${index + 1}. ${video.title || '未命名'}（${published}） - 觀看 ${Number(video.viewCount || 0).toLocaleString()}、讚 ${Number(video.likeCount || 0).toLocaleString()}、留言 ${Number(video.commentCount || 0).toLocaleString()}`;
+    }).join('\n') || '（目前沒有熱門樣本）';
 
-**你的任務：** 基於頻道的實際營運資料，提供全面的健康診斷和改善策略。
+    const bottomVideoSummary = bottomVideos.slice(0, 10).map((video, index) => {
+      const published = video.publishedAt ? video.publishedAt.split('T')[0] : '未知日期';
+      return `${index + 1}. ${video.title || '未命名'}（${published}） - 觀看 ${Number(video.viewCount || 0).toLocaleString()}、讚 ${Number(video.likeCount || 0).toLocaleString()}、留言 ${Number(video.commentCount || 0).toLocaleString()}`;
+    }).join('\n') || '（未提供低效影片資料）';
 
-**核心分析框架：內容效率 × 觀眾黏性 × 流量健康度**
+    const trafficSummary = trafficSources.length > 0
+      ? trafficSources.map(source => `- ${source.source || '未知'}：${(source.views || 0).toLocaleString()} 次 (${(source.percentage || 0).toFixed(1)}%)`).join('\n')
+      : '（未提供流量來源資料）';
 
-## 可用資料摘要
+    const searchSummary = searchTerms.slice(0, 15).map((term, index) => `${index + 1}. "${term.term || '未知'}" - ${(term.views || 0).toLocaleString()} 次`).join('\n') || '（未提供搜尋需求資料）';
 
-**頻道基本指標：**
+    const geographySummary = geography.slice(0, 10).map(item => `- ${item.country || '未知'}：${(item.views || 0).toLocaleString()} 次 (${(item.percentage || 0).toFixed(1)}%)`).join('\n') || '（未提供地理分佈資料）';
+
+    const deviceSummary = devices.length > 0
+      ? devices.map(device => `- ${device.deviceType || '未知'}：${(device.views || 0).toLocaleString()} 次 (${(device.percentage || 0).toFixed(1)}%)`).join('\n')
+      : '（未提供設備資料）';
+
+    return `## 角色設定
+你是一名 **YouTube 綜合診斷顧問**。你的任務是以使用者指定的期間資料為主，針對頻道「優勢、弱點、風險、機會」進行單一份綜合分析。只能引用頻道儀表板提供的數據與樣本影片，並且必須審視影片發布日期，以區分期間內新片與舊片長尾的貢獻。
+
+## 可用資料
 - 總訂閱者：${channelStats.totalSubscribers.toLocaleString()} 人
 - 總觀看數：${channelStats.totalViews.toLocaleString()} 次
 - 總影片數：${channelStats.totalVideos} 支
-- 內容效率：${contentEfficiency} 訂閱/影片 ${contentEfficiency < 20 ? '(警告：低於健康線)' : contentEfficiency < 50 ? '(需改進)' : contentEfficiency < 100 ? '(良好)' : '(優秀)'}
+- 內容效率（訂閱 / 影片）：${contentEfficiency}
+- 期間：${dateRange.startDate} ~ ${dateRange.endDate}
+- 期間觀看數：${channelStats.viewsInRange.toLocaleString()} 次
+- 期間觀看時數：${channelStats.watchTimeHours.toLocaleString()} 小時
+- 平均觀看時長：${avgWatchMinutes} 分鐘 / 次
+- 期間新增訂閱：${channelStats.subscribersGained} 人
+- 期間實際上架影片：${channelStats.videosInRange} 支
 
-**分析期間 (${dateRange.startDate} ~ ${dateRange.endDate})：**
-- 觀看數：${channelStats.viewsInRange.toLocaleString()} 次
-- 觀看時長：${channelStats.watchTimeHours.toLocaleString()} 小時
-- 平均觀看時長：${avgWatchMinutes} 分鐘/次
-- 新增訂閱：${channelStats.subscribersGained} 人
-- **📌 本期實際上傳影片數：${channelStats.videosInRange} 支**（這才是期間內新發布的影片數量）
+**熱門影片樣本（依觀看排序）**
+${topVideoSummary}
 
-**⚠️ 重要說明 - 請仔細閱讀：**
+**低速影片樣本**
+${bottomVideoSummary}
 
-**時段內熱門影片 Top ${Math.min(topVideos.length, 50)}：**
+**流量來源概況**
+${trafficSummary}
 
-🚨 **關鍵理解：以下 Top ${Math.min(topVideos.length, 50)} 支影片 ≠ 本期上傳的影片**
+**搜尋字詞重點**
+${searchSummary}
 
-- ✅ **正確理解**：這是「本期表現最好」的 ${Math.min(topVideos.length, 50)} 支影片（依觀看數排序）
-- ❌ **錯誤理解**：這不是「本期上傳」的影片清單
-- 📌 **本期實際上傳數**：${channelStats.videosInRange} 支（請查看發布日期確認哪些是新片）
-- 📚 **頻道總影片數**：${channelStats.totalVideos} 支
+**觀眾地理 / 裝置**
+${geographySummary}
 
-**分析時請務必：**
-1. 檢查每支影片的「發布日期」欄位
-2. 區分「本期上傳的新片」vs「本期之前上傳但表現好的舊片」
-3. 計算訂閱時，只計算本期上傳的 ${channelStats.videosInRange} 支影片的效率（訂閱數 ÷ ${channelStats.videosInRange}）
-4. 不要說「本期 ${Math.min(topVideos.length, 50)} 片帶來 XXX 訂閱」，應該說「本期 ${channelStats.videosInRange} 片帶來 XXX 訂閱」
+${deviceSummary}
 
-${topVideos.length > 0 ? topVideos.slice(0, 50).map((v, i) => `${i + 1}. ${v.title || '未命名'}
-   - 發布日期：${v.publishedAt ? new Date(v.publishedAt).toLocaleDateString('zh-TW') : '未知'}
-   - 觀看：${(v.viewCount || 0).toLocaleString()} | 讚：${(v.likeCount || 0).toLocaleString()} | 留言：${(v.commentCount || 0).toLocaleString()}
-   - 互動率：${v.viewCount > 0 ? (((v.likeCount || 0) + (v.commentCount || 0)) / v.viewCount * 100).toFixed(2) : '0.00'}%`).join('\n\n') : '（暫無影片資料）'}
+若系統有提供 trendData、monthlyData、demographics、devices 等欄位，可在分析中引用，但不得引入外部資料。
+⚠️ 注意：以上 Top ${Math.min(topVideos.length, 20)} 支影片僅代表「此期間表現最佳的樣本」，不等於期間內上傳的影片數量；請在分析時明確區分「期間內新片（${channelStats.videosInRange} 支）」與「舊片長尾」。報告中禁止把 Top 樣本數寫成上傳數，且必須明確說明新片與舊片在觀看與訂閱上的貢獻。
 
-${bottomVideos && bottomVideos.length > 0 ? `**時段內低效影片 Bottom ${bottomVideos.length}：**
-（以下為此時段內表現最差的 ${bottomVideos.length} 支影片，用於對比分析。同樣地，這些影片不一定是期間內上傳）
+## 輸出格式
+生成一份「單一綜合分析報告」，以 Markdown H2/H3 結構撰寫，內容必須控制在 3000 個中文字以內（約 6000 byte），使用台灣繁體中文並確保中英文與數字之間加半形空格。建議章節如下：
 
-${bottomVideos.map((v, i) => `${i + 1}. ${v.title || '未命名'}
-   - 發布日期：${v.publishedAt ? new Date(v.publishedAt).toLocaleDateString('zh-TW') : '未知'}
-   - 觀看：${(v.viewCount || 0).toLocaleString()} | 讚：${(v.likeCount || 0).toLocaleString()} | 留言：${(v.commentCount || 0).toLocaleString()}
-   - 互動率：${v.viewCount > 0 ? (((v.likeCount || 0) + (v.commentCount || 0)) / v.viewCount * 100).toFixed(2) : '0.00'}%`).join('\n\n')}` : ''}
+1. **期間表現快照**
+   - 概述期間內的主要指標（觀看、觀看時長、訂閱變化、內容效率），明確指出表現好壞並引用具體數據。
 
-**流量來源分布：**
-${trafficSources.length > 0 ? trafficSources.map(s => `- ${s.source || '未知'}: ${(s.views || 0).toLocaleString()} 次 (${(s.percentage || 0).toFixed(1)}%)`).join('\n') : '（暫無流量來源資料）'}
+2. **內容與觀眾雙向診斷**
+   - 從熱門 / 低速影片樣本、流量來源、搜尋字詞、地理與裝置等面向，說明哪些題材、受眾或觸達方式表現優秀，哪些存在問題。
+   - 必須拆解「期間上傳新片」與「舊片長尾」的貢獻：請引用 ${channelStats.videosInRange} 支新片的表現、Top 樣本中的舊片比例、舊片帶來的觀看 / 訂閱，避免將樣本數當成上傳數。
 
-**搜尋關鍵詞 Top 10：**
-${searchTerms.length > 0 ? searchTerms.slice(0, 10).map((t, i) => `${i + 1}. "${t.term || '未知'}" - ${(t.views || 0).toLocaleString()} 次觀看`).join('\n') : '（暫無搜尋詞資料）'}
+3. **優勢 / 弱點 / 風險 / 機會**
+   - 條列至少各 2 點，並以資料佐證。例如：哪類影片帶來最多觀看、哪個觀眾族群未被滿足、哪個流量來源正在下滑等。
 
-**觀眾人口統計：**
-${demographics.length > 0 ? demographics.map(d => `- ${d.ageGroup || '未知'} ${d.gender || ''}: ${(d.viewsPercentage || 0).toFixed(1)}%`).join('\n') : '（暫無人口統計資料）'}
+4. **行動建議與量化目標**
+   - 依優先順序列出 3~5 項具體措施，每項包含：針對的指標或族群、建議動作、預期量化成效或觀察指標、時間範圍。
+   - 若需要使用圖表，可使用 HTML 註解格式，例如 \`<!-- CHART:BAR {...} -->\` 或 \`<!-- CHART:PIE {...} -->\`，不得使用 Mermaid。
+   - 若需呈現比較或列表資訊，請使用標準 Markdown 表格。
 
-**地理分布 Top 5：**
-${geography.length > 0 ? geography.slice(0, 5).map((g, i) => `${i + 1}. ${g.country || '未知'}: ${(g.views || 0).toLocaleString()} 次 (${(g.percentage || 0).toFixed(1)}%)`).join('\n') : '（暫無地理分布資料）'}
+### 其他規則
+- 引述數據時必須標示來源（例如：Top 影片樣本、trafficSources、monthlyData）。
+- 僅能分析提供的資料，不得猜測未提供的資訊。
+- 報告需兼顧優缺點、風險與機會，避免只有好話或壞話。
+- 再次提醒：提到 Top 樣本時需註明它們只是樣本，所有「期間上傳」的描述一律使用 ${channelStats.videosInRange} 的數值。
 
-**設備類型：**
-${devices.length > 0 ? devices.map(d => `- ${d.deviceType || '未知'}: ${(d.views || 0).toLocaleString()} 次 (${(d.percentage || 0).toFixed(1)}%)`).join('\n') : '（暫無設備資料）'}
-
----
-
-## 你的分析任務
-
-🚨 **開始分析前必讀：**
-- 本期上傳影片數 = ${channelStats.videosInRange} 支（不是 ${Math.min(topVideos.length, 50)} 支）
-- 計算「每片訂閱」時，請用：${channelStats.subscribersGained} 訂閱 ÷ ${channelStats.videosInRange} 支影片
-- Top ${Math.min(topVideos.length, 50)} 只是「表現好的影片」，大多數可能是舊片
-
-### 1. 頻道健康度總體診斷
-
-**評估以下指標並打分（0-100）：**
-- 內容效率健康度（訂閱/影片比 = ${channelStats.subscribersGained} ÷ ${channelStats.videosInRange}）
-- 觀眾留存健康度（平均觀看時長）
-- 流量結構健康度（流量來源分布）
-- 增長勢能健康度（訂閱增長趨勢）
-
-**輸出格式：**
-| 健康指標 | 評分 | 狀態 | 診斷 |
-|---------|------|------|------|
-| 內容效率 | XX/100 | 優秀/良好/需改進/危險 | 簡述原因 |
-| 觀眾留存 | XX/100 | ... | ... |
-| 流量結構 | XX/100 | ... | ... |
-| 增長勢能 | XX/100 | ... | ... |
-
-### 2. 流量來源分析與優化建議
-
-**分析要點：**
-- 推薦流量（Suggested/Browse）占比是否健康（目標 >40%）？
-- 搜尋流量占比如何？是否過度依賴？
-- 外部流量占比是否過高（警戒線 >50%）？
-- 最有價值的搜尋關鍵詞是什麼？
-
-**提供：**
-- 流量結構診斷
-- 3 個具體優化策略（優先級排序）
-
-### 3. 高效 vs 低效影片對比分析
-
-${bottomVideos && bottomVideos.length > 0 ? `**對比分析要點：**
-- 比較 Top 10 與 Bottom 10 影片的差異
-- 標題模式差異（數字、問句、關鍵字使用）
-- 主題類型差異（哪些主題表現好/差）
-- 互動率差異（為何有些影片互動低）
-- **發布日期分析（重要）：**
-  - 區分「期間內上傳的新片」vs「期間前上傳的舊片」
-  - 新片 vs 舊片的表現差異（舊片是否有長尾效應？）
-  - 是否有舊片突然爆紅？原因可能是什麼？
-  - Top 50 中有多少是新片、多少是舊片？
-
-**輸出：**
-1. 表格對比高效與低效影片的關鍵差異（包含發布日期欄位）
-2. 找出 3-5 個明確的成功因素
-3. 識別 3-5 個應避免的失敗模式
-4. 新片 vs 舊片表現分析` : `**分析 Top 影片的共同特徵：**
-- 標題模式（是否使用數字、問句、實用型關鍵字）
-- 主題類型（評測、教學、娛樂等）
-- 互動率高低（找出互動磁鐵影片）
-- **發布日期分析：**
-  - 區分「期間內上傳的新片」vs「期間前上傳的舊片」
-  - 新片 vs 舊片的表現差異
-  - 是否有舊片長尾效應？
-
-**輸出：**
-表格展示 Top 3 影片的詳細分析 + 成功因素提煉（包含發布日期）`}
-
-### 4. 觀眾洞察與內容定位
-
-**基於人口統計、地理、設備資料，回答：**
-- 核心觀眾畫像是什麼？（年齡、性別、地理位置）
-- 觀看設備分布反映什麼資訊？
-- 內容定位是否匹配觀眾特徵？
-- 有哪些未被滿足的觀眾需求？
-
-### 5. 關鍵改善策略（優先級排序）
-
-**立即執行（本月內）：**
-1. [具體策略]
-2. [具體策略]
-3. [具體策略]
-
-**短期優化（3 個月內）：**
-1. [具體策略]
-2. [具體策略]
-
-**長期戰略（6-12 個月）：**
-1. [具體戰略方向]
-2. [具體戰略方向]
-
----
-
-## 輸出要求
-
-1. **使用 Markdown 表格**展示所有資料（包含健康度評分）
-2. **圖表使用規則（可選）**：
-   - ✅ **可使用 Chart.js 圖表**：餅圖(PIE)或長條圖(BAR)
-   - ❌ **禁止使用 Mermaid 圖表**：容易產生語法錯誤
-   - ⚠️ **正確的圖表語法**（必須完全按照此格式）：
-
-   ${'<'}!-- CHART:PIE
-   {
-     "title": "流量來源分布",
-     "labels": ["推薦流量", "搜尋流量", "外部流量", "直接流量"],
-     "values": [45, 30, 15, 10]
-   }
-   --${'>'}
-
-   或使用 BAR 長條圖：
-
-   ${'<'}!-- CHART:BAR
-   {
-     "title": "各月觀看數對比",
-     "labels": ["1月", "2月", "3月"],
-     "values": [1000, 1500, 2000]
-   }
-   --${'>'}
-
-   - ⚠️ **重要提醒**：
-     * 必須使用 HTML 註釋格式 \`${'<'}!-- CHART:PIE ...\` 或 \`${'<'}!-- CHART:BAR ...\`
-     * 不要使用 \`__CHART:xxx__\` 這種內部標記格式
-     * JSON 必須是有效的格式，注意逗號和引號
-   - 📋 **優先使用表格**：如果不確定語法是否正確，請使用表格代替圖表
-3. **每個建議必須包含**：
-   - 具體執行步驟
-   - 預期成效（量化）
-   - 執行難度（低/中/高）
-
-4. **撰寫規範：**
-   - 使用台灣繁體中文
-   - 中英文、數字之間加半形空格
-   - 避免空泛建議，必須具體可執行
-   - 優先級明確（什麼先做、什麼後做）
-
-5. **字數限制：**
-   - **完整報告必須控制在 3000 個中文字以內**
-   - 保持內容精煉，優先呈現最重要的洞察和建議
-
-**開始分析。**`;
+請依上述要求輸出綜合分析。`;
   }
 
   /**
@@ -296,33 +171,34 @@ ${bottomVideos && bottomVideos.length > 0 ? `**對比分析要點：**
   static buildContentUnitPrompt(data) {
     const { keywordGroups, dateColumns, analyticsData, selectedMetrics } = data;
 
-    // 建立資料表格
-    let dataTable = `\n**內容單元效能資料：**\n\n`;
-    dataTable += `| 單元名稱 | ${dateColumns.map(col => col.label).join(' | ')} |\n`;
-    dataTable += `|${'-'.repeat(15)}|${dateColumns.map(() => '-'.repeat(20)).join('|')}|\n`;
+    let dataTable = `
+**內容單元效能矩陣：**
 
-    keywordGroups.forEach((group) => {
+`;
+    dataTable += `| 單元名稱 | ${dateColumns.map(col => col.label).join(' | ')} |
+`;
+    dataTable += `|${'-'.repeat(15)}|${dateColumns.map(() => '-'.repeat(20)).join('|')}|
+`;
+
+    keywordGroups.forEach(group => {
       const row = [group.name];
-      dateColumns.forEach((col) => {
-        const cellData = analyticsData[group.id]?.[col.id];
-        if (cellData && !cellData.error) {
+      dateColumns.forEach(col => {
+        const cell = analyticsData[group.id]?.[col.id];
+        if (cell && !cell.error) {
           const metrics = selectedMetrics.map(metric => {
-            const value = cellData[metric];
-            if (value !== undefined && value !== null) {
-              return `${metric}: ${value.toLocaleString()}`;
-            }
-            return null;
+            const value = cell[metric];
+            return value !== undefined && value !== null ? `${metric}: ${value.toLocaleString()}` : null;
           }).filter(Boolean).join(', ');
           row.push(metrics || '無資料');
         } else {
-          row.push(cellData?.error || '無資料');
+          row.push(cell?.error || '無資料');
         }
       });
-      dataTable += `| ${row.join(' | ')} |\n`;
+      dataTable += `| ${row.join(' | ')} |
+`;
     });
 
-    // 計算總體統計
-    let totalStats = {
+    const totalStats = {
       totalViews: 0,
       totalLikes: 0,
       totalComments: 0,
@@ -333,148 +209,61 @@ ${bottomVideos && bottomVideos.length > 0 ? `**對比分析要點：**
 
     keywordGroups.forEach(group => {
       dateColumns.forEach(col => {
-        const cellData = analyticsData[group.id]?.[col.id];
-        if (cellData && !cellData.error) {
-          totalStats.totalViews += cellData.views || 0;
-          totalStats.totalLikes += cellData.likes || 0;
-          totalStats.totalComments += cellData.comments || 0;
-          totalStats.totalVideos += cellData.videoCount || 0;
+        const cell = analyticsData[group.id]?.[col.id];
+        if (cell && !cell.error) {
+          totalStats.totalViews += cell.views || 0;
+          totalStats.totalLikes += cell.likes || 0;
+          totalStats.totalComments += cell.comments || 0;
+          totalStats.totalVideos += cell.videoCount || 0;
         }
       });
     });
 
-    return `**你是 YouTube 內容策略分析師 (Content Strategy Analyst)**
+    return `## 角色設定
+你是 **YouTube Content Operating Partner**，需把關鍵字報表轉譯成「內容單元 Scorecard + 資源配置」。產出內容會直接顯示在報表 AI 區域，請保持專業、精煉。
 
-**你的任務：** 分析不同內容單元的效能表現，識別明星單元與低效單元，提供資源配置建議。
-
-## 可用資料摘要
-
-**分析維度：**
-- 內容單元數量：${totalStats.unitCount} 個
-- 時間維度數量：${totalStats.dateRangeCount} 個
+## Data Snapshot
+- 內容單元數：${totalStats.unitCount} 個
+- 觀察時段數：${totalStats.dateRangeCount} 組
 - 總觀看數：${totalStats.totalViews.toLocaleString()} 次
-- 總互動數：${(totalStats.totalLikes + totalStats.totalComments).toLocaleString()} 次
-- 總影片數：${totalStats.totalVideos} 支
-- 平均互動率：${totalStats.totalViews > 0 ? ((totalStats.totalLikes + totalStats.totalComments) / totalStats.totalViews * 100).toFixed(2) : 0}%
+- 總互動（讚+留言）：${(totalStats.totalLikes + totalStats.totalComments).toLocaleString()} 次
+- 涉及影片：${totalStats.totalVideos} 支
+- 平均互動率：${totalStats.totalViews > 0 ? ((totalStats.totalLikes + totalStats.totalComments) / totalStats.totalViews * 100).toFixed(2) : '0.00'}%
 
 ${dataTable}
 
-**選中的分析指標：**
-${selectedMetrics.map(m => `- ${m}`).join('\n')}
+**本次要追蹤的指標**
+${selectedMetrics.map(metric => `- ${metric}`).join('\n')}
 
----
+## 任務拆解（章節標題必須與下列名稱一致）
 
-## 你的分析任務
+1. **Unit Scorecard**
+   - 建立 Markdown 表格，欄位至少包含：單元、近期期觀看均值、近期期互動率、影片數、主 KPI、評級（S/A/B/C）。
+   - 在表格中直接標註定位（明星 / 潛力 / 流量 / 低效）。
 
-### 1. 內容單元效能對比
+2. **Momentum Radar**
+   - 針對不同日期列，比較每個單元是「上升 / 下滑 / 持平」，可使用 ▲ ▼ ＝，或用 \`<!-- CHART:BAR ... -->\` 簡化視覺化。
+   - 說明造成變化的假設（題材熱度、競品、發片頻率等）。
 
-**創建對比表格，包含：**
-- 單元名稱
-- 平均觀看數
-- 平均互動率
-- 影片數量
-- 效能評級（A/B/C/D）
-- 單元定位（明星/潛力/流量/低效）
+3. **Quadrant Brief**
+   - 以文字或表格呈現「高觀看×高互動」四象限，列出落在各象限的單元與策略建議。
+   - 不使用 Mermaid，若要圖表請用 Markdown 表格或 HTML 註解格式。
 
-### 2. 四象限分類
+4. **Resource Plan**
+   - 分為「加碼投資 / SEO 優化 / 減少投入」三大類，每類至少列 2 個單元，格式：單元 | 主要動作 | 預期成效。
 
-**將所有單元分類到四象限：**
+5. **Action Sprint**
+   - 列出未來 2 週的 3~5 個行動，包含負責單元、指標與檢查點。
 
-使用 Mermaid quadrantChart 或 ASCII 圖表展示：
+## 呈現規則
+- 章節用 H2/H3（例如 ## 1. Unit Scorecard）。
+- 數字加單位與千分位，並標示對應時間段。
+- 若需圖表，僅允許 HTML 註解語法：
+  \`<!-- CHART:BAR {"title":"單元觀看趨勢","labels":["上月","本月"],"values":[3200,5100]} -->\`
+- 禁用 Mermaid、flowchart 等語法。
+- 報告長度控制在 1800~2600 個中文字，重點在策略與行動。
 
-高互動 ↑
-     |  潛力單元     |  明星單元     |
-     |  (低觀看高互動) |  (高觀看高互動) |
-─────┼──────────────┼──────────────┤→ 高觀看
-     |  低效單元     |  流量單元     |
-     |  (低觀看低互動) |  (高觀看低互動) |
-低互動 ↓
-
-**說明每個象限的含義和策略：**
-- 明星單元：核心資產，加倍投入
-- 潛力單元：SEO 優化，提升曝光
-- 流量單元：改善內容品質
-- 低效單元：停止或重新包裝
-
-### 3. 時間序列趨勢分析
-
-**對比不同時間維度的資料，識別：**
-- 增長中的單元（新時期 > 舊時期）
-- 衰退中的單元（新時期 < 舊時期）
-- 穩定的單元（變化不大）
-
-**使用 ASCII 圖表或表格展示趨勢**
-
-### 4. 資源配置建議
-
-**基於分析結果，提供：**
-
-**加倍投入（明星單元）：**
-- 具體單元名稱
-- 建議動作（發展系列化、增加頻率等）
-- 預期成效
-
-**SEO 優化（潛力單元）：**
-- 具體單元名稱
-- 優化建議（標題、標籤、關鍵字）
-- 預期成效
-
-**停止或轉型（低效單元）：**
-- 具體單元名稱
-- 建議動作（停止、重新包裝、合併）
-- 資源轉移計劃
-
-### 5. 關鍵行動計劃
-
-**立即執行（本週內）：**
-1. [具體動作]
-2. [具體動作]
-3. [具體動作]
-
-**短期優化（1 個月內）：**
-1. [具體動作]
-2. [具體動作]
-
-**中期布局（3 個月內）：**
-1. [具體目標 + 預期成效]
-2. [具體目標 + 預期成效]
-
----
-
-## 輸出要求
-
-1. **必須使用 Markdown 表格**展示單元對比資料
-2. **四象限分類展示方式**：
-   - ✅ **使用 ASCII 文字圖表**（簡單清晰）
-   - ✅ **使用 Markdown 表格**列出各象限的單元
-   - ✅ **可選：使用 Chart.js 長條圖**對比各單元表現
-   - ❌ **禁止使用 Mermaid 圖表**：容易產生語法錯誤
-   - ⚠️ **正確的圖表語法**（必須完全按照此格式）：
-
-   ${'<'}!-- CHART:BAR
-   {
-     "title": "各單元觀看數對比",
-     "labels": ["科技評測", "生活Vlog", "遊戲實況"],
-     "values": [5000, 3000, 2000]
-   }
-   --${'>'}
-
-   - ⚠️ **重要提醒**：
-     * 必須使用 HTML 註釋格式 \`${'<'}!-- CHART:BAR ...\` 或 \`${'<'}!-- CHART:PIE ...\`
-     * 不要使用 \`__CHART:xxx__\` 這種內部標記格式
-     * JSON 必須是有效的格式
-   - 📋 **優先使用表格**：如果不確定語法，請用表格
-3. **每個建議必須包含**：
-   - 具體單元名稱
-   - 具體執行步驟
-   - 量化的預期成效
-4. **優先級明確**（用編號 1, 2, 3 排序）
-
-5. **字數限制：**
-   - **完整報告必須控制在 3000 個中文字以內**
-   - 保持內容精煉，優先呈現最重要的洞察和建議
-
-**開始分析。**`;
+立即根據資料輸出報告。`;
   }
 
   /**

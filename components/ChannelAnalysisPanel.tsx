@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Settings, Zap, ChevronDown, ChevronUp } from 'lucide-react';
-import { AnalysisTypeSelector, type AnalysisType } from './AnalysisTypeSelector';
 import { AIModelSelector, type AIModel } from './AIModelSelector';
 import { AnalysisMarkdown } from './AnalysisMarkdown';
 
@@ -37,7 +36,6 @@ export function ChannelAnalysisPanel({
 }: ChannelAnalysisPanelProps) {
   // State
   const [isExpanded, setIsExpanded] = useState(false);
-  const [analysisType, setAnalysisType] = useState<AnalysisType>('comprehensive');
   const [modelSelectionMode, setModelSelectionMode] = useState<ModelSelectionMode>('auto');
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [recommendedModel, setRecommendedModel] = useState<string | null>(null);
@@ -59,10 +57,9 @@ export function ChannelAnalysisPanel({
       .catch((err) => console.error('Failed to load available models:', err));
   }, []);
 
-  // 當分析類型改變時，獲取推薦模型
   useEffect(() => {
-    if (modelSelectionMode === 'auto' && analysisType) {
-      fetch(`/api/ai-models/recommend?analysisType=${analysisType}`)
+    if (modelSelectionMode === 'auto') {
+      fetch(`/api/ai-models/recommend?analysisType=comprehensive`)
         .then((res) => res.json())
         .then((data) => {
           if (data.success) {
@@ -71,7 +68,7 @@ export function ChannelAnalysisPanel({
         })
         .catch((err) => console.error('Failed to get recommended model:', err));
     }
-  }, [analysisType, modelSelectionMode]);
+  }, [modelSelectionMode]);
 
   // 處理分析
   const handleAnalyze = async () => {
@@ -120,7 +117,7 @@ export function ChannelAnalysisPanel({
           },
           analytics,
           modelType: modelToUse,
-          analysisType,
+          analysisType: 'comprehensive',
         }),
       });
 
@@ -193,18 +190,6 @@ export function ChannelAnalysisPanel({
       {/* 可折疊內容區域 */}
       {isExpanded && (
         <div className="space-y-5 animate-fadeIn">
-          {/* 分析類型選擇 */}
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-r from-red-50 to-pink-50 rounded-2xl opacity-40 blur-xl"></div>
-            <div className="relative">
-              <AnalysisTypeSelector
-                selectedType={analysisType}
-                onTypeSelect={setAnalysisType}
-                disabled={isAnalyzing}
-              />
-            </div>
-          </div>
-
           {/* 模型選擇模式切換 */}
           <div className="relative overflow-hidden rounded-2xl border border-red-200 bg-gradient-to-br from-white via-white to-red-50/30 shadow-sm">
             {/* 裝飾性背景圖案 */}
@@ -287,14 +272,7 @@ export function ChannelAnalysisPanel({
                         </div>
                       </div>
                       <p className="text-sm text-red-700 mb-3 leading-relaxed">
-                        根據「<span className="font-semibold">
-                        {
-                          analysisType === 'subscriber-growth' ? '訂閱成長分析' :
-                          analysisType === 'view-optimization' ? '觀看優化分析' :
-                          analysisType === 'content-strategy' ? '內容策略分析' :
-                          analysisType === 'audience-insights' ? '觀眾洞察分析' :
-                          '綜合分析'
-                        }</span>」分析類型，系統推薦使用：
+                        根據「<span className="font-semibold">綜合分析</span>」分析類型，系統推薦使用：
                       </p>
 
                       {/* 推薦的模型卡片 - YouTube 風格 */}
@@ -446,8 +424,7 @@ export function ChannelAnalysisPanel({
               <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
                 <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
                 <span>
-                  預估分析時間：<span className="font-semibold text-gray-800">
-                  {analysisType === 'comprehensive' ? '60-90 秒' : '30-60 秒'}</span>
+                  預估分析時間：<span className="font-semibold text-gray-800">60-90 秒</span>
                   {modelSelectionMode === 'manual' && selectedModel && (() => {
                     const model = availableModels.find((m) => m.id === selectedModel);
                     return model?.cost === 'high' ? (

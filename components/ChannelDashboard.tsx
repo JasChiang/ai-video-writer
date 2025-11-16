@@ -524,22 +524,44 @@ export function ChannelDashboard() {
   ]);
 
   // 計算日期範圍
+  const parseDateAtTaipei = (dateStr: string, endOfDay = false) => {
+    const parsed = new Date(`${dateStr}T00:00:00+08:00`);
+    if (endOfDay) {
+      parsed.setHours(23, 59, 59, 999);
+    }
+    return parsed;
+  };
+
   const getDateRange = (): { startDate: Date; endDate: Date } => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const start = parseDateAtTaipei(startDate, false);
+    const end = parseDateAtTaipei(endDate, true);
 
     console.log('[Dashboard] 📅 日期範圍解析:', {
       原始字串: { startDate, endDate },
       解析後: {
         start: start.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }),
-        end: end.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })
-      }
+        end: end.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }),
+      },
     });
 
     return { startDate: start, endDate: end };
   };
 
   // 獲取儀錶板數據
+  const countPublicUploadsInRange = async (startDate: Date, endDate: Date) => {
+    const cache = await ensureVideoCache();
+    const allVideos = Object.values(cache);
+      const uploads = allVideos.filter((v: any) => {
+        if (!v.publishedAt) return false;
+        const status = (v.privacyStatus || v.status?.privacyStatus || 'public').toLowerCase();
+        if (status && status !== 'public') return false;
+        const utcDate = new Date(v.publishedAt);
+        const publishDate = new Date(utcDate.getTime() + 8 * 60 * 60 * 1000); // convert to GMT+8
+        return publishDate >= startDate && publishDate <= endDate;
+      });
+    return uploads.length;
+  };
+
   const fetchDashboardData = async () => {
     setIsLoading(true);
     setError(null);
@@ -551,6 +573,16 @@ export function ChannelDashboard() {
       }
 
       const { startDate, endDate } = getDateRange();
+      const publicUploadsCount = await countPublicUploadsInRange(startDate, endDate);
+      setChannelStats(prev => prev ? { ...prev, videosInRange: publicUploadsCount } : {
+        totalSubscribers: 0,
+        totalViews: 0,
+        totalVideos: 0,
+        viewsInRange: 0,
+        watchTimeHours: 0,
+        subscribersGained: 0,
+        videosInRange: publicUploadsCount,
+      });
 
       // 策略 1: 頻道總體資料 - 使用 YouTube Data API
       await fetchChannelStats(token);
@@ -604,12 +636,12 @@ export function ChannelDashboard() {
           viewsInRange: views,
           watchTimeHours: watchTimeHours,
           subscribersGained: subscribersNet, // 使用淨增長（新增 - 取消）
-          videosInRange: 0, // 頻道級別數據不包含影片數
+          videosInRange: publicUploadsCount,
         }));
 
         // 處理影片級別數據（熱門影片）
         if (videoAnalytics && videoAnalytics.rows && videoAnalytics.rows.length > 0) {
-          await fetchTopVideosFromAnalytics(videoAnalytics.rows);
+          await fetchTopVideosFromAnalytics(videoAnalytics.rows, startDate, endDate, token);
         } else {
           console.log('[Dashboard] ⚠️ 無影片數據，使用空列表');
           setTopVideos([]);
@@ -672,75 +704,52 @@ export function ChannelDashboard() {
     }
   };
 
-  // 處理 Analytics API 數據
-  const processAnalyticsData = async (analyticsData: any, startDate: Date, endDate: Date) => {
-    try {
-      // Analytics API 返回格式：
-      // rows: [[videoId, views, estimatedMinutesWatched, subscribersGained], ...]
-      const totalViews = analyticsData.rows.reduce(
-        (sum: number, row: any[]) => sum + (parseInt(row[1]) || 0),
-        0
-      );
+  const fetchShareCountsForVideos = async (videoIds: string[], startDate: Date, endDate: Date, token: string) => {
+    const formatDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
 
-      const totalWatchTimeMinutes = analyticsData.rows.reduce(
-        (sum: number, row: any[]) => sum + (parseInt(row[2]) || 0),
-        0
-      );
+    const results: Record<string, number> = {};
+    for (const videoId of videoIds) {
+      try {
+        const response = await fetch(
+          `https://youtubeanalytics.googleapis.com/v2/reports?` +
+            `ids=channel==MINE` +
+            `&startDate=${formatDate(startDate)}` +
+            `&endDate=${formatDate(endDate)}` +
+            `&metrics=shares` +
+            `&filters=video==${encodeURIComponent(videoId)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
-      const totalSubscribersGained = analyticsData.rows.reduce(
-        (sum: number, row: any[]) => sum + (parseInt(row[3]) || 0),
-        0
-      );
+        if (!response.ok) {
+          console.warn('[Dashboard] ⚠️ 無法獲取影片分享數:', videoId);
+          continue;
+        }
 
-      const watchTimeHours = Math.floor(totalWatchTimeMinutes / 60);
-
-      // 計算期間內實際上傳的影片數（從 Video Cache 過濾）
-      const cache = await ensureVideoCache();
-      const allVideos = Object.values(cache);
-
-      const actualVideosInRange = allVideos.filter((v: any) => {
-        if (!v.publishedAt) return false;
-        const publishDate = new Date(v.publishedAt);
-        return publishDate >= startDate && publishDate <= endDate;
-      });
-
-      console.log('[Dashboard] 📊 Analytics 統計:', {
-        totalViews,
-        watchTimeHours,
-        subscribersGained: totalSubscribersGained,
-        videosWithData: analyticsData.rows.length,        // 期間內有觀看數據的影片數
-        videosUploaded: actualVideosInRange.length,       // 期間內實際上傳的影片數
-      });
-
-      // 更新統計數據
-      setChannelStats((prev) => ({
-        totalSubscribers: prev?.totalSubscribers || 0,
-        totalViews: prev?.totalViews || 0,
-        totalVideos: prev?.totalVideos || 0,
-        viewsInRange: totalViews,
-        watchTimeHours: watchTimeHours,
-        subscribersGained: totalSubscribersGained,
-        videosInRange: actualVideosInRange.length,        // 使用實際上傳數而非有數據的影片數
-      }));
-
-      // 獲取熱門影片詳情（需要從 Gist 快取獲取標題和縮圖）
-      await fetchTopVideosFromAnalytics(analyticsData.rows);
-
-      // 獲取低效影片詳情（如果有的話）
-      if (analyticsData.bottomVideos && analyticsData.bottomVideos.length > 0) {
-        await fetchBottomVideosFromAnalytics(analyticsData.bottomVideos);
+        const data = await response.json();
+        const shares = data.rows?.[0]?.[0];
+        results[videoId] = shares ? parseInt(shares) : 0;
+      } catch (err) {
+        console.warn('[Dashboard] ⚠️ 取得分享數據失敗:', videoId, err);
       }
-    } catch (err) {
-      console.error('[Dashboard] ❌ 處理 Analytics 數據失敗:', err);
-      throw err;
     }
+    return results;
   };
 
   // 從 Analytics 結果獲取熱門影片
-  const fetchTopVideosFromAnalytics = async (analyticsRows: any[]) => {
+  const fetchTopVideosFromAnalytics = async (analyticsRows: any[], startDate: Date, endDate: Date, token: string) => {
     try {
       // Analytics rows: [videoId, views, watchTime, subs]
       const topVideoIds = analyticsRows.slice(0, 50).map((row: any[]) => row[0]);
+      const shareCounts = await fetchShareCountsForVideos(topVideoIds, startDate, endDate, token);
 
       // 從快取獲取影片詳情（使用統一的快取機制，只讀取一次）
       const cache = await ensureVideoCache();
@@ -756,8 +765,8 @@ export function ChannelDashboard() {
         const videoId = row[0];
         const views = parseInt(row[1]) || 0;
         const avgViewPercent = parseFloat(row[2]) || 0;
-        const shares = parseInt(row[3]) || 0;
-        const comments = parseInt(row[4]) || 0;
+        const comments = parseInt(row[3]) || 0;
+        const shares = shareCounts[videoId] ?? 0;
         const video = allVideos.find((v: any) => v.videoId === videoId || v.id === videoId);
 
         if (!video) {
@@ -798,8 +807,7 @@ export function ChannelDashboard() {
         const videoId = row[0];
         const views = parseInt(row[1]) || 0;
         const avgViewPercent = parseFloat(row[2]) || 0;
-        const shares = parseInt(row[3]) || 0;
-        const comments = parseInt(row[4]) || 0;
+        const comments = parseInt(row[3]) || 0;
         const video = allVideos.find((v: any) => v.videoId === videoId || v.id === videoId);
 
         if (!video) {
@@ -813,7 +821,7 @@ export function ChannelDashboard() {
           likeCount: parseInt(video?.likeCount || '0'),
           commentCount: comments,
           avgViewPercentage: avgViewPercent,
-          shareCount: shares,
+          shareCount: 0,
           publishedAt: video?.publishedAt || '',
           thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
         };
@@ -955,7 +963,7 @@ export function ChannelDashboard() {
           `ids=channel==MINE` +
           `&startDate=${formatDate(startDate)}` +
           `&endDate=${formatDate(endDate)}` +
-          `&metrics=views,averageViewPercentage,shares,comments` +
+          `&metrics=views,averageViewPercentage,comments` +
           `&dimensions=video` +
           `&sort=-views` +
           `&maxResults=50`,
@@ -971,7 +979,7 @@ export function ChannelDashboard() {
           `ids=channel==MINE` +
           `&startDate=${formatDate(startDate)}` +
           `&endDate=${formatDate(endDate)}` +
-          `&metrics=views,averageViewPercentage,shares,comments` +
+          `&metrics=views,averageViewPercentage,comments` +
           `&dimensions=video` +
           `&sort=views` +
           `&maxResults=10`,
@@ -1828,7 +1836,12 @@ export function ChannelDashboard() {
       // 過濾時間範圍內發布的影片
       const videosInRange = allVideos.filter((v: any) => {
         if (!v.publishedAt) return false;
-        const publishDate = new Date(v.publishedAt);
+        const privacyStatus = (v.privacyStatus || v.status?.privacyStatus || '').toLowerCase();
+        if (privacyStatus && privacyStatus !== 'public') {
+          return false;
+        }
+        const utcDate = new Date(v.publishedAt);
+        const publishDate = new Date(utcDate.getTime() + 8 * 60 * 60 * 1000);
         return publishDate >= startDate && publishDate <= endDate;
       });
 
@@ -2702,7 +2715,7 @@ export function ChannelDashboard() {
 
       {/* KPI 指標卡片（可點擊切換圖表）- 緊湊型設計 */}
       {channelStats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {/* 觀看次數（時間範圍內）*/}
           <button
             onClick={() => setSelectedMetric('views')}
@@ -2961,6 +2974,34 @@ export function ChannelDashboard() {
                 {error?.includes('Analytics API')
                   ? '無法獲取（需要 Analytics API）'
                   : '觀眾參與度指標'}
+              </div>
+            </div>
+          </div>
+          {/* 期間上傳（公開） */}
+          <div
+            className="group relative overflow-hidden rounded-lg border bg-gradient-to-br from-white to-gray-50/30 shadow-sm transition-all duration-300 p-4"
+            style={{ fontFamily: '"JetBrains Mono", "Consolas", monospace' }}
+          >
+            <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-0 group-hover:opacity-20 bg-red-500 transition-opacity" />
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Video className="w-5 h-5 text-red-500" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-600">
+                    期間上傳（公開）
+                  </span>
+                </div>
+              </div>
+              <div className="mb-2">
+                <div className="text-4xl font-bold text-gray-900 leading-none tracking-tight">
+                  {formatNumber(channelStats.videosInRange || 0)}
+                </div>
+                <div className="text-[11px] text-gray-600 mt-1.5 font-medium">
+                  支公開影片
+                </div>
+              </div>
+              <div className="text-[11px] text-gray-500 border-t border-gray-200 pt-3 mt-3 leading-relaxed">
+                僅統計 {startDate} ~ {endDate} 期間內發布且維持公開的影片（以 GMT+8 為準）。
               </div>
             </div>
           </div>
