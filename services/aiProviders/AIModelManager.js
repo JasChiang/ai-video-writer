@@ -55,6 +55,7 @@ export class AIModelManager {
           apiKey: this.openRouterApiKey,
           model: 'openai/gpt-5.1',
           temperature: 0.7,
+          maxTokens: 128000,
         })
       );
 

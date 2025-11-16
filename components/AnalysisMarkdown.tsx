@@ -190,6 +190,24 @@ interface ChartData {
 }
 
 const ChartJSComponent: React.FC<{ data: ChartData }> = ({ data }) => {
+  const safeLabels = Array.isArray(data.labels) ? data.labels : [];
+  const safeValues = Array.isArray(data.values) ? data.values : [];
+  const safeColors = Array.isArray(data.colors) ? data.colors : undefined;
+
+  const hasValidData =
+    safeLabels.length > 0 && safeLabels.length === safeValues.length;
+
+  if (!hasValidData) {
+    return (
+      <div className="my-6 p-6 bg-red-50 border-2 border-red-200 rounded-lg">
+        <p className="text-red-700 font-semibold mb-2">圖表資料無效</p>
+        <p className="text-sm text-red-600">
+          無法渲染 Chart.js 圖表，請檢查 labels / values 是否為等長陣列。
+        </p>
+      </div>
+    );
+  }
+
   const defaultColors = [
     '#0077B6', // 主色
     '#0096C7', // 副色
@@ -204,12 +222,12 @@ const ChartJSComponent: React.FC<{ data: ChartData }> = ({ data }) => {
   ];
 
   const chartData = {
-    labels: data.labels,
+    labels: safeLabels,
     datasets: [
       {
         label: data.title || '數據',
-        data: data.values,
-        backgroundColor: data.colors || defaultColors.slice(0, data.values.length),
+        data: safeValues,
+        backgroundColor: safeColors || defaultColors.slice(0, safeValues.length),
         borderColor: '#FFFFFF',
         borderWidth: 2,
       },
@@ -247,7 +265,9 @@ const ChartJSComponent: React.FC<{ data: ChartData }> = ({ data }) => {
           label: function (context: any) {
             const label = context.label || '';
             const value = context.parsed || context.raw;
-            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+            const total = Array.isArray(context.dataset?.data)
+              ? context.dataset.data.reduce((a: number, b: number) => a + b, 0)
+              : 0;
             const percentage = ((value / total) * 100).toFixed(1);
             return `${label}: ${value.toLocaleString()} (${percentage}%)`;
           },

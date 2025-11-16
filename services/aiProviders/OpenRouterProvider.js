@@ -29,6 +29,8 @@ export class OpenRouterProvider extends BaseAIProvider {
         content: request.prompt,
       });
 
+      const maxTokens = request.maxTokens ?? this.config.maxTokens ?? 4096;
+
       const response = await fetch(`${this.baseURL}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -41,7 +43,9 @@ export class OpenRouterProvider extends BaseAIProvider {
           model: this.config.model,
           messages,
           temperature: request.temperature ?? this.config.temperature ?? 0.7,
-          max_tokens: request.maxTokens ?? this.config.maxTokens ?? 4096,
+          // GPT-5.x 等模型採用 Responses API 格式，必須同時指定 max_tokens / max_output_tokens
+          max_tokens: maxTokens,
+          max_output_tokens: maxTokens,
           route: 'fallback', // 如果模型不可用，自動降級
         }),
       });
@@ -55,9 +59,32 @@ export class OpenRouterProvider extends BaseAIProvider {
 
       const data = await response.json();
       const completion = data.choices[0];
+      const finishReason = completion.finish_reason;
+
+      // 兼容 Responses API 可能回傳的 content 陣列格式
+      let content = completion.message?.content ?? '';
+      if (Array.isArray(content)) {
+        content = content
+          .map((block) => {
+            if (typeof block === 'string') return block;
+            if (typeof block?.text === 'string') return block.text;
+            if (block?.type === 'output_text' && typeof block.output_text === 'string') {
+              return block.output_text;
+            }
+            return '';
+          })
+          .filter(Boolean)
+          .join('\n\n');
+      }
+
+      if (!content) {
+        console.warn(
+          `[OpenRouterProvider] 收到空白內容 (finish_reason: ${finishReason || 'unknown'})`
+        );
+      }
 
       return {
-        text: completion.message.content,
+        text: content,
         model: this.config.model,
         provider: this.getProviderName(),
         usage: {
@@ -66,6 +93,7 @@ export class OpenRouterProvider extends BaseAIProvider {
           totalTokens: data.usage?.total_tokens || 0,
         },
         cost: data.usage?.total_cost, // OpenRouter 提供的成本
+        finishReason,
       };
     } catch (error) {
       console.error('[OpenRouterProvider] Error:', error);

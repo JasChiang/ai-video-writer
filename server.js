@@ -38,6 +38,15 @@ console.log('✅ Gemini API Key loaded successfully');
 
 // 初始化 AI 模型管理器
 const aiManager = new AIModelManager();
+const DEFAULT_MAX_TOKENS = 8192;
+const MODEL_MAX_TOKEN_MAP = {
+  'openai/gpt-5.1': 128000,
+};
+
+const getMaxTokensForModel = (modelType = '') => {
+  if (!modelType) return DEFAULT_MAX_TOKENS;
+  return MODEL_MAX_TOKEN_MAP[modelType] || DEFAULT_MAX_TOKENS;
+};
 console.log('✅ AI Model Manager initialized');
 
 app.use(cors());
@@ -1476,7 +1485,7 @@ app.post('/api/analyze-channel', async (req, res) => {
     const response = await aiManager.analyze(modelType, {
       prompt,
       temperature: 0.7,
-      maxTokens: 8192,
+      maxTokens: getMaxTokensForModel(modelType),
     });
 
     console.log('[Channel Analysis] ✅ 分析完成');
@@ -1553,7 +1562,7 @@ app.post('/api/analyze-channel/multi-model', async (req, res) => {
         const response = await aiManager.analyze(modelType, {
           prompt,
           temperature: 0.7,
-          maxTokens: 8192,
+          maxTokens: getMaxTokensForModel(modelType),
         });
 
         return {
@@ -1661,7 +1670,7 @@ app.post('/api/analyze-keywords', async (req, res) => {
     const response = await aiManager.analyze(modelType, {
       prompt,
       temperature: 0.7,
-      maxTokens: 8192,
+      maxTokens: getMaxTokensForModel(modelType),
     });
 
     console.log('[Keyword Analysis] ✅ 分析完成');
