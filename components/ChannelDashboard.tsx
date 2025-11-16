@@ -80,6 +80,8 @@ import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import * as youtubeService from '../services/youtubeService';
 import { ChannelAnalysisPanel } from './ChannelAnalysisPanel';
 
+declare const gapi: any;
+
 // 註冊 Chart.js 組件
 ChartJS.register(
   CategoryScale,
@@ -336,7 +338,6 @@ export function ChannelDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [channelStats, setChannelStats] = useState<ChannelStats | null>(null);
   const [topVideos, setTopVideos] = useState<VideoItem[]>([]);
-  const [bottomVideos, setBottomVideos] = useState<VideoItem[]>([]);
 
   const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
   const [selectedMetric, setSelectedMetric] = useState<ChartMetric>('views');
@@ -560,6 +561,24 @@ export function ChannelDashboard() {
         return publishDate >= startDate && publishDate <= endDate;
       });
     return uploads.length;
+  };
+
+  // 使用 gapi.client 統一查詢 YouTube Analytics API（自動處理認證）
+  const queryYoutubeAnalytics = async (params: Record<string, string>) => {
+    try {
+      const response = await gapi.client.request({
+        path: 'https://youtubeanalytics.googleapis.com/v2/reports',
+        method: 'GET',
+        params,
+      });
+      return response.result;
+    } catch (error: any) {
+      if (error?.result?.error?.code === 401) {
+        youtubeService.logout();
+        throw new Error('YouTube 驗證過期，請重新登入後再試');
+      }
+      throw error;
+    }
   };
 
   const fetchDashboardData = async () => {
@@ -793,47 +812,6 @@ export function ChannelDashboard() {
     }
   };
 
-  // 從 Analytics 結果獲取低效影片
-  const fetchBottomVideosFromAnalytics = async (analyticsRows: any[]) => {
-    try {
-      // Analytics rows: [videoId, views, avgViewPercent, shares, comments]
-      const bottomVideoIds = analyticsRows.slice(0, 10).map((row: any[]) => row[0]);
-
-      // 從快取獲取影片詳情
-      const cache = await ensureVideoCache();
-      const allVideos = Object.values(cache);
-
-      const bottomVideosWithDetails = analyticsRows.slice(0, 10).map((row: any[]) => {
-        const videoId = row[0];
-        const views = parseInt(row[1]) || 0;
-        const avgViewPercent = parseFloat(row[2]) || 0;
-        const comments = parseInt(row[3]) || 0;
-        const video = allVideos.find((v: any) => v.videoId === videoId || v.id === videoId);
-
-        if (!video) {
-          console.warn('[Dashboard] ⚠️ 找不到低效影片資料:', videoId);
-        }
-
-        return {
-          id: videoId,
-          title: video?.title || `影片 ${videoId}`,
-          viewCount: views,
-          likeCount: parseInt(video?.likeCount || '0'),
-          commentCount: comments,
-          avgViewPercentage: avgViewPercent,
-          shareCount: 0,
-          publishedAt: video?.publishedAt || '',
-          thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
-        };
-      });
-
-      console.log(`[Dashboard] 📉 Analytics 低效影片: ${bottomVideosWithDetails.length} 支`);
-      setBottomVideos(bottomVideosWithDetails);
-    } catch (err) {
-      console.error('[Dashboard] ⚠️  獲取低效影片詳情失敗:', err);
-    }
-  };
-
   // 策略 1: 獲取頻道等級統計（使用 OAuth + YouTube Data API）
   // 配額成本: 1 單位（channels.list with part=statistics）
   // 注意：這些是頻道總體統計，不受時間範圍影響
@@ -909,26 +887,12 @@ export function ChannelDashboard() {
 
       // 頻道級別數據：不使用 dimensions，直接獲取頻道整體統計
       // 同時獲取 subscribersGained、subscribersLost、averageViewDuration、averageViewPercentage
-      const response = await fetch(
-        `https://youtubeanalytics.googleapis.com/v2/reports?` +
-        `ids=channel==MINE` +
-        `&startDate=${formattedStartDate}` +
-        `&endDate=${formattedEndDate}` +
-        `&metrics=views,estimatedMinutesWatched,subscribersGained,subscribersLost,averageViewDuration,averageViewPercentage`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('[Dashboard] ❌ Analytics API 錯誤:', errorData);
-        throw new Error('Analytics API 無權限或錯誤');
-      }
-
-      const data = await response.json();
+      const data = await queryYoutubeAnalytics({
+        ids: 'channel==MINE',
+        startDate: formattedStartDate,
+        endDate: formattedEndDate,
+        metrics: 'views,estimatedMinutesWatched,subscribersGained,subscribersLost,averageViewDuration,averageViewPercentage',
+      });
       console.log('[Dashboard] ✅ 頻道級別數據獲取成功');
       console.log('[Dashboard] 📊 API 原始返回:', {
         columnHeaders: data.columnHeaders,
@@ -955,58 +919,18 @@ export function ChannelDashboard() {
       };
 
       // 影片級別數據：使用 video dimension，獲取每個影片的統計
-      // 同時獲取高效和低效影片
-      const [topResponse, bottomResponse] = await Promise.all([
-        // Top 50 影片
-        fetch(
-          `https://youtubeanalytics.googleapis.com/v2/reports?` +
-          `ids=channel==MINE` +
-          `&startDate=${formatDate(startDate)}` +
-          `&endDate=${formatDate(endDate)}` +
-          `&metrics=views,averageViewPercentage,comments` +
-          `&dimensions=video` +
-          `&sort=-views` +
-          `&maxResults=50`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        ),
-        // Bottom 10 影片（反向排序）
-        fetch(
-          `https://youtubeanalytics.googleapis.com/v2/reports?` +
-          `ids=channel==MINE` +
-          `&startDate=${formatDate(startDate)}` +
-          `&endDate=${formatDate(endDate)}` +
-          `&metrics=views,averageViewPercentage,comments` +
-          `&dimensions=video` +
-          `&sort=views` +
-          `&maxResults=10`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        ),
-      ]);
-
-      if (!topResponse.ok) {
-        throw new Error('無法獲取熱門影片數據');
-      }
-
-      const data = await topResponse.json();
+      const data = await queryYoutubeAnalytics({
+        ids: 'channel==MINE',
+        startDate: formatDate(startDate),
+        endDate: formatDate(endDate),
+        metrics: 'views,averageViewPercentage,comments',
+        dimensions: 'video',
+        sort: '-views',
+        maxResults: '50',
+      });
       console.log('[Dashboard] ✅ 熱門影片數據獲取成功');
 
-      // 處理低效影片數據（可選）
-      let bottomData = null;
-      if (bottomResponse.ok) {
-        bottomData = await bottomResponse.json();
-        console.log('[Dashboard] ✅ 低效影片數據獲取成功');
-      }
-
-      // 將低效影片數據附加到返回對象
-      return { ...data, bottomVideos: bottomData?.rows || [] };
+      return data;
     } catch (err: any) {
       console.log('[Dashboard] ⚠️ 無法獲取影片數據:', err.message);
       return null;
@@ -1104,28 +1028,16 @@ export function ChannelDashboard() {
         return `${year}-${month}-${day}`;
       };
 
-      const response = await fetch(
-        `https://youtubeanalytics.googleapis.com/v2/reports?` +
-        `ids=channel==MINE` +
-        `&startDate=${formatDate(startDate)}` +
-        `&endDate=${formatDate(endDate)}` +
-        `&dimensions=video` +
-        `&filters=creatorContentType==shorts` +
-        `&metrics=views,averageViewPercentage,shares,comments` +
-        `&sort=-views` +
-        `&maxResults=10`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('無法獲取 Shorts 數據');
-      }
-
-      const data = await response.json();
+      const data = await queryYoutubeAnalytics({
+        ids: 'channel==MINE',
+        startDate: formatDate(startDate),
+        endDate: formatDate(endDate),
+        dimensions: 'video',
+        filters: 'creatorContentType==shorts',
+        metrics: 'views,averageViewPercentage,shares,comments',
+        sort: '-views',
+        maxResults: '10',
+      });
 
       if (!data.rows || data.rows.length === 0) {
         console.log('[Dashboard] ℹ️ 時間範圍內沒有 Shorts 數據');
@@ -1179,28 +1091,16 @@ export function ChannelDashboard() {
         return `${year}-${month}-${day}`;
       };
 
-      const response = await fetch(
-        `https://youtubeanalytics.googleapis.com/v2/reports?` +
-        `ids=channel==MINE` +
-        `&startDate=${formatDate(startDate)}` +
-        `&endDate=${formatDate(endDate)}` +
-        `&dimensions=video` +
-        `&filters=creatorContentType==VideoOnDemand` +
-        `&metrics=views,averageViewPercentage,shares,comments` +
-        `&sort=-views` +
-        `&maxResults=10`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('無法獲取一般影片數據');
-      }
-
-      const data = await response.json();
+      const data = await queryYoutubeAnalytics({
+        ids: 'channel==MINE',
+        startDate: formatDate(startDate),
+        endDate: formatDate(endDate),
+        dimensions: 'video',
+        filters: 'creatorContentType==videoOnDemand',
+        metrics: 'views,averageViewPercentage,shares,comments',
+        sort: '-views',
+        maxResults: '10',
+      });
 
       if (!data.rows || data.rows.length === 0) {
         console.log('[Dashboard] ℹ️ 時間範圍內沒有一般影片數據');
@@ -2698,16 +2598,6 @@ export function ChannelDashboard() {
               devices: devices,
               trendData: trendData,
               monthlyData: monthlyData,
-              bottomVideos: bottomVideos.map(video => ({
-                videoId: video.id,
-                title: video.title,
-                viewCount: video.viewCount,
-                likeCount: video.likeCount,
-                commentCount: video.commentCount,
-                avgViewPercentage: video.avgViewPercentage,
-                shareCount: video.shareCount,
-                publishedAt: video.publishedAt,
-              })),
             }}
           />
         </div>
