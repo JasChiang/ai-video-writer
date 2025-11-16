@@ -16,7 +16,7 @@ import {
   getQuotaSnapshot as getServerQuotaSnapshot,
   resetQuotaSnapshot as resetServerQuotaSnapshot,
 } from './services/quotaTracker.js';
-import taskManager from './services/taskManager.js';
+import * as taskQueue from './services/taskQueue.js';
 import {
   enableArticleTemplates,
   disableArticleTemplates,
@@ -120,7 +120,7 @@ app.post('/api/quota/server/reset', (_req, res) => {
 app.get('/api/task/:taskId', (req, res) => {
   const { taskId } = req.params;
 
-  const task = taskManager.getTask(taskId);
+  const task = taskQueue.getTask(taskId);
   if (!task) {
     return res.status(404).json({ error: 'Task not found' });
   }
@@ -129,18 +129,22 @@ app.get('/api/task/:taskId', (req, res) => {
 });
 
 /**
- * 刪除/取消任務
+ * 刪除/取消任務（任務會在完成後自動清理）
  * DELETE /api/task/:taskId
  */
 app.delete('/api/task/:taskId', (req, res) => {
   const { taskId } = req.params;
 
-  const deleted = taskManager.deleteTask(taskId);
-  if (!deleted) {
+  const task = taskQueue.getTask(taskId);
+  if (!task) {
     return res.status(404).json({ error: 'Task not found' });
   }
 
-  res.json({ success: true, message: 'Task deleted' });
+  // taskQueue 會自動清理已完成的任務，不需要手動刪除
+  res.json({
+    success: true,
+    message: 'Tasks are automatically cleaned up after completion. No manual deletion needed.'
+  });
 });
 
 // ==================== 模板管理 API ====================
@@ -615,16 +619,26 @@ app.post('/api/analyze-video-url-async', async (req, res) => {
     console.log(`[Analyze URL Async] Video Title: ${videoTitle}`);
 
     // 創建異步任務
-    const taskId = await taskManager.executeTask('analyze-video-url', async (tid, tm) => {
+    const taskId = taskQueue.createTask('analyze-video-url', {
+      videoId,
+      prompt,
+      videoTitle
+    });
+
+    console.log(`[Analyze URL Async] Task created: ${taskId}`);
+    res.json({ taskId });
+
+    // 在背景執行任務
+    taskQueue.executeTask(taskId, async (taskId) => {
       const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-      tm.updateProgress(tid, 10, '正在初始化 Gemini AI...');
+      taskQueue.updateTaskProgress(taskId, 10, '正在初始化 Gemini AI...');
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-      tm.updateProgress(tid, 30, '正在生成 SEO 強化內容...');
+      taskQueue.updateTaskProgress(taskId, 30, '正在生成 SEO 強化內容...');
       const fullPrompt = generateFullPrompt(videoTitle, prompt);
 
-      tm.updateProgress(tid, 50, '正在使用 YouTube URL 分析影片...');
+      taskQueue.updateTaskProgress(taskId, 50, '正在使用 YouTube URL 分析影片...');
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: [
@@ -642,7 +656,7 @@ app.post('/api/analyze-video-url-async', async (req, res) => {
         },
       });
 
-      tm.updateProgress(tid, 90, '正在解析 Gemini 回應...');
+      taskQueue.updateTaskProgress(taskId, 90, '正在解析 Gemini 回應...');
       const result = JSON.parse(response.text);
 
       console.log(`[Analyze URL Async] ✅ 分析完成: ${result.titleA}`);
@@ -653,9 +667,6 @@ app.post('/api/analyze-video-url-async', async (req, res) => {
         usedYouTubeUrl: true
       };
     });
-
-    console.log(`[Analyze URL Async] Task created: ${taskId}`);
-    res.json({ taskId });
 
   } catch (error) {
     console.error('[Analyze URL Async] Error:', error);
@@ -1032,15 +1043,31 @@ app.post('/api/generate-article-url-async', async (req, res) => {
     console.log(`[Article URL Async] Video Title: ${videoTitle}`);
 
     // 創建異步任務
-    const taskId = await taskManager.executeTask('generate-article-url', async (tid, tm) => {
+    const taskId = taskQueue.createTask('generate-article-url', {
+      videoId,
+      prompt,
+      videoTitle,
+      quality,
+      uploadedFiles,
+      accessToken,
+      templateId,
+      referenceUrls,
+      referenceVideos
+    });
+
+    console.log(`[Article URL Async] Task created: ${taskId}`);
+    res.json({ taskId });
+
+    // 在背景執行任務
+    taskQueue.executeTask(taskId, async (taskId) => {
       const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
       const outputPath = path.join(DOWNLOAD_DIR, `${videoId}.mp4`);
 
-      tm.updateProgress(tid, 5, '正在檢查 FFmpeg 安裝...');
+      taskQueue.updateTaskProgress(taskId, 5, '正在檢查 FFmpeg 安裝...');
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
       // 步驟 1: 使用 YouTube URL 生成文章與截圖時間點
-      tm.updateProgress(tid, 10, '正在使用 YouTube URL 分析影片...');
+      taskQueue.updateTaskProgress(taskId, 10, '正在使用 YouTube URL 分析影片...');
       const fullPrompt = await generateArticlePrompt(videoTitle, prompt, templateId);
 
       const response = await ai.models.generateContent({
@@ -1059,7 +1086,7 @@ app.post('/api/generate-article-url-async', async (req, res) => {
         },
       });
 
-      tm.updateProgress(tid, 30, '正在解析 Gemini 回應...');
+      taskQueue.updateTaskProgress(taskId, 30, '正在解析 Gemini 回應...');
       const result = JSON.parse(response.text);
 
       if (!result.titleA || !result.titleB || !result.titleC || !result.article_text || !result.screenshots) {
@@ -1069,7 +1096,7 @@ app.post('/api/generate-article-url-async', async (req, res) => {
       console.log(`[Article URL Async] ✅ 文章生成成功! 找到 ${result.screenshots.length} 個截圖時間點`);
       console.log(`[Article URL Async] 截圖規劃已生成，等待使用者手動觸發截圖`);
 
-      tm.updateProgress(tid, 90, '文章生成完成');
+      taskQueue.updateTaskProgress(taskId, 90, '文章生成完成');
 
       return {
         success: true,
@@ -1086,9 +1113,6 @@ app.post('/api/generate-article-url-async', async (req, res) => {
         screenshotsCount: result.screenshots.length
       };
     });
-
-    console.log(`[Article URL Async] Task created: ${taskId}`);
-    res.json({ taskId });
 
   } catch (error) {
     console.error('[Article URL Async] Error:', error);
@@ -1240,11 +1264,24 @@ app.post('/api/generate-article-from-url-async', async (req, res) => {
     console.log(`[Article URL-Only Async] URL: ${url}`);
 
     // 創建異步任務
-    const taskId = await taskManager.executeTask('generate-article-from-url', async (tid, tm) => {
-      tm.updateProgress(tid, 10, '正在初始化 Gemini AI...');
+    const taskId = taskQueue.createTask('generate-article-from-url', {
+      url,
+      prompt,
+      uploadedFiles,
+      templateId,
+      referenceUrls,
+      referenceVideos
+    });
+
+    console.log(`[Article URL-Only Async] Task created: ${taskId}`);
+    res.json({ taskId });
+
+    // 在背景執行任務
+    taskQueue.executeTask(taskId, async (taskId) => {
+      taskQueue.updateTaskProgress(taskId, 10, '正在初始化 Gemini AI...');
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-      tm.updateProgress(tid, 30, '正在從 URL 獲取內容...');
+      taskQueue.updateTaskProgress(taskId, 30, '正在從 URL 獲取內容...');
 
       // 構建 prompt
       const fullPrompt = `請根據以下網址的內容生成一篇文章：
@@ -1262,7 +1299,7 @@ ${prompt ? `額外要求：${prompt}` : ''}
   "seo_description": "SEO 描述"
 }`;
 
-      tm.updateProgress(tid, 50, '正在使用 Gemini AI 分析內容並生成文章...');
+      taskQueue.updateTaskProgress(taskId, 50, '正在使用 Gemini AI 分析內容並生成文章...');
 
       // 使用 Gemini 分析 URL
       const response = await ai.models.generateContent({
@@ -1281,7 +1318,7 @@ ${prompt ? `額外要求：${prompt}` : ''}
         },
       });
 
-      tm.updateProgress(tid, 90, '正在解析 Gemini 回應...');
+      taskQueue.updateTaskProgress(taskId, 90, '正在解析 Gemini 回應...');
       const result = JSON.parse(response.text);
 
       console.log(`[Article URL-Only Async] ✅ 文章生成完成: ${result.titleA}`);
@@ -1297,9 +1334,6 @@ ${prompt ? `額外要求：${prompt}` : ''}
         screenshots: []
       };
     });
-
-    console.log(`[Article URL-Only Async] Task created: ${taskId}`);
-    res.json({ taskId });
 
   } catch (error) {
     console.error('[Article URL-Only Async] Error:', error);
