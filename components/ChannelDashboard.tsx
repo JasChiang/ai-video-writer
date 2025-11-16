@@ -659,11 +659,22 @@ export function ChannelDashboard() {
 
       const watchTimeHours = Math.floor(totalWatchTimeMinutes / 60);
 
+      // 計算期間內實際上傳的影片數（從 Video Cache 過濾）
+      const cache = await ensureVideoCache();
+      const allVideos = Object.values(cache);
+
+      const actualVideosInRange = allVideos.filter((v: any) => {
+        if (!v.publishedAt) return false;
+        const publishDate = new Date(v.publishedAt);
+        return publishDate >= startDate && publishDate <= endDate;
+      });
+
       console.log('[Dashboard] 📊 Analytics 統計:', {
         totalViews,
         watchTimeHours,
         subscribersGained: totalSubscribersGained,
-        videosCount: analyticsData.rows.length,
+        videosWithData: analyticsData.rows.length,        // 期間內有觀看數據的影片數
+        videosUploaded: actualVideosInRange.length,       // 期間內實際上傳的影片數
       });
 
       // 更新統計數據
@@ -674,7 +685,7 @@ export function ChannelDashboard() {
         viewsInRange: totalViews,
         watchTimeHours: watchTimeHours,
         subscribersGained: totalSubscribersGained,
-        videosInRange: analyticsData.rows.length,
+        videosInRange: actualVideosInRange.length,        // 使用實際上傳數而非有數據的影片數
       }));
 
       // 獲取熱門影片詳情（需要從 Gist 快取獲取標題和縮圖）
