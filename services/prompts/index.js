@@ -301,7 +301,9 @@ export function disableCustomTemplates() {
   clearCustomTemplatesCache();
 }
 
-export function enableCustomTemplates() {
+export async function enableCustomTemplates() {
   customTemplatesDisabled = false;
   clearCustomTemplatesCache();
+  // 立即載入模板，確保狀態正確更新
+  return await loadCustomTemplates();
 }

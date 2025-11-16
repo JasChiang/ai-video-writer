@@ -195,6 +195,6 @@ export function disableArticleTemplates() {
   disableCustomTemplates();
 }
 
-export function enableArticleTemplates() {
-  enableCustomTemplates();
+export async function enableArticleTemplates() {
+  return await enableCustomTemplates();
 }

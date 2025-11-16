@@ -167,10 +167,16 @@ app.delete('/api/task/:taskId', (req, res) => {
  * 啟用自訂模板
  * POST /api/templates/enable
  */
-app.post('/api/templates/enable', (req, res) => {
+app.post('/api/templates/enable', async (req, res) => {
   try {
-    enableArticleTemplates();
-    res.json({ success: true, message: 'Custom templates enabled' });
+    await enableArticleTemplates();
+    const status = getArticleTemplateStatus();
+    res.json({
+      success: true,
+      message: 'Custom templates enabled',
+      usingCustomTemplates: status.usingCustomTemplates,
+      lastLoadedAt: status.lastLoadedAt
+    });
   } catch (error) {
     console.error('[Templates] Enable error:', error);
     res.status(500).json({
@@ -242,9 +248,13 @@ app.get('/api/templates/status', (req, res) => {
 app.get('/api/templates', async (req, res) => {
   try {
     const templates = await listAvailableArticleTemplates();
+    const status = getArticleTemplateStatus();
     res.json({
       success: true,
-      templates
+      templates,
+      usingCustomTemplates: status.usingCustomTemplates,
+      lastLoadedAt: status.lastLoadedAt,
+      disabled: status.disabled
     });
   } catch (error) {
     console.error('[Templates] List error:', error);
