@@ -459,7 +459,7 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
           values: data.values,
           colors: data.colors,
         });
-        return `__CHART:${chartId}__`;
+        return `§CHART:${chartId}§`;
       } catch (error) {
         console.error('Failed to parse chart data:', error);
         return match; // 保留原始內容
@@ -478,7 +478,7 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
       const video = findVideoById(videoId, videos);
       if (video) {
         // 使用特殊标记，稍后在渲染时替换
-        return `__VIDEO_CARD:${videoId}__`;
+        return `§VIDEO_CARD:${videoId}§`;
       }
       return match;
     });
@@ -492,8 +492,8 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
       const text = String(children);
 
       // 检查是否包含圖表标记
-      if (text.includes('__CHART:')) {
-        const chartMatch = text.match(/__CHART:(chart-\d+)__/);
+      if (text.includes('§CHART:')) {
+        const chartMatch = text.match(/§CHART:(chart-\d+)§/);
         if (chartMatch) {
           const chartId = chartMatch[1];
           const chartData = charts.get(chartId);
@@ -504,13 +504,13 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
       }
 
       // 检查是否包含 video 标记
-      if (text.includes('__VIDEO_CARD:')) {
-        const parts = text.split(/(__VIDEO_CARD:[a-zA-Z0-9_-]{11}__)/g);
+      if (text.includes('§VIDEO_CARD:')) {
+        const parts = text.split(/(§VIDEO_CARD:[a-zA-Z0-9_-]{11}§)/g);
 
         return (
           <div className="my-4 space-y-3">
             {parts.map((part, index) => {
-              const match = part.match(/__VIDEO_CARD:([a-zA-Z0-9_-]{11})__/);
+              const match = part.match(/§VIDEO_CARD:([a-zA-Z0-9_-]{11})§/);
               if (match) {
                 const videoId = match[1];
                 const video = findVideoById(videoId, videos);
@@ -523,7 +523,7 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
                 }
               }
               // 普通文本
-              if (part && !part.startsWith('__VIDEO_CARD:')) {
+              if (part && !part.startsWith('§VIDEO_CARD:')) {
                 return (
                   <span key={index} className="leading-relaxed" style={{ color: '#03045E' }}>
                     {part}
