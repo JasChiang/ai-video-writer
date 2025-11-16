@@ -362,6 +362,12 @@ export function ChannelDashboard() {
   const [contentTypeMetrics, setContentTypeMetrics] = useState<ContentTypeMetrics | null>(null);
   const [topShorts, setTopShorts] = useState<VideoItem[]>([]);
   const [topRegularVideos, setTopRegularVideos] = useState<VideoItem[]>([]);
+
+  // 排行榜展開/收起狀態
+  const [isTopVideosExpanded, setIsTopVideosExpanded] = useState(true);
+  const [isTopShortsExpanded, setIsTopShortsExpanded] = useState(true);
+  const [isTopRegularVideosExpanded, setIsTopRegularVideosExpanded] = useState(true);
+
   const analyticsAvailableDate = getAnalyticsAvailableEndDate();
   const maxSelectableDate = formatDateString(analyticsAvailableDate);
   const todayDate = new Date();
@@ -3507,14 +3513,31 @@ export function ChannelDashboard() {
       {sortedTopVideos.length > 0 && (
         <div className={cardBaseClass}>
           <div className="p-6">
-            <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-red-500" />
-              熱門影片 (Top 10)
-            </h3>
-            <p className="text-sm text-gray-500 mb-4">
-              時間範圍內表現最佳的影片（按總觀看數排序）
-            </p>
-            <div className="flex flex-wrap gap-2 mb-6">
+            <div
+              className="flex items-center justify-between cursor-pointer mb-4"
+              onClick={() => setIsTopVideosExpanded(!isTopVideosExpanded)}
+            >
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-red-500" />
+                  熱門影片 (Top 10)
+                </h3>
+                <p className="text-sm text-gray-500">
+                  時間範圍內表現最佳的影片（按總觀看數排序）
+                </p>
+              </div>
+              <button className="ml-4 p-2 hover:bg-red-50 rounded-lg transition-colors">
+                {isTopVideosExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-gray-500" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-500" />
+                )}
+              </button>
+            </div>
+
+            {isTopVideosExpanded && (
+              <>
+                <div className="flex flex-wrap gap-2 mb-6">
               {TOP_VIDEO_METRICS.map((option) => (
                 <button
                   key={option.value}
@@ -3531,7 +3554,7 @@ export function ChannelDashboard() {
             </div>
 
             {/* 響應式網格卡片 */}
-            <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {sortedTopVideos.map((video, index) => {
                 const metricConfig = topVideoMetricConfig[topVideoMetric];
                 const metricValue = metricConfig.value(video);
@@ -3541,7 +3564,7 @@ export function ChannelDashboard() {
                 return (
                   <div
                     key={video.id}
-                    className="p-2 rounded-lg border border-red-100 hover:border-red-200 hover:bg-red-50/70 transition-colors flex flex-col items-center text-center gap-2 h-full"
+                    className="p-3 rounded-lg border border-red-100 hover:border-red-200 hover:bg-red-50/70 transition-colors flex flex-col items-center text-center gap-3 h-full"
                   >
                     {/* 排名標籤 */}
                     <div className="self-start text-xs font-semibold text-red-500 flex items-center gap-1">
@@ -3554,22 +3577,22 @@ export function ChannelDashboard() {
                       <img
                         src={video.thumbnailUrl}
                         alt={video.title}
-                        className="w-full max-w-[150px] aspect-video object-cover rounded-lg shadow-sm"
+                        className="w-full aspect-video object-cover rounded-lg shadow-sm"
                       />
-                      <div className="mt-1 inline-flex items-center justify-center gap-1 text-sm text-red-600 w-full max-w-[150px] truncate">
+                      <div className="mt-2 inline-flex items-center justify-center gap-1 text-sm text-red-600 w-full truncate">
                         <MetricIcon className="w-4 h-4 text-red-500 flex-shrink-0" />
                         <span className="font-semibold truncate">{metricDisplay}</span>
                       </div>
-                      <div className="text-[11px] text-gray-500">{metricConfig.label}</div>
+                      <div className="text-xs text-gray-500">{metricConfig.label}</div>
                     </div>
 
                     {/* 影片標題 */}
-                    <h4 className="text-[13px] font-medium text-gray-900 line-clamp-2 w-full">
+                    <h4 className="text-sm font-medium text-gray-900 line-clamp-2 w-full leading-relaxed">
                       {video.title}
                     </h4>
 
                     {/* 互動數據 */}
-                    <div className="w-full flex items-center justify-center gap-2 text-xs font-semibold whitespace-nowrap">
+                    <div className="w-full flex items-center justify-center gap-3 text-xs font-semibold flex-wrap">
                       <span className="inline-flex items-center gap-1 text-rose-600">
                         <ThumbsUp className="w-4 h-4 shrink-0" />
                         {formatNumber(video.likeCount)}
@@ -3587,6 +3610,8 @@ export function ChannelDashboard() {
                 );
               })}
             </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -3598,64 +3623,113 @@ export function ChannelDashboard() {
           {topShorts.length > 0 && (
             <div className={`${cardBaseClass} h-full flex flex-col`}>
               <div className="p-6 flex-1 flex flex-col">
-                <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-red-500" />
-                  熱門 Shorts 排行榜
-                </h3>
-                <p className="text-sm text-gray-500 mb-4">時間範圍內表現最佳的 Shorts 短影片（按觀看次數排序）</p>
+                <div
+                  className="flex items-center justify-between cursor-pointer mb-4"
+                  onClick={() => setIsTopShortsExpanded(!isTopShortsExpanded)}
+                >
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5 text-red-500" />
+                      熱門 Shorts 排行榜
+                    </h3>
+                    <p className="text-sm text-gray-500">時間範圍內表現最佳的 Shorts 短影片（按觀看次數排序）</p>
+                  </div>
+                  <button className="ml-4 p-2 hover:bg-red-50 rounded-lg transition-colors">
+                    {isTopShortsExpanded ? (
+                      <ChevronUp className="w-5 h-5 text-gray-500" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-gray-500" />
+                    )}
+                  </button>
+                </div>
 
-                <div className="grid grid-cols-3 gap-3 flex-1 content-start">
-                  {topShorts.map((video, index) => (
+                {isTopShortsExpanded && (
+                  <div className="space-y-2.5 flex-1">
+                  {topShorts.map((video, index) => {
+                    const isTopThree = index < 3;
+                    const rankColors = ['from-amber-500 to-amber-600', 'from-slate-400 to-slate-500', 'from-orange-600 to-orange-700'];
+                    const rankBg = isTopThree ? rankColors[index] : 'from-red-500 to-rose-600';
+
+                    return (
                     <div
                       key={video.id}
-                      className="p-3 rounded-lg border border-red-100 hover:border-red-200 hover:bg-red-50/70 transition-colors flex flex-col items-center text-center gap-3 h-full"
+                      className="group relative overflow-hidden rounded-xl border border-red-100/50 bg-gradient-to-br from-white to-red-50/30 hover:border-red-200 hover:shadow-lg hover:shadow-red-100/50 transition-all duration-300"
                     >
-                      {/* 排名 */}
-                      <div className="self-start text-xs font-semibold text-red-500 flex items-center gap-1">
-                        <span className="text-sm">#{index + 1}</span>
-                        <span className="text-[11px] text-gray-400">Shorts</span>
-                      </div>
+                      <div className="flex items-start gap-3 p-3">
+                        {/* 排名徽章 */}
+                        <div className="flex-shrink-0 relative">
+                          <div className={`absolute -top-1 -left-1 w-8 h-8 bg-gradient-to-br ${rankBg} rounded-full flex items-center justify-center shadow-lg z-10 ring-2 ring-white`}>
+                            <span className="text-white text-xs font-black tracking-tight">
+                              {index + 1}
+                            </span>
+                          </div>
+                          <div className="relative overflow-hidden rounded-lg ring-2 ring-white shadow-md group-hover:scale-105 transition-transform duration-300">
+                            <img
+                              src={video.thumbnailUrl}
+                              alt={video.title}
+                              className="w-[72px] aspect-[9/16] object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                          </div>
+                        </div>
 
-                      {/* 縮圖與觀看次數 */}
-                      <div className="flex flex-col items-center w-full">
-                        <img
-                          src={video.thumbnailUrl}
-                          alt={video.title}
-                          className="w-full aspect-[9/16] object-cover rounded-lg shadow-sm"
-                        />
-                        <div className="mt-2 inline-flex items-center justify-center gap-1 text-sm text-red-600 w-full truncate">
-                          <Eye className="w-4 h-4 text-red-500 shrink-0" />
-                          <span className="font-semibold truncate">
-                            {formatFullNumber(video.viewCount)}
-                          </span>
+                        {/* 內容區 */}
+                        <div className="flex-1 min-w-0 pt-0.5">
+                          {/* 標題 */}
+                          <h4 className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug mb-2 group-hover:text-red-700 transition-colors">
+                            {video.title}
+                          </h4>
+
+                          {/* 數據網格 */}
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            {/* 觀看數 */}
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-red-50 to-rose-50 border border-red-100/50">
+                              <Eye className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
+                              <div className="flex flex-col min-w-0">
+                                <span className="font-bold text-red-700 truncate text-[11px] leading-tight">
+                                  {formatFullNumber(video.viewCount)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* 按讚數 */}
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-100/50">
+                              <ThumbsUp className="w-3.5 h-3.5 text-pink-600 flex-shrink-0" />
+                              <span className="font-bold text-pink-700 truncate text-[11px] leading-tight">
+                                {formatFullNumber(video.likeCount)}
+                              </span>
+                            </div>
+
+                            {/* 留言數 */}
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100/50">
+                              <MessageSquare className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+                              <span className="font-bold text-purple-700 truncate text-[11px] leading-tight">
+                                {formatFullNumber(video.commentCount)}
+                              </span>
+                            </div>
+
+                            {/* 觀看完成率 */}
+                            {video.avgViewPercentage > 0 && (
+                              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100/50">
+                                <BarChart3 className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                                <span className="font-bold text-amber-700 text-[11px] leading-tight">
+                                  {video.avgViewPercentage.toFixed(1)}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      {/* 影片標題 */}
-                      <h4 className="text-sm font-medium text-gray-900 line-clamp-2 w-full leading-relaxed">
-                        {video.title}
-                      </h4>
-
-                      {/* 互動數據 */}
-                      <div className="w-full flex items-center justify-center gap-3 text-xs font-semibold whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 text-rose-600">
-                          <ThumbsUp className="w-4 h-4 shrink-0" />
-                          {formatFullNumber(video.likeCount)}
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-red-500">
-                          <MessageSquare className="w-4 h-4 shrink-0" />
-                          {formatFullNumber(video.commentCount)}
-                        </span>
-                        {video.avgViewPercentage > 0 && (
-                          <span className="inline-flex items-center gap-1 text-amber-600">
-                            <BarChart3 className="w-4 h-4 shrink-0" />
-                            {video.avgViewPercentage.toFixed(1)}%
-                          </span>
-                        )}
-                      </div>
+                      {/* 底部裝飾條 - 僅前三名 */}
+                      {isTopThree && (
+                        <div className={`h-1 w-full bg-gradient-to-r ${rankBg} opacity-60`} />
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
+                )}
               </div>
             </div>
           )}
@@ -3664,64 +3738,113 @@ export function ChannelDashboard() {
           {topRegularVideos.length > 0 && (
             <div className={`${cardBaseClass} h-full flex flex-col`}>
               <div className="p-6 flex-1 flex flex-col">
-                <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-amber-500" />
-                  熱門一般影片排行榜
-                </h3>
-                <p className="text-sm text-gray-500 mb-4">時間範圍內表現最佳的一般影片（按觀看次數排序）</p>
+                <div
+                  className="flex items-center justify-between cursor-pointer mb-4"
+                  onClick={() => setIsTopRegularVideosExpanded(!isTopRegularVideosExpanded)}
+                >
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5 text-amber-500" />
+                      熱門一般影片排行榜
+                    </h3>
+                    <p className="text-sm text-gray-500">時間範圍內表現最佳的一般影片（按觀看次數排序）</p>
+                  </div>
+                  <button className="ml-4 p-2 hover:bg-amber-50 rounded-lg transition-colors">
+                    {isTopRegularVideosExpanded ? (
+                      <ChevronUp className="w-5 h-5 text-gray-500" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-gray-500" />
+                    )}
+                  </button>
+                </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 flex-1 content-start">
-                  {topRegularVideos.map((video, index) => (
+                {isTopRegularVideosExpanded && (
+                  <div className="space-y-2.5 flex-1">
+                  {topRegularVideos.map((video, index) => {
+                    const isTopThree = index < 3;
+                    const rankColors = ['from-amber-500 to-amber-600', 'from-slate-400 to-slate-500', 'from-orange-600 to-orange-700'];
+                    const rankBg = isTopThree ? rankColors[index] : 'from-amber-500 to-orange-600';
+
+                    return (
                     <div
                       key={video.id}
-                      className="p-3 rounded-lg border border-amber-100 hover:border-amber-200 hover:bg-amber-50/70 transition-colors flex flex-col items-center text-center gap-3 h-full"
+                      className="group relative overflow-hidden rounded-xl border border-amber-100/50 bg-gradient-to-br from-white to-amber-50/30 hover:border-amber-200 hover:shadow-lg hover:shadow-amber-100/50 transition-all duration-300"
                     >
-                      {/* 排名 */}
-                      <div className="self-start text-xs font-semibold text-amber-500 flex items-center gap-1">
-                        <span className="text-sm">#{index + 1}</span>
-                        <span className="text-[11px] text-gray-400">影片</span>
-                      </div>
+                      <div className="flex items-start gap-3 p-3">
+                        {/* 排名徽章 */}
+                        <div className="flex-shrink-0 relative">
+                          <div className={`absolute -top-1 -left-1 w-8 h-8 bg-gradient-to-br ${rankBg} rounded-full flex items-center justify-center shadow-lg z-10 ring-2 ring-white`}>
+                            <span className="text-white text-xs font-black tracking-tight">
+                              {index + 1}
+                            </span>
+                          </div>
+                          <div className="relative overflow-hidden rounded-lg ring-2 ring-white shadow-md group-hover:scale-105 transition-transform duration-300">
+                            <img
+                              src={video.thumbnailUrl}
+                              alt={video.title}
+                              className="w-[120px] aspect-video object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                          </div>
+                        </div>
 
-                      {/* 縮圖與觀看次數 */}
-                      <div className="flex flex-col items-center w-full">
-                        <img
-                          src={video.thumbnailUrl}
-                          alt={video.title}
-                          className="w-full aspect-video object-cover rounded-lg shadow-sm"
-                        />
-                        <div className="mt-2 inline-flex items-center justify-center gap-1 text-sm text-amber-600 w-full truncate">
-                          <Eye className="w-4 h-4 text-amber-500 shrink-0" />
-                          <span className="font-semibold truncate">
-                            {formatFullNumber(video.viewCount)}
-                          </span>
+                        {/* 內容區 */}
+                        <div className="flex-1 min-w-0 pt-0.5">
+                          {/* 標題 */}
+                          <h4 className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug mb-2 group-hover:text-amber-700 transition-colors">
+                            {video.title}
+                          </h4>
+
+                          {/* 數據網格 */}
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            {/* 觀看數 */}
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100/50">
+                              <Eye className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                              <div className="flex flex-col min-w-0">
+                                <span className="font-bold text-amber-700 truncate text-[11px] leading-tight">
+                                  {formatFullNumber(video.viewCount)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* 按讚數 */}
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-100/50">
+                              <ThumbsUp className="w-3.5 h-3.5 text-yellow-600 flex-shrink-0" />
+                              <span className="font-bold text-yellow-700 truncate text-[11px] leading-tight">
+                                {formatFullNumber(video.likeCount)}
+                              </span>
+                            </div>
+
+                            {/* 留言數 */}
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-100/50">
+                              <MessageSquare className="w-3.5 h-3.5 text-orange-600 flex-shrink-0" />
+                              <span className="font-bold text-orange-700 truncate text-[11px] leading-tight">
+                                {formatFullNumber(video.commentCount)}
+                              </span>
+                            </div>
+
+                            {/* 觀看完成率 */}
+                            {video.avgViewPercentage > 0 && (
+                              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100/50">
+                                <BarChart3 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                                <span className="font-bold text-emerald-700 text-[11px] leading-tight">
+                                  {video.avgViewPercentage.toFixed(1)}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      {/* 影片標題 */}
-                      <h4 className="text-sm font-medium text-gray-900 line-clamp-2 w-full leading-relaxed">
-                        {video.title}
-                      </h4>
-
-                      {/* 互動數據 */}
-                      <div className="w-full flex items-center justify-center gap-3 text-xs font-semibold whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 text-amber-600">
-                          <ThumbsUp className="w-4 h-4 shrink-0" />
-                          {formatFullNumber(video.likeCount)}
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-amber-500">
-                          <MessageSquare className="w-4 h-4 shrink-0" />
-                          {formatFullNumber(video.commentCount)}
-                        </span>
-                        {video.avgViewPercentage > 0 && (
-                          <span className="inline-flex items-center gap-1 text-orange-600">
-                            <BarChart3 className="w-4 h-4 shrink-0" />
-                            {video.avgViewPercentage.toFixed(1)}%
-                          </span>
-                        )}
-                      </div>
+                      {/* 底部裝飾條 - 僅前三名 */}
+                      {isTopThree && (
+                        <div className={`h-1 w-full bg-gradient-to-r ${rankBg} opacity-60`} />
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
+                )}
               </div>
             </div>
           )}
