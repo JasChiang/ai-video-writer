@@ -20,13 +20,6 @@ export function generateFullPrompt(videoTitle, userPrompt) {
 # 核心任務 (Core Mission)
 分析所提供的 YouTube 影片與標題「${videoTitle}」，並生成一份完整、SEO 強化的 metadata 組合。${userPrompt ? `\n\n使用者額外提示：${userPrompt}` : ""}
 
-# 輸出限制
-**重要：description 欄位的文字內容總字數必須控制在 3000 字（含中英文字元）以內。**
-- 請確保內容精簡扼要、重點突出
-- 避免冗長重複的描述
-- 不要生成任何圖表、表格或 CHART 相關標記（如 CHART:chart-0 等）
-- 只輸出純文字內容，使用 \\n 表示換行
-
 # 指導原則 (Guiding Principles)
 1. **內容為王 (Content-First):** 所有產出都必須源自影片的核心價值
 2. **關鍵字思維 (Keyword-Driven):** 找出主要關鍵字與長尾關鍵字，自然地佈局在標題和說明的開頭
