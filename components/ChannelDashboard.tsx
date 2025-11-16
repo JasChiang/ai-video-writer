@@ -365,9 +365,14 @@ export function ChannelDashboard() {
   const [topRegularVideos, setTopRegularVideos] = useState<VideoItem[]>([]);
 
   // 排行榜展開/收起狀態
-  const [isTopVideosExpanded, setIsTopVideosExpanded] = useState(true);
-  const [isTopShortsExpanded, setIsTopShortsExpanded] = useState(true);
-  const [isTopRegularVideosExpanded, setIsTopRegularVideosExpanded] = useState(true);
+const [isTopVideosExpanded, setIsTopVideosExpanded] = useState(true);
+const [isTopShortsExpanded, setIsTopShortsExpanded] = useState(true);
+const [isTopRegularVideosExpanded, setIsTopRegularVideosExpanded] = useState(true);
+const showVideoRankingsDoubleColumn =
+  topShorts.length > 0 &&
+  topRegularVideos.length > 0 &&
+  isTopShortsExpanded &&
+  isTopRegularVideosExpanded;
 
   const analyticsAvailableDate = getAnalyticsAvailableEndDate();
   const maxSelectableDate = formatDateString(analyticsAvailableDate);
@@ -3611,7 +3616,11 @@ export function ChannelDashboard() {
 
       {/* 並排顯示：Shorts 和一般影片排行榜 */}
       {(topShorts.length > 0 || topRegularVideos.length > 0) && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div
+          className={`grid grid-cols-1 ${
+            showVideoRankingsDoubleColumn ? 'xl:grid-cols-2' : 'xl:grid-cols-1'
+          } gap-4`}
+        >
           {/* 熱門 Shorts 排行榜 */}
           {topShorts.length > 0 && (
             <div className={`${cardBaseClass} h-full flex flex-col`}>
@@ -3625,7 +3634,9 @@ export function ChannelDashboard() {
                       <TrendingUp className="w-5 h-5 text-red-500" />
                       熱門 Shorts 排行榜
                     </h3>
-                    <p className="text-sm text-gray-500">時間範圍內表現最佳的 Shorts 短影片（按觀看次數排序）</p>
+                    <p className="text-sm text-gray-500">
+                      時間範圍內表現最佳的 Shorts 短影片（按觀看次數排序）
+                    </p>
                   </div>
                   <button className="ml-4 p-2 hover:bg-red-50 rounded-lg transition-colors">
                     {isTopShortsExpanded ? (
@@ -3638,90 +3649,96 @@ export function ChannelDashboard() {
 
                 {isTopShortsExpanded && (
                   <div className="space-y-2.5 flex-1">
-                  {topShorts.map((video, index) => {
-                    const isTopThree = index < 3;
-                    const rankColors = ['from-amber-500 to-amber-600', 'from-slate-400 to-slate-500', 'from-orange-600 to-orange-700'];
-                    const rankBg = isTopThree ? rankColors[index] : 'from-red-500 to-rose-600';
+                    {topShorts.map((video, index) => {
+                      const isTopThree = index < 3;
+                      const rankColors = [
+                        'from-amber-500 to-amber-600',
+                        'from-slate-400 to-slate-500',
+                        'from-orange-600 to-orange-700',
+                      ];
+                      const rankBg = isTopThree ? rankColors[index] : 'from-red-500 to-rose-600';
 
-                    return (
-                    <div
-                      key={video.id}
-                      className="group relative overflow-hidden rounded-xl border border-red-100/50 bg-gradient-to-br from-white to-red-50/30 hover:border-red-200 hover:shadow-lg hover:shadow-red-100/50 transition-all duration-300"
-                    >
-                      <div className="flex items-start gap-3 p-3">
-                        {/* 排名徽章 */}
-                        <div className="flex-shrink-0 relative">
-                          <div className={`absolute -top-1 -left-1 w-8 h-8 bg-gradient-to-br ${rankBg} rounded-full flex items-center justify-center shadow-lg z-10 ring-2 ring-white`}>
-                            <span className="text-white text-xs font-black tracking-tight">
-                              {index + 1}
-                            </span>
-                          </div>
-                          <div className="relative overflow-hidden rounded-lg ring-2 ring-white shadow-md group-hover:scale-105 transition-transform duration-300">
-                            <img
-                              src={video.thumbnailUrl}
-                              alt={video.title}
-                              className="w-[72px] aspect-[9/16] object-cover"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                          </div>
-                        </div>
-
-                        {/* 內容區 */}
-                        <div className="flex-1 min-w-0 pt-0.5">
-                          {/* 標題 */}
-                          <h4 className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug mb-2 group-hover:text-red-700 transition-colors">
-                            {video.title}
-                          </h4>
-
-                          {/* 數據網格 */}
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            {/* 觀看數 */}
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-red-50 to-rose-50 border border-red-100/50">
-                              <Eye className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
-                              <div className="flex flex-col min-w-0">
-                                <span className="font-bold text-red-700 truncate text-[11px] leading-tight">
-                                  {formatFullNumber(video.viewCount)}
+                      return (
+                        <div
+                          key={video.id}
+                          className="group relative overflow-hidden rounded-xl border border-red-100/50 bg-gradient-to-br from-white to-red-50/30 hover:border-red-200 hover:shadow-lg hover:shadow-red-100/50 transition-all duration-300"
+                        >
+                          <div className="flex items-start gap-3 p-3">
+                            {/* 排名徽章 */}
+                            <div className="flex-shrink-0 relative">
+                              <div
+                                className={`absolute -top-1 -left-1 w-8 h-8 bg-gradient-to-br ${rankBg} rounded-full flex items-center justify-center shadow-lg z-10 ring-2 ring-white`}
+                              >
+                                <span className="text-white text-xs font-black tracking-tight">
+                                  {index + 1}
                                 </span>
+                              </div>
+                              <div className="relative overflow-hidden rounded-lg ring-2 ring-white shadow-md group-hover:scale-105 transition-transform duration-300">
+                                <img
+                                  src={video.thumbnailUrl}
+                                  alt={video.title}
+                                  className="w-[72px] aspect-[9/16] object-cover"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                               </div>
                             </div>
 
-                            {/* 按讚數 */}
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-100/50">
-                              <ThumbsUp className="w-3.5 h-3.5 text-pink-600 flex-shrink-0" />
-                              <span className="font-bold text-pink-700 truncate text-[11px] leading-tight">
-                                {formatFullNumber(video.likeCount)}
-                              </span>
-                            </div>
+                            {/* 內容區 */}
+                            <div className="flex-1 min-w-0 pt-0.5">
+                              {/* 標題 */}
+                              <h4 className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug mb-2 group-hover:text-red-700 transition-colors">
+                                {video.title}
+                              </h4>
 
-                            {/* 留言數 */}
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100/50">
-                              <MessageSquare className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
-                              <span className="font-bold text-purple-700 truncate text-[11px] leading-tight">
-                                {formatFullNumber(video.commentCount)}
-                              </span>
-                            </div>
+                              {/* 數據網格 */}
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                {/* 觀看數 */}
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-red-50 to-rose-50 border border-red-100/50">
+                                  <Eye className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="font-bold text-red-700 truncate text-[11px] leading-tight">
+                                      {formatFullNumber(video.viewCount)}
+                                    </span>
+                                  </div>
+                                </div>
 
-                            {/* 觀看完成率 */}
-                            {video.avgViewPercentage > 0 && (
-                              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100/50">
-                                <BarChart3 className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                                <span className="font-bold text-amber-700 text-[11px] leading-tight">
-                                  {video.avgViewPercentage.toFixed(1)}%
-                                </span>
+                                {/* 按讚數 */}
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-100/50">
+                                  <ThumbsUp className="w-3.5 h-3.5 text-pink-600 flex-shrink-0" />
+                                  <span className="font-bold text-pink-700 truncate text-[11px] leading-tight">
+                                    {formatFullNumber(video.likeCount)}
+                                  </span>
+                                </div>
+
+                                {/* 留言數 */}
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100/50">
+                                  <MessageSquare className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+                                  <span className="font-bold text-purple-700 truncate text-[11px] leading-tight">
+                                    {formatFullNumber(video.commentCount)}
+                                  </span>
+                                </div>
+
+                                {/* 觀看完成率 */}
+                                {video.avgViewPercentage > 0 && (
+                                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100/50">
+                                    <BarChart3 className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                                    <span className="font-bold text-amber-700 text-[11px] leading-tight">
+                                      {video.avgViewPercentage.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            </div>
                           </div>
-                        </div>
-                      </div>
 
-                      {/* 底部裝飾條 - 僅前三名 */}
-                      {isTopThree && (
-                        <div className={`h-1 w-full bg-gradient-to-r ${rankBg} opacity-60`} />
-                      )}
-                    </div>
-                    );
-                  })}
-                </div>
+                          {/* 底部裝飾條 - 僅前三名 */}
+                          {isTopThree && (
+                            <div className={`h-1 w-full bg-gradient-to-r ${rankBg} opacity-60`} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </div>
@@ -3740,7 +3757,9 @@ export function ChannelDashboard() {
                       <TrendingUp className="w-5 h-5 text-amber-500" />
                       熱門一般影片排行榜
                     </h3>
-                    <p className="text-sm text-gray-500">時間範圍內表現最佳的一般影片（按觀看次數排序）</p>
+                    <p className="text-sm text-gray-500">
+                      時間範圍內表現最佳的一般影片（按觀看次數排序）
+                    </p>
                   </div>
                   <button className="ml-4 p-2 hover:bg-amber-50 rounded-lg transition-colors">
                     {isTopRegularVideosExpanded ? (
@@ -3753,90 +3772,96 @@ export function ChannelDashboard() {
 
                 {isTopRegularVideosExpanded && (
                   <div className="space-y-2.5 flex-1">
-                  {topRegularVideos.map((video, index) => {
-                    const isTopThree = index < 3;
-                    const rankColors = ['from-amber-500 to-amber-600', 'from-slate-400 to-slate-500', 'from-orange-600 to-orange-700'];
-                    const rankBg = isTopThree ? rankColors[index] : 'from-amber-500 to-orange-600';
+                    {topRegularVideos.map((video, index) => {
+                      const isTopThree = index < 3;
+                      const rankColors = [
+                        'from-amber-500 to-amber-600',
+                        'from-slate-400 to-slate-500',
+                        'from-orange-600 to-orange-700',
+                      ];
+                      const rankBg = isTopThree ? rankColors[index] : 'from-amber-500 to-orange-600';
 
-                    return (
-                    <div
-                      key={video.id}
-                      className="group relative overflow-hidden rounded-xl border border-amber-100/50 bg-gradient-to-br from-white to-amber-50/30 hover:border-amber-200 hover:shadow-lg hover:shadow-amber-100/50 transition-all duration-300"
-                    >
-                      <div className="flex items-start gap-3 p-3">
-                        {/* 排名徽章 */}
-                        <div className="flex-shrink-0 relative">
-                          <div className={`absolute -top-1 -left-1 w-8 h-8 bg-gradient-to-br ${rankBg} rounded-full flex items-center justify-center shadow-lg z-10 ring-2 ring-white`}>
-                            <span className="text-white text-xs font-black tracking-tight">
-                              {index + 1}
-                            </span>
-                          </div>
-                          <div className="relative overflow-hidden rounded-lg ring-2 ring-white shadow-md group-hover:scale-105 transition-transform duration-300">
-                            <img
-                              src={video.thumbnailUrl}
-                              alt={video.title}
-                              className="w-[120px] aspect-video object-cover"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                          </div>
-                        </div>
-
-                        {/* 內容區 */}
-                        <div className="flex-1 min-w-0 pt-0.5">
-                          {/* 標題 */}
-                          <h4 className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug mb-2 group-hover:text-amber-700 transition-colors">
-                            {video.title}
-                          </h4>
-
-                          {/* 數據網格 */}
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            {/* 觀看數 */}
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100/50">
-                              <Eye className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                              <div className="flex flex-col min-w-0">
-                                <span className="font-bold text-amber-700 truncate text-[11px] leading-tight">
-                                  {formatFullNumber(video.viewCount)}
+                      return (
+                        <div
+                          key={video.id}
+                          className="group relative overflow-hidden rounded-xl border border-amber-100/50 bg-gradient-to-br from-white to-amber-50/30 hover:border-amber-200 hover:shadow-lg hover:shadow-amber-100/50 transition-all duration-300"
+                        >
+                          <div className="flex items-start gap-3 p-3">
+                            {/* 排名徽章 */}
+                            <div className="flex-shrink-0 relative">
+                              <div
+                                className={`absolute -top-1 -left-1 w-8 h-8 bg-gradient-to-br ${rankBg} rounded-full flex items-center justify-center shadow-lg z-10 ring-2 ring-white`}
+                              >
+                                <span className="text-white text-xs font-black tracking-tight">
+                                  {index + 1}
                                 </span>
+                              </div>
+                              <div className="relative overflow-hidden rounded-lg ring-2 ring-white shadow-md group-hover:scale-105 transition-transform duration-300">
+                                <img
+                                  src={video.thumbnailUrl}
+                                  alt={video.title}
+                                  className="w-[120px] aspect-video object-cover"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                               </div>
                             </div>
 
-                            {/* 按讚數 */}
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-100/50">
-                              <ThumbsUp className="w-3.5 h-3.5 text-yellow-600 flex-shrink-0" />
-                              <span className="font-bold text-yellow-700 truncate text-[11px] leading-tight">
-                                {formatFullNumber(video.likeCount)}
-                              </span>
-                            </div>
+                            {/* 內容區 */}
+                            <div className="flex-1 min-w-0 pt-0.5">
+                              {/* 標題 */}
+                              <h4 className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug mb-2 group-hover:text-amber-700 transition-colors">
+                                {video.title}
+                              </h4>
 
-                            {/* 留言數 */}
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-100/50">
-                              <MessageSquare className="w-3.5 h-3.5 text-orange-600 flex-shrink-0" />
-                              <span className="font-bold text-orange-700 truncate text-[11px] leading-tight">
-                                {formatFullNumber(video.commentCount)}
-                              </span>
-                            </div>
+                              {/* 數據網格 */}
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                {/* 觀看數 */}
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100/50">
+                                  <Eye className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="font-bold text-amber-700 truncate text-[11px] leading-tight">
+                                      {formatFullNumber(video.viewCount)}
+                                    </span>
+                                  </div>
+                                </div>
 
-                            {/* 觀看完成率 */}
-                            {video.avgViewPercentage > 0 && (
-                              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100/50">
-                                <BarChart3 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                                <span className="font-bold text-emerald-700 text-[11px] leading-tight">
-                                  {video.avgViewPercentage.toFixed(1)}%
-                                </span>
+                                {/* 按讚數 */}
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-100/50">
+                                  <ThumbsUp className="w-3.5 h-3.5 text-yellow-600 flex-shrink-0" />
+                                  <span className="font-bold text-yellow-700 truncate text-[11px] leading-tight">
+                                    {formatFullNumber(video.likeCount)}
+                                  </span>
+                                </div>
+
+                                {/* 留言數 */}
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-100/50">
+                                  <MessageSquare className="w-3.5 h-3.5 text-orange-600 flex-shrink-0" />
+                                  <span className="font-bold text-orange-700 truncate text-[11px] leading-tight">
+                                    {formatFullNumber(video.commentCount)}
+                                  </span>
+                                </div>
+
+                                {/* 觀看完成率 */}
+                                {video.avgViewPercentage > 0 && (
+                                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100/50">
+                                    <BarChart3 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                                    <span className="font-bold text-emerald-700 text-[11px] leading-tight">
+                                      {video.avgViewPercentage.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            </div>
                           </div>
-                        </div>
-                      </div>
 
-                      {/* 底部裝飾條 - 僅前三名 */}
-                      {isTopThree && (
-                        <div className={`h-1 w-full bg-gradient-to-r ${rankBg} opacity-60`} />
-                      )}
-                    </div>
-                    );
-                  })}
-                </div>
+                          {/* 底部裝飾條 - 僅前三名 */}
+                          {isTopThree && (
+                            <div className={`h-1 w-full bg-gradient-to-r ${rankBg} opacity-60`} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </div>
