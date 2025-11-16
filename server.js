@@ -315,8 +315,180 @@ app.get('/api/notion/oauth/url', (req, res) => {
   }
 });
 
+// 舊版回呼路徑相容性：將 /api/notion/callback 重新導向至新的 oauth/callback
+app.get('/api/notion/callback', (req, res) => {
+  const params = new URLSearchParams();
+  Object.entries(req.query || {}).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item !== undefined) {
+          params.append(key, String(item));
+        }
+      });
+    } else if (value !== undefined) {
+      params.append(key, String(value));
+    }
+  });
+
+  const queryString = params.toString();
+  const redirectPath = `/api/notion/oauth/callback${queryString ? `?${queryString}` : ''}`;
+  res.redirect(302, redirectPath);
+});
+
 /**
- * Notion OAuth 回調處理
+ * Notion OAuth callback
+ * GET /api/notion/oauth/callback
+ */
+app.get('/api/notion/oauth/callback', async (req, res) => {
+  const { code, state, error, error_description: errorDescription } = req.query;
+
+  const sendOAuthResult = (payload, targetOrigin) => {
+    const safePayload = JSON.stringify(payload).replace(/</g, '\\u003c');
+    const safeOrigin = targetOrigin || process.env.FRONTEND_URL || 'http://localhost:3000';
+    const html = `
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Notion 授權</title>
+  </head>
+  <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh;">
+    <div>
+      <p>正在關閉視窗...</p>
+    </div>
+    <script>
+      (function () {
+        const payload = ${safePayload};
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ type: 'notion:oauth:result', payload }, '${safeOrigin}');
+          window.close();
+        } else {
+          const pre = document.createElement('pre');
+          pre.textContent = JSON.stringify(payload, null, 2);
+          document.body.innerHTML = '';
+          document.body.appendChild(pre);
+        }
+      })();
+    </script>
+  </body>
+</html>`;
+    res.type('text/html').send(html);
+  };
+
+  pruneExpiredNotionStates();
+
+  if (error) {
+    console.error('[Notion] OAuth error:', error, errorDescription);
+    return sendOAuthResult(
+      {
+        success: false,
+        error,
+        message: errorDescription || 'Notion 授權失敗',
+      },
+      process.env.FRONTEND_URL
+    );
+  }
+
+  if (!state || !notionStateStore.has(state)) {
+    console.error('[Notion] OAuth state 驗證失敗');
+    return sendOAuthResult(
+      {
+        success: false,
+        error: 'invalid_state',
+        message: '授權逾時或來源無效，請重新嘗試。',
+      },
+      process.env.FRONTEND_URL
+    );
+  }
+
+  const stateMeta = notionStateStore.get(state);
+  notionStateStore.delete(state);
+
+  if (!code) {
+    return sendOAuthResult(
+      {
+        success: false,
+        error: 'missing_code',
+        message: '未收到授權碼，請重新嘗試。',
+      },
+      stateMeta?.origin || process.env.FRONTEND_URL
+    );
+  }
+
+  const clientId = process.env.NOTION_CLIENT_ID;
+  const clientSecret = process.env.NOTION_CLIENT_SECRET;
+  const redirectUri = process.env.NOTION_REDIRECT_URI;
+
+  if (!clientId || !clientSecret || !redirectUri) {
+    console.error('[Notion] OAuth 環境變數未設定完整');
+    return sendOAuthResult(
+      {
+        success: false,
+        error: 'missing_environment',
+        message: '伺服器未設定 Notion OAuth 所需環境變數。',
+      },
+      stateMeta?.origin || process.env.FRONTEND_URL
+    );
+  }
+
+  try {
+    const tokenResponse = await fetch('https://api.notion.com/v1/oauth/token', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+      }),
+    });
+
+    const tokenData = await tokenResponse.json();
+
+    if (!tokenResponse.ok) {
+      console.error('[Notion] 交換 token 失敗:', tokenData);
+      return sendOAuthResult(
+        {
+          success: false,
+          error: 'token_exchange_failed',
+          message: tokenData?.message || 'Notion token 交換失敗，請稍後再試。',
+        },
+        stateMeta?.origin || process.env.FRONTEND_URL
+      );
+    }
+
+    sendOAuthResult(
+      {
+        success: true,
+        data: {
+          accessToken: tokenData.access_token,
+          refreshToken: tokenData.refresh_token || null,
+          workspaceId: tokenData.workspace_id || null,
+          workspaceName: tokenData.workspace_name || '',
+          workspaceIcon: tokenData.workspace_icon || null,
+          botId: tokenData.bot_id || null,
+          duplicatedTemplateId: tokenData.duplicated_template_id || null,
+        },
+      },
+      stateMeta?.origin || process.env.FRONTEND_URL
+    );
+  } catch (err) {
+    console.error('[Notion] OAuth callback 發生錯誤:', err);
+    sendOAuthResult(
+      {
+        success: false,
+        error: 'unexpected_error',
+        message: err.message || 'Notion 授權時發生未知錯誤。',
+      },
+      stateMeta?.origin || process.env.FRONTEND_URL
+    );
+  }
+});
+
+/**
+ * Notion OAuth 回調處理 (POST - 舊版相容)
  * POST /api/notion/oauth/callback
  */
 app.post('/api/notion/oauth/callback', async (req, res) => {
