@@ -103,10 +103,24 @@ export class PromptTemplates {
 - 觀看時長：${channelStats.watchTimeHours.toLocaleString()} 小時
 - 平均觀看時長：${avgWatchMinutes} 分鐘/次
 - 新增訂閱：${channelStats.subscribersGained} 人
-- 發布影片：${channelStats.videosInRange} 支
+- **📌 本期實際上傳影片數：${channelStats.videosInRange} 支**（這才是期間內新發布的影片數量）
+
+**⚠️ 重要說明 - 請仔細閱讀：**
 
 **時段內熱門影片 Top ${Math.min(topVideos.length, 50)}：**
-（重要說明：以下為「${dateRange.startDate} ~ ${dateRange.endDate}」期間內**表現最佳**的 ${Math.min(topVideos.length, 50)} 支影片，**並非期間內上傳的影片**。這些影片可能在此期間之前就已發布，只是在此期間表現特別好。此期間**實際上傳的影片數**為 ${channelStats.videosInRange} 支，頻道總共有 ${channelStats.totalVideos} 支影片）
+
+🚨 **關鍵理解：以下 Top ${Math.min(topVideos.length, 50)} 支影片 ≠ 本期上傳的影片**
+
+- ✅ **正確理解**：這是「本期表現最好」的 ${Math.min(topVideos.length, 50)} 支影片（依觀看數排序）
+- ❌ **錯誤理解**：這不是「本期上傳」的影片清單
+- 📌 **本期實際上傳數**：${channelStats.videosInRange} 支（請查看發布日期確認哪些是新片）
+- 📚 **頻道總影片數**：${channelStats.totalVideos} 支
+
+**分析時請務必：**
+1. 檢查每支影片的「發布日期」欄位
+2. 區分「本期上傳的新片」vs「本期之前上傳但表現好的舊片」
+3. 計算訂閱時，只計算本期上傳的 ${channelStats.videosInRange} 支影片的效率（訂閱數 ÷ ${channelStats.videosInRange}）
+4. 不要說「本期 ${Math.min(topVideos.length, 50)} 片帶來 XXX 訂閱」，應該說「本期 ${channelStats.videosInRange} 片帶來 XXX 訂閱」
 
 ${topVideos.length > 0 ? topVideos.slice(0, 50).map((v, i) => `${i + 1}. ${v.title || '未命名'}
    - 發布日期：${v.publishedAt ? new Date(v.publishedAt).toLocaleDateString('zh-TW') : '未知'}
@@ -140,10 +154,15 @@ ${devices.length > 0 ? devices.map(d => `- ${d.deviceType || '未知'}: ${(d.vie
 
 ## 你的分析任務
 
+🚨 **開始分析前必讀：**
+- 本期上傳影片數 = ${channelStats.videosInRange} 支（不是 ${Math.min(topVideos.length, 50)} 支）
+- 計算「每片訂閱」時，請用：${channelStats.subscribersGained} 訂閱 ÷ ${channelStats.videosInRange} 支影片
+- Top ${Math.min(topVideos.length, 50)} 只是「表現好的影片」，大多數可能是舊片
+
 ### 1. 頻道健康度總體診斷
 
 **評估以下指標並打分（0-100）：**
-- 內容效率健康度（訂閱/影片比）
+- 內容效率健康度（訂閱/影片比 = ${channelStats.subscribersGained} ÷ ${channelStats.videosInRange}）
 - 觀眾留存健康度（平均觀看時長）
 - 流量結構健康度（流量來源分布）
 - 增長勢能健康度（訂閱增長趨勢）
