@@ -301,6 +301,7 @@ app.post('/api/analyze-video-url', async (req, res) => {
       ],
       config: {
         responseMimeType: "application/json",
+        maxOutputTokens: 8192,  // 設定較高的 token 上限，避免生成結果被截斷
       },
     });
 
@@ -454,6 +455,7 @@ app.post('/api/analyze-video', async (req, res) => {
       ],
       config: {
         responseMimeType: "application/json",
+        maxOutputTokens: 8192,  // 設定較高的 token 上限，避免生成結果被截斷
       },
     });
 
@@ -545,6 +547,7 @@ app.post('/api/reanalyze-with-existing-file', async (req, res) => {
       ],
       config: {
         responseMimeType: "application/json",
+        maxOutputTokens: 8192,  // 設定較高的 token 上限，避免生成結果被截斷
       },
     });
 
@@ -1032,6 +1035,7 @@ app.post('/api/regenerate-article', async (req, res) => {
       ],
       config: {
         responseMimeType: "application/json",
+        maxOutputTokens: 8192,  // 設定較高的 token 上限，避免生成結果被截斷
       },
     });
 
