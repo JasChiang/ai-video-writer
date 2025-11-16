@@ -81,7 +81,7 @@ export class PromptTemplates {
       ? ((channelStats.watchTimeHours * 60) / channelStats.viewsInRange).toFixed(1)
       : '0.0';
 
-    const topVideoSummary = topVideos.slice(0, 20).map((video, index) => {
+    const topVideoSummary = topVideos.map((video, index) => {
       const published = video.publishedAt ? video.publishedAt.split('T')[0] : '未知日期';
       return `${index + 1}. ${video.title || '未命名'}（${published}） - 觀看 ${Number(video.viewCount || 0).toLocaleString()}、讚 ${Number(video.likeCount || 0).toLocaleString()}、留言 ${Number(video.commentCount || 0).toLocaleString()}`;
     }).join('\n') || '（目前沒有熱門樣本）';
@@ -136,7 +136,7 @@ ${geographySummary}
 ${deviceSummary}
 
 若系統有提供 trendData、monthlyData、demographics、devices 等欄位，可在分析中引用，但不得引入外部資料。
-⚠️ 注意：以上 Top ${Math.min(topVideos.length, 20)} 支影片僅代表「此期間表現最佳的樣本」，不等於期間內上傳的影片數量；請在分析時明確區分「期間內新片（${channelStats.videosInRange} 支）」與「舊片長尾」。報告中禁止把 Top 樣本數寫成上傳數，且必須明確說明新片與舊片在觀看與訂閱上的貢獻。
+⚠️ 注意：以上 Top ${topVideos.length} 支影片僅代表「此期間表現最佳的樣本」，不等於期間內上傳的影片數量；請在分析時明確區分「期間內新片（${channelStats.videosInRange} 支）」與「舊片長尾」。報告中禁止把 Top 樣本數寫成上傳數，且必須明確說明新片與舊片在觀看與訂閱上的貢獻。
 
 ## 輸出格式
 生成一份「單一綜合分析報告」，以 Markdown H2/H3 結構撰寫，內容必須控制在 3000 個中文字以內（約 6000 byte），使用台灣繁體中文並確保中英文與數字之間加半形空格。建議章節如下：
