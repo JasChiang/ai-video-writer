@@ -3740,14 +3740,16 @@ const showVideoRankingsDoubleColumn =
 
                         {/* 影片說明 */}
                         {video.description ? (
-                          <div className="text-left">
-                            <h5 className="text-xs font-semibold text-gray-700 mb-1">影片說明</h5>
-                            <div
-                              className={`text-xs text-gray-600 whitespace-pre-wrap ${
-                                isDescExpanded ? '' : 'line-clamp-3'
-                              }`}
-                            >
-                              {video.description}
+                          <div className="space-y-2">
+                            <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
+                            <div className="bg-gray-100 rounded-lg p-3">
+                              <div
+                                className={`text-xs text-gray-800 whitespace-pre-wrap leading-relaxed ${
+                                  isDescExpanded ? '' : 'line-clamp-3'
+                                }`}
+                              >
+                                {video.description}
+                              </div>
                             </div>
                             {video.description.split('\n').length > 3 || video.description.length > 150 ? (
                               <button
@@ -3755,17 +3757,17 @@ const showVideoRankingsDoubleColumn =
                                   e.stopPropagation();
                                   toggleDescriptionExpanded(video.id);
                                 }}
-                                className="text-xs text-red-600 hover:text-red-700 font-medium mt-1"
+                                className="inline-block px-3 py-1.5 text-xs text-red-600 hover:text-red-700 font-medium bg-red-50 hover:bg-red-100 rounded-full transition-colors"
                               >
-                                {isDescExpanded ? '收起' : '展開更多'}
+                                {isDescExpanded ? '收起影片說明' : '展開影片說明'}
                               </button>
                             ) : null}
                           </div>
                         ) : (
-                          <div className="text-left">
-                            <h5 className="text-xs font-semibold text-gray-700 mb-1">影片說明</h5>
-                            <div className="text-xs text-gray-500 italic bg-gray-50 p-2 rounded">
-                              此影片暫無說明
+                          <div className="space-y-2">
+                            <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
+                            <div className="bg-gray-100 rounded-lg p-3">
+                              <p className="text-xs text-gray-500 italic">此影片暫無說明</p>
                             </div>
                           </div>
                         )}
@@ -3939,14 +3941,16 @@ const showVideoRankingsDoubleColumn =
 
                               {/* 影片說明 */}
                               {video.description ? (
-                                <div className="text-left">
-                                  <h5 className="text-xs font-semibold text-gray-700 mb-1">影片說明</h5>
-                                  <div
-                                    className={`text-xs text-gray-600 whitespace-pre-wrap ${
-                                      isDescExpanded ? '' : 'line-clamp-3'
-                                    }`}
-                                  >
-                                    {video.description}
+                                <div className="space-y-2">
+                                  <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
+                                  <div className="bg-gray-100 rounded-lg p-3">
+                                    <div
+                                      className={`text-xs text-gray-800 whitespace-pre-wrap leading-relaxed ${
+                                        isDescExpanded ? '' : 'line-clamp-3'
+                                      }`}
+                                    >
+                                      {video.description}
+                                    </div>
                                   </div>
                                   {video.description.split('\n').length > 3 || video.description.length > 150 ? (
                                     <button
@@ -3954,17 +3958,17 @@ const showVideoRankingsDoubleColumn =
                                         e.stopPropagation();
                                         toggleDescriptionExpanded(video.id);
                                       }}
-                                      className="text-xs text-red-600 hover:text-red-700 font-medium mt-1"
+                                      className="inline-block px-3 py-1.5 text-xs text-red-600 hover:text-red-700 font-medium bg-red-50 hover:bg-red-100 rounded-full transition-colors"
                                     >
-                                      {isDescExpanded ? '收起' : '展開更多'}
+                                      {isDescExpanded ? '收起影片說明' : '展開影片說明'}
                                     </button>
                                   ) : null}
                                 </div>
                               ) : (
-                                <div className="text-left">
-                                  <h5 className="text-xs font-semibold text-gray-700 mb-1">影片說明</h5>
-                                  <div className="text-xs text-gray-500 italic bg-gray-50 p-2 rounded">
-                                    此影片暫無說明
+                                <div className="space-y-2">
+                                  <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
+                                  <div className="bg-gray-100 rounded-lg p-3">
+                                    <p className="text-xs text-gray-500 italic">此影片暫無說明</p>
                                   </div>
                                 </div>
                               )}
@@ -4133,14 +4137,16 @@ const showVideoRankingsDoubleColumn =
 
                               {/* 影片說明 */}
                               {video.description ? (
-                                <div className="text-left">
-                                  <h5 className="text-xs font-semibold text-gray-700 mb-1">影片說明</h5>
-                                  <div
-                                    className={`text-xs text-gray-600 whitespace-pre-wrap ${
-                                      isDescExpanded ? '' : 'line-clamp-3'
-                                    }`}
-                                  >
-                                    {video.description}
+                                <div className="space-y-2">
+                                  <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
+                                  <div className="bg-gray-100 rounded-lg p-3">
+                                    <div
+                                      className={`text-xs text-gray-800 whitespace-pre-wrap leading-relaxed ${
+                                        isDescExpanded ? '' : 'line-clamp-3'
+                                      }`}
+                                    >
+                                      {video.description}
+                                    </div>
                                   </div>
                                   {video.description.split('\n').length > 3 || video.description.length > 150 ? (
                                     <button
@@ -4148,17 +4154,17 @@ const showVideoRankingsDoubleColumn =
                                         e.stopPropagation();
                                         toggleDescriptionExpanded(video.id);
                                       }}
-                                      className="text-xs text-amber-600 hover:text-amber-700 font-medium mt-1"
+                                      className="inline-block px-3 py-1.5 text-xs text-red-600 hover:text-red-700 font-medium bg-red-50 hover:bg-red-100 rounded-full transition-colors"
                                     >
-                                      {isDescExpanded ? '收起' : '展開更多'}
+                                      {isDescExpanded ? '收起影片說明' : '展開影片說明'}
                                     </button>
                                   ) : null}
                                 </div>
                               ) : (
-                                <div className="text-left">
-                                  <h5 className="text-xs font-semibold text-gray-700 mb-1">影片說明</h5>
-                                  <div className="text-xs text-gray-500 italic bg-gray-50 p-2 rounded">
-                                    此影片暫無說明
+                                <div className="space-y-2">
+                                  <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
+                                  <div className="bg-gray-100 rounded-lg p-3">
+                                    <p className="text-xs text-gray-500 italic">此影片暫無說明</p>
                                   </div>
                                 </div>
                               )}
