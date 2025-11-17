@@ -381,9 +381,11 @@ const showVideoRankingsDoubleColumn =
 
   // 切換影片卡片展開狀態
   const toggleVideoExpanded = (videoId: string) => {
+    console.log('[Dashboard] 🎬 Toggle video expansion:', videoId);
     setExpandedVideos(prev => {
       const newSet = new Set(prev);
       if (newSet.has(videoId)) {
+        console.log('[Dashboard] ⬆️ Collapsing video:', videoId);
         newSet.delete(videoId);
         // 收起影片時，同時收起描述
         setExpandedDescriptions(prevDesc => {
@@ -392,8 +394,10 @@ const showVideoRankingsDoubleColumn =
           return newDescSet;
         });
       } else {
+        console.log('[Dashboard] ⬇️ Expanding video:', videoId);
         newSet.add(videoId);
       }
+      console.log('[Dashboard] 📋 Currently expanded videos:', Array.from(newSet));
       return newSet;
     });
   };
@@ -3623,6 +3627,17 @@ const showVideoRankingsDoubleColumn =
                 const isExpanded = expandedVideos.has(video.id);
                 const isDescExpanded = expandedDescriptions.has(video.id);
 
+                // Debug logging
+                if (index === 0 && sortedTopVideos.length > 0) {
+                  console.log('[Dashboard] 📊 Top Videos Sample:', {
+                    videoId: video.id,
+                    title: video.title,
+                    hasDescription: !!video.description,
+                    descriptionLength: video.description?.length || 0,
+                    isExpanded
+                  });
+                }
+
                 return (
                   <div
                     key={video.id}
@@ -3696,7 +3711,7 @@ const showVideoRankingsDoubleColumn =
                         </div>
 
                         {/* 影片說明 */}
-                        {video.description && (
+                        {video.description ? (
                           <div className="text-left">
                             <h5 className="text-xs font-semibold text-gray-700 mb-1">影片說明</h5>
                             <div
@@ -3717,6 +3732,13 @@ const showVideoRankingsDoubleColumn =
                                 {isDescExpanded ? '收起' : '展開更多'}
                               </button>
                             ) : null}
+                          </div>
+                        ) : (
+                          <div className="text-left">
+                            <h5 className="text-xs font-semibold text-gray-700 mb-1">影片說明</h5>
+                            <div className="text-xs text-gray-500 italic bg-gray-50 p-2 rounded">
+                              此影片暫無說明
+                            </div>
                           </div>
                         )}
                       </div>
@@ -3777,6 +3799,17 @@ const showVideoRankingsDoubleColumn =
 
                       const isExpanded = expandedVideos.has(video.id);
                       const isDescExpanded = expandedDescriptions.has(video.id);
+
+                      // Debug logging
+                      if (index === 0 && topShorts.length > 0) {
+                        console.log('[Dashboard] 🎬 Shorts Sample:', {
+                          videoId: video.id,
+                          title: video.title,
+                          hasDescription: !!video.description,
+                          descriptionLength: video.description?.length || 0,
+                          isExpanded
+                        });
+                      }
 
                       return (
                         <div
@@ -3877,7 +3910,7 @@ const showVideoRankingsDoubleColumn =
                               </div>
 
                               {/* 影片說明 */}
-                              {video.description && (
+                              {video.description ? (
                                 <div className="text-left">
                                   <h5 className="text-xs font-semibold text-gray-700 mb-1">影片說明</h5>
                                   <div
@@ -3898,6 +3931,13 @@ const showVideoRankingsDoubleColumn =
                                       {isDescExpanded ? '收起' : '展開更多'}
                                     </button>
                                   ) : null}
+                                </div>
+                              ) : (
+                                <div className="text-left">
+                                  <h5 className="text-xs font-semibold text-gray-700 mb-1">影片說明</h5>
+                                  <div className="text-xs text-gray-500 italic bg-gray-50 p-2 rounded">
+                                    此影片暫無說明
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -3955,6 +3995,17 @@ const showVideoRankingsDoubleColumn =
 
                       const isExpanded = expandedVideos.has(video.id);
                       const isDescExpanded = expandedDescriptions.has(video.id);
+
+                      // Debug logging
+                      if (index === 0 && topRegularVideos.length > 0) {
+                        console.log('[Dashboard] 🎥 Regular Videos Sample:', {
+                          videoId: video.id,
+                          title: video.title,
+                          hasDescription: !!video.description,
+                          descriptionLength: video.description?.length || 0,
+                          isExpanded
+                        });
+                      }
 
                       return (
                         <div
@@ -4053,7 +4104,7 @@ const showVideoRankingsDoubleColumn =
                               </div>
 
                               {/* 影片說明 */}
-                              {video.description && (
+                              {video.description ? (
                                 <div className="text-left">
                                   <h5 className="text-xs font-semibold text-gray-700 mb-1">影片說明</h5>
                                   <div
@@ -4074,6 +4125,13 @@ const showVideoRankingsDoubleColumn =
                                       {isDescExpanded ? '收起' : '展開更多'}
                                     </button>
                                   ) : null}
+                                </div>
+                              ) : (
+                                <div className="text-left">
+                                  <h5 className="text-xs font-semibold text-gray-700 mb-1">影片說明</h5>
+                                  <div className="text-xs text-gray-500 italic bg-gray-50 p-2 rounded">
+                                    此影片暫無說明
+                                  </div>
                                 </div>
                               )}
                             </div>
