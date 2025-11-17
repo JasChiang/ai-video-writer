@@ -1643,7 +1643,7 @@ app.post('/api/generate-article-url-async', async (req, res) => {
       };
 
       // 生成包含所有參考資料指示的完整 prompt
-      const fullPrompt = await generateArticlePromptWithReferences(videoTitle, prompt, references, templateId);
+      const fullPrompt = await generateArticlePromptWithReferences(videoTitle, prompt, references, templateId, 'video');
 
       // 建立 parts 陣列
       const parts = [
@@ -2016,7 +2016,7 @@ app.post('/api/generate-article-from-url-async', async (req, res) => {
       };
 
       // 生成包含所有參考資料指示的完整 prompt
-      const fullPrompt = await generateArticlePromptWithReferences(url, prompt, references, templateId);
+      const fullPrompt = await generateArticlePromptWithReferences(url, prompt, references, templateId, 'url');
 
       // 建立 parts 陣列
       const parts = [];
@@ -2337,7 +2337,7 @@ app.post('/api/generate-article', async (req, res) => {
     };
 
     // 生成包含所有參考資料指示的完整 prompt
-    const fullPrompt = await generateArticlePromptWithReferences(videoTitle, prompt, references, templateId);
+    const fullPrompt = await generateArticlePromptWithReferences(videoTitle, prompt, references, templateId, 'video');
 
     // 準備 config
     const geminiConfig = {};

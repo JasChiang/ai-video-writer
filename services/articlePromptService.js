@@ -120,9 +120,10 @@ export async function generateArticlePromptWithFiles(videoTitle, userPrompt, upl
  * @param {Array} [references.referenceVideos] 參考影片網址
  * @param {Array} [references.referenceUrls] 參考網址
  * @param {string} [templateId] 模板 ID（預設為 'default'）
+ * @param {string} [contentType] 主資料類型：'video' 或 'url'（預設為 'video'）
  * @returns {Promise<string>} 完整的提示詞
  */
-export async function generateArticlePromptWithReferences(videoTitle, userPrompt = '', references = {}, templateId = 'default') {
+export async function generateArticlePromptWithReferences(videoTitle, userPrompt = '', references = {}, templateId = 'default', contentType = 'video') {
   // 使用模板生成基本提示詞
   let prompt = await generatePromptFromTemplate(templateId, videoTitle, userPrompt);
 
@@ -173,7 +174,35 @@ export async function generateArticlePromptWithReferences(videoTitle, userPrompt
     referencesContext += '\n**重要整合原則**：請綜合分析主要來源與上述所有參考資料，將它們的內容有機地整合到文章中。不要只使用部分參考資料，而應該全面吸收各個來源的精華，產出一篇完整、專業、具有深度的文章。\n';
   }
 
-  prompt += referencesContext;
+  // 5. 根據主資料和參考資料類型，動態調整截圖計劃說明
+  const hasMainVideo = contentType === 'video';
+  const hasReferenceVideos = references.referenceVideos && references.referenceVideos.length > 0;
+
+  let screenshotInstruction = '';
+
+  if (hasMainVideo && hasReferenceVideos) {
+    // 情境 1: 主資料是影片 + 有參考影片 → 兩者都要截圖
+    screenshotInstruction = '\n\n## 截圖時間點規劃\n\n';
+    screenshotInstruction += '**重要**：請分別為主影片和所有參考影片規劃截圖時間點。\n\n';
+    screenshotInstruction += '- 主影片：規劃 3-5 個關鍵畫面的截圖時間點\n';
+    screenshotInstruction += '- 參考影片：每部參考影片規劃 2-3 個關鍵畫面的截圖時間點\n';
+    screenshotInstruction += '- 在 reason_for_screenshot 中明確標示該截圖來自哪部影片（主影片或參考影片標題/網址）\n';
+  } else if (!hasMainVideo && hasReferenceVideos) {
+    // 情境 2: 主資料不是影片 + 有參考影片 → 只為參考影片截圖
+    screenshotInstruction = '\n\n## 截圖時間點規劃\n\n';
+    screenshotInstruction += '**重要**：主資料不是影片，請只為參考影片規劃截圖時間點。\n\n';
+    screenshotInstruction += '- 每部參考影片規劃 2-3 個關鍵畫面的截圖時間點\n';
+    screenshotInstruction += '- 在 reason_for_screenshot 中明確標示該截圖來自哪部參考影片（標題或網址）\n';
+  } else if (hasMainVideo && !hasReferenceVideos) {
+    // 情境 3: 主資料是影片 + 沒有參考影片 → 為主影片截圖（模板預設行為，不需額外說明）
+    screenshotInstruction = '';
+  } else {
+    // 情境 4: 主資料不是影片 + 沒有參考影片 → 不需要截圖
+    screenshotInstruction = '\n\n## 截圖時間點\n\n';
+    screenshotInstruction += '**重要**：主資料不是影片且沒有參考影片，請將 screenshots 設為空陣列 []。\n';
+  }
+
+  prompt += referencesContext + screenshotInstruction;
   return prompt;
 }
 
