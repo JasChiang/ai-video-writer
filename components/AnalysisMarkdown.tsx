@@ -31,7 +31,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { Pie, Bar } from 'react-chartjs-2';
+import { Bar } from 'react-chartjs-2';
 import type { Components } from 'react-markdown';
 import type { YouTubeVideo } from '../types';
 import { VideoPreviewCard } from './VideoPreviewCard';
@@ -181,37 +181,216 @@ const MermaidDiagram: React.FC<{ chart: string }> = ({ chart }) => {
 };
 
 // Chart.js 圖表組件
-interface ChartData {
-  type: 'pie' | 'bar';
-  title?: string;
-  labels: string[];
-  values: number[];
-  colors?: string[];
+type ChartValue = number | string | boolean | null;
+
+type ChartRecord = Record<string, ChartValue>;
+
+interface ChartListItem {
+  label?: string;
+  value?: ChartValue;
 }
 
-const ChartJSComponent: React.FC<{ data: ChartData }> = ({ data }) => {
-  const safeLabels = Array.isArray(data.labels) ? data.labels : [];
-  const safeValues = Array.isArray(data.values) ? data.values : [];
-  const safeColors = Array.isArray(data.colors) ? data.colors : undefined;
+interface ChartData {
+  type: 'bar';
+  title?: string;
+  labels?: unknown;
+  values?: unknown;
+  data?: ChartListItem[] | ChartRecord;
+  items?: ChartListItem[] | ChartRecord;
+  colors?: string[];
+  raw?: string;
+}
 
-  const numericValues = safeValues.every(
-    (value) => typeof value === 'number' && Number.isFinite(value)
-  );
-  const hasValidData =
-    safeLabels.length > 0 &&
-    safeLabels.length === safeValues.length &&
-    numericValues;
+const getUnitMultiplier = (value: string): number => {
+  const unitMatch = value.match(/[\d.]+\s*(萬|万|億|亿|千|k|K|m|M|b|B)/);
+  if (!unitMatch) return 1;
 
-  if (!hasValidData) {
-    return (
-      <div className="my-6 p-6 bg-red-50 border-2 border-red-200 rounded-lg">
-        <p className="text-red-700 font-semibold mb-2">圖表資料無效</p>
-        <p className="text-sm text-red-600">
-          無法渲染 Chart.js 圖表，請檢查 labels / values 是否為等長且為數值的陣列。
-        </p>
-      </div>
-    );
+  switch (unitMatch[1].toLowerCase()) {
+    case '萬':
+    case '万':
+      return 10000;
+    case '億':
+    case '亿':
+      return 100000000;
+    case '千':
+    case 'k':
+      return 1000;
+    case 'm':
+      return 1000000;
+    case 'b':
+      return 1000000000;
+    default:
+      return 1;
   }
+};
+
+const normalizeChartNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const multiplier = getUnitMultiplier(trimmed);
+    const numericText = trimmed.replace(/[,，]/g, '').replace(/[^0-9.+-]/g, '');
+    if (!numericText) return null;
+
+    const parsed = Number(numericText);
+    if (!Number.isFinite(parsed)) return null;
+
+    return parsed * multiplier;
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? 1 : 0;
+  }
+
+  return null;
+};
+
+const isRecord = (value: unknown): value is ChartRecord =>
+  !!value && !Array.isArray(value) && typeof value === 'object';
+
+const toDisplayValue = (value: ChartValue): string => {
+  if (typeof value === 'number') {
+    return value.toLocaleString();
+  }
+  if (typeof value === 'boolean') {
+    return value ? '1' : '0';
+  }
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value);
+};
+
+const buildFallbackEntries = (data: ChartData): Array<{ label: string; value: string }> => {
+  const entries: Array<{ label: string; value: string }> = [];
+
+  const addEntry = (label: string, value: ChartValue | undefined) => {
+    if (value === undefined) return;
+    entries.push({ label, value: toDisplayValue(value) });
+  };
+
+  const tryAppendFromArrays = (labels: unknown, values: unknown) => {
+    if (!Array.isArray(values)) {
+      return;
+    }
+    const safeLabels = Array.isArray(labels) ? labels : values.map((_, index) => `項目 ${index + 1}`);
+    const length = Math.min(safeLabels.length, values.length);
+    for (let i = 0; i < length; i++) {
+      addEntry(String(safeLabels[i] ?? `項目 ${i + 1}`), values[i] as ChartValue);
+    }
+  };
+
+  const tryAppendFromList = (list?: ChartListItem[]) => {
+    if (!Array.isArray(list)) return;
+    list.forEach((item, index) => {
+      if (item) {
+        const label = item.label ?? `項目 ${index + 1}`;
+        addEntry(label, item.value);
+      }
+    });
+  };
+
+  tryAppendFromArrays(data.labels, data.values);
+
+  if (entries.length === 0 && isRecord(data.values)) {
+    Object.entries(data.values).forEach(([label, value]) => addEntry(label, value));
+  }
+
+  if (entries.length === 0) {
+    if (isRecord(data.data)) {
+      Object.entries(data.data).forEach(([label, value]) => addEntry(label, value));
+    } else {
+      tryAppendFromList(data.data);
+    }
+  }
+
+  if (entries.length === 0) {
+    if (isRecord(data.items)) {
+      Object.entries(data.items).forEach(([label, value]) => addEntry(label, value));
+    } else {
+      tryAppendFromList(data.items);
+    }
+  }
+
+  return entries;
+};
+
+const buildStrictDataset = (data: ChartData): { labels: string[]; values: number[] } | null => {
+  if (!Array.isArray(data.labels) || !Array.isArray(data.values)) {
+    return null;
+  }
+
+  const labels = data.labels.map((label) => String(label));
+  if (labels.length === 0 || labels.length !== data.values.length) {
+    return null;
+  }
+
+  const values: number[] = [];
+  for (let i = 0; i < data.values.length; i++) {
+    const numeric = normalizeChartNumber((data.values as unknown[])[i]);
+    if (numeric === null) {
+      return null;
+    }
+    values.push(numeric);
+  }
+
+  return { labels, values };
+};
+
+const ChartFallbackTable: React.FC<{ title?: string; entries: Array<{ label: string; value: string }>; raw?: string }> = ({
+  title,
+  entries,
+  raw,
+}) => {
+  return (
+    <div className="my-6 p-6 bg-blue-50 border-2 border-blue-200 rounded-lg">
+      {title && <p className="font-semibold text-blue-900 mb-3">{title}</p>}
+      {entries.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full border border-blue-200 bg-white text-blue-900">
+            <thead className="bg-blue-100">
+              <tr>
+                <th className="px-3 py-2 text-left border border-blue-200">項目</th>
+                <th className="px-3 py-2 text-left border border-blue-200">數值</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry, index) => (
+                <tr key={`${entry.label}-${index}`} className="odd:bg-blue-50">
+                  <td className="px-3 py-2 border border-blue-100">{entry.label}</td>
+                  <td className="px-3 py-2 border border-blue-100">{entry.value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="bg-white border border-blue-100 rounded p-3 text-sm text-blue-900">
+          {raw ? <pre className="whitespace-pre-wrap">{raw}</pre> : <p>沒有可用的圖表資料，已改以文字呈現。</p>}
+        </div>
+      )}
+      <p className="text-xs text-blue-600 mt-3">
+        圖表資料格式不符標準（需為 \`labels\` 與 \`values\` 的等長數字陣列），因此以表格方式呈現。
+      </p>
+    </div>
+  );
+};
+
+const ChartJSComponent: React.FC<{ data: ChartData }> = ({ data }) => {
+  const strictDataset = buildStrictDataset(data);
+  const fallbackEntries = buildFallbackEntries(data);
+
+  if (!strictDataset) {
+    return <ChartFallbackTable title={data.title} entries={fallbackEntries} raw={data.raw} />;
+  }
+
+  const safeColors = Array.isArray(data.colors) ? data.colors : undefined;
+  const { labels: chartLabels, values: numericValues } = strictDataset;
 
   const defaultColors = [
     '#0077B6', // 主色
@@ -227,12 +406,12 @@ const ChartJSComponent: React.FC<{ data: ChartData }> = ({ data }) => {
   ];
 
   const chartData = {
-    labels: safeLabels,
+    labels: chartLabels,
     datasets: [
       {
         label: data.title || '數據',
-        data: safeValues,
-        backgroundColor: safeColors || defaultColors.slice(0, safeValues.length),
+        data: numericValues,
+        backgroundColor: safeColors || defaultColors.slice(0, numericValues.length),
         borderColor: '#FFFFFF',
         borderWidth: 2,
       },
@@ -284,11 +463,7 @@ const ChartJSComponent: React.FC<{ data: ChartData }> = ({ data }) => {
   return (
     <div className="my-6 p-6 bg-white border-2 rounded-lg" style={{ borderColor: '#E5E7EB' }}>
       <div style={{ maxWidth: '500px', margin: '0 auto' }}>
-        {data.type === 'pie' ? (
-          <Pie data={chartData} options={options} />
-        ) : (
-          <Bar data={chartData} options={options} />
-        )}
+        <Bar data={chartData} options={options} />
       </div>
     </div>
   );
@@ -467,6 +642,41 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
   // 存儲解析出的圖表數據
   const [charts, setCharts] = React.useState<Map<string, ChartData>>(new Map());
 
+  const sanitizeChartJson = (raw: string): any | null => {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+
+    try {
+      return JSON.parse(trimmed);
+    } catch (error) {
+      // fall through
+    }
+
+    let normalized = trimmed;
+
+    if (normalized.startsWith('(') && normalized.endsWith(')')) {
+      normalized = normalized.slice(1, -1);
+    }
+
+    if (!normalized.trim().startsWith('{')) {
+      normalized = `{${normalized}}`;
+    }
+
+    normalized = normalized
+      .replace(/([{,]\s*)([A-Za-z0-9_]+)\s*:/g, (_, prefix: string, key: string) => {
+        return `${prefix}"${key}":`;
+      })
+      .replace(/'([^']*)'/g, (_, value: string) => `"${value.replace(/"/g, '\\"')}"`)
+      .replace(/,\s*([}\]])/g, '$1');
+
+    try {
+      return JSON.parse(normalized);
+    } catch (error) {
+      console.error('Failed to sanitize chart JSON:', error, normalized);
+      return null;
+    }
+  };
+
   // 預處理內容：識別圖表並替換為特殊標記
   const processCharts = (text: string): string => {
     const chartRegex = /<!--\s*CHART:(PIE|BAR)\s*(?:\r?\n)?([\s\S]*?)(?:\r?\n)?-->/g;
@@ -475,14 +685,20 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
 
     const processed = text.replace(chartRegex, (match, type, jsonData) => {
       try {
-        const data = JSON.parse(jsonData.trim());
+        const data = sanitizeChartJson(jsonData.trim());
+        if (!data) {
+          throw new Error('Invalid chart data');
+        }
         const chartId = `chart-${chartIndex++}`;
         newCharts.set(chartId, {
-          type: type.toLowerCase() as 'pie' | 'bar',
+          type: 'bar',
           title: data.title,
           labels: data.labels,
           values: data.values,
+          data: data.data,
+          items: data.items,
           colors: data.colors,
+          raw: jsonData.trim(),
         });
         return `§CHART:${chartId}§`;
       } catch (error) {
