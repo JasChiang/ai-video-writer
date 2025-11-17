@@ -1882,29 +1882,42 @@ const showVideoRankingsDoubleColumn =
       const descriptionsMap: Record<string, string> = {};
 
       for (const chunk of chunks) {
-        const response = await fetch(
-          `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${chunk.join(',')}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+        const apiUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${chunk.join(',')}`;
+        console.log(`[Dashboard] 🌐 API 請求:`, apiUrl.substring(0, 100) + '...');
+
+        const response = await fetch(apiUrl, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        console.log(`[Dashboard] 📡 API 回應狀態:`, response.status, response.statusText);
 
         if (!response.ok) {
-          console.warn('[Dashboard] ⚠️ 獲取影片描述失敗');
+          const errorText = await response.text();
+          console.warn('[Dashboard] ⚠️ 獲取影片描述失敗:', response.status, errorText);
           continue;
         }
 
         const data = await response.json();
+        console.log(`[Dashboard] 📦 API 回傳資料:`, {
+          itemsCount: data.items?.length || 0,
+          hasItems: !!data.items
+        });
+
         if (data.items && Array.isArray(data.items)) {
           data.items.forEach((item: any) => {
-            descriptionsMap[item.id] = item.snippet?.description || '';
+            const description = item.snippet?.description || '';
+            descriptionsMap[item.id] = description;
+            console.log(`[Dashboard] 📄 影片 ${item.id.substring(0, 8)}... 說明長度: ${description.length} 字元`);
           });
         }
       }
 
       console.log(`[Dashboard] ✅ 獲取了 ${Object.keys(descriptionsMap).length} 支影片的描述`);
+      console.log(`[Dashboard] 📋 描述統計:`, Object.entries(descriptionsMap).map(([id, desc]) =>
+        `${id.substring(0, 8)}: ${desc.length}字`
+      ).join(', '));
       return descriptionsMap;
     } catch (err: any) {
       console.error('[Dashboard] ⚠️ 獲取影片描述失敗:', err.message);
