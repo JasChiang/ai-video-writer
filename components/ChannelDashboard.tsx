@@ -579,6 +579,52 @@ const showVideoRankingsDoubleColumn =
     return parsed;
   };
 
+  const computeComparisonPeriods = (start: Date, end: Date) => {
+    const normalizedStart = new Date(start);
+    normalizedStart.setHours(0, 0, 0, 0);
+    const normalizedEnd = new Date(end);
+    normalizedEnd.setHours(0, 0, 0, 0);
+
+    const daysDiff =
+      Math.ceil((normalizedEnd.getTime() - normalizedStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+    const isFullMonthRange =
+      normalizedStart.getFullYear() === normalizedEnd.getFullYear() &&
+      normalizedStart.getMonth() === normalizedEnd.getMonth() &&
+      normalizedStart.getDate() === 1 &&
+      normalizedEnd.getDate() === new Date(normalizedEnd.getFullYear(), normalizedEnd.getMonth() + 1, 0).getDate();
+
+    const isFullYearRange =
+      normalizedStart.getFullYear() === normalizedEnd.getFullYear() &&
+      normalizedStart.getMonth() === 0 &&
+      normalizedStart.getDate() === 1 &&
+      normalizedEnd.getMonth() === 11 &&
+      normalizedEnd.getDate() === 31;
+
+    let previousStart: Date;
+    let previousEnd: Date;
+
+    if (isFullMonthRange) {
+      previousStart = new Date(normalizedStart.getFullYear(), normalizedStart.getMonth() - 1, 1);
+      previousEnd = new Date(normalizedStart.getFullYear(), normalizedStart.getMonth(), 0);
+    } else if (isFullYearRange) {
+      previousStart = new Date(normalizedStart.getFullYear() - 1, 0, 1);
+      previousEnd = new Date(normalizedStart.getFullYear() - 1, 11, 31);
+    } else {
+      previousEnd = new Date(normalizedStart);
+      previousEnd.setDate(previousEnd.getDate() - 1);
+      previousStart = new Date(previousEnd);
+      previousStart.setDate(previousStart.getDate() - daysDiff + 1);
+    }
+
+    const yearAgoStart = new Date(normalizedStart);
+    yearAgoStart.setFullYear(yearAgoStart.getFullYear() - 1);
+    const yearAgoEnd = new Date(normalizedEnd);
+    yearAgoEnd.setFullYear(yearAgoEnd.getFullYear() - 1);
+
+    return { previousStart, previousEnd, yearAgoStart, yearAgoEnd, daysDiff };
+  };
+
   const getDateRange = (): { startDate: Date; endDate: Date } => {
     const start = parseDateAtTaipei(startDate, false);
     const end = parseDateAtTaipei(endDate, true);
@@ -1435,20 +1481,8 @@ const showVideoRankingsDoubleColumn =
         return `${year}-${month}-${day}`;
       };
 
-      // 計算當前期間的天數
-      const daysDiff = Math.ceil((currentEnd.getTime() - currentStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
-      // 計算前一期（環比）的日期範圍
-      const previousEnd = new Date(currentStart);
-      previousEnd.setDate(previousEnd.getDate() - 1);
-      const previousStart = new Date(previousEnd);
-      previousStart.setDate(previousStart.getDate() - daysDiff + 1);
-
-      // 計算去年同期（同比）的日期範圍
-      const yearAgoStart = new Date(currentStart);
-      yearAgoStart.setFullYear(yearAgoStart.getFullYear() - 1);
-      const yearAgoEnd = new Date(currentEnd);
-      yearAgoEnd.setFullYear(yearAgoEnd.getFullYear() - 1);
+      const { previousStart, previousEnd, yearAgoStart, yearAgoEnd, daysDiff } =
+        computeComparisonPeriods(currentStart, currentEnd);
 
       console.log('[Dashboard] 📅 對比期間:', {
         當前期間: `${formatDate(currentStart)} ~ ${formatDate(currentEnd)} (${daysDiff}天)`,
@@ -2415,55 +2449,17 @@ const showVideoRankingsDoubleColumn =
 
   const comparisonDateRanges = useMemo(() => {
     if (!startDate || !endDate) return null;
-    const currentStart = new Date(startDate);
-    const currentEnd = new Date(endDate);
+    const currentStart = parseDateAtTaipei(startDate, false);
+    const currentEnd = parseDateAtTaipei(endDate, false);
     if (Number.isNaN(currentStart.getTime()) || Number.isNaN(currentEnd.getTime())) {
       return null;
     }
 
-    const daysDiff =
-      Math.ceil((currentEnd.getTime() - currentStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
-    const isSameMonth =
-      currentStart.getFullYear() === currentEnd.getFullYear() &&
-      currentStart.getMonth() === currentEnd.getMonth();
-    const isFullMonthRange =
-      isSameMonth &&
-      currentStart.getDate() === 1 &&
-      currentEnd.getDate() === new Date(currentEnd.getFullYear(), currentEnd.getMonth() + 1, 0).getDate();
-    const isFullYearRange =
-      currentStart.getFullYear() === currentEnd.getFullYear() &&
-      currentStart.getMonth() === 0 &&
-      currentStart.getDate() === 1 &&
-      currentEnd.getMonth() === 11 &&
-      currentEnd.getDate() === 31;
-
-    let previousStart: Date;
-    let previousEnd: Date;
-
-    if (isFullMonthRange) {
-      // 若使用者選擇整個月份，較前期改為上一整個月份
-      previousStart = new Date(currentStart.getFullYear(), currentStart.getMonth() - 1, 1);
-      previousEnd = new Date(currentStart.getFullYear(), currentStart.getMonth(), 0);
-    } else if (isFullYearRange) {
-      // 若使用者選擇整年，較前期改為上一整年
-      previousStart = new Date(currentStart.getFullYear() - 1, 0, 1);
-      previousEnd = new Date(currentStart.getFullYear() - 1, 11, 31);
-    } else {
-      previousEnd = new Date(currentStart);
-      previousEnd.setDate(previousEnd.getDate() - 1);
-      previousStart = new Date(previousEnd);
-      previousStart.setDate(previousStart.getDate() - daysDiff + 1);
-    }
-
-    const yearAgoStart = new Date(currentStart);
-    yearAgoStart.setFullYear(yearAgoStart.getFullYear() - 1);
-    const yearAgoEnd = new Date(currentEnd);
-    yearAgoEnd.setFullYear(yearAgoEnd.getFullYear() - 1);
+    const periods = computeComparisonPeriods(currentStart, currentEnd);
 
     return {
-      previous: `${formatDateString(previousStart)} ~ ${formatDateString(previousEnd)}`,
-      yearAgo: `${formatDateString(yearAgoStart)} ~ ${formatDateString(yearAgoEnd)}`,
+      previous: `${formatDateString(periods.previousStart)} ~ ${formatDateString(periods.previousEnd)}`,
+      yearAgo: `${formatDateString(periods.yearAgoStart)} ~ ${formatDateString(periods.yearAgoEnd)}`,
     };
   }, [startDate, endDate]);
 
