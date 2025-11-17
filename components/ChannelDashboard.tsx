@@ -3718,8 +3718,8 @@ const showVideoRankingsDoubleColumn =
                       </div>
 
                       {/* 展開指示器 */}
-                      <div className="text-xs text-gray-400 flex items-center gap-1">
-                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-full">
+                        {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                         <span>{isExpanded ? '收起' : '點擊展開'}</span>
                       </div>
                     </div>
@@ -3916,7 +3916,7 @@ const showVideoRankingsDoubleColumn =
                               </div>
 
                               {/* 展開指示器 */}
-                              <div className="text-xs text-gray-400 flex items-center gap-1 mt-2">
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-full mt-2">
                                 {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                                 <span>{isExpanded ? '收起' : '點擊展開'}</span>
                               </div>
@@ -4114,7 +4114,7 @@ const showVideoRankingsDoubleColumn =
                               </div>
 
                               {/* 展開指示器 */}
-                              <div className="text-xs text-gray-400 flex items-center gap-1 mt-2">
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-full mt-2">
                                 {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                                 <span>{isExpanded ? '收起' : '點擊展開'}</span>
                               </div>
