@@ -243,10 +243,11 @@ async function getAllChannelVideos(youtube, channelId, cutoffDate) {
 
 /**
  * 獲取影片的分析數據（批次處理）
+ * 為避免 URL 過長，將影片列表分批處理（每批最多 200 個影片）
  */
 async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, startDate, endDate) {
   const analyticsData = [];
-  const videoIds = videos.map(v => v.videoId).join(',');
+  const BATCH_SIZE = 200; // 每批最多 200 個影片，避免 URL 過長
 
   // 格式化日期為 YYYY-MM-DD
   const formatDate = (date) => date.toISOString().split('T')[0];
@@ -254,134 +255,152 @@ async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, start
   const endDateStr = formatDate(endDate);
 
   console.log(`[Analytics] 查詢日期範圍: ${startDateStr} 到 ${endDateStr}`);
+  console.log(`[Analytics] 總影片數: ${videos.length}，將分 ${Math.ceil(videos.length / BATCH_SIZE)} 批處理`);
 
   try {
-    // 查詢 1: 基本指標（觀看次數、觀看時長、互動數據）
-    const basicMetrics = await youtubeAnalytics.reports.query({
-      ids: `channel==${channelId}`,
-      startDate: startDateStr,
-      endDate: endDateStr,
-      metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,comments,shares,subscribersGained',
-      dimensions: 'video',
-      filters: `video==${videoIds}`,
-      sort: '-views',
-    });
-    recordQuotaServer('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
-      metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,comments,shares,subscribersGained',
-      dimensions: 'video',
-      context: 'basicMetrics',
-      filterVideos: videos.length,
-      caller: 'analyticsService.getVideosAnalyticsData',
-    });
+    // 將影片列表分批
+    const batches = [];
+    for (let i = 0; i < videos.length; i += BATCH_SIZE) {
+      batches.push(videos.slice(i, i + BATCH_SIZE));
+    }
 
-    // 查詢 2: 流量來源數據（依流量來源類型）
-    const trafficSources = await youtubeAnalytics.reports.query({
-      ids: `channel==${channelId}`,
-      startDate: startDateStr,
-      endDate: endDateStr,
-      metrics: 'views',
-      dimensions: 'video,insightTrafficSourceType',
-      filters: `video==${videoIds}`,
-    });
-    recordQuotaServer('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
-      metrics: 'views',
-      dimensions: 'video,insightTrafficSourceType',
-      context: 'trafficSources',
-      filterVideos: videos.length,
-      caller: 'analyticsService.getVideosAnalyticsData',
-    });
+    // 初始化合併用的 Map
+    const allBasicMetrics = new Map();
+    const allTrafficSources = new Map();
+    const allImpressions = new Map();
 
-    // 查詢 3: 曝光與點擊數據（CTR）
-    let impressionData = null;
-    try {
-      impressionData = await youtubeAnalytics.reports.query({
+    // 對每一批影片進行查詢
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      const videoIds = batch.map(v => v.videoId).join(',');
+      console.log(`[Analytics] 處理第 ${batchIndex + 1}/${batches.length} 批（${batch.length} 支影片）`);
+
+      // 查詢 1: 基本指標（觀看次數、觀看時長、互動數據）
+      const basicMetrics = await youtubeAnalytics.reports.query({
         ids: `channel==${channelId}`,
         startDate: startDateStr,
         endDate: endDateStr,
-        metrics: 'cardImpressions,cardClicks,cardClickRate',
+        metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,comments,shares,subscribersGained',
         dimensions: 'video',
+        filters: `video==${videoIds}`,
+        sort: '-views',
+      });
+      recordQuotaServer('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
+        metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,comments,shares,subscribersGained',
+        dimensions: 'video',
+        context: `basicMetrics-batch${batchIndex + 1}`,
+        filterVideos: batch.length,
+        caller: 'analyticsService.getVideosAnalyticsData',
+      });
+
+      // 合併基本指標數據
+      if (basicMetrics.data.rows) {
+        basicMetrics.data.rows.forEach(row => {
+          const videoId = row[0];
+          allBasicMetrics.set(videoId, {
+            views: row[1] || 0,
+            estimatedMinutesWatched: row[2] || 0,
+            averageViewDuration: row[3] || 0,
+            averageViewPercentage: row[4] || 0,
+            likes: row[5] || 0,
+            comments: row[6] || 0,
+            shares: row[7] || 0,
+            subscribersGained: row[8] || 0,
+          });
+        });
+      }
+
+      // 查詢 2: 流量來源數據（依流量來源類型）
+      const trafficSources = await youtubeAnalytics.reports.query({
+        ids: `channel==${channelId}`,
+        startDate: startDateStr,
+        endDate: endDateStr,
+        metrics: 'views',
+        dimensions: 'video,insightTrafficSourceType',
         filters: `video==${videoIds}`,
       });
       recordQuotaServer('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
-        metrics: 'cardImpressions,cardClicks,cardClickRate',
-        dimensions: 'video',
-        context: 'impressions',
-        filterVideos: videos.length,
+        metrics: 'views',
+        dimensions: 'video,insightTrafficSourceType',
+        context: `trafficSources-batch${batchIndex + 1}`,
+        filterVideos: batch.length,
         caller: 'analyticsService.getVideosAnalyticsData',
       });
-    } catch (error) {
-      console.log('[Analytics] 曝光數據不可用（正常，部分頻道沒有此數據）');
-    }
 
-    // 整合數據
-    const basicMetricsMap = new Map();
-    if (basicMetrics.data.rows) {
-      basicMetrics.data.rows.forEach(row => {
-        const videoId = row[0];
-        basicMetricsMap.set(videoId, {
-          views: row[1] || 0,
-          estimatedMinutesWatched: row[2] || 0,
-          averageViewDuration: row[3] || 0,
-          averageViewPercentage: row[4] || 0,
-          likes: row[5] || 0,
-          comments: row[6] || 0,
-          shares: row[7] || 0,
-          subscribersGained: row[8] || 0,
+      // 合併流量來源數據
+      if (trafficSources.data.rows) {
+        trafficSources.data.rows.forEach(row => {
+          const videoId = row[0];
+          const sourceType = row[1];
+          const views = row[2] || 0;
+
+          if (!allTrafficSources.has(videoId)) {
+            allTrafficSources.set(videoId, {
+              youtubeSearch: 0,
+              googleSearch: 0,
+              suggested: 0,
+              external: 0,
+              other: 0,
+            });
+          }
+
+          const sources = allTrafficSources.get(videoId);
+
+          // 判斷流量來源
+          if (sourceType === 'YT_SEARCH') {
+            sources.youtubeSearch += views;
+          } else if (sourceType === 'EXT_URL') {
+            // 缺少細節來源時，統一歸類為外部流量
+            sources.external += views;
+          } else if (sourceType === 'RELATED_VIDEO' || sourceType === 'SUGGESTED_VIDEO') {
+            sources.suggested += views;
+          } else {
+            sources.other += views;
+          }
         });
-      });
-    }
+      }
 
-    // 整合流量來源數據
-    const trafficSourceMap = new Map();
-    if (trafficSources.data.rows) {
-      trafficSources.data.rows.forEach(row => {
-        const videoId = row[0];
-        const sourceType = row[1];
-        const views = row[2] || 0;
+      // 查詢 3: 曝光與點擊數據（CTR）
+      try {
+        const impressionData = await youtubeAnalytics.reports.query({
+          ids: `channel==${channelId}`,
+          startDate: startDateStr,
+          endDate: endDateStr,
+          metrics: 'cardImpressions,cardClicks,cardClickRate',
+          dimensions: 'video',
+          filters: `video==${videoIds}`,
+        });
+        recordQuotaServer('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
+          metrics: 'cardImpressions,cardClicks,cardClickRate',
+          dimensions: 'video',
+          context: `impressions-batch${batchIndex + 1}`,
+          filterVideos: batch.length,
+          caller: 'analyticsService.getVideosAnalyticsData',
+        });
 
-        if (!trafficSourceMap.has(videoId)) {
-          trafficSourceMap.set(videoId, {
-            youtubeSearch: 0,
-            googleSearch: 0,
-            suggested: 0,
-            external: 0,
-            other: 0,
+        // 合併曝光數據
+        if (impressionData.data.rows) {
+          impressionData.data.rows.forEach(row => {
+            const videoId = row[0];
+            allImpressions.set(videoId, {
+              impressions: row[1] || 0,
+              clicks: row[2] || 0,
+              ctr: row[3] || 0,
+            });
           });
         }
-
-        const sources = trafficSourceMap.get(videoId);
-
-        // 判斷流量來源
-        if (sourceType === 'YT_SEARCH') {
-          sources.youtubeSearch += views;
-        } else if (sourceType === 'EXT_URL') {
-          // 缺少細節來源時，統一歸類為外部流量
-          sources.external += views;
-        } else if (sourceType === 'RELATED_VIDEO' || sourceType === 'SUGGESTED_VIDEO') {
-          sources.suggested += views;
-        } else {
-          sources.other += views;
-        }
-      });
+      } catch (error) {
+        console.log(`[Analytics] 批次 ${batchIndex + 1} 曝光數據不可用（正常，部分頻道沒有此數據）`);
+      }
     }
 
-    // 整合曝光數據
-    const impressionMap = new Map();
-    if (impressionData?.data.rows) {
-      impressionData.data.rows.forEach(row => {
-        const videoId = row[0];
-        impressionMap.set(videoId, {
-          impressions: row[1] || 0,
-          clicks: row[2] || 0,
-          ctr: row[3] || 0,
-        });
-      });
-    }
+    console.log(`[Analytics] ✓ 完成所有批次查詢`);
+    console.log(`[Analytics] 合併數據：${allBasicMetrics.size} 筆基本指標，${allTrafficSources.size} 筆流量來源，${allImpressions.size} 筆曝光數據`);
 
     // 組合所有數據
     videos.forEach(video => {
-      const basic = basicMetricsMap.get(video.videoId) || {};
-      const traffic = trafficSourceMap.get(video.videoId) || {
+      const basic = allBasicMetrics.get(video.videoId) || {};
+      const traffic = allTrafficSources.get(video.videoId) || {
         youtubeSearch: 0,
         googleSearch: 0,
         suggested: 0,
@@ -390,7 +409,7 @@ async function getVideosAnalyticsData(youtubeAnalytics, channelId, videos, start
       };
       const totalGoogleSearchViews = traffic.googleSearch;
       const topExternalSources = [];
-      const impression = impressionMap.get(video.videoId) || {
+      const impression = allImpressions.get(video.videoId) || {
         impressions: 0,
         clicks: 0,
         ctr: 0,
