@@ -775,8 +775,14 @@ const showVideoRankingsDoubleColumn =
       // Analytics rows: [videoId, views, avgViewPercentage, comments, likes, shares]
       const topVideoIds = analyticsRows.slice(0, 50).map((row: any[]) => row[0]);
 
+      console.log('[Dashboard] 🎯 準備獲取影片描述，影片數量:', topVideoIds.length);
+      console.log('[Dashboard] 🎯 影片 IDs:', topVideoIds.slice(0, 5).join(', '), '...');
+
       // 批量獲取影片描述
       const descriptionsMap = await fetchVideoDescriptions(topVideoIds, token);
+
+      console.log('[Dashboard] 🎯 取得的描述數量:', Object.keys(descriptionsMap).length);
+      console.log('[Dashboard] 🎯 描述內容範例:', Object.entries(descriptionsMap).slice(0, 2));
 
       // 從快取獲取影片詳情（使用統一的快取機制，只讀取一次）
       const cache = await ensureVideoCache();
@@ -1057,7 +1063,9 @@ const showVideoRankingsDoubleColumn =
 
       // 批量獲取影片描述
       const topShortsIds = data.rows.slice(0, 10).map((row: any[]) => row[0]);
+      console.log('[Dashboard] 🎯 [Shorts] 準備獲取影片描述，影片數量:', topShortsIds.length);
       const descriptionsMap = await fetchVideoDescriptions(topShortsIds, token);
+      console.log('[Dashboard] 🎯 [Shorts] 取得的描述數量:', Object.keys(descriptionsMap).length);
 
       // 從快取獲取影片詳情（使用統一的快取機制，只讀取一次）
       const cache = await ensureVideoCache();
@@ -1127,7 +1135,9 @@ const showVideoRankingsDoubleColumn =
 
       // 批量獲取影片描述
       const topRegularVideosIds = data.rows.slice(0, 10).map((row: any[]) => row[0]);
+      console.log('[Dashboard] 🎯 [Regular] 準備獲取影片描述，影片數量:', topRegularVideosIds.length);
       const descriptionsMap = await fetchVideoDescriptions(topRegularVideosIds, token);
+      console.log('[Dashboard] 🎯 [Regular] 取得的描述數量:', Object.keys(descriptionsMap).length);
 
       // 從快取獲取影片詳情（使用統一的快取機制，只讀取一次）
       const cache = await ensureVideoCache();
@@ -1869,9 +1879,14 @@ const showVideoRankingsDoubleColumn =
   // 批量獲取影片的詳細資訊（包括 description）
   const fetchVideoDescriptions = async (videoIds: string[], token: string): Promise<Record<string, string>> => {
     try {
-      if (videoIds.length === 0) return {};
+      console.log(`[Dashboard] 📝 fetchVideoDescriptions 被調用，videoIds 數量: ${videoIds.length}, token: ${token ? '有' : '無'}`);
 
-      console.log(`[Dashboard] 📝 獲取 ${videoIds.length} 支影片的描述...`);
+      if (videoIds.length === 0) {
+        console.log(`[Dashboard] ⚠️ videoIds 為空，直接返回空物件`);
+        return {};
+      }
+
+      console.log(`[Dashboard] 📝 開始獲取 ${videoIds.length} 支影片的描述...`);
 
       // YouTube API 一次最多支援 50 個影片 ID
       const chunks: string[][] = [];
