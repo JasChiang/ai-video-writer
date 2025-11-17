@@ -2424,10 +2424,27 @@ const showVideoRankingsDoubleColumn =
     const daysDiff =
       Math.ceil((currentEnd.getTime() - currentStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-    const previousEnd = new Date(currentStart);
-    previousEnd.setDate(previousEnd.getDate() - 1);
-    const previousStart = new Date(previousEnd);
-    previousStart.setDate(previousStart.getDate() - daysDiff + 1);
+    const isSameMonth =
+      currentStart.getFullYear() === currentEnd.getFullYear() &&
+      currentStart.getMonth() === currentEnd.getMonth();
+    const isFullMonthRange =
+      isSameMonth &&
+      currentStart.getDate() === 1 &&
+      currentEnd.getDate() === new Date(currentEnd.getFullYear(), currentEnd.getMonth() + 1, 0).getDate();
+
+    let previousStart: Date;
+    let previousEnd: Date;
+
+    if (isFullMonthRange) {
+      // 若使用者選擇整個月份，較前期改為上一整個月份
+      previousStart = new Date(currentStart.getFullYear(), currentStart.getMonth() - 1, 1);
+      previousEnd = new Date(currentStart.getFullYear(), currentStart.getMonth(), 0);
+    } else {
+      previousEnd = new Date(currentStart);
+      previousEnd.setDate(previousEnd.getDate() - 1);
+      previousStart = new Date(previousEnd);
+      previousStart.setDate(previousStart.getDate() - daysDiff + 1);
+    }
 
     const yearAgoStart = new Date(currentStart);
     yearAgoStart.setFullYear(yearAgoStart.getFullYear() - 1);
