@@ -649,8 +649,8 @@ const showVideoRankingsDoubleColumn =
         videosInRange: publicUploadsCount,
       });
 
-      // 策略 1: 頻道總體資料 - 使用 YouTube Data API
-      await fetchChannelStats(token);
+      // 策略 1: 頻道總體資料 - 使用 YouTube Data API（總訂閱數調整為期末值）
+      await fetchChannelStats(token, endDate);
 
       // 獲取過去 12 個月的月度數據（用於圖表）
       await fetchMonthlyData(token);
@@ -830,8 +830,8 @@ const showVideoRankingsDoubleColumn =
 
   // 策略 1: 獲取頻道等級統計（使用 OAuth + YouTube Data API）
   // 配額成本: 1 單位（channels.list with part=statistics）
-  // 注意：這些是頻道總體統計，不受時間範圍影響
-  const fetchChannelStats = async (token: string) => {
+  // 注意：總訂閱數會調整為期間結束日的值（而非當前值）
+  const fetchChannelStats = async (token: string, endDate: Date) => {
     try {
       console.log('[Dashboard] 📊 獲取頻道總體統計（使用 OAuth + YouTube Data API）...');
 
@@ -857,17 +857,36 @@ const showVideoRankingsDoubleColumn =
         throw new Error('找不到頻道統計資料');
       }
 
-      console.log('[Dashboard] ✅ 頻道統計獲取成功:', {
-        totalSubscribers: stats.subscriberCount,
-        totalViews: stats.viewCount,
-        totalVideos: stats.videoCount,
+      const currentTotalSubscribers = parseInt(stats.subscriberCount || '0');
+      const currentTotalViews = parseInt(stats.viewCount || '0');
+      const currentTotalVideos = parseInt(stats.videoCount || '0');
+
+      console.log('[Dashboard] ✅ 頻道當前統計:', {
+        currentTotalSubscribers,
+        currentTotalViews,
+        currentTotalVideos,
       });
 
-      // 只設置頻道總體統計，時間範圍內的統計由 fetchVideosInRange 設置
+      // 獲取從期間結束日到今天的訂閱數變化
+      const subscribersAfter = await fetchSubscribersAfterEndDate(endDate, token);
+      const subscribersChangeAfterEnd = subscribersAfter.subscribersGained - subscribersAfter.subscribersLost;
+
+      // 計算期間結束日的總訂閱數
+      const endPeriodTotalSubscribers = currentTotalSubscribers - subscribersChangeAfterEnd;
+
+      console.log('[Dashboard] 📊 總訂閱數調整:', {
+        當前總訂閱數: currentTotalSubscribers,
+        期後新增訂閱: subscribersAfter.subscribersGained,
+        期後取消訂閱: subscribersAfter.subscribersLost,
+        期後淨變化: subscribersChangeAfterEnd,
+        期末總訂閱數: endPeriodTotalSubscribers,
+      });
+
+      // 設置頻道統計（總訂閱數使用期末值）
       setChannelStats((prev) => ({
-        totalSubscribers: parseInt(stats.subscriberCount || '0'),
-        totalViews: parseInt(stats.viewCount || '0'),
-        totalVideos: parseInt(stats.videoCount || '0'),
+        totalSubscribers: endPeriodTotalSubscribers,
+        totalViews: currentTotalViews,
+        totalVideos: currentTotalVideos,
         viewsInRange: prev?.viewsInRange || 0,
         watchTimeHours: prev?.watchTimeHours || 0,
         subscribersGained: prev?.subscribersGained || 0,
@@ -918,6 +937,60 @@ const showVideoRankingsDoubleColumn =
     } catch (err: any) {
       console.log('[Dashboard] ⚠️ Analytics API 不可用:', err.message);
       return null;
+    }
+  };
+
+  // 獲取從期間結束日到今天的訂閱數變化（用於計算期末總訂閱數）
+  const fetchSubscribersAfterEndDate = async (endDate: Date, token: string) => {
+    try {
+      const today = new Date();
+      // 如果結束日期是今天或未來，則不需要調整
+      if (endDate >= today) {
+        console.log('[Dashboard] ℹ️  期間結束日是今天或未來，無需調整總訂閱數');
+        return { subscribersGained: 0, subscribersLost: 0 };
+      }
+
+      console.log('[Dashboard] 📊 獲取期間結束日後的訂閱數變化...');
+
+      // 使用本地時區（台灣時間）格式化日期
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      // 計算從結束日的下一天到今天
+      const dayAfterEnd = new Date(endDate);
+      dayAfterEnd.setDate(dayAfterEnd.getDate() + 1);
+
+      const formattedStartDate = formatDate(dayAfterEnd);
+      const formattedEndDate = formatDate(today);
+
+      console.log('[Dashboard] 📡 獲取期後訂閱變化，日期範圍:', {
+        startDate: formattedStartDate,
+        endDate: formattedEndDate,
+      });
+
+      const data = await queryYoutubeAnalytics({
+        ids: 'channel==MINE',
+        startDate: formattedStartDate,
+        endDate: formattedEndDate,
+        metrics: 'subscribersGained,subscribersLost',
+      });
+
+      if (data && data.rows && data.rows.length > 0) {
+        const subscribersGained = parseInt(data.rows[0][0]) || 0;
+        const subscribersLost = parseInt(data.rows[0][1]) || 0;
+        console.log('[Dashboard] ✅ 期後訂閱變化:', { subscribersGained, subscribersLost });
+        return { subscribersGained, subscribersLost };
+      } else {
+        console.log('[Dashboard] ⚠️ 無期後訂閱數據');
+        return { subscribersGained: 0, subscribersLost: 0 };
+      }
+    } catch (err: any) {
+      console.log('[Dashboard] ⚠️ 無法獲取期後訂閱變化:', err.message);
+      return { subscribersGained: 0, subscribersLost: 0 };
     }
   };
 

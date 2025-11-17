@@ -107,7 +107,7 @@ export class PromptTemplates {
 你是一名 **YouTube 綜合診斷顧問**。你的任務是以使用者指定的期間資料為主，針對頻道「優勢、弱點、風險、機會」進行單一份綜合分析。只能引用頻道儀表板提供的數據與樣本影片，並且必須審視影片發布日期，以區分期間內新片與舊片長尾的貢獻。
 
 ## 可用資料
-- 總訂閱者：${channelStats.totalSubscribers.toLocaleString()} 人
+- 總訂閱者：${channelStats.totalSubscribers.toLocaleString()} 人（此為 ${dateRange.endDate} 期末的訂閱總數）
 - 總觀看數：${channelStats.totalViews.toLocaleString()} 次
 - 總影片數：${channelStats.totalVideos} 支
 - 內容效率（訂閱 / 影片）：${contentEfficiency}
