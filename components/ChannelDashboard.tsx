@@ -728,53 +728,10 @@ const showVideoRankingsDoubleColumn =
     }
   };
 
-  const fetchShareCountsForVideos = async (videoIds: string[], startDate: Date, endDate: Date, token: string) => {
-    const formatDate = (date: Date) => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-
-    const results: Record<string, number> = {};
-    for (const videoId of videoIds) {
-      try {
-        const response = await fetch(
-          `https://youtubeanalytics.googleapis.com/v2/reports?` +
-            `ids=channel==MINE` +
-            `&startDate=${formatDate(startDate)}` +
-            `&endDate=${formatDate(endDate)}` +
-            `&metrics=shares` +
-            `&filters=video==${encodeURIComponent(videoId)}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (!response.ok) {
-          console.warn('[Dashboard] ⚠️ 無法獲取影片分享數:', videoId);
-          continue;
-        }
-
-        const data = await response.json();
-        const shares = data.rows?.[0]?.[0];
-        results[videoId] = shares ? parseInt(shares) : 0;
-      } catch (err) {
-        console.warn('[Dashboard] ⚠️ 取得分享數據失敗:', videoId, err);
-      }
-    }
-    return results;
-  };
-
   // 從 Analytics 結果獲取熱門影片
   const fetchTopVideosFromAnalytics = async (analyticsRows: any[], startDate: Date, endDate: Date, token: string) => {
     try {
-      // Analytics rows: [videoId, views, watchTime, subs]
-      const topVideoIds = analyticsRows.slice(0, 50).map((row: any[]) => row[0]);
-      const shareCounts = await fetchShareCountsForVideos(topVideoIds, startDate, endDate, token);
-
+      // Analytics rows: [videoId, views, avgViewPercentage, comments, likes, shares]
       // 從快取獲取影片詳情（使用統一的快取機制，只讀取一次）
       const cache = await ensureVideoCache();
       const allVideos = Object.values(cache);
@@ -790,7 +747,8 @@ const showVideoRankingsDoubleColumn =
         const views = parseInt(row[1]) || 0;
         const avgViewPercent = parseFloat(row[2]) || 0;
         const comments = parseInt(row[3]) || 0;
-        const shares = shareCounts[videoId] ?? 0;
+        const likes = parseInt(row[4]) || 0; // ✅ 使用時間範圍內的按讚數
+        const shares = parseInt(row[5]) || 0; // ✅ 使用時間範圍內的分享數
         const video = allVideos.find((v: any) => v.videoId === videoId || v.id === videoId);
 
         if (!video) {
@@ -801,10 +759,10 @@ const showVideoRankingsDoubleColumn =
           id: videoId,
           title: video?.title || `影片 ${videoId}`,
           viewCount: views, // Analytics API 的觀看數（時間範圍內）
-          likeCount: video?.likeCount || 0,
-          commentCount: comments || video?.commentCount || 0,
+          likeCount: likes, // ✅ Analytics API 的按讚數（時間範圍內）
+          commentCount: comments, // Analytics API 的留言數（時間範圍內）
           avgViewPercentage: avgViewPercent,
-          shareCount: shares || 0,
+          shareCount: shares, // ✅ Analytics API 的分享數（時間範圍內）
           publishedAt: video?.publishedAt || '',
           thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
         };
@@ -928,7 +886,7 @@ const showVideoRankingsDoubleColumn =
         ids: 'channel==MINE',
         startDate: formatDate(startDate),
         endDate: formatDate(endDate),
-        metrics: 'views,averageViewPercentage,comments',
+        metrics: 'views,averageViewPercentage,comments,likes,shares',
         dimensions: 'video',
         sort: '-views',
         maxResults: '50',
@@ -1039,7 +997,7 @@ const showVideoRankingsDoubleColumn =
         endDate: formatDate(endDate),
         dimensions: 'video',
         filters: 'creatorContentType==shorts',
-        metrics: 'views,averageViewPercentage,shares,comments',
+        metrics: 'views,averageViewPercentage,comments,likes,shares',
         sort: '-views',
         maxResults: '10',
       });
@@ -1055,22 +1013,24 @@ const showVideoRankingsDoubleColumn =
       const allVideos = Object.values(cache);
 
       // 匹配影片詳情
+      // Analytics rows: [videoId, views, avgViewPercentage, comments, likes, shares]
       const topShortsWithDetails = data.rows.slice(0, 10).map((row: any[]) => {
         const videoId = row[0];
         const views = parseInt(row[1]) || 0;
         const avgViewPercent = parseFloat(row[2]) || 0;
-        const shares = parseInt(row[3]) || 0;
-        const comments = parseInt(row[4]) || 0;
+        const comments = parseInt(row[3]) || 0;
+        const likes = parseInt(row[4]) || 0; // ✅ 使用時間範圍內的按讚數
+        const shares = parseInt(row[5]) || 0; // ✅ 使用時間範圍內的分享數
         const video = allVideos.find((v: any) => v.videoId === videoId || v.id === videoId);
 
         return {
           id: videoId,
           title: video?.title || `Shorts ${videoId}`,
-          viewCount: views,
-          likeCount: video?.likeCount || 0,
-          commentCount: comments || video?.commentCount || 0,
+          viewCount: views, // Analytics API 的觀看數（時間範圍內）
+          likeCount: likes, // ✅ Analytics API 的按讚數（時間範圍內）
+          commentCount: comments, // Analytics API 的留言數（時間範圍內）
           avgViewPercentage: avgViewPercent,
-          shareCount: shares || 0,
+          shareCount: shares, // ✅ Analytics API 的分享數（時間範圍內）
           publishedAt: video?.publishedAt || '',
           thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
         };
@@ -1102,7 +1062,7 @@ const showVideoRankingsDoubleColumn =
         endDate: formatDate(endDate),
         dimensions: 'video',
         filters: 'creatorContentType==videoOnDemand',
-        metrics: 'views,averageViewPercentage,shares,comments',
+        metrics: 'views,averageViewPercentage,comments,likes,shares',
         sort: '-views',
         maxResults: '10',
       });
@@ -1118,22 +1078,24 @@ const showVideoRankingsDoubleColumn =
       const allVideos = Object.values(cache);
 
       // 匹配影片詳情
+      // Analytics rows: [videoId, views, avgViewPercentage, comments, likes, shares]
       const topRegularVideosWithDetails = data.rows.slice(0, 10).map((row: any[]) => {
         const videoId = row[0];
         const views = parseInt(row[1]) || 0;
         const avgViewPercent = parseFloat(row[2]) || 0;
-        const shares = parseInt(row[3]) || 0;
-        const comments = parseInt(row[4]) || 0;
+        const comments = parseInt(row[3]) || 0;
+        const likes = parseInt(row[4]) || 0; // ✅ 使用時間範圍內的按讚數
+        const shares = parseInt(row[5]) || 0; // ✅ 使用時間範圍內的分享數
         const video = allVideos.find((v: any) => v.videoId === videoId || v.id === videoId);
 
         return {
           id: videoId,
           title: video?.title || `影片 ${videoId}`,
-          viewCount: views,
-          likeCount: video?.likeCount || 0,
-          commentCount: comments || video?.commentCount || 0,
+          viewCount: views, // Analytics API 的觀看數（時間範圍內）
+          likeCount: likes, // ✅ Analytics API 的按讚數（時間範圍內）
+          commentCount: comments, // Analytics API 的留言數（時間範圍內）
           avgViewPercentage: avgViewPercent,
-          shareCount: shares || 0,
+          shareCount: shares, // ✅ Analytics API 的分享數（時間範圍內）
           publishedAt: video?.publishedAt || '',
           thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
         };
