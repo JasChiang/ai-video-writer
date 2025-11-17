@@ -2431,6 +2431,12 @@ const showVideoRankingsDoubleColumn =
       isSameMonth &&
       currentStart.getDate() === 1 &&
       currentEnd.getDate() === new Date(currentEnd.getFullYear(), currentEnd.getMonth() + 1, 0).getDate();
+    const isFullYearRange =
+      currentStart.getFullYear() === currentEnd.getFullYear() &&
+      currentStart.getMonth() === 0 &&
+      currentStart.getDate() === 1 &&
+      currentEnd.getMonth() === 11 &&
+      currentEnd.getDate() === 31;
 
     let previousStart: Date;
     let previousEnd: Date;
@@ -2439,6 +2445,10 @@ const showVideoRankingsDoubleColumn =
       // 若使用者選擇整個月份，較前期改為上一整個月份
       previousStart = new Date(currentStart.getFullYear(), currentStart.getMonth() - 1, 1);
       previousEnd = new Date(currentStart.getFullYear(), currentStart.getMonth(), 0);
+    } else if (isFullYearRange) {
+      // 若使用者選擇整年，較前期改為上一整年
+      previousStart = new Date(currentStart.getFullYear() - 1, 0, 1);
+      previousEnd = new Date(currentStart.getFullYear() - 1, 11, 31);
     } else {
       previousEnd = new Date(currentStart);
       previousEnd.setDate(previousEnd.getDate() - 1);
