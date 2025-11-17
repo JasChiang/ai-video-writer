@@ -119,6 +119,7 @@ interface VideoItem {
   shareCount?: number;
   publishedAt: string;
   thumbnailUrl: string;
+  description?: string;
 }
 
 interface TrendTopVideo {
@@ -373,6 +374,42 @@ const showVideoRankingsDoubleColumn =
   topRegularVideos.length > 0 &&
   isTopShortsExpanded &&
   isTopRegularVideosExpanded;
+
+  // 影片卡片展開狀態
+  const [expandedVideos, setExpandedVideos] = useState<Set<string>>(new Set());
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(new Set());
+
+  // 切換影片卡片展開狀態
+  const toggleVideoExpanded = (videoId: string) => {
+    setExpandedVideos(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(videoId)) {
+        newSet.delete(videoId);
+        // 收起影片時，同時收起描述
+        setExpandedDescriptions(prevDesc => {
+          const newDescSet = new Set(prevDesc);
+          newDescSet.delete(videoId);
+          return newDescSet;
+        });
+      } else {
+        newSet.add(videoId);
+      }
+      return newSet;
+    });
+  };
+
+  // 切換描述展開狀態
+  const toggleDescriptionExpanded = (videoId: string) => {
+    setExpandedDescriptions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(videoId)) {
+        newSet.delete(videoId);
+      } else {
+        newSet.add(videoId);
+      }
+      return newSet;
+    });
+  };
 
   const analyticsAvailableDate = getAnalyticsAvailableEndDate();
   const maxSelectableDate = formatDateString(analyticsAvailableDate);
@@ -765,6 +802,7 @@ const showVideoRankingsDoubleColumn =
           shareCount: shares, // ✅ Analytics API 的分享數（時間範圍內）
           publishedAt: video?.publishedAt || '',
           thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
+          description: video?.description || '',
         };
       });
 
@@ -1033,6 +1071,7 @@ const showVideoRankingsDoubleColumn =
           shareCount: shares, // ✅ Analytics API 的分享數（時間範圍內）
           publishedAt: video?.publishedAt || '',
           thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
+          description: video?.description || '',
         };
       });
 
@@ -1098,6 +1137,7 @@ const showVideoRankingsDoubleColumn =
           shareCount: shares, // ✅ Analytics API 的分享數（時間範圍內）
           publishedAt: video?.publishedAt || '',
           thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
+          description: video?.description || '',
         };
       });
 
@@ -3521,51 +3561,107 @@ const showVideoRankingsDoubleColumn =
                 const metricDisplay = metricConfig.formatter(metricValue);
                 const MetricIcon = metricConfig.icon;
 
+                const isExpanded = expandedVideos.has(video.id);
+                const isDescExpanded = expandedDescriptions.has(video.id);
+
                 return (
                   <div
                     key={video.id}
-                    className="p-3 rounded-lg border border-red-100 hover:border-red-200 hover:bg-red-50/70 transition-colors flex flex-col items-center text-center gap-3 h-full"
+                    className="rounded-lg border border-red-100 hover:border-red-200 transition-colors flex flex-col h-full overflow-hidden"
                   >
-                    {/* 排名標籤 */}
-                    <div className="self-start text-xs font-semibold text-red-500 flex items-center gap-1">
-                      <span className="text-sm">#{index + 1}</span>
-                      <span className="text-[11px] text-gray-400">Top</span>
-                    </div>
-
-                    {/* 縮圖與主要指標 */}
-                    <div className="flex flex-col items-center w-full">
-                      <img
-                        src={video.thumbnailUrl}
-                        alt={video.title}
-                        className="w-full aspect-video object-cover rounded-lg shadow-sm"
-                      />
-                      <div className="mt-2 inline-flex items-center justify-center gap-1 text-sm text-red-600 w-full truncate">
-                        <MetricIcon className="w-4 h-4 text-red-500 flex-shrink-0" />
-                        <span className="font-semibold truncate">{metricDisplay}</span>
+                    {/* 可點擊的卡片頭部 */}
+                    <div
+                      onClick={() => toggleVideoExpanded(video.id)}
+                      className="p-3 cursor-pointer hover:bg-red-50/70 flex flex-col items-center text-center gap-3"
+                    >
+                      {/* 排名標籤 */}
+                      <div className="self-start text-xs font-semibold text-red-500 flex items-center gap-1">
+                        <span className="text-sm">#{index + 1}</span>
+                        <span className="text-[11px] text-gray-400">Top</span>
                       </div>
-                      <div className="text-xs text-gray-500">{metricConfig.label}</div>
+
+                      {/* 縮圖與主要指標 */}
+                      <div className="flex flex-col items-center w-full">
+                        <img
+                          src={video.thumbnailUrl}
+                          alt={video.title}
+                          className="w-full aspect-video object-cover rounded-lg shadow-sm"
+                        />
+                        <div className="mt-2 inline-flex items-center justify-center gap-1 text-sm text-red-600 w-full truncate">
+                          <MetricIcon className="w-4 h-4 text-red-500 flex-shrink-0" />
+                          <span className="font-semibold truncate">{metricDisplay}</span>
+                        </div>
+                        <div className="text-xs text-gray-500">{metricConfig.label}</div>
+                      </div>
+
+                      {/* 影片標題 */}
+                      <h4 className="text-sm font-medium text-gray-900 line-clamp-2 w-full leading-relaxed">
+                        {video.title}
+                      </h4>
+
+                      {/* 互動數據 */}
+                      <div className="w-full flex items-center justify-center gap-3 text-xs font-semibold flex-wrap">
+                        <span className="inline-flex items-center gap-1 text-rose-600">
+                          <ThumbsUp className="w-4 h-4 shrink-0" />
+                          {formatNumber(video.likeCount)}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-red-500">
+                          <MessageSquare className="w-4 h-4 shrink-0" />
+                          {formatNumber(video.commentCount)}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-amber-600">
+                          <Calendar className="w-4 h-4 shrink-0" />
+                          {formatDate(video.publishedAt)}
+                        </span>
+                      </div>
+
+                      {/* 展開指示器 */}
+                      <div className="text-xs text-gray-400 flex items-center gap-1">
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        <span>{isExpanded ? '收起' : '點擊展開'}</span>
+                      </div>
                     </div>
 
-                    {/* 影片標題 */}
-                    <h4 className="text-sm font-medium text-gray-900 line-clamp-2 w-full leading-relaxed">
-                      {video.title}
-                    </h4>
+                    {/* 展開內容 */}
+                    {isExpanded && (
+                      <div className="border-t border-red-100 p-3 space-y-3 bg-red-50/30">
+                        {/* YouTube 影片播放器 */}
+                        <div className="w-full">
+                          <iframe
+                            className="w-full aspect-video rounded-lg"
+                            src={`https://www.youtube.com/embed/${video.id}`}
+                            title={video.title}
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        </div>
 
-                    {/* 互動數據 */}
-                    <div className="w-full flex items-center justify-center gap-3 text-xs font-semibold flex-wrap">
-                      <span className="inline-flex items-center gap-1 text-rose-600">
-                        <ThumbsUp className="w-4 h-4 shrink-0" />
-                        {formatNumber(video.likeCount)}
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-red-500">
-                        <MessageSquare className="w-4 h-4 shrink-0" />
-                        {formatNumber(video.commentCount)}
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-amber-600">
-                        <Calendar className="w-4 h-4 shrink-0" />
-                        {formatDate(video.publishedAt)}
-                      </span>
-                    </div>
+                        {/* 影片說明 */}
+                        {video.description && (
+                          <div className="text-left">
+                            <h5 className="text-xs font-semibold text-gray-700 mb-1">影片說明</h5>
+                            <div
+                              className={`text-xs text-gray-600 whitespace-pre-wrap ${
+                                isDescExpanded ? '' : 'line-clamp-3'
+                              }`}
+                            >
+                              {video.description}
+                            </div>
+                            {video.description.split('\n').length > 3 || video.description.length > 150 ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleDescriptionExpanded(video.id);
+                                }}
+                                className="text-xs text-red-600 hover:text-red-700 font-medium mt-1"
+                              >
+                                {isDescExpanded ? '收起' : '展開更多'}
+                              </button>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -3620,12 +3716,18 @@ const showVideoRankingsDoubleColumn =
                       ];
                       const rankBg = isTopThree ? rankColors[index] : 'from-red-500 to-rose-600';
 
+                      const isExpanded = expandedVideos.has(video.id);
+                      const isDescExpanded = expandedDescriptions.has(video.id);
+
                       return (
                         <div
                           key={video.id}
                           className="group relative overflow-hidden rounded-xl border border-red-100/50 bg-gradient-to-br from-white to-red-50/30 hover:border-red-200 hover:shadow-lg hover:shadow-red-100/50 transition-all duration-300"
                         >
-                          <div className="flex items-start gap-3 p-3">
+                          <div
+                            className="flex items-start gap-3 p-3 cursor-pointer"
+                            onClick={() => toggleVideoExpanded(video.id)}
+                          >
                             {/* 排名徽章 */}
                             <div className="flex-shrink-0 relative">
                               <div
@@ -3690,11 +3792,60 @@ const showVideoRankingsDoubleColumn =
                                   </div>
                                 )}
                               </div>
+
+                              {/* 展開指示器 */}
+                              <div className="text-xs text-gray-400 flex items-center gap-1 mt-2">
+                                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                <span>{isExpanded ? '收起' : '點擊展開'}</span>
+                              </div>
                             </div>
                           </div>
 
+                          {/* 展開內容 */}
+                          {isExpanded && (
+                            <div className="border-t border-red-200/50 p-3 space-y-3 bg-red-50/50">
+                              {/* YouTube Shorts 播放器 */}
+                              <div className="w-full flex justify-center">
+                                <div className="w-full max-w-xs">
+                                  <iframe
+                                    className="w-full aspect-[9/16] rounded-lg"
+                                    src={`https://www.youtube.com/embed/${video.id}`}
+                                    title={video.title}
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                  />
+                                </div>
+                              </div>
+
+                              {/* 影片說明 */}
+                              {video.description && (
+                                <div className="text-left">
+                                  <h5 className="text-xs font-semibold text-gray-700 mb-1">影片說明</h5>
+                                  <div
+                                    className={`text-xs text-gray-600 whitespace-pre-wrap ${
+                                      isDescExpanded ? '' : 'line-clamp-3'
+                                    }`}
+                                  >
+                                    {video.description}
+                                  </div>
+                                  {video.description.split('\n').length > 3 || video.description.length > 150 ? (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleDescriptionExpanded(video.id);
+                                      }}
+                                      className="text-xs text-red-600 hover:text-red-700 font-medium mt-1"
+                                    >
+                                      {isDescExpanded ? '收起' : '展開更多'}
+                                    </button>
+                                  ) : null}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {/* 底部裝飾條 - 僅前三名 */}
-                          {isTopThree && (
+                          {isTopThree && !isExpanded && (
                             <div className={`h-1 w-full bg-gradient-to-r ${rankBg} opacity-60`} />
                           )}
                         </div>
@@ -3743,12 +3894,18 @@ const showVideoRankingsDoubleColumn =
                       ];
                       const rankBg = isTopThree ? rankColors[index] : 'from-amber-500 to-orange-600';
 
+                      const isExpanded = expandedVideos.has(video.id);
+                      const isDescExpanded = expandedDescriptions.has(video.id);
+
                       return (
                         <div
                           key={video.id}
                           className="group relative overflow-hidden rounded-xl border border-amber-100/50 bg-gradient-to-br from-white to-amber-50/30 hover:border-amber-200 hover:shadow-lg hover:shadow-amber-100/50 transition-all duration-300"
                         >
-                          <div className="flex items-start gap-3 p-3">
+                          <div
+                            className="flex items-start gap-3 p-3 cursor-pointer"
+                            onClick={() => toggleVideoExpanded(video.id)}
+                          >
                             {/* 排名徽章 */}
                             <div className="flex-shrink-0 relative">
                               <div
@@ -3813,11 +3970,58 @@ const showVideoRankingsDoubleColumn =
                                   </div>
                                 )}
                               </div>
+
+                              {/* 展開指示器 */}
+                              <div className="text-xs text-gray-400 flex items-center gap-1 mt-2">
+                                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                <span>{isExpanded ? '收起' : '點擊展開'}</span>
+                              </div>
                             </div>
                           </div>
 
+                          {/* 展開內容 */}
+                          {isExpanded && (
+                            <div className="border-t border-amber-200/50 p-3 space-y-3 bg-amber-50/50">
+                              {/* YouTube 影片播放器 */}
+                              <div className="w-full">
+                                <iframe
+                                  className="w-full aspect-video rounded-lg"
+                                  src={`https://www.youtube.com/embed/${video.id}`}
+                                  title={video.title}
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                  allowFullScreen
+                                />
+                              </div>
+
+                              {/* 影片說明 */}
+                              {video.description && (
+                                <div className="text-left">
+                                  <h5 className="text-xs font-semibold text-gray-700 mb-1">影片說明</h5>
+                                  <div
+                                    className={`text-xs text-gray-600 whitespace-pre-wrap ${
+                                      isDescExpanded ? '' : 'line-clamp-3'
+                                    }`}
+                                  >
+                                    {video.description}
+                                  </div>
+                                  {video.description.split('\n').length > 3 || video.description.length > 150 ? (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleDescriptionExpanded(video.id);
+                                      }}
+                                      className="text-xs text-amber-600 hover:text-amber-700 font-medium mt-1"
+                                    >
+                                      {isDescExpanded ? '收起' : '展開更多'}
+                                    </button>
+                                  ) : null}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {/* 底部裝飾條 - 僅前三名 */}
-                          {isTopThree && (
+                          {isTopThree && !isExpanded && (
                             <div className={`h-1 w-full bg-gradient-to-r ${rankBg} opacity-60`} />
                           )}
                         </div>
