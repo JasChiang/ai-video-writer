@@ -2661,6 +2661,136 @@ app.post('/api/analyze-keywords', async (req, res) => {
 });
 
 /**
+ * AI 關鍵字報表分析（SSE 串流版）
+ * POST /api/analyze-keywords/stream
+ */
+app.post('/api/analyze-keywords/stream', async (req, res) => {
+  const {
+    keywordGroups,
+    dateColumns,
+    analyticsData,
+    selectedMetrics,
+    modelType = 'gemini-2.5-flash',
+  } = req.body;
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  const sendEvent = (event, data) => {
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  const heartbeat = setInterval(() => {
+    sendEvent('ping', {});
+  }, 25000);
+
+  const cleanup = () => {
+    clearInterval(heartbeat);
+  };
+
+  const abortController = new AbortController();
+  req.on('close', () => {
+    abortController.abort();
+    cleanup();
+  });
+
+  const failAndEnd = (message) => {
+    sendEvent('error', { message });
+    sendEvent('end', { success: false });
+    cleanup();
+    res.end();
+  };
+
+  try {
+    if (!keywordGroups || keywordGroups.length === 0) {
+      return failAndEnd('請提供至少一個關鍵字組合');
+    }
+    if (!dateColumns || dateColumns.length === 0) {
+      return failAndEnd('請提供至少一個日期範圍');
+    }
+    if (!analyticsData) {
+      return failAndEnd('請提供分析數據');
+    }
+
+    sendEvent('stage', { id: 'prepare', status: 'active' });
+
+    const prompt = PromptTemplates.buildContentUnitPrompt({
+      keywordGroups,
+      dateColumns,
+      analyticsData,
+      selectedMetrics: selectedMetrics || ['views', 'likes', 'comments'],
+    });
+
+    sendEvent('stage', { id: 'prepare', status: 'completed' });
+    sendEvent('stage', { id: 'request', status: 'active' });
+
+    let finalResult = null;
+
+    await aiManager.streamAnalyze(
+      modelType,
+      {
+        prompt,
+        temperature: 0.7,
+        maxTokens: getMaxTokensForModel(modelType),
+        abortSignal: abortController.signal,
+      },
+      {
+        onChunk: (text) => {
+          if (text) {
+            sendEvent('chunk', { text });
+          }
+        },
+        onComplete: (result) => {
+          finalResult = result;
+        },
+      }
+    );
+
+    sendEvent('stage', { id: 'request', status: 'completed' });
+    sendEvent('stage', { id: 'render', status: 'active' });
+
+    if (!finalResult) {
+      throw new Error('分析結果為空');
+    }
+
+    sendEvent('complete', {
+      text: finalResult.text,
+      metadata: {
+        model: finalResult.model,
+        provider: finalResult.provider,
+        usage: finalResult.usage,
+        cost: finalResult.cost,
+        keywordGroupCount: keywordGroups.length,
+        dateColumnCount: dateColumns.length,
+        selectedMetricsCount: selectedMetrics?.length || 0,
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    sendEvent('stage', { id: 'render', status: 'completed' });
+    sendEvent('end', { success: true });
+    cleanup();
+    res.end();
+  } catch (error) {
+    const isAbortError =
+      error.name === 'AbortError' ||
+      (typeof error.message === 'string' && error.message.includes('串流'));
+
+    if (!isAbortError) {
+      console.error('[Keyword Analysis SSE] ❌ 串流分析失敗:', error);
+      failAndEnd(error.message || '串流分析失敗');
+    } else {
+      console.warn('[Keyword Analysis SSE] 串流被中止');
+      cleanup();
+      res.end();
+    }
+  }
+});
+
+/**
  * 頻道數據聚合（支援關鍵字過濾和多個日期範圍）
  * POST /api/channel-analytics/aggregate
  */

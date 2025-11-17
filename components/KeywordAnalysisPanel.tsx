@@ -1,7 +1,37 @@
-import React, { useState, useEffect } from 'react';
-import { Sparkles, Settings, Zap, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Sparkles, Settings, Zap, ChevronDown, ChevronUp, Loader2, CheckCircle2, Clock, AlertTriangle } from 'lucide-react';
 import { AIModelSelector, type AIModel } from './AIModelSelector';
 import { AnalysisMarkdown } from './AnalysisMarkdown';
+
+type StageStatus = 'pending' | 'active' | 'completed' | 'error';
+
+interface AnalysisStageDefinition {
+  id: string;
+  label: string;
+  description: string;
+}
+
+interface AnalysisStage extends AnalysisStageDefinition {
+  status: StageStatus;
+}
+
+const KEYWORD_ANALYSIS_STAGE_TEMPLATE: AnalysisStageDefinition[] = [
+  {
+    id: 'prepare',
+    label: '整理報表資料',
+    description: '彙整關鍵字組合與時間段數據',
+  },
+  {
+    id: 'request',
+    label: 'AI 生成中',
+    description: '向模型發送請求並等待回覆',
+  },
+  {
+    id: 'render',
+    label: '整理分析報告',
+    description: '套用 Markdown 與建議列表',
+  },
+];
 
 interface KeywordGroup {
   id: string;
@@ -41,6 +71,51 @@ export function KeywordAnalysisPanel({
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
+  const activeStreamController = useRef<AbortController | null>(null);
+  const [analysisStages, setAnalysisStages] = useState<AnalysisStage[]>(
+    () =>
+      KEYWORD_ANALYSIS_STAGE_TEMPLATE.map((stage) => ({
+        ...stage,
+        status: 'pending',
+      }))
+  );
+
+  const resetAnalysisStages = useCallback(() => {
+    setAnalysisStages(
+      KEYWORD_ANALYSIS_STAGE_TEMPLATE.map((stage, index) => ({
+        ...stage,
+        status: index === 0 ? 'active' : 'pending',
+      }))
+    );
+  }, []);
+
+  const setStageStatus = useCallback((stageId: string, status: StageStatus) => {
+    setAnalysisStages((prev) =>
+      prev.map((stage) =>
+        stage.id === stageId
+          ? {
+              ...stage,
+              status,
+            }
+          : stage
+      )
+    );
+  }, []);
+
+  const markActiveStageAsError = useCallback(() => {
+    setAnalysisStages((prev) =>
+      prev.map((stage) =>
+        stage.status === 'active'
+          ? {
+              ...stage,
+              status: 'error',
+            }
+          : stage
+      )
+    );
+  }, []);
 
   // 載入可用模型
   useEffect(() => {
@@ -68,23 +143,17 @@ export function KeywordAnalysisPanel({
     }
   }, [modelSelectionMode]);
 
-  // 處理分析
-  const handleAnalyze = async () => {
-    if (keywordGroups.length === 0) {
-      setAnalysisError('沒有可分析的關鍵字組合');
-      return;
-    }
+  useEffect(() => {
+    return () => {
+      activeStreamController.current?.abort();
+    };
+  }, []);
 
-    setIsAnalyzing(true);
-    setAnalysisResult(null);
-    setAnalysisError(null);
-
-    try {
-      const modelToUse = modelSelectionMode === 'auto' ? recommendedModel : selectedModel;
-
-      if (!modelToUse) {
-        throw new Error('請選擇一個 AI 模型');
-      }
+  const runLegacyAnalysis = useCallback(
+    async (modelToUse: string) => {
+      resetAnalysisStages();
+      setStageStatus('prepare', 'completed');
+      setStageStatus('request', 'active');
 
       const response = await fetch('/api/analyze-keywords', {
         method: 'POST',
@@ -100,18 +169,207 @@ export function KeywordAnalysisPanel({
 
       const data = await response.json();
 
-      if (data.success) {
-        setAnalysisResult({
-          text: data.analysis,
-          metadata: data.metadata,
-        });
-      } else {
+      if (!response.ok || !data.success) {
         throw new Error(data.error || '分析失敗');
       }
+
+      setStageStatus('request', 'completed');
+      setStageStatus('render', 'active');
+      setAnalysisResult({
+        text: data.analysis,
+        metadata: data.metadata,
+      });
+      setStageStatus('render', 'completed');
+    },
+    [keywordGroups, dateColumns, analyticsData, selectedMetrics, resetAnalysisStages]
+  );
+
+  // 處理分析
+  const handleAnalyze = async () => {
+    if (keywordGroups.length === 0) {
+      setAnalysisError('沒有可分析的關鍵字組合');
+      return;
+    }
+
+    const modelToUse = modelSelectionMode === 'auto' ? recommendedModel : selectedModel;
+    if (!modelToUse) {
+      setAnalysisError('請選擇一個 AI 模型');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setAnalysisResult(null);
+    setAnalysisError(null);
+    setStreamingText('');
+    setIsStreaming(false);
+    resetAnalysisStages();
+
+    let currentController: AbortController | null = null;
+    let shouldFallbackToLegacy = false;
+
+    try {
+      const controller = new AbortController();
+      currentController = controller;
+      if (activeStreamController.current) {
+        activeStreamController.current.abort();
+      }
+      activeStreamController.current = controller;
+
+      const response = await fetch('/api/analyze-keywords/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keywordGroups,
+          dateColumns,
+          analyticsData,
+          selectedMetrics,
+          modelType: modelToUse,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok || !response.body) {
+        if (response.status === 404) {
+          shouldFallbackToLegacy = true;
+          throw new Error('STREAM_NOT_AVAILABLE');
+        }
+        throw new Error('無法建立串流連線');
+      }
+
+      setIsStreaming(true);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let streamActive = true;
+      let streamCompleted = false;
+      let streamErrored = false;
+
+      const parseSseEvent = (rawEvent: string) => {
+        const lines = rawEvent.split('\n');
+        let eventName = 'message';
+        const dataLines: string[] = [];
+
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line) continue;
+          if (line.startsWith('event:')) {
+            eventName = line.slice(6).trim();
+          } else if (line.startsWith('data:')) {
+            dataLines.push(line.slice(5).trim());
+          }
+        }
+
+        return {
+          event: eventName,
+          data: dataLines.join('\n'),
+        };
+      };
+
+      const handleServerEvent = (eventName: string, payload: any) => {
+        switch (eventName) {
+          case 'stage':
+            if (payload?.id && payload?.status) {
+              setStageStatus(payload.id, payload.status as StageStatus);
+            }
+            break;
+          case 'chunk':
+            if (payload?.text) {
+              setStreamingText((prev) => prev + payload.text);
+            }
+            break;
+          case 'complete':
+            streamCompleted = true;
+            setAnalysisResult({
+              text: payload.text,
+              metadata: payload.metadata || null,
+            });
+            setStreamingText('');
+            setIsStreaming(false);
+            break;
+          case 'error':
+            setAnalysisError(payload?.message || '串流分析失敗');
+            markActiveStageAsError();
+            setIsStreaming(false);
+            streamActive = false;
+            streamErrored = true;
+            break;
+          case 'end':
+            streamActive = false;
+            break;
+          default:
+            break;
+        }
+      };
+
+      while (streamActive) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        buffer = buffer.replace(/\r/g, '\n');
+
+        let separatorIndex;
+        while ((separatorIndex = buffer.indexOf('\n\n')) !== -1) {
+          const rawEvent = buffer.slice(0, separatorIndex);
+          buffer = buffer.slice(separatorIndex + 2);
+          if (!rawEvent.trim()) continue;
+          const { event, data } = parseSseEvent(rawEvent);
+          if (!data) continue;
+          let parsed;
+          try {
+            parsed = JSON.parse(data);
+          } catch (err) {
+            console.error('無法解析 SSE 資料:', err);
+            continue;
+          }
+          handleServerEvent(event, parsed);
+        }
+      }
+
+      reader.releaseLock();
+      activeStreamController.current = null;
+      setIsStreaming(false);
+
+      if (!streamCompleted && !streamErrored) {
+        setAnalysisError('串流中斷，未收到完整回應');
+        markActiveStageAsError();
+      }
     } catch (err: any) {
-      console.error('Keyword analysis error:', err);
-      setAnalysisError(err.message || '分析過程中發生錯誤');
+      if (err?.name === 'AbortError') {
+        setIsStreaming(false);
+        if (activeStreamController.current === currentController) {
+          activeStreamController.current = null;
+        }
+        setIsAnalyzing(false);
+        return;
+      }
+
+      if (err?.message === 'STREAM_NOT_AVAILABLE') {
+        shouldFallbackToLegacy = true;
+      } else if (!shouldFallbackToLegacy) {
+        console.error('Keyword analysis error:', err);
+        setAnalysisError(err.message || '分析過程中發生錯誤');
+        markActiveStageAsError();
+        setIsStreaming(false);
+        if (activeStreamController.current === currentController) {
+          activeStreamController.current?.abort();
+          activeStreamController.current = null;
+        }
+      }
     } finally {
+      if (shouldFallbackToLegacy) {
+        setIsStreaming(false);
+        setStreamingText('');
+        activeStreamController.current?.abort();
+        activeStreamController.current = null;
+        try {
+          await runLegacyAnalysis(modelToUse);
+        } catch (legacyErr: any) {
+          console.error('Keyword analysis error:', legacyErr);
+          setAnalysisError(legacyErr.message || '分析過程中發生錯誤');
+          markActiveStageAsError();
+        }
+      }
+
       setIsAnalyzing(false);
     }
   };
@@ -123,6 +381,35 @@ export function KeywordAnalysisPanel({
   };
 
   const recommendedModelInfo = getRecommendedModelInfo();
+  const shouldShowStageTracker = analysisStages.some((stage) => stage.status !== 'pending');
+  const getStageStyle = (status: StageStatus) => {
+    switch (status) {
+      case 'active':
+        return {
+          border: 'border-blue-400',
+          text: 'text-blue-700',
+          icon: <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />,
+        };
+      case 'completed':
+        return {
+          border: 'border-green-400',
+          text: 'text-green-700',
+          icon: <CheckCircle2 className="w-5 h-5 text-green-600" />,
+        };
+      case 'error':
+        return {
+          border: 'border-red-400',
+          text: 'text-red-700',
+          icon: <AlertTriangle className="w-5 h-5 text-red-600" />,
+        };
+      default:
+        return {
+          border: 'border-gray-200',
+          text: 'text-gray-600',
+          icon: <Clock className="w-5 h-5 text-gray-400" />,
+        };
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -462,6 +749,47 @@ export function KeywordAnalysisPanel({
                 </span>
               </div>
             )}
+
+          {shouldShowStageTracker && (
+            <div className="mt-6">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                <p className="text-sm font-semibold text-gray-700">分析進度</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                {analysisStages.map((stage) => {
+                  const style = getStageStyle(stage.status);
+                  return (
+                    <div
+                      key={stage.id}
+                      className={`rounded-xl border ${style.border} bg-white/80 backdrop-blur px-4 py-3 shadow-sm`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        {style.icon}
+                        <span className={`text-sm font-semibold ${style.text}`}>{stage.label}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 leading-relaxed">{stage.description}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {isStreaming && (
+            <div className="mt-6 p-5 bg-gray-900 text-gray-100 rounded-2xl border border-gray-700 shadow-inner">
+              <div className="flex items-center gap-2 mb-3">
+                <Loader2 className="w-5 h-5 animate-spin text-red-400" />
+                <p className="text-sm font-semibold tracking-wide">AI 正在撰寫報告...</p>
+              </div>
+              <div className="bg-gray-800 rounded-xl p-4 max-h-64 overflow-y-auto font-mono text-sm whitespace-pre-wrap leading-relaxed">
+                {streamingText || '等待模型輸出...'}
+              </div>
+              <p className="mt-2 text-xs text-gray-400">
+                此區為即時輸出，最終會以完整 Markdown 呈現。
+              </p>
+            </div>
+          )}
 
           {/* 錯誤提示 - YouTube 風格 */}
           {analysisError && (
