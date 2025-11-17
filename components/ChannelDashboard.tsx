@@ -2879,6 +2879,19 @@ const showVideoRankingsDoubleColumn =
                 </div>
               </div>
 
+              {/* 總訂閱數 */}
+              <div className="mb-3 pb-3 border-b border-gray-200">
+                <div className="flex items-center gap-2">
+                  <div className="text-sm text-gray-600 font-medium">總訂閱數</div>
+                  <div className="text-xl font-bold text-gray-900">
+                    {formatNumber(channelStats.totalSubscribers)}
+                  </div>
+                </div>
+                <div className="text-[10px] text-gray-500 mt-0.5">
+                  {formatFullNumber(channelStats.totalSubscribers)} 位訂閱者
+                </div>
+              </div>
+
               {/* 比較數據 */}
               {subscribersComparison && (
                 <div className="flex gap-2.5 text-[10px] mt-3 pt-3 border-t border-gray-200">
