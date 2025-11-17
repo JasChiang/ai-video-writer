@@ -278,7 +278,7 @@ ${analytics && (analytics.trafficSources || analytics.searchTerms || analytics.g
 （根據數據洞察，建議如何重新分配製作資源）
 
 ## 🚀 關鍵行動項目
-（列出 3-5 個具體、可執行的優化建議）
+（列出 3-5 個具體、可執行的改善建議）
 
 ---
 
