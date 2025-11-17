@@ -769,6 +769,11 @@ const showVideoRankingsDoubleColumn =
   const fetchTopVideosFromAnalytics = async (analyticsRows: any[], startDate: Date, endDate: Date, token: string) => {
     try {
       // Analytics rows: [videoId, views, avgViewPercentage, comments, likes, shares]
+      const topVideoIds = analyticsRows.slice(0, 50).map((row: any[]) => row[0]);
+
+      // 批量獲取影片描述
+      const descriptionsMap = await fetchVideoDescriptions(topVideoIds, token);
+
       // 從快取獲取影片詳情（使用統一的快取機制，只讀取一次）
       const cache = await ensureVideoCache();
       const allVideos = Object.values(cache);
@@ -802,7 +807,7 @@ const showVideoRankingsDoubleColumn =
           shareCount: shares, // ✅ Analytics API 的分享數（時間範圍內）
           publishedAt: video?.publishedAt || '',
           thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
-          description: video?.description || '',
+          description: descriptionsMap[videoId] || '',
         };
       });
 
@@ -1046,6 +1051,10 @@ const showVideoRankingsDoubleColumn =
         return;
       }
 
+      // 批量獲取影片描述
+      const topShortsIds = data.rows.slice(0, 10).map((row: any[]) => row[0]);
+      const descriptionsMap = await fetchVideoDescriptions(topShortsIds, token);
+
       // 從快取獲取影片詳情（使用統一的快取機制，只讀取一次）
       const cache = await ensureVideoCache();
       const allVideos = Object.values(cache);
@@ -1071,7 +1080,7 @@ const showVideoRankingsDoubleColumn =
           shareCount: shares, // ✅ Analytics API 的分享數（時間範圍內）
           publishedAt: video?.publishedAt || '',
           thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
-          description: video?.description || '',
+          description: descriptionsMap[videoId] || '',
         };
       });
 
@@ -1112,6 +1121,10 @@ const showVideoRankingsDoubleColumn =
         return;
       }
 
+      // 批量獲取影片描述
+      const topRegularVideosIds = data.rows.slice(0, 10).map((row: any[]) => row[0]);
+      const descriptionsMap = await fetchVideoDescriptions(topRegularVideosIds, token);
+
       // 從快取獲取影片詳情（使用統一的快取機制，只讀取一次）
       const cache = await ensureVideoCache();
       const allVideos = Object.values(cache);
@@ -1137,7 +1150,7 @@ const showVideoRankingsDoubleColumn =
           shareCount: shares, // ✅ Analytics API 的分享數（時間範圍內）
           publishedAt: video?.publishedAt || '',
           thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
-          description: video?.description || '',
+          description: descriptionsMap[videoId] || '',
         };
       });
 
@@ -1847,6 +1860,52 @@ const showVideoRankingsDoubleColumn =
       videoCacheRef.current = {};
     }
     return videoCacheRef.current;
+  };
+
+  // 批量獲取影片的詳細資訊（包括 description）
+  const fetchVideoDescriptions = async (videoIds: string[], token: string): Promise<Record<string, string>> => {
+    try {
+      if (videoIds.length === 0) return {};
+
+      console.log(`[Dashboard] 📝 獲取 ${videoIds.length} 支影片的描述...`);
+
+      // YouTube API 一次最多支援 50 個影片 ID
+      const chunks: string[][] = [];
+      for (let i = 0; i < videoIds.length; i += 50) {
+        chunks.push(videoIds.slice(i, i + 50));
+      }
+
+      const descriptionsMap: Record<string, string> = {};
+
+      for (const chunk of chunks) {
+        const response = await fetch(
+          `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${chunk.join(',')}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          console.warn('[Dashboard] ⚠️ 獲取影片描述失敗');
+          continue;
+        }
+
+        const data = await response.json();
+        if (data.items && Array.isArray(data.items)) {
+          data.items.forEach((item: any) => {
+            descriptionsMap[item.id] = item.snippet?.description || '';
+          });
+        }
+      }
+
+      console.log(`[Dashboard] ✅ 獲取了 ${Object.keys(descriptionsMap).length} 支影片的描述`);
+      return descriptionsMap;
+    } catch (err: any) {
+      console.error('[Dashboard] ⚠️ 獲取影片描述失敗:', err.message);
+      return {};
+    }
   };
 
   // 獲取趨勢數據
