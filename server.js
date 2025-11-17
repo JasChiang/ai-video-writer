@@ -543,6 +543,78 @@ app.get('/api/notion/oauth/callback', async (req, res) => {
 });
 
 /**
+ * 發佈文章到 Notion 資料庫
+ * POST /api/notion/publish
+ */
+app.post('/api/notion/publish', async (req, res) => {
+  try {
+    const {
+      notionToken,
+      databaseId,
+      title,
+      article,
+      seoDescription,
+      videoUrl,
+      titleProperty,
+      screenshotPlan,
+      imageUrls,
+    } = req.body || {};
+
+    const resolvedToken = notionToken || process.env.NOTION_API_TOKEN;
+    const resolvedDatabaseId = databaseId || process.env.NOTION_DATABASE_ID;
+    const resolvedTitleProperty =
+      titleProperty || process.env.NOTION_TITLE_PROPERTY || 'Name';
+
+    if (!resolvedToken) {
+      return res.status(400).json({
+        error: '缺少 Notion 金鑰。請在請求中提供 notionToken 或設定 NOTION_API_TOKEN 環境變數。',
+      });
+    }
+
+    if (!resolvedDatabaseId) {
+      return res.status(400).json({
+        error: '缺少 Notion 資料庫 ID。請在請求中提供 databaseId 或設定 NOTION_DATABASE_ID 環境變數。',
+      });
+    }
+
+    if (typeof title !== 'string' || title.trim().length === 0) {
+      return res.status(400).json({ error: '缺少 Notion 頁面標題。' });
+    }
+
+    if (typeof article !== 'string' || article.trim().length === 0) {
+      return res.status(400).json({ error: '缺少文章內容。' });
+    }
+
+    console.log('[Notion] 正在發佈文章到資料庫:', resolvedDatabaseId);
+
+    const result = await publishArticleToNotion({
+      notionToken: resolvedToken,
+      databaseId: resolvedDatabaseId,
+      title: title.trim(),
+      article,
+      seoDescription: typeof seoDescription === 'string' ? seoDescription : undefined,
+      videoUrl: typeof videoUrl === 'string' ? videoUrl : undefined,
+      titleProperty: resolvedTitleProperty,
+      screenshotPlan: Array.isArray(screenshotPlan) ? screenshotPlan : undefined,
+      imageUrls: Array.isArray(imageUrls) ? imageUrls : undefined,
+    });
+
+    console.log('[Notion] 發佈成功，頁面 ID:', result.pageId);
+
+    res.json({
+      success: true,
+      pageId: result.pageId,
+      url: result.url,
+    });
+  } catch (error) {
+    console.error('[Notion] 發佈失敗:', error);
+    res.status(500).json({
+      error: error.message || 'Notion 發佈失敗，請稍後再試。',
+    });
+  }
+});
+
+/**
  * Notion OAuth 回調處理 (POST - 舊版相容)
  * POST /api/notion/oauth/callback
  */
