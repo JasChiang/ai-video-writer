@@ -4813,7 +4813,8 @@ const showVideoRankingsDoubleColumn =
 
                       {/* 第一名（中間最高） */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="w-full bg-gradient-to-b from-yellow-50 to-yellow-100 rounded-2xl p-5 border-2 border-yellow-400 shadow-2xl overflow-hidden flex flex-col">
+                        <div className="w-full bg-gradient-to-b from-yellow-50 to-yellow-100 rounded-2xl p-5 border-2 border-yellow-400 shadow-2xl overflow-hidden flex flex-col cursor-pointer hover:shadow-3xl transition-shadow"
+                          onClick={() => toggleVideoExpanded(`subscriber-${subscriberSources[0].videoId}`)}>
                           <div className="text-center mb-3">
                             <div className="text-3xl font-bold text-yellow-700">第 1 名</div>
                             <div className="text-xs text-yellow-600 flex items-center justify-center gap-1">
@@ -4843,12 +4844,56 @@ const showVideoRankingsDoubleColumn =
                             </div>
                             <div className="text-xs text-gray-600">新訂閱</div>
                           </div>
+                          {/* 展開指示器 */}
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-full mt-3 self-center">
+                            {expandedVideos.has(`subscriber-${subscriberSources[0].videoId}`) ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            <span>{expandedVideos.has(`subscriber-${subscriberSources[0].videoId}`) ? '收起' : '點擊展開'}</span>
+                          </div>
                         </div>
+                        {/* 展開內容 */}
+                        {expandedVideos.has(`subscriber-${subscriberSources[0].videoId}`) && (
+                          <div className="w-full mt-4 p-4 bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl shadow-lg space-y-4">
+                            <div className="w-full">
+                              <iframe
+                                className="w-full aspect-video rounded-lg"
+                                src={`https://www.youtube.com/embed/${subscriberSources[0].videoId}`}
+                                title={subscriberSources[0].videoTitle}
+                                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                              />
+                            </div>
+                            {subscriberSources[0].description ? (
+                              <div className="space-y-2">
+                                <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
+                                <div className="bg-gray-100 rounded-lg p-3">
+                                  <div className={`text-xs text-gray-800 whitespace-pre-wrap leading-relaxed ${expandedDescriptions.has(`subscriber-${subscriberSources[0].videoId}`) ? '' : 'line-clamp-3'}`}>
+                                    {subscriberSources[0].description}
+                                  </div>
+                                </div>
+                                {subscriberSources[0].description.split('\n').length > 3 || subscriberSources[0].description.length > 150 ? (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); toggleDescriptionExpanded(`subscriber-${subscriberSources[0].videoId}`); }}
+                                    className="inline-block px-3 py-1.5 text-xs text-red-600 hover:text-red-700 font-medium bg-red-50 hover:bg-red-100 rounded-full transition-colors">
+                                    {expandedDescriptions.has(`subscriber-${subscriberSources[0].videoId}`) ? '收起影片說明' : '展開影片說明'}
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
+                                <div className="bg-gray-100 rounded-lg p-3">
+                                  <p className="text-xs text-gray-500 italic">此影片暫無說明</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* 第三名 */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="w-full bg-gradient-to-b from-orange-50 to-orange-100 rounded-2xl p-4 border-2 border-orange-300 shadow-lg overflow-hidden flex flex-col">
+                        <div className="w-full bg-gradient-to-b from-orange-50 to-orange-100 rounded-2xl p-4 border-2 border-orange-300 shadow-lg overflow-hidden flex flex-col cursor-pointer hover:shadow-xl transition-shadow"
+                          onClick={() => toggleVideoExpanded(`subscriber-${subscriberSources[2].videoId}`)}>
                           <div className="text-center mb-3">
                             <div className="text-2xl font-bold text-orange-600">第 3 名</div>
                           </div>
@@ -4874,7 +4919,50 @@ const showVideoRankingsDoubleColumn =
                             </div>
                             <div className="text-xs text-gray-600">新訂閱</div>
                           </div>
+                          {/* 展開指示器 */}
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-full mt-3 self-center">
+                            {expandedVideos.has(`subscriber-${subscriberSources[2].videoId}`) ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            <span>{expandedVideos.has(`subscriber-${subscriberSources[2].videoId}`) ? '收起' : '點擊展開'}</span>
+                          </div>
                         </div>
+                        {/* 展開內容 */}
+                        {expandedVideos.has(`subscriber-${subscriberSources[2].videoId}`) && (
+                          <div className="w-full mt-4 p-4 bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl shadow-lg space-y-4">
+                            <div className="w-full">
+                              <iframe
+                                className="w-full aspect-video rounded-lg"
+                                src={`https://www.youtube.com/embed/${subscriberSources[2].videoId}`}
+                                title={subscriberSources[2].videoTitle}
+                                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                              />
+                            </div>
+                            {subscriberSources[2].description ? (
+                              <div className="space-y-2">
+                                <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
+                                <div className="bg-gray-100 rounded-lg p-3">
+                                  <div className={`text-xs text-gray-800 whitespace-pre-wrap leading-relaxed ${expandedDescriptions.has(`subscriber-${subscriberSources[2].videoId}`) ? '' : 'line-clamp-3'}`}>
+                                    {subscriberSources[2].description}
+                                  </div>
+                                </div>
+                                {subscriberSources[2].description.split('\n').length > 3 || subscriberSources[2].description.length > 150 ? (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); toggleDescriptionExpanded(`subscriber-${subscriberSources[2].videoId}`); }}
+                                    className="inline-block px-3 py-1.5 text-xs text-red-600 hover:text-red-700 font-medium bg-red-50 hover:bg-red-100 rounded-full transition-colors">
+                                    {expandedDescriptions.has(`subscriber-${subscriberSources[2].videoId}`) ? '收起影片說明' : '展開影片說明'}
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
+                                <div className="bg-gray-100 rounded-lg p-3">
+                                  <p className="text-xs text-gray-500 italic">此影片暫無說明</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
