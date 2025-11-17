@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, Upload, RefreshCw, Calendar, TrendingUp, BarChart3 } from 'lucide-react';
+import { Plus, Trash2, Save, RefreshCw, Calendar, TrendingUp, BarChart3 } from 'lucide-react';
 import * as youtubeService from '../services/youtubeService';
 import {
   getRelativeDateRange,
@@ -9,6 +9,7 @@ import {
   type DateRange
 } from '../utils/dateRangeUtils';
 import { ChannelDashboard } from './ChannelDashboard';
+import { KeywordAnalysisPanel } from './KeywordAnalysisPanel';
 
 interface KeywordGroup {
   id: string;
@@ -460,37 +461,35 @@ export function ChannelAnalytics() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 font-['Roboto',sans-serif] text-[#0F0F0F]">
       {/* 分頁選擇器 */}
-      <div className="border-b border-gray-200">
-        <div className="flex gap-1">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`px-6 py-3 font-medium transition-colors relative ${
-              activeTab === 'dashboard'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5" />
-              頻道儀表板
-            </div>
-          </button>
-          <button
-            onClick={() => setActiveTab('report')}
-            className={`px-6 py-3 font-medium transition-colors relative ${
-              activeTab === 'report'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
-              關鍵字報表
-            </div>
-          </button>
-        </div>
+      <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-sm p-1 flex gap-1">
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+            activeTab === 'dashboard'
+              ? 'bg-[#FF0000] text-white shadow-[0_4px_16px_rgba(255,0,0,0.25)]'
+              : 'text-[#606060] hover:text-[#0F0F0F] hover:bg-[#FFF5F5]'
+          }`}
+        >
+          <div className="flex items-center justify-center gap-2 text-sm sm:text-base">
+            <BarChart3 className="w-5 h-5" />
+            頻道儀表板
+          </div>
+        </button>
+        <button
+          onClick={() => setActiveTab('report')}
+          className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+            activeTab === 'report'
+              ? 'bg-[#FF0000] text-white shadow-[0_4px_16px_rgba(255,0,0,0.25)]'
+              : 'text-[#606060] hover:text-[#0F0F0F] hover:bg-[#FFF5F5]'
+          }`}
+        >
+          <div className="flex items-center justify-center gap-2 text-sm sm:text-base">
+            <TrendingUp className="w-5 h-5" />
+            關鍵字報表
+          </div>
+        </button>
       </div>
 
       {/* 儀錶板視圖 */}
@@ -500,40 +499,48 @@ export function ChannelAnalytics() {
       {activeTab === 'report' && (
         <div className="space-y-6">
           {/* 標題區域 */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold flex items-center gap-2">
-                <TrendingUp className="w-6 h-6" />
-                頻道數據分析
-              </h2>
-              <p className="text-gray-600 mt-1">
-                根據關鍵字搜尋影片、比較不同時間段的影片表現
-              </p>
-              <div className="mt-2 space-y-2">
-                <div className="text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">
-                  💡 系統會獲取頻道<strong>所有影片</strong>（公開、未列出、私人），再根據<strong>關鍵字</strong>過濾，並統計您選擇的<strong>時間段內</strong>的數據
+          <div className="relative overflow-hidden rounded-3xl border border-[#E5E5E5] bg-white shadow-sm p-6">
+            <div className="absolute -right-16 -top-16 w-48 h-48 bg-[#FF0000]/10 rounded-full blur-3xl" />
+            <div className="absolute -left-20 bottom-0 w-40 h-40 bg-[#FF5858]/10 rounded-full blur-2xl" />
+            <div className="relative flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex-1">
+                <h2 className="text-2xl font-extrabold flex items-center gap-2 text-[#111111]">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[#FF0000] text-white shadow-lg">
+                    <TrendingUp className="w-5 h-5" />
+                  </span>
+                  頻道數據分析
+                </h2>
+                <p className="text-[#5F5F5F] mt-1">
+                  根據關鍵字搜尋影片、比較不同時間段的影片表現
+                </p>
+                <div className="mt-3 space-y-2">
+                  <div className="text-sm text-[#B40000] bg-[#FFF0F0] border border-[#FFD4D4] px-3 py-2 rounded-xl shadow-inner">
+                    💡 系統會獲取頻道<strong>所有影片</strong>（公開、未列出、私人），再根據<strong>關鍵字</strong>過濾，並統計您選擇的<strong>時間段內</strong>的數據
+                  </div>
                 </div>
-
               </div>
-            </div>
-            <div className="flex gap-2 sm:flex-col items-stretch sm:items-end">
-              <button
-                onClick={clearCache}
-                className="px-3 py-2 sm:px-4 sm:py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 text-sm"
-              >
-                <RefreshCw className="w-4 h-4" />
-                清除快取
-              </button>
+              <div className="flex gap-2 sm:flex-col items-stretch sm:items-end">
+                <button
+                  onClick={clearCache}
+                  className="px-4 py-2 rounded-xl border border-[#FFB7B7] text-[#B40000] bg-white/80 hover:bg-[#FFF0F0] transition-colors shadow-sm flex items-center justify-center gap-2 text-sm font-semibold"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  清除快取
+                </button>
+              </div>
             </div>
           </div>
 
       {/* 模板管理區域 */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">模板管理</h3>
+      <div className="bg-white rounded-2xl border border-[#EAEAEA] shadow-sm p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <div>
+            <h3 className="font-semibold text-lg text-[#111111]">模板管理</h3>
+            <p className="text-sm text-[#707070]">儲存常用配置並一鍵載入</p>
+          </div>
           <button
             onClick={() => setShowTemplateDialog(true)}
-            className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
+            className="px-4 py-2 bg-[#FF0000] text-white rounded-xl hover:bg-[#D40000] flex items-center justify-center gap-2 text-sm font-semibold shadow-[0_4px_14px_rgba(255,0,0,0.25)]"
           >
             <Save className="w-4 h-4" />
             保存為模板
@@ -545,17 +552,17 @@ export function ChannelAnalytics() {
             {templates.map(template => (
               <div
                 key={template.name}
-                className={`border rounded-lg p-3 cursor-pointer transition-colors ${
+                className={`border rounded-2xl p-4 cursor-pointer transition-all duration-200 ${
                   selectedTemplate === template.name
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-[#FF5F5F] bg-[#FFF5F5] shadow-inner'
+                    : 'border-[#E5E5E5] hover:border-[#FF8A8A] hover:shadow-[0_4px_20px_rgba(255,0,0,0.08)]'
                 }`}
                 onClick={() => loadTemplate(template.name)}
               >
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
-                    <div className="font-medium">{template.name}</div>
-                    <div className="text-sm text-gray-600 mt-1">
+                    <div className="font-semibold text-[#1D1D1D]">{template.name}</div>
+                    <div className="text-sm text-[#6B6B6B] mt-1 leading-relaxed">
                       {template.keywordGroups.length} 個關鍵字組合
                       <br />
                       {template.dateColumns.length} 個時間範圍
@@ -566,7 +573,7 @@ export function ChannelAnalytics() {
                       e.stopPropagation();
                       deleteTemplate(template.name);
                     }}
-                    className="text-red-600 hover:text-red-700 p-1"
+                    className="text-[#FF3B30] hover:text-[#C92A21] p-1 rounded-full hover:bg-[#FFECEC]"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -577,19 +584,19 @@ export function ChannelAnalytics() {
         )}
 
         {templates.length === 0 && (
-          <p className="text-gray-500 text-sm text-center py-4">
+          <p className="text-[#8A8A8A] text-sm text-center py-4">
             尚無保存的模板
           </p>
         )}
       </div>
 
       {/* 關鍵字組合設定 */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
+      <div className="bg-white rounded-2xl border border-[#EAEAEA] shadow-sm p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">關鍵字組合（表格行）</h3>
+          <h3 className="font-semibold text-lg text-[#111111]">關鍵字組合（表格行）</h3>
           <button
             onClick={addKeywordGroup}
-            className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm"
+            className="px-4 py-2 bg-[#FF3838] text-white rounded-xl hover:bg-[#D40000] flex items-center gap-2 text-sm font-semibold shadow-[0_4px_12px_rgba(255,0,0,0.25)]"
           >
             <Plus className="w-4 h-4" />
             添加組合
@@ -597,7 +604,7 @@ export function ChannelAnalytics() {
         </div>
 
         {keywordGroups.length === 0 && (
-          <p className="text-gray-500 text-sm text-center py-8">
+          <p className="text-[#8A8A8A] text-sm text-center py-8">
             點擊「添加組合」開始設定關鍵字
           </p>
         )}
@@ -610,11 +617,11 @@ export function ChannelAnalytics() {
                 placeholder="組合名稱（同時作為搜尋關鍵字）"
                 value={group.name}
                 onChange={(e) => updateKeywordGroupName(group.id, e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-3 py-2 border border-[#E5E5E5] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7A7A]"
               />
               <button
                 onClick={() => removeKeywordGroup(group.id)}
-                className="text-red-600 hover:text-red-700 p-2"
+                className="text-[#FF3B30] hover:text-[#C92A21] p-2 rounded-full hover:bg-[#FFECEC]"
               >
                 <Trash2 className="w-5 h-5" />
               </button>
@@ -624,15 +631,15 @@ export function ChannelAnalytics() {
       </div>
 
       {/* 日期範圍設定 */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
+      <div className="bg-white rounded-2xl border border-[#EAEAEA] shadow-sm p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
+          <h3 className="font-semibold flex items-center gap-2 text-lg text-[#111111]">
+            <Calendar className="w-5 h-5 text-[#FF0000]" />
             時間範圍（表格列）
           </h3>
           <button
             onClick={addDateColumn}
-            className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm"
+            className="px-4 py-2 bg-[#FF3838] text-white rounded-xl hover:bg-[#D40000] flex items-center gap-2 text-sm font-semibold shadow-[0_4px_12px_rgba(255,0,0,0.25)]"
           >
             <Plus className="w-4 h-4" />
             添加時間
@@ -645,7 +652,7 @@ export function ChannelAnalytics() {
               <select
                 value={column.config}
                 onChange={(e) => updateDateColumn(column.id, e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-3 py-2 border border-[#E5E5E5] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7A7A]"
               >
                 <optgroup label="相對日期">
                   {RELATIVE_DATE_OPTIONS.map(option => (
@@ -660,11 +667,11 @@ export function ChannelAnalytics() {
                 placeholder="或輸入絕對日期（如：2024、202410）"
                 value={!RELATIVE_DATE_OPTIONS.some(opt => opt.value === column.config) ? column.config : ''}
                 onChange={(e) => updateDateColumn(column.id, e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-3 py-2 border border-[#E5E5E5] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7A7A]"
               />
               <button
                 onClick={() => removeDateColumn(column.id)}
-                className="text-red-600 hover:text-red-700 p-2"
+                className="text-[#FF3B30] hover:text-[#C92A21] p-2 rounded-full hover:bg-[#FFECEC]"
               >
                 <Trash2 className="w-5 h-5" />
               </button>
@@ -674,10 +681,10 @@ export function ChannelAnalytics() {
       </div>
 
       {/* 數據指標選擇 */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
+      <div className="bg-white rounded-2xl border border-[#EAEAEA] shadow-sm p-5">
         <div className="mb-4">
-          <h3 className="font-semibold">選擇要顯示的數據指標</h3>
-          <p className="text-sm text-gray-600 mt-1">
+          <h3 className="font-semibold text-lg text-[#111111]">選擇要顯示的數據指標</h3>
+          <p className="text-sm text-[#6B6B6B] mt-1">
             至少選擇一個指標（點擊切換選擇）
           </p>
         </div>
@@ -687,10 +694,10 @@ export function ChannelAnalytics() {
             <button
               key={metric.key}
               onClick={() => toggleMetric(metric.key)}
-              className={`px-4 py-3 rounded-lg border-2 transition-all text-sm font-medium ${
+              className={`px-4 py-3 rounded-xl border-2 transition-all text-sm font-semibold ${
                 selectedMetrics.includes(metric.key)
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                  ? 'border-[#FF5F5F] bg-[#FFF0F0] text-[#B40000] shadow-inner'
+                  : 'border-[#E5E5E5] hover:border-[#FF7C7C] text-[#5E5E5E]'
               }`}
             >
               {metric.label}
@@ -704,7 +711,7 @@ export function ChannelAnalytics() {
         <button
           onClick={fetchData}
           disabled={isLoading}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 text-lg font-semibold"
+          className="px-8 py-3 bg-gradient-to-r from-[#FF4B4B] to-[#D40000] text-white rounded-full hover:shadow-[0_6px_20px_rgba(255,0,0,0.35)] disabled:bg-[#C4C4C4] disabled:shadow-none disabled:cursor-not-allowed flex items-center gap-2 text-lg font-semibold tracking-wide transition-all"
         >
           {isLoading ? (
             <>
@@ -729,34 +736,34 @@ export function ChannelAnalytics() {
 
       {/* 數據表格 */}
       {tableData.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold">名稱</th>
-                <th className="px-4 py-3 text-left font-semibold">影片數</th>
+        <div className="bg-white rounded-3xl border border-[#E5E5E5] shadow-sm overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-[#FFFAFA] border-b border-[#FFE0E0] text-[#B40000]">
+              <tr className="uppercase tracking-wider text-xs">
+                <th className="px-5 py-4 text-left font-semibold">名稱</th>
+                <th className="px-5 py-4 text-left font-semibold">影片數</th>
                 {dateColumns.map(column => (
-                  <th key={column.id} className="px-4 py-3 text-center font-semibold">
+                  <th key={column.id} className="px-5 py-4 text-center font-semibold">
                     {column.label}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-[#F3F3F3]">
               {tableData.map((row, rowIndex) => (
-                <tr key={rowIndex} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <div className="font-medium">{row.name}</div>
+                <tr key={rowIndex} className="hover:bg-[#FFF5F5] transition-colors">
+                  <td className="px-5 py-4 align-top">
+                    <div className="font-semibold text-[#181818]">{row.name}</div>
                     {row.keyword && (
-                      <div className="text-sm text-gray-500">關鍵字: {row.keyword}</div>
+                      <div className="text-xs text-[#8A8A8A] mt-1">關鍵字: {row.keyword}</div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-center">{row.videoCount}</td>
+                  <td className="px-5 py-4 align-top text-center font-bold text-[#111111]">{row.videoCount}</td>
                   {dateColumns.map(column => {
                     const data = row.dateRanges[column.label];
                     if (!data) {
                       return (
-                        <td key={column.id} className="px-4 py-3 text-center text-gray-400">
+                        <td key={column.id} className="px-5 py-4 text-center text-[#C4C4C4]">
                           -
                         </td>
                       );
@@ -764,15 +771,15 @@ export function ChannelAnalytics() {
 
                     if (data.error) {
                       return (
-                        <td key={column.id} className="px-4 py-3 text-center">
-                          <div className="text-red-600 text-sm">錯誤</div>
+                        <td key={column.id} className="px-5 py-4 text-center">
+                          <div className="text-[#FF3B30] text-sm font-semibold">錯誤</div>
                         </td>
                       );
                     }
 
                     return (
-                      <td key={column.id} className="px-4 py-3">
-                        <div className="text-sm space-y-1">
+                      <td key={column.id} className="px-5 py-4 align-top">
+                        <div className="text-sm space-y-1.5">
                           {selectedMetrics.map(metricKey => {
                             const metric = AVAILABLE_METRICS.find(m => m.key === metricKey);
                             if (!metric) return null;
@@ -781,9 +788,9 @@ export function ChannelAnalytics() {
                             const formattedValue = formatValue(value, metric.format);
 
                             return (
-                              <div key={metricKey} className="flex justify-between">
-                                <span className="text-gray-600">{metric.label}:</span>
-                                <span className="font-medium">{formattedValue}</span>
+                              <div key={metricKey} className="flex justify-between gap-2">
+                                <span className="text-[#6B6B6B]">{metric.label}:</span>
+                                <span className="font-semibold text-[#111111]">{formattedValue}</span>
                               </div>
                             );
                           })}
@@ -797,20 +804,58 @@ export function ChannelAnalytics() {
           </table>
         </div>
       )}
+
+      {/* AI 關鍵字分析面板 */}
+      {tableData.length > 0 && (
+        <div className="bg-white rounded-3xl border-2 border-[#FFC5C5] p-6 shadow-sm">
+          <div className="mb-4">
+            <h3 className="text-xl font-semibold flex items-center gap-2 text-[#A40000]">
+              <BarChart3 className="w-6 h-6 text-[#FF3B30]" />
+              AI 關鍵字分析
+            </h3>
+            <p className="text-sm mt-1 text-[#6B6B6B]">
+              使用 AI 分析關鍵字效能，獲取優化建議與內容策略
+            </p>
+          </div>
+
+          <KeywordAnalysisPanel
+            keywordGroups={keywordGroups}
+            dateColumns={dateColumns}
+            analyticsData={(() => {
+              // 將 tableData 轉換為 analyticsData 格式
+              const result: Record<string, Record<string, any>> = {};
+
+              tableData.forEach((row, index) => {
+                const groupId = keywordGroups[index]?.id;
+                if (!groupId) return;
+
+                result[groupId] = {};
+                dateColumns.forEach((column) => {
+                  const data = row.dateRanges[column.label];
+                  result[groupId][column.id] = data || { error: '無數據' };
+                });
+              });
+
+              return result;
+            })()}
+            selectedMetrics={selectedMetrics}
+          />
+        </div>
+      )}
         </div>
       )}
 
       {/* 保存模板對話框 */}
       {showTemplateDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">保存為模板</h3>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl border border-[#EAEAEA]">
+            <h3 className="text-lg font-semibold mb-4 text-[#111111]">保存為模板</h3>
             <input
               type="text"
               placeholder="模板名稱"
               value={newTemplateName}
               onChange={(e) => setNewTemplateName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+              className="w-full px-3 py-2 border border-[#E5E5E5] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7A7A] mb-4"
             />
             <div className="flex gap-3 justify-end">
               <button
@@ -818,13 +863,13 @@ export function ChannelAnalytics() {
                   setShowTemplateDialog(false);
                   setNewTemplateName('');
                 }}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 border border-[#E5E5E5] rounded-xl hover:bg-[#F9F9F9]"
               >
                 取消
               </button>
               <button
                 onClick={saveTemplate}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="px-4 py-2 bg-[#FF0000] text-white rounded-xl hover:bg-[#D40000] shadow-[0_4px_12px_rgba(255,0,0,0.25)]"
               >
                 保存
               </button>
