@@ -1204,11 +1204,19 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
             .filter((group) => group.length > 0)
         : [];
       const hasImages = normalizedImageGroups.length > 0 && includeScreenshotImages;
+
+      // 判斷是否為 URL-only 模式（video.id 以 'url_' 開頭）
+      const isUrlOnlyMode = video.id.startsWith('url_');
+
       const payload: notionClient.NotionPublishPayload = {
         title: pageTitle,
         article: result.article,
         seoDescription: result.seo_description,
-        videoUrl: `https://www.youtube.com/watch?v=${video.id}`,
+        // URL-only 模式：video.title 存儲的是原始 URL
+        // YouTube 模式：構建 YouTube URL
+        videoUrl: isUrlOnlyMode
+          ? video.title
+          : `https://www.youtube.com/watch?v=${video.id}`,
         titleProperty: titlePropertyValue,
       };
 
