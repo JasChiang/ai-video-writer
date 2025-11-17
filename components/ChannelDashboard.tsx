@@ -828,6 +828,46 @@ const showVideoRankingsDoubleColumn =
     }
   };
 
+  // 取得某日期結束時的累積訂閱數（直接從 Analytics API 取得淨增長總和）
+  const fetchTotalSubscribersAtDate = async (endDate: Date): Promise<number | null> => {
+    try {
+      const earliestSupportedDate = '2006-01-01';
+      const formattedEndDate = formatDateString(endDate);
+
+      console.log('[Dashboard] 📈 計算期末累積訂閱數...', {
+        startDate: earliestSupportedDate,
+        endDate: formattedEndDate,
+      });
+
+      const data = await queryYoutubeAnalytics({
+        ids: 'channel==MINE',
+        startDate: earliestSupportedDate,
+        endDate: formattedEndDate,
+        metrics: 'subscribersGained,subscribersLost',
+      });
+
+      if (data && data.rows && data.rows.length > 0) {
+        const gained = parseInt(data.rows[0][0]) || 0;
+        const lost = parseInt(data.rows[0][1]) || 0;
+        const lifetimeTotal = gained - lost;
+
+        console.log('[Dashboard] ✅ 取得累積訂閱數成功:', {
+          gained,
+          lost,
+          lifetimeTotal,
+        });
+
+        return lifetimeTotal;
+      }
+
+      console.log('[Dashboard] ⚠️ 累積訂閱數資料為空');
+      return null;
+    } catch (err: any) {
+      console.log('[Dashboard] ⚠️ 無法取得累積訂閱數:', err?.message || err);
+      return null;
+    }
+  };
+
   // 策略 1: 獲取頻道等級統計（使用 OAuth + YouTube Data API）
   // 配額成本: 1 單位（channels.list with part=statistics）
   // 注意：總訂閱數會調整為期間結束日的值（而非當前值）
@@ -867,20 +907,31 @@ const showVideoRankingsDoubleColumn =
         currentTotalVideos,
       });
 
-      // 獲取從期間結束日到今天的訂閱數變化
-      const subscribersAfter = await fetchSubscribersAfterEndDate(endDate, token);
-      const subscribersChangeAfterEnd = subscribersAfter.subscribersGained - subscribersAfter.subscribersLost;
+      // 優先透過 Analytics API 直接取得該日截止的累積訂閱數
+      let endPeriodTotalSubscribers = await fetchTotalSubscribersAtDate(endDate);
 
-      // 計算期間結束日的總訂閱數
-      const endPeriodTotalSubscribers = currentTotalSubscribers - subscribersChangeAfterEnd;
+      if (typeof endPeriodTotalSubscribers !== 'number') {
+        console.log('[Dashboard] ⚠️ 累積訂閱數取得失敗，回退到即時訂閱數調整策略');
+        // 獲取從期間結束日到今天的訂閱數變化
+        const subscribersAfter = await fetchSubscribersAfterEndDate(endDate, token);
+        const subscribersChangeAfterEnd = subscribersAfter.subscribersGained - subscribersAfter.subscribersLost;
 
-      console.log('[Dashboard] 📊 總訂閱數調整:', {
-        當前總訂閱數: currentTotalSubscribers,
-        期後新增訂閱: subscribersAfter.subscribersGained,
-        期後取消訂閱: subscribersAfter.subscribersLost,
-        期後淨變化: subscribersChangeAfterEnd,
-        期末總訂閱數: endPeriodTotalSubscribers,
-      });
+        // 計算期間結束日的總訂閱數
+        endPeriodTotalSubscribers = currentTotalSubscribers - subscribersChangeAfterEnd;
+
+        console.log('[Dashboard] 📊 總訂閱數調整（回退策略）:', {
+          當前總訂閱數: currentTotalSubscribers,
+          期後新增訂閱: subscribersAfter.subscribersGained,
+          期後取消訂閱: subscribersAfter.subscribersLost,
+          期後淨變化: subscribersChangeAfterEnd,
+          期末總訂閱數: endPeriodTotalSubscribers,
+        });
+      } else {
+        console.log('[Dashboard] 📊 使用累積訂閱數計算期末總訂閱數:', {
+          期末總訂閱數: endPeriodTotalSubscribers,
+          當前總訂閱數: currentTotalSubscribers,
+        });
+      }
 
       // 設置頻道統計（總訂閱數使用期末值）
       setChannelStats((prev) => ({
