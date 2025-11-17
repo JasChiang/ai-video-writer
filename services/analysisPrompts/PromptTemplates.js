@@ -356,7 +356,7 @@ ${searchTerms.slice(0, 20).map((t, i) => `${i + 1}. "${t.term}" - ${t.views.toLo
 1. **使用 Markdown 表格**展示所有資料
 2. **圖表使用規則（可選）**：
    - ✅ **僅允許 Chart.js 柱狀圖**展示數據，禁止使用餅圖或其他格式。
-   - ⚠️ **必須完全按照以下語法輸出**（`labels`、`values` 為等長陣列，`values` 只能是數字）：
+   - ⚠️ **必須完全按照以下語法輸出**（\`labels\`、\`values\` 為等長陣列，\`values\` 只能是數字）：
 
    ${'<'}!-- CHART:BAR
    {
@@ -366,7 +366,7 @@ ${searchTerms.slice(0, 20).map((t, i) => `${i + 1}. "${t.term}" - ${t.views.toLo
    }
    --${'>'}
 
-   - ❌ 不可輸出 `data`、`items` 等其他欄位，也不可使用 Mermaid。
+   - ❌ 不可輸出 \`data\`、\`items\` 等其他欄位，也不可使用 Mermaid。
    - 📋 **優先使用表格**：如果不確定語法，請改用 Markdown 表格。
 3. 每個策略必須包含執行步驟和預期成效
 
@@ -441,7 +441,7 @@ ${devices.map(d => `- ${d.deviceType}: ${d.views.toLocaleString()} 次 (${d.perc
 
 1. **圖表使用規則（可選）**：
    - ✅ **僅允許 Chart.js 柱狀圖**展示觀眾分布或比較，禁止餅圖或其他格式。
-   - ⚠️ **必須使用以下語法**（`labels` 與 `values` 為等長陣列，`values` 僅能是數字）：
+   - ⚠️ **必須使用以下語法**（\`labels\` 與 \`values\` 為等長陣列，\`values\` 僅能是數字）：
 
    ${'<'}!-- CHART:BAR
    {
@@ -451,7 +451,7 @@ ${devices.map(d => `- ${d.deviceType}: ${d.views.toLocaleString()} 次 (${d.perc
    }
    --${'>'}
 
-   - ❌ 不可輸出 `data`、`items` 等其他欄位，也不可使用 Mermaid。
+   - ❌ 不可輸出 \`data\`、\`items\` 等其他欄位，也不可使用 Mermaid。
    - 📋 **優先使用表格**：如果不確定語法，請用表格
 
 2. 提供 3-5 個具體的內容定位建議
