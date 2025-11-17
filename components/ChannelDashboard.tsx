@@ -195,7 +195,6 @@ interface SubscriberSourceItem {
   videoId: string;         // 影片 ID
   videoTitle: string;      // 影片標題
   subscribersGained: number; // 獲得訂閱數
-  description?: string;    // 影片說明
 }
 
 interface ComparisonData {
@@ -1598,19 +1597,14 @@ const showVideoRankingsDoubleColumn =
       if (response.ok) {
         const data = await response.json();
         if (data.rows && data.rows.length > 0) {
-          // 需要獲取影片標題和描述
+          // 需要獲取影片標題
           const videoIds = data.rows.map((row: any[]) => row[0]);
           const videoTitles = await fetchVideoTitles(videoIds);
-
-          console.log('[Dashboard] 🎯 [Subscriber Sources] 準備獲取影片描述，影片數量:', videoIds.length);
-          const descriptionsMap = await fetchVideoDescriptions(videoIds, token);
-          console.log('[Dashboard] 🎯 [Subscriber Sources] 取得的描述數量:', Object.keys(descriptionsMap).length);
 
           const subscriberSourceData: SubscriberSourceItem[] = data.rows.map((row: any[]) => ({
             videoId: row[0],
             videoTitle: videoTitles[row[0]] || '未知影片',
             subscribersGained: parseInt(row[1]) || 0,
-            description: descriptionsMap[row[0]] || '',
           }));
 
           console.log('[Dashboard] ✅ 訂閱來源數據獲取成功:', subscriberSourceData.length, '個影片');
@@ -4728,8 +4722,7 @@ const showVideoRankingsDoubleColumn =
                     <div className="hidden md:flex items-end justify-center gap-4 mb-6">
                       {/* 第二名 */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="w-full bg-gradient-to-b from-gray-100 to-gray-200 rounded-2xl p-4 border-2 border-gray-300 shadow-lg overflow-hidden flex flex-col cursor-pointer hover:shadow-xl transition-shadow"
-                          onClick={() => toggleVideoExpanded(`subscriber-${subscriberSources[1].videoId}`)}>
+                        <div className="w-full bg-gradient-to-b from-gray-100 to-gray-200 rounded-2xl p-4 border-2 border-gray-300 shadow-lg overflow-hidden flex flex-col">
                           <div className="text-center mb-3">
                             <div className="text-2xl font-bold text-gray-600">第 2 名</div>
                           </div>
@@ -4755,60 +4748,7 @@ const showVideoRankingsDoubleColumn =
                             </div>
                             <div className="text-xs text-gray-600">新訂閱</div>
                           </div>
-                          {/* 展開指示器 */}
-                          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-full mt-3 self-center">
-                            {expandedVideos.has(`subscriber-${subscriberSources[1].videoId}`) ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            <span>{expandedVideos.has(`subscriber-${subscriberSources[1].videoId}`) ? '收起' : '點擊展開'}</span>
-                          </div>
                         </div>
-                        {/* 展開內容 */}
-                        {expandedVideos.has(`subscriber-${subscriberSources[1].videoId}`) && (
-                          <div className="w-full mt-4 p-4 bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl shadow-lg space-y-4">
-                            {/* YouTube 影片播放器 */}
-                            <div className="w-full">
-                              <iframe
-                                className="w-full aspect-video rounded-lg"
-                                src={`https://www.youtube.com/embed/${subscriberSources[1].videoId}`}
-                                title={subscriberSources[1].videoTitle}
-                                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowFullScreen
-                              />
-                            </div>
-                            {/* 影片說明 */}
-                            {subscriberSources[1].description ? (
-                              <div className="space-y-2">
-                                <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
-                                <div className="bg-gray-100 rounded-lg p-3">
-                                  <div
-                                    className={`text-xs text-gray-800 whitespace-pre-wrap leading-relaxed ${
-                                      expandedDescriptions.has(`subscriber-${subscriberSources[1].videoId}`) ? '' : 'line-clamp-3'
-                                    }`}
-                                  >
-                                    {subscriberSources[1].description}
-                                  </div>
-                                </div>
-                                {subscriberSources[1].description.split('\n').length > 3 || subscriberSources[1].description.length > 150 ? (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleDescriptionExpanded(`subscriber-${subscriberSources[1].videoId}`);
-                                    }}
-                                    className="inline-block px-3 py-1.5 text-xs text-red-600 hover:text-red-700 font-medium bg-red-50 hover:bg-red-100 rounded-full transition-colors"
-                                  >
-                                    {expandedDescriptions.has(`subscriber-${subscriberSources[1].videoId}`) ? '收起影片說明' : '展開影片說明'}
-                                  </button>
-                                ) : null}
-                              </div>
-                            ) : (
-                              <div className="space-y-2">
-                                <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
-                                <div className="bg-gray-100 rounded-lg p-3">
-                                  <p className="text-xs text-gray-500 italic">此影片暫無說明</p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </div>
 
                       {/* 第一名（中間最高） */}
