@@ -95,24 +95,27 @@ async function getVideosFromGistCache(keyword) {
  * @param {string} channelId - 頻道 ID
  * @param {string} keyword - 關鍵字（可為空，表示所有影片）
  * @param {number} maxVideos - 最大影片數量
+ * @param {boolean} isOwnChannel - 是否為自己的頻道
  * @returns {Promise<Array>} 影片列表
  */
-async function searchChannelVideos(youtube, channelId, keyword, maxVideos = DEFAULT_MAX_VIDEOS) {
+async function searchChannelVideos(youtube, channelId, keyword, maxVideos = DEFAULT_MAX_VIDEOS, isOwnChannel = true) {
   const normalizedKeyword = keyword?.trim() || '';
 
-  // 🚀 優先策略：從 Gist 快取獲取影片列表（零配額成本）
-  console.log('[ChannelAnalytics] 🚀 優先策略：嘗試從 Gist 快取獲取影片列表...');
-  const cachedVideos = await getVideosFromGistCache(normalizedKeyword);
+  // 🚀 優先策略：從 Gist 快取獲取影片列表（零配額成本）- 僅適用於自己的頻道
+  if (isOwnChannel) {
+    console.log('[ChannelAnalytics] 🚀 優先策略：嘗試從 Gist 快取獲取影片列表...');
+    const cachedVideos = await getVideosFromGistCache(normalizedKeyword);
 
-  if (cachedVideos && cachedVideos.length > 0) {
-    console.log(
-      `[ChannelAnalytics] ✅ 成功從 Gist 快取獲取 ${cachedVideos.length} 支影片（零配額成本）`
-    );
-    return cachedVideos;
+    if (cachedVideos && cachedVideos.length > 0) {
+      console.log(
+        `[ChannelAnalytics] ✅ 成功從 Gist 快取獲取 ${cachedVideos.length} 支影片（零配額成本）`
+      );
+      return cachedVideos;
+    }
   }
 
-  // 📌 備援策略：如果快取不可用，回退到原來的邏輯
-  console.log('[ChannelAnalytics] 📌 Gist 快取不可用，回退到 YouTube API...');
+  // 📌 備援策略：如果快取不可用或為競爭對手頻道，回退到 YouTube API
+  console.log(`[ChannelAnalytics] 📌 ${isOwnChannel ? 'Gist 快取不可用，' : '競爭對手頻道，'}回退到 YouTube API...`);
 
   if (normalizedKeyword) {
     try {
@@ -120,7 +123,8 @@ async function searchChannelVideos(youtube, channelId, keyword, maxVideos = DEFA
         youtube,
         channelId,
         normalizedKeyword,
-        maxVideos
+        maxVideos,
+        isOwnChannel
       );
 
       if (searchResults.length > 0) {
@@ -147,8 +151,9 @@ async function searchChannelVideos(youtube, channelId, keyword, maxVideos = DEFA
   }
 
   // 若無關鍵字或 Search API 失敗則改為掃描全部影片
-  console.log(`[ChannelAnalytics] 🔍 獲取頻道所有影片（公開/未列出/私人）...`);
-  const allVideos = await getAllChannelVideos(youtube, channelId, maxVideos);
+  const videosLabel = isOwnChannel ? '公開/未列出/私人' : '公開';
+  console.log(`[ChannelAnalytics] 🔍 獲取頻道所有影片（${videosLabel}）...`);
+  const allVideos = await getAllChannelVideos(youtube, channelId, maxVideos, isOwnChannel);
 
   if (!normalizedKeyword) {
     console.log(`[ChannelAnalytics] ✅ 未指定關鍵字，返回所有 ${allVideos.length} 支影片`);
@@ -165,10 +170,11 @@ async function searchChannelVideos(youtube, channelId, keyword, maxVideos = DEFA
 
 /**
  * 透過 YouTube Search API 搜尋影片（支援私人與未列出）
+ * @param {boolean} isOwnChannel - 是否為自己的頻道（true: 使用 forMine, false: 使用 channelId）
  */
-async function searchVideosViaSearchApi(youtube, channelId, keyword, maxVideos = DEFAULT_MAX_VIDEOS) {
+async function searchVideosViaSearchApi(youtube, channelId, keyword, maxVideos = DEFAULT_MAX_VIDEOS, isOwnChannel = true) {
   console.log(
-    `[ChannelAnalytics] 🔎 使用 Search API 搜尋關鍵字 "${keyword}"（最多 ${maxVideos} 支）`
+    `[ChannelAnalytics] 🔎 使用 Search API 搜尋關鍵字 "${keyword}"（最多 ${maxVideos} 支）${isOwnChannel ? '（我的頻道）' : '（競爭對手頻道）'}`
   );
 
   const videos = [];
@@ -178,15 +184,23 @@ async function searchVideosViaSearchApi(youtube, channelId, keyword, maxVideos =
 
   do {
     page++;
-    const searchResponse = await youtube.search.list({
+    // 根據是否為自己的頻道，使用不同的搜尋參數
+    const searchParams = {
       part: 'id,snippet',
-      forMine: true,
       type: 'video',
       maxResults: 50,
       order: 'date',
       q: keyword,
       pageToken,
-    });
+    };
+
+    if (isOwnChannel) {
+      searchParams.forMine = true;
+    } else {
+      searchParams.channelId = channelId;
+    }
+
+    const searchResponse = await youtube.search.list(searchParams);
     recordQuotaServer('youtube.search.list', YOUTUBE_QUOTA_COST.searchList, {
       keyword,
       page,
@@ -264,10 +278,12 @@ async function searchVideosViaSearchApi(youtube, channelId, keyword, maxVideos =
  * @param {Object} youtube - YouTube API 客戶端
  * @param {string} channelId - 頻道 ID
  * @param {number} maxVideos - 最大影片數量（防止過度請求）
+ * @param {boolean} isOwnChannel - 是否為自己的頻道
  * @returns {Promise<Array>} 影片列表
  */
-async function getAllChannelVideos(youtube, channelId, maxVideos = DEFAULT_MAX_VIDEOS) {
-  console.log(`[ChannelAnalytics] 🎬 開始獲取頻道所有歷史影片（包含公開、未列出、私人影片，最多 ${maxVideos} 支）...`);
+async function getAllChannelVideos(youtube, channelId, maxVideos = DEFAULT_MAX_VIDEOS, isOwnChannel = true) {
+  const videosLabel = isOwnChannel ? '包含公開、未列出、私人影片' : '僅公開影片';
+  console.log(`[ChannelAnalytics] 🎬 開始獲取頻道所有歷史影片（${videosLabel}，最多 ${maxVideos} 支）...`);
 
   // 步驟 1: 獲取頻道的「上傳播放清單 ID」
   const channelResponse = await youtube.channels.list({
@@ -343,6 +359,13 @@ async function getAllChannelVideos(youtube, channelId, maxVideos = DEFAULT_MAX_V
       const details = videoDetailsMap.get(videoId);
       if (details && details.snippet) {
         const privacyStatus = details.status?.privacyStatus || 'public';
+
+        // 如果是競爭對手頻道，只取公開影片
+        if (!isOwnChannel && privacyStatus !== 'public') {
+          skippedCount++;
+          continue;
+        }
+
         videos.push({
           videoId: videoId,
           title: details.snippet.title,
@@ -378,7 +401,8 @@ async function getAllChannelVideos(youtube, channelId, maxVideos = DEFAULT_MAX_V
 
   } while (pageToken);
 
-  console.log(`[ChannelAnalytics] ✅ 共獲取 ${videos.length} 支影片（歷史至今，含公開/未列出/私人）`);
+  const summaryLabel = isOwnChannel ? '含公開/未列出/私人' : '僅公開';
+  console.log(`[ChannelAnalytics] ✅ 共獲取 ${videos.length} 支影片（歷史至今，${summaryLabel}）`);
   return videos;
 }
 
@@ -570,9 +594,10 @@ async function getChannelTimezone(youtube, channelId) {
  * @param {string} channelId - 頻道 ID
  * @param {Array} keywordGroups - 關鍵字組合列表 [{name, keyword}]
  * @param {Array} dateRanges - 日期範圍列表 [{label, startDate, endDate}]
+ * @param {boolean} isOwnChannel - 是否為自己的頻道（預設 true）
  * @returns {Promise<Object>} 聚合結果
  */
-export async function aggregateChannelData(accessToken, channelId, keywordGroups, dateRanges) {
+export async function aggregateChannelData(accessToken, channelId, keywordGroups, dateRanges, isOwnChannel = true) {
   try {
     const oauth2Client = new google.auth.OAuth2();
     oauth2Client.setCredentials({ access_token: accessToken });
@@ -585,12 +610,12 @@ export async function aggregateChannelData(accessToken, channelId, keywordGroups
     console.log(`[ChannelAnalytics] 頻道國家設定: ${channelCountry}`);
 
     // 步驟 1: 為每個關鍵字組合搜尋影片
-    console.log('[ChannelAnalytics] 步驟 1: 根據關鍵字搜尋影片...');
+    console.log(`[ChannelAnalytics] 步驟 1: 根據關鍵字搜尋影片...${isOwnChannel ? '' : '（競爭對手頻道）'}`);
     const filteredVideoGroups = [];
 
     for (const group of keywordGroups) {
       console.log(`[ChannelAnalytics] 正在搜尋關鍵字: "${group.keyword || '(所有影片)'}"`);
-      const videos = await searchChannelVideos(youtube, channelId, group.keyword);
+      const videos = await searchChannelVideos(youtube, channelId, group.keyword, DEFAULT_MAX_VIDEOS, isOwnChannel);
 
       filteredVideoGroups.push({
         name: group.name,
