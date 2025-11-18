@@ -98,8 +98,16 @@ if (!process.env.GEMINI_API_KEY) {
 
 console.log('✅ Gemini API Key loaded successfully');
 
+// Gemini API HTTP 配置（設置 15 分鐘超時，適合處理長影片）
+const GEMINI_HTTP_OPTIONS = {
+  timeout: 15 * 60 * 1000  // 15 分鐘（毫秒）
+};
+
 // 初始化 Gemini AI 客戶端（用於 Files API 等）
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: GEMINI_HTTP_OPTIONS
+});
 
 // 初始化 AI 模型管理器
 const aiManager = new AIModelManager();
@@ -955,7 +963,10 @@ app.post('/api/analyze-video-url', async (req, res) => {
     console.log(`[Analyze URL] YouTube URL: ${youtubeUrl}`);
     console.log(`[Analyze URL] Video Title: ${videoTitle}`);
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: GEMINI_HTTP_OPTIONS
+    });
 
     // 生成提示詞
     console.log('[Analyze URL] 正在生成 SEO 強化內容...');
@@ -1032,7 +1043,10 @@ app.post('/api/analyze-video-url-async', async (req, res) => {
       const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
       taskQueue.updateTaskProgress(taskId, 10, '正在初始化 Gemini AI...');
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        httpOptions: GEMINI_HTTP_OPTIONS
+      });
 
       taskQueue.updateTaskProgress(taskId, 30, '正在生成 SEO 強化內容...');
       const fullPrompt = generateFullPrompt(videoTitle, prompt);
@@ -1096,7 +1110,10 @@ app.post('/api/analyze-video', async (req, res) => {
     console.log(`[Analyze] File Path: ${filePath || '(not provided, will check Files API)'}`);
     console.log(`[Analyze] Video Title: ${videoTitle}`);
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: GEMINI_HTTP_OPTIONS
+    });
 
     // 先檢查檔案是否已存在於 Files API
     console.log('[Analyze] 步驟 1/4: 檢查 Files API 中是否已有此檔案...');
@@ -1258,7 +1275,10 @@ app.post('/api/reanalyze-with-existing-file', async (req, res) => {
   try {
     console.log(`Checking if Gemini file exists: ${geminiFileName}`);
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: GEMINI_HTTP_OPTIONS
+    });
 
     // 嘗試取得檔案
     let fileInfo;
@@ -1476,7 +1496,10 @@ app.post('/api/generate-article-url', async (req, res) => {
       });
     }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: GEMINI_HTTP_OPTIONS
+    });
 
     // 步驟 1: 使用 YouTube URL 生成文章與截圖時間點
     console.log('[Article URL] 步驟 1/3: 使用 YouTube URL 分析影片並生成文章...');
@@ -1628,7 +1651,10 @@ app.post('/api/generate-article-url-async', async (req, res) => {
 
       taskQueue.updateTaskProgress(taskId, 20, '初始化 Gemini AI...');
 
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        httpOptions: GEMINI_HTTP_OPTIONS
+      });
 
       // 步驟 1: 使用 YouTube URL 生成文章與截圖時間點
       taskQueue.updateTaskProgress(taskId, 30, '使用 YouTube URL 分析影片並生成文章...');
@@ -2001,7 +2027,10 @@ app.post('/api/generate-article-from-url-async', async (req, res) => {
 
       taskQueue.updateTaskProgress(taskId, 20, '初始化 Gemini AI...');
 
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        httpOptions: GEMINI_HTTP_OPTIONS
+      });
 
       // 生成文章
       taskQueue.updateTaskProgress(taskId, 30, '使用 URL Context 工具分析網址並生成文章...');
@@ -2239,7 +2268,10 @@ app.post('/api/generate-article', async (req, res) => {
     console.log(`[Article] File Path: ${filePath || '(not provided, will check Files API)'}`);
     console.log(`[Article] Video Title: ${videoTitle}`);
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: GEMINI_HTTP_OPTIONS
+    });
 
     // 先檢查檔案是否已存在於 Files API
     console.log('[Article] 步驟 1/5: 檢查 Files API 中是否已有此檔案...');
@@ -2522,7 +2554,10 @@ app.post('/api/regenerate-article', async (req, res) => {
   try {
     console.log(`Regenerating article using existing file: ${geminiFileName}`);
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: GEMINI_HTTP_OPTIONS
+    });
 
     // 檢查檔案是否存在
     let fileInfo;
@@ -2635,7 +2670,10 @@ app.post('/api/regenerate-screenshots', async (req, res) => {
     console.log(`[Regenerate Screenshots] File Path: ${filePath}`);
     console.log(`[Regenerate Screenshots] Video Title: ${videoTitle}`);
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: GEMINI_HTTP_OPTIONS
+    });
 
     // 步驟 1: 檢查 Files API 中是否有此檔案
     console.log('[Regenerate Screenshots] 步驟 1/4: 檢查 Files API 中是否已有此檔案...');
@@ -2759,7 +2797,10 @@ app.get('/api/check-file/:videoId', async (req, res) => {
 
   try {
     console.log(`[Check File] Checking if file exists for videoId: ${videoId}`);
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: GEMINI_HTTP_OPTIONS
+    });
 
     // 列出所有檔案，尋找符合 displayName 的檔案
     console.log(`[Check File] Calling ai.files.list()...`);
