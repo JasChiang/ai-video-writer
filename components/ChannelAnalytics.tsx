@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, RefreshCw, Calendar, TrendingUp, BarChart3 } from 'lucide-react';
+import { Plus, Trash2, Save, RefreshCw, Calendar, TrendingUp, BarChart3, Users, CheckCircle2 } from 'lucide-react';
 import * as youtubeService from '../services/youtubeService';
 import {
   getRelativeDateRange,
@@ -8,6 +8,11 @@ import {
   type RelativeDateType,
   type DateRange
 } from '../utils/dateRangeUtils';
+import {
+  validateAndParseChannelId,
+  fetchChannelInfo,
+  formatSubscriberCount,
+} from '../utils/channelIdUtils';
 import { ChannelDashboard } from './ChannelDashboard';
 import { KeywordAnalysisPanel } from './KeywordAnalysisPanel';
 
@@ -86,10 +91,28 @@ const API_BASE_URL =
   (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
 
 type TabType = 'dashboard' | 'report';
+type AnalysisMode = 'myChannel' | 'competitor';
+
+interface ChannelInfo {
+  channelId: string;
+  title: string;
+  customUrl?: string;
+  subscriberCount?: string;
+  videoCount?: string;
+}
 
 export function ChannelAnalytics() {
   // 分頁狀態
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+
+  // 分析模式：我的頻道 or 競爭對手
+  const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('myChannel');
+
+  // 競爭對手頻道相關
+  const [competitorInput, setCompetitorInput] = useState<string>('');
+  const [competitorChannelInfo, setCompetitorChannelInfo] = useState<ChannelInfo | null>(null);
+  const [isValidatingChannel, setIsValidatingChannel] = useState(false);
+  const [channelValidationError, setChannelValidationError] = useState<string | null>(null);
 
   // 狀態管理
   const [keywordGroups, setKeywordGroups] = useState<KeywordGroup[]>([]);
@@ -186,6 +209,15 @@ export function ChannelAnalytics() {
 
   // 獲取頻道 ID
   const fetchChannelId = async (): Promise<string> => {
+    // 如果是競爭對手模式，使用競爭對手的頻道 ID
+    if (analysisMode === 'competitor') {
+      if (!competitorChannelInfo) {
+        throw new Error('請先驗證競爭對手頻道');
+      }
+      return competitorChannelInfo.channelId;
+    }
+
+    // 我的頻道模式
     if (channelId) {
       return channelId;
     }
@@ -219,6 +251,62 @@ export function ChannelAnalytics() {
     setChannelId(id);
     return id;
   };
+
+  // 驗證競爭對手頻道
+  const validateCompetitorChannel = async () => {
+    if (!competitorInput.trim()) {
+      setChannelValidationError('請輸入頻道 ID 或 URL');
+      return;
+    }
+
+    setIsValidatingChannel(true);
+    setChannelValidationError(null);
+    setCompetitorChannelInfo(null);
+
+    try {
+      const token = youtubeService.getAccessToken();
+      if (!token) {
+        throw new Error('未登入 YouTube');
+      }
+
+      // 驗證並解析頻道 ID
+      const validation = validateAndParseChannelId(competitorInput);
+      if (!validation.isValid) {
+        setChannelValidationError(validation.error || '無效的頻道 ID');
+        return;
+      }
+
+      // 獲取頻道資訊
+      const channelInfo = await fetchChannelInfo(validation.channelId!, token);
+      if (!channelInfo.success) {
+        setChannelValidationError(channelInfo.error || '獲取頻道資訊失敗');
+        return;
+      }
+
+      // 設置頻道資訊
+      setCompetitorChannelInfo({
+        channelId: channelInfo.channelId!,
+        title: channelInfo.title!,
+        customUrl: channelInfo.customUrl,
+        subscriberCount: channelInfo.subscriberCount,
+        videoCount: channelInfo.videoCount,
+      });
+    } catch (err: any) {
+      console.error('驗證頻道失敗:', err);
+      setChannelValidationError(err.message || '驗證頻道失敗');
+    } finally {
+      setIsValidatingChannel(false);
+    }
+  };
+
+  // 切換分析模式時重置狀態
+  useEffect(() => {
+    setTableData([]);
+    setError(null);
+    setCompetitorChannelInfo(null);
+    setChannelValidationError(null);
+    setCompetitorInput('');
+  }, [analysisMode]);
 
   // 獲取數據
   const fetchData = async () => {
@@ -283,6 +371,7 @@ export function ChannelAnalytics() {
             };
           }),
           dateRanges,
+          forMine: analysisMode === 'myChannel', // 根據分析模式設置
         }),
       });
 
@@ -515,7 +604,7 @@ export function ChannelAnalytics() {
                 </p>
                 <div className="mt-3 space-y-2">
                   <div className="text-sm text-[#B40000] bg-[#FFF0F0] border border-[#FFD4D4] px-3 py-2 rounded-xl shadow-inner">
-                    💡 系統會獲取頻道<strong>所有影片</strong>（公開、未列出、私人），再根據<strong>關鍵字</strong>過濾，並統計您選擇的<strong>時間段內</strong>的數據
+                    💡 系統會獲取頻道<strong>所有影片</strong>（{analysisMode === 'myChannel' ? '公開、未列出、私人' : '僅公開影片'}），再根據<strong>關鍵字</strong>過濾，並統計您選擇的<strong>時間段內</strong>的數據
                   </div>
                 </div>
               </div>
@@ -529,6 +618,151 @@ export function ChannelAnalytics() {
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* 分析模式選擇 */}
+          <div className="bg-white rounded-2xl border border-[#EAEAEA] shadow-sm p-5">
+            <div className="mb-4">
+              <h3 className="font-semibold text-lg text-[#111111] flex items-center gap-2">
+                <Users className="w-5 h-5 text-[#FF0000]" />
+                分析模式
+              </h3>
+              <p className="text-sm text-[#707070] mt-1">選擇要分析的頻道類型</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <button
+                onClick={() => setAnalysisMode('myChannel')}
+                className={`p-4 rounded-2xl border-2 transition-all text-left ${
+                  analysisMode === 'myChannel'
+                    ? 'border-[#FF5F5F] bg-[#FFF0F0] shadow-inner'
+                    : 'border-[#E5E5E5] hover:border-[#FF7C7C] hover:shadow-md'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`p-2 rounded-xl ${
+                    analysisMode === 'myChannel' ? 'bg-[#FF0000] text-white' : 'bg-[#F5F5F5] text-[#606060]'
+                  }`}>
+                    <TrendingUp className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-semibold text-[#111111]">我的頻道</div>
+                    <div className="text-sm text-[#6B6B6B] mt-1">
+                      分析您自己的 YouTube 頻道數據
+                    </div>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setAnalysisMode('competitor')}
+                className={`p-4 rounded-2xl border-2 transition-all text-left ${
+                  analysisMode === 'competitor'
+                    ? 'border-[#FF5F5F] bg-[#FFF0F0] shadow-inner'
+                    : 'border-[#E5E5E5] hover:border-[#FF7C7C] hover:shadow-md'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`p-2 rounded-xl ${
+                    analysisMode === 'competitor' ? 'bg-[#FF0000] text-white' : 'bg-[#F5F5F5] text-[#606060]'
+                  }`}>
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-semibold text-[#111111]">競爭對手頻道</div>
+                    <div className="text-sm text-[#6B6B6B] mt-1">
+                      分析其他公開 YouTube 頻道的數據
+                    </div>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            {/* 競爭對手頻道輸入 */}
+            {analysisMode === 'competitor' && (
+              <div className="mt-4 p-4 bg-[#FAFAFA] rounded-2xl border border-[#E5E5E5]">
+                <div className="mb-3">
+                  <label className="block text-sm font-semibold text-[#111111] mb-2">
+                    輸入競爭對手頻道
+                  </label>
+                  <p className="text-xs text-[#6B6B6B] mb-3">
+                    支援格式：頻道 ID (UC...)、@handle、或完整 YouTube 頻道 URL
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="例如: UCxxxxxx 或 @channelname 或 https://youtube.com/@channelname"
+                    value={competitorInput}
+                    onChange={(e) => setCompetitorInput(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        validateCompetitorChannel();
+                      }
+                    }}
+                    className="flex-1 px-4 py-2 border border-[#E5E5E5] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7A7A] text-sm"
+                  />
+                  <button
+                    onClick={validateCompetitorChannel}
+                    disabled={isValidatingChannel}
+                    className="px-4 py-2 bg-[#FF0000] text-white rounded-xl hover:bg-[#D40000] disabled:bg-[#C4C4C4] flex items-center gap-2 text-sm font-semibold shadow-md transition-all"
+                  >
+                    {isValidatingChannel ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        驗證中
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        驗證
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* 驗證錯誤 */}
+                {channelValidationError && (
+                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                    {channelValidationError}
+                  </div>
+                )}
+
+                {/* 頻道資訊 */}
+                {competitorChannelInfo && (
+                  <div className="mt-3 p-4 bg-white border-2 border-[#4CAF50] rounded-2xl shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-[#4CAF50] text-white rounded-xl">
+                        <CheckCircle2 className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-semibold text-[#111111]">{competitorChannelInfo.title}</div>
+                        {competitorChannelInfo.customUrl && (
+                          <div className="text-sm text-[#6B6B6B] mt-1">{competitorChannelInfo.customUrl}</div>
+                        )}
+                        <div className="flex gap-4 mt-2 text-sm">
+                          {competitorChannelInfo.subscriberCount && (
+                            <div className="text-[#606060]">
+                              訂閱: <span className="font-semibold text-[#FF0000]">
+                                {formatSubscriberCount(competitorChannelInfo.subscriberCount)}
+                              </span>
+                            </div>
+                          )}
+                          {competitorChannelInfo.videoCount && (
+                            <div className="text-[#606060]">
+                              影片: <span className="font-semibold text-[#111111]">
+                                {parseInt(competitorChannelInfo.videoCount).toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
       {/* 模板管理區域 */}

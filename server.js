@@ -3498,7 +3498,7 @@ app.post('/api/analyze-keywords/stream', async (req, res) => {
  */
 app.post('/api/channel-analytics/aggregate', async (req, res) => {
   try {
-    const { accessToken, channelId, keywordGroups, dateRanges } = req.body;
+    const { accessToken, channelId, keywordGroups, dateRanges, forMine = true } = req.body;
 
     // 驗證參數
     if (!accessToken) {
@@ -3542,6 +3542,7 @@ app.post('/api/channel-analytics/aggregate', async (req, res) => {
 
     console.log('\n========== 📊 開始聚合頻道數據 ==========');
     console.log(`[Channel Analytics] 頻道 ID: ${channelId}`);
+    console.log(`[Channel Analytics] 分析模式: ${forMine ? '我的頻道' : '競爭對手頻道'}`);
     console.log(`[Channel Analytics] 關鍵字組合數: ${keywordGroups.length}`);
     console.log(`[Channel Analytics] 日期範圍數: ${dateRanges.length}`);
 
@@ -3549,7 +3550,8 @@ app.post('/api/channel-analytics/aggregate', async (req, res) => {
       accessToken,
       channelId,
       keywordGroups,
-      dateRanges
+      dateRanges,
+      forMine
     );
 
     console.log('[Channel Analytics] ✅ 數據聚合完成');
