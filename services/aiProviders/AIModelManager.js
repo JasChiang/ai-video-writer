@@ -69,6 +69,16 @@ export class AIModelManager {
         })
       );
 
+      // Google Gemini 3 Pro Preview (via OpenRouter)
+      this.providers.set(
+        'google/gemini-3-pro-preview',
+        new OpenRouterProvider({
+          apiKey: this.openRouterApiKey,
+          model: 'google/gemini-3-pro-preview',
+          temperature: 0.7,
+        })
+      );
+
       // 可選：其他模型
       // this.providers.set(
       //   'google/gemini-2.0-flash-exp',
@@ -204,6 +214,19 @@ export class AIModelManager {
         speedRating: 5,
         qualityRating: 4,
         bestFor: ['即時分析', '快速洞察', '趨勢預測', '數據解讀'],
+        useOpenRouter: true,
+      },
+
+      // Google Gemini 3 Pro Preview (via OpenRouter)
+      {
+        id: 'google/gemini-3-pro-preview',
+        name: 'Gemini 3 Pro Preview',
+        provider: 'Google',
+        description: 'Google 最新預覽版模型，支援推理功能',
+        cost: 'medium',
+        speedRating: 4,
+        qualityRating: 5,
+        bestFor: ['複雜推理', '深度分析', '邏輯思考'],
         useOpenRouter: true,
       },
     ];
