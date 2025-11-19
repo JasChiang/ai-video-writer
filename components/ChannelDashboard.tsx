@@ -58,6 +58,7 @@ import {
   Tv,
   Gamepad2,
   Crown,
+  TrendingDown,
   Sparkles,
   ChevronDown,
   ChevronUp,
@@ -339,6 +340,7 @@ export function ChannelDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [channelStats, setChannelStats] = useState<ChannelStats | null>(null);
   const [topVideos, setTopVideos] = useState<VideoItem[]>([]);
+  const [bottomVideos, setBottomVideos] = useState<VideoItem[]>([]);
 
   const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
   const [selectedMetric, setSelectedMetric] = useState<ChartMetric>('views');
@@ -366,14 +368,15 @@ export function ChannelDashboard() {
   const [topRegularVideos, setTopRegularVideos] = useState<VideoItem[]>([]);
 
   // 排行榜展開/收起狀態
-const [isTopVideosExpanded, setIsTopVideosExpanded] = useState(true);
-const [isTopShortsExpanded, setIsTopShortsExpanded] = useState(true);
-const [isTopRegularVideosExpanded, setIsTopRegularVideosExpanded] = useState(true);
-const showVideoRankingsDoubleColumn =
-  topShorts.length > 0 &&
-  topRegularVideos.length > 0 &&
-  isTopShortsExpanded &&
-  isTopRegularVideosExpanded;
+  const [isTopVideosExpanded, setIsTopVideosExpanded] = useState(true);
+  const [isTopShortsExpanded, setIsTopShortsExpanded] = useState(true);
+  const [isTopRegularVideosExpanded, setIsTopRegularVideosExpanded] = useState(true);
+  const [isBottomVideosExpanded, setIsBottomVideosExpanded] = useState(true);
+  const showVideoRankingsDoubleColumn =
+    topShorts.length > 0 &&
+    topRegularVideos.length > 0 &&
+    isTopShortsExpanded &&
+    isTopRegularVideosExpanded;
 
   // 影片卡片展開狀態
   const [expandedVideos, setExpandedVideos] = useState<Set<string>>(new Set());
@@ -644,14 +647,14 @@ const showVideoRankingsDoubleColumn =
   const countPublicUploadsInRange = async (startDate: Date, endDate: Date) => {
     const cache = await ensureVideoCache();
     const allVideos = Object.values(cache);
-      const uploads = allVideos.filter((v: any) => {
-        if (!v.publishedAt) return false;
-        const status = (v.privacyStatus || v.status?.privacyStatus || 'public').toLowerCase();
-        if (status && status !== 'public') return false;
-        const utcDate = new Date(v.publishedAt);
-        const publishDate = new Date(utcDate.getTime() + 8 * 60 * 60 * 1000); // convert to GMT+8
-        return publishDate >= startDate && publishDate <= endDate;
-      });
+    const uploads = allVideos.filter((v: any) => {
+      if (!v.publishedAt) return false;
+      const status = (v.privacyStatus || v.status?.privacyStatus || 'public').toLowerCase();
+      if (status && status !== 'public') return false;
+      const utcDate = new Date(v.publishedAt);
+      const publishDate = new Date(utcDate.getTime() + 8 * 60 * 60 * 1000); // convert to GMT+8
+      return publishDate >= startDate && publishDate <= endDate;
+    });
     return uploads.length;
   };
 
@@ -782,6 +785,9 @@ const showVideoRankingsDoubleColumn =
         // 獲取熱門一般影片排行榜
         await fetchTopRegularVideos(startDate, endDate, token);
 
+        // 獲取低效影片（Bottom Videos）
+        await fetchBottomVideosFromAnalytics(startDate, endDate, token);
+
         // 獲取日趨勢與最佳時段
         await fetchTrendData(startDate, endDate, token);
         if (ENABLE_PUBLISHING_SLOTS) {
@@ -840,32 +846,40 @@ const showVideoRankingsDoubleColumn =
         console.log('[Dashboard] 🔍 快取影片範例:', allVideos[0]);
       }
 
-      const topVideosWithDetails = analyticsRows.slice(0, 50).map((row: any[]) => {
-        const videoId = row[0];
-        const views = parseInt(row[1]) || 0;
-        const avgViewPercent = parseFloat(row[2]) || 0;
-        const comments = parseInt(row[3]) || 0;
-        const likes = parseInt(row[4]) || 0; // ✅ 使用時間範圍內的按讚數
-        const shares = parseInt(row[5]) || 0; // ✅ 使用時間範圍內的分享數
-        const video = allVideos.find((v: any) => v.videoId === videoId || v.id === videoId);
+      const topVideosWithDetails = analyticsRows
+        .map((row: any[]) => {
+          const videoId = row[0];
+          const views = parseInt(row[1]) || 0;
+          const avgViewPercent = parseFloat(row[2]) || 0;
+          const comments = parseInt(row[3]) || 0;
+          const likes = parseInt(row[4]) || 0; // ✅ 使用時間範圍內的按讚數
+          const shares = parseInt(row[5]) || 0; // ✅ 使用時間範圍內的分享數
+          const video = allVideos.find((v: any) => v.videoId === videoId || v.id === videoId);
 
-        if (!video) {
-          console.warn('[Dashboard] ⚠️ 找不到影片資料:', videoId);
-        }
+          if (!video) {
+            console.warn('[Dashboard] ⚠️ 找不到影片資料:', videoId);
+          }
 
-        return {
-          id: videoId,
-          title: video?.title || `影片 ${videoId}`,
-          viewCount: views, // Analytics API 的觀看數（時間範圍內）
-          likeCount: likes, // ✅ Analytics API 的按讚數（時間範圍內）
-          commentCount: comments, // Analytics API 的留言數（時間範圍內）
-          avgViewPercentage: avgViewPercent,
-          shareCount: shares, // ✅ Analytics API 的分享數（時間範圍內）
-          publishedAt: video?.publishedAt || '',
-          thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
-          description: descriptionsMap[videoId] || '',
-        };
-      });
+          // 嚴格過濾：只顯示公開影片
+          if (video && video.privacyStatus !== 'public') {
+            return null;
+          }
+
+          return {
+            id: videoId,
+            title: video?.title || `影片 ${videoId}`,
+            viewCount: views, // Analytics API 的觀看數（時間範圍內）
+            likeCount: likes, // ✅ Analytics API 的按讚數（時間範圍內）
+            commentCount: comments, // Analytics API 的留言數（時間範圍內）
+            avgViewPercentage: avgViewPercent,
+            shareCount: shares, // ✅ Analytics API 的分享數（時間範圍內）
+            publishedAt: video?.publishedAt || '',
+            thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
+            description: descriptionsMap[videoId] || '',
+          };
+        })
+        .filter((item: any) => item !== null) // 過濾掉非公開影片
+        .slice(0, 50); // 確保只取前 50 筆（過濾後）
 
       console.log(`[Dashboard] 🏆 Analytics 熱門影片: ${topVideosWithDetails.length} 支`);
       setTopVideos(topVideosWithDetails);
@@ -1243,28 +1257,37 @@ const showVideoRankingsDoubleColumn =
 
       // 匹配影片詳情
       // Analytics rows: [videoId, views, avgViewPercentage, comments, likes, shares]
-      const topShortsWithDetails = data.rows.slice(0, 10).map((row: any[]) => {
-        const videoId = row[0];
-        const views = parseInt(row[1]) || 0;
-        const avgViewPercent = parseFloat(row[2]) || 0;
-        const comments = parseInt(row[3]) || 0;
-        const likes = parseInt(row[4]) || 0; // ✅ 使用時間範圍內的按讚數
-        const shares = parseInt(row[5]) || 0; // ✅ 使用時間範圍內的分享數
-        const video = allVideos.find((v: any) => v.videoId === videoId || v.id === videoId);
+      // 匹配影片詳情
+      // Analytics rows: [videoId, views, avgViewPercentage, comments, likes, shares]
+      const topShortsWithDetails = data.rows
+        .map((row: any[]) => {
+          const videoId = row[0];
+          const views = parseInt(row[1]) || 0;
+          const avgViewPercent = parseFloat(row[2]) || 0;
+          const comments = parseInt(row[3]) || 0;
+          const likes = parseInt(row[4]) || 0; // ✅ 使用時間範圍內的按讚數
+          const shares = parseInt(row[5]) || 0; // ✅ 使用時間範圍內的分享數
+          const video = allVideos.find((v: any) => v.videoId === videoId || v.id === videoId);
 
-        return {
-          id: videoId,
-          title: video?.title || `Shorts ${videoId}`,
-          viewCount: views, // Analytics API 的觀看數（時間範圍內）
-          likeCount: likes, // ✅ Analytics API 的按讚數（時間範圍內）
-          commentCount: comments, // Analytics API 的留言數（時間範圍內）
-          avgViewPercentage: avgViewPercent,
-          shareCount: shares, // ✅ Analytics API 的分享數（時間範圍內）
-          publishedAt: video?.publishedAt || '',
-          thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
-          description: descriptionsMap[videoId] || '',
-        };
-      });
+          // 嚴格過濾：只顯示公開影片
+          if (video && video.privacyStatus !== 'public') {
+            return null;
+          }
+
+          return {
+            id: videoId,
+            title: video?.title || `Shorts ${videoId}`,
+            viewCount: views, // Analytics API 的觀看數（時間範圍內）
+            likeCount: likes, // ✅ Analytics API 的按讚數（時間範圍內）
+            commentCount: comments, // Analytics API 的留言數（時間範圍內）
+            avgViewPercentage: avgViewPercent,
+            shareCount: shares, // ✅ Analytics API 的分享數（時間範圍內）
+            publishedAt: video?.publishedAt || '',
+            thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
+            description: descriptionsMap[videoId] || '',
+          };
+        })
+        .filter((item: any) => item !== null); // 過濾掉非公開影片
 
       console.log(`[Dashboard] 🏆 熱門 Shorts: ${topShortsWithDetails.length} 支`);
       setTopShorts(topShortsWithDetails);
@@ -1315,34 +1338,151 @@ const showVideoRankingsDoubleColumn =
 
       // 匹配影片詳情
       // Analytics rows: [videoId, views, avgViewPercentage, comments, likes, shares]
-      const topRegularVideosWithDetails = data.rows.slice(0, 10).map((row: any[]) => {
-        const videoId = row[0];
-        const views = parseInt(row[1]) || 0;
-        const avgViewPercent = parseFloat(row[2]) || 0;
-        const comments = parseInt(row[3]) || 0;
-        const likes = parseInt(row[4]) || 0; // ✅ 使用時間範圍內的按讚數
-        const shares = parseInt(row[5]) || 0; // ✅ 使用時間範圍內的分享數
-        const video = allVideos.find((v: any) => v.videoId === videoId || v.id === videoId);
+      // 匹配影片詳情
+      // Analytics rows: [videoId, views, avgViewPercentage, comments, likes, shares]
+      const topRegularVideosWithDetails = data.rows
+        .map((row: any[]) => {
+          const videoId = row[0];
+          const views = parseInt(row[1]) || 0;
+          const avgViewPercent = parseFloat(row[2]) || 0;
+          const comments = parseInt(row[3]) || 0;
+          const likes = parseInt(row[4]) || 0; // ✅ 使用時間範圍內的按讚數
+          const shares = parseInt(row[5]) || 0; // ✅ 使用時間範圍內的分享數
+          const video = allVideos.find((v: any) => v.videoId === videoId || v.id === videoId);
 
-        return {
-          id: videoId,
-          title: video?.title || `影片 ${videoId}`,
-          viewCount: views, // Analytics API 的觀看數（時間範圍內）
-          likeCount: likes, // ✅ Analytics API 的按讚數（時間範圍內）
-          commentCount: comments, // Analytics API 的留言數（時間範圍內）
-          avgViewPercentage: avgViewPercent,
-          shareCount: shares, // ✅ Analytics API 的分享數（時間範圍內）
-          publishedAt: video?.publishedAt || '',
-          thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
-          description: descriptionsMap[videoId] || '',
-        };
-      });
+          // 嚴格過濾：只顯示公開影片
+          if (video && video.privacyStatus !== 'public') {
+            return null;
+          }
+
+          return {
+            id: videoId,
+            title: video?.title || `影片 ${videoId}`,
+            viewCount: views, // Analytics API 的觀看數（時間範圍內）
+            likeCount: likes, // ✅ Analytics API 的按讚數（時間範圍內）
+            commentCount: comments, // Analytics API 的留言數（時間範圍內）
+            avgViewPercentage: avgViewPercent,
+            shareCount: shares, // ✅ Analytics API 的分享數（時間範圍內）
+            publishedAt: video?.publishedAt || '',
+            thumbnailUrl: video?.thumbnail || video?.thumbnailUrl || '',
+            description: descriptionsMap[videoId] || '',
+          };
+        })
+        .filter((item: any) => item !== null); // 過濾掉非公開影片
 
       console.log(`[Dashboard] 🏆 熱門一般影片: ${topRegularVideosWithDetails.length} 支`);
       setTopRegularVideos(topRegularVideosWithDetails);
     } catch (err: any) {
       console.log('[Dashboard] ⚠️ 獲取熱門一般影片失敗:', err.message);
       setTopRegularVideos([]);
+    }
+  };
+
+  // 獲取低效影片排行榜（Bottom Videos）
+  const fetchBottomVideosFromAnalytics = async (startDate: Date, endDate: Date, token: string) => {
+    try {
+      console.log('[Dashboard] 📉 正在獲取低效影片 (Client-side sort)...');
+
+      // 1. 確保取得所有影片快取
+      const cache = await ensureVideoCache();
+      const allVideos = Object.values(cache) as any[];
+
+      if (allVideos.length === 0) {
+        console.log('[Dashboard] ℹ️ 影片快取為空');
+        setBottomVideos([]);
+        return;
+      }
+
+      // 2. 過濾並排序（找出觀看數最低的影片）
+      // 排除 Shorts (通常 Shorts 沒有 viewCount 或很短，這裡假設有 duration 或其他標記，
+      // 但目前快取結構可能不包含 duration。暫時只依賴 viewCount)
+      // 簡單過濾：排除 viewCount 為 undefined 的，且只保留公開影片
+      const validVideos = allVideos.filter(v => v.viewCount !== undefined && v.privacyStatus === 'public');
+
+      // 升序排列 (Lowest views first)
+      validVideos.sort((a, b) => {
+        const viewsA = parseInt(a.viewCount) || 0;
+        const viewsB = parseInt(b.viewCount) || 0;
+        return viewsA - viewsB;
+      });
+
+      // 取前 10 名（最低觀看）
+      const bottomCandidates = validVideos.slice(0, 10);
+      const bottomVideoIds = bottomCandidates.map(v => v.videoId || v.id);
+
+      if (bottomVideoIds.length === 0) {
+        setBottomVideos([]);
+        return;
+      }
+
+      console.log(`[Dashboard] 🎯 找到 ${bottomVideoIds.length} 支低觀看影片，準備獲取詳細數據...`);
+
+      // 3. 獲取這些影片在「指定時間範圍內」的數據
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      // 批量獲取影片描述
+      const descriptionsMap = await fetchVideoDescriptions(bottomVideoIds, token);
+
+      // 嘗試從 Analytics API 獲取這些特定影片的近期表現
+      let analyticsMap: Record<string, any> = {};
+      try {
+        const analyticsData = await queryYoutubeAnalytics({
+          ids: 'channel==MINE',
+          startDate: formatDate(startDate),
+          endDate: formatDate(endDate),
+          dimensions: 'video',
+          filters: `video==${bottomVideoIds.join(',')}`,
+          metrics: 'views,averageViewPercentage,comments,likes,shares',
+        });
+
+        if (analyticsData.rows) {
+          analyticsData.rows.forEach((row: any[]) => {
+            const videoId = row[0];
+            analyticsMap[videoId] = {
+              views: parseInt(row[1]) || 0,
+              avgViewPercentage: parseFloat(row[2]) || 0,
+              comments: parseInt(row[3]) || 0,
+              likes: parseInt(row[4]) || 0,
+              shares: parseInt(row[5]) || 0,
+            };
+          });
+        }
+      } catch (apiError) {
+        console.warn('[Dashboard] ⚠️ 無法獲取低效影片的 Analytics 數據 (可能無流量):', apiError);
+        // 忽略錯誤，使用預設值 0
+      }
+
+      // 4. 組合最終數據
+      const bottomVideosWithDetails = bottomCandidates.map((video) => {
+        const videoId = video.videoId || video.id;
+        const analytics = analyticsMap[videoId] || {};
+
+        return {
+          id: videoId,
+          title: video.title || `影片 ${videoId}`,
+          // 這裡顯示「期間內」的數據，如果沒有數據則為 0
+          viewCount: analytics.views || 0,
+          likeCount: analytics.likes || 0,
+          commentCount: analytics.comments || 0,
+          avgViewPercentage: analytics.avgViewPercentage || 0,
+          shareCount: analytics.shares || 0,
+          publishedAt: video.publishedAt || '',
+          thumbnailUrl: video.thumbnail || video.thumbnailUrl || '',
+          description: descriptionsMap[videoId] || '',
+        };
+      });
+
+      console.log(`[Dashboard] 📉 低效影片處理完成: ${bottomVideosWithDetails.length} 支`);
+      setBottomVideos(bottomVideosWithDetails);
+
+    } catch (err: any) {
+      console.log('[Dashboard] ⚠️ 獲取低效影片失敗:', err.message);
+      setBottomVideos([]);
     }
   };
 
@@ -2677,13 +2817,12 @@ const showVideoRankingsDoubleColumn =
                       setStartDate(range.start);
                       setEndDate(range.end);
                     }}
-                    className={`px-4 py-2 text-[13px] font-semibold rounded-full border transition-all duration-200 ${
-                      disabled
-                        ? 'bg-white/10 text-white/40 border-white/10 cursor-not-allowed'
-                        : showActive
-                          ? 'bg-white text-[#C30000] border-transparent shadow-[0_2px_10px_rgba(255,255,255,0.35)]'
-                          : 'bg-transparent text-white border-white/40 hover:bg-white/10 hover:border-white/60'
-                    }`}
+                    className={`px-4 py-2 text-[13px] font-semibold rounded-full border transition-all duration-200 ${disabled
+                      ? 'bg-white/10 text-white/40 border-white/10 cursor-not-allowed'
+                      : showActive
+                        ? 'bg-white text-[#C30000] border-transparent shadow-[0_2px_10px_rgba(255,255,255,0.35)]'
+                        : 'bg-transparent text-white border-white/40 hover:bg-white/10 hover:border-white/60'
+                      }`}
                     aria-disabled={disabled}
                     title={
                       disabled
@@ -2843,6 +2982,15 @@ const showVideoRankingsDoubleColumn =
               devices: devices,
               trendData: trendData,
               monthlyData: monthlyData,
+              bottomVideos: bottomVideos.map(video => ({
+                videoId: video.id,
+                title: video.title,
+                publishedAt: video.publishedAt,
+                viewCount: video.viewCount,
+                likeCount: video.likeCount,
+                commentCount: video.commentCount,
+                tags: [], // Bottom videos might not have tags loaded, passing empty array
+              })),
             }}
           />
         </div>
@@ -2854,17 +3002,15 @@ const showVideoRankingsDoubleColumn =
           {/* 觀看次數（時間範圍內）*/}
           <button
             onClick={() => setSelectedMetric('views')}
-            className={`group relative overflow-hidden rounded-lg border bg-gradient-to-br from-white to-gray-50/30 shadow-sm transition-all duration-300 p-4 text-left hover:shadow-lg ${
-              selectedMetric === 'views'
-                ? 'border-red-500 shadow-red-100 ring-1 ring-red-500/20'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
+            className={`group relative overflow-hidden rounded-lg border bg-gradient-to-br from-white to-gray-50/30 shadow-sm transition-all duration-300 p-4 text-left hover:shadow-lg ${selectedMetric === 'views'
+              ? 'border-red-500 shadow-red-100 ring-1 ring-red-500/20'
+              : 'border-gray-200 hover:border-gray-300'
+              }`}
             style={{ fontFamily: '"JetBrains Mono", "Consolas", monospace' }}
           >
             {/* 背景裝飾 */}
-            <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl transition-opacity duration-300 ${
-              selectedMetric === 'views' ? 'opacity-10 bg-red-500' : 'opacity-0'
-            }`} />
+            <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl transition-opacity duration-300 ${selectedMetric === 'views' ? 'opacity-10 bg-red-500' : 'opacity-0'
+              }`} />
 
             <div className="relative">
               {/* Header */}
@@ -2896,9 +3042,8 @@ const showVideoRankingsDoubleColumn =
                     {comparisonDateRanges && (
                       <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.previous}</div>
                     )}
-                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${
-                      viewsComparison.changeFromPrevious >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                    }`}>
+                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${viewsComparison.changeFromPrevious >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                      }`}>
                       <span>{viewsComparison.changeFromPrevious >= 0 ? '↑' : '↓'}</span>
                       <span>{Math.abs(viewsComparison.changeFromPreviousPercent).toFixed(1)}%</span>
                     </div>
@@ -2908,9 +3053,8 @@ const showVideoRankingsDoubleColumn =
                     {comparisonDateRanges && (
                       <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.yearAgo}</div>
                     )}
-                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${
-                      viewsComparison.changeFromYearAgo >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                    }`}>
+                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${viewsComparison.changeFromYearAgo >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                      }`}>
                       <span>{viewsComparison.changeFromYearAgo >= 0 ? '↑' : '↓'}</span>
                       <span>{Math.abs(viewsComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
                     </div>
@@ -2923,17 +3067,15 @@ const showVideoRankingsDoubleColumn =
           {/* 觀看時間（小時）*/}
           <button
             onClick={() => setSelectedMetric('watchTime')}
-            className={`group relative overflow-hidden rounded-lg border bg-gradient-to-br from-white to-gray-50/30 shadow-sm transition-all duration-300 p-4 text-left hover:shadow-lg ${
-              selectedMetric === 'watchTime'
-                ? 'border-red-500 shadow-red-100 ring-1 ring-red-500/20'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
+            className={`group relative overflow-hidden rounded-lg border bg-gradient-to-br from-white to-gray-50/30 shadow-sm transition-all duration-300 p-4 text-left hover:shadow-lg ${selectedMetric === 'watchTime'
+              ? 'border-red-500 shadow-red-100 ring-1 ring-red-500/20'
+              : 'border-gray-200 hover:border-gray-300'
+              }`}
             style={{ fontFamily: '"JetBrains Mono", "Consolas", monospace' }}
           >
             {/* 背景裝飾 */}
-            <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl transition-opacity duration-300 ${
-              selectedMetric === 'watchTime' ? 'opacity-10 bg-red-500' : 'opacity-0'
-            }`} />
+            <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl transition-opacity duration-300 ${selectedMetric === 'watchTime' ? 'opacity-10 bg-red-500' : 'opacity-0'
+              }`} />
 
             <div className="relative">
               {/* Header */}
@@ -2965,9 +3107,8 @@ const showVideoRankingsDoubleColumn =
                     {comparisonDateRanges && (
                       <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.previous}</div>
                     )}
-                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${
-                      watchTimeComparison.changeFromPrevious >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                    }`}>
+                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${watchTimeComparison.changeFromPrevious >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                      }`}>
                       <span>{watchTimeComparison.changeFromPrevious >= 0 ? '↑' : '↓'}</span>
                       <span>{Math.abs(watchTimeComparison.changeFromPreviousPercent).toFixed(1)}%</span>
                     </div>
@@ -2977,9 +3118,8 @@ const showVideoRankingsDoubleColumn =
                     {comparisonDateRanges && (
                       <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.yearAgo}</div>
                     )}
-                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${
-                      watchTimeComparison.changeFromYearAgo >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                    }`}>
+                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${watchTimeComparison.changeFromYearAgo >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                      }`}>
                       <span>{watchTimeComparison.changeFromYearAgo >= 0 ? '↑' : '↓'}</span>
                       <span>{Math.abs(watchTimeComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
                     </div>
@@ -2992,17 +3132,15 @@ const showVideoRankingsDoubleColumn =
           {/* 新增訂閱數 */}
           <button
             onClick={() => setSelectedMetric('subscribers')}
-            className={`group relative overflow-hidden rounded-lg border bg-gradient-to-br from-white to-gray-50/30 shadow-sm transition-all duration-300 p-4 text-left hover:shadow-lg ${
-              selectedMetric === 'subscribers'
-                ? 'border-red-500 shadow-red-100 ring-1 ring-red-500/20'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
+            className={`group relative overflow-hidden rounded-lg border bg-gradient-to-br from-white to-gray-50/30 shadow-sm transition-all duration-300 p-4 text-left hover:shadow-lg ${selectedMetric === 'subscribers'
+              ? 'border-red-500 shadow-red-100 ring-1 ring-red-500/20'
+              : 'border-gray-200 hover:border-gray-300'
+              }`}
             style={{ fontFamily: '"JetBrains Mono", "Consolas", monospace' }}
           >
             {/* 背景裝飾 */}
-            <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl transition-opacity duration-300 ${
-              selectedMetric === 'subscribers' ? 'opacity-10 bg-red-500' : 'opacity-0'
-            }`} />
+            <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl transition-opacity duration-300 ${selectedMetric === 'subscribers' ? 'opacity-10 bg-red-500' : 'opacity-0'
+              }`} />
 
             <div className="relative">
               {/* Header */}
@@ -3047,9 +3185,8 @@ const showVideoRankingsDoubleColumn =
                     {comparisonDateRanges && (
                       <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.previous}</div>
                     )}
-                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${
-                      subscribersComparison.changeFromPrevious >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                    }`}>
+                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${subscribersComparison.changeFromPrevious >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                      }`}>
                       <span>{subscribersComparison.changeFromPrevious >= 0 ? '↑' : '↓'}</span>
                       <span>{Math.abs(subscribersComparison.changeFromPreviousPercent).toFixed(1)}%</span>
                     </div>
@@ -3059,9 +3196,8 @@ const showVideoRankingsDoubleColumn =
                     {comparisonDateRanges && (
                       <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.yearAgo}</div>
                     )}
-                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${
-                      subscribersComparison.changeFromYearAgo >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                    }`}>
+                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${subscribersComparison.changeFromYearAgo >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                      }`}>
                       <span>{subscribersComparison.changeFromYearAgo >= 0 ? '↑' : '↓'}</span>
                       <span>{Math.abs(subscribersComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
                     </div>
@@ -3466,9 +3602,8 @@ const showVideoRankingsDoubleColumn =
                       <div>
                         <div className="text-gray-500">觀看動能</div>
                         <div
-                          className={`text-2xl font-bold ${
-                            trendSummary.momentum >= 0 ? 'text-green-600' : 'text-red-600'
-                          }`}
+                          className={`text-2xl font-bold ${trendSummary.momentum >= 0 ? 'text-green-600' : 'text-red-600'
+                            }`}
                         >
                           {trendSummary.momentum >= 0 ? '+' : ''}
                           {formatFullNumber(trendSummary.momentum)}
@@ -3543,104 +3678,104 @@ const showVideoRankingsDoubleColumn =
 
             {ENABLE_PUBLISHING_SLOTS && (
               <div className={`${cardBaseClass} p-6`}>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-red-500" />
-                  <h3 className="text-lg font-semibold text-gray-900">建議發布時段</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-red-500" />
+                    <h3 className="text-lg font-semibold text-gray-900">建議發布時段</h3>
+                  </div>
+                  <span className="text-xs text-gray-500">{viewingHoursSubtitle}</span>
                 </div>
-                <span className="text-xs text-gray-500">{viewingHoursSubtitle}</span>
-              </div>
 
-              {viewingHours.length === 0 ? (
-                <div className="text-sm text-gray-500 bg-amber-50 border border-amber-100 rounded-xl p-4">
-                  尚未取得觀看時段資料。請確保已授權 YouTube Analytics API 並重新刷新，或擴大日期範圍。
-                </div>
-              ) : (
-                <>
-                  {bestPublishingSlots.length > 0 && (
-                    <div className="space-y-3">
-                      {bestPublishingSlots.map((slot) => (
-                        <div
-                          key={`${slot.dayOfWeek}-${slot.hour}`}
-                          className="flex items-center justify-between p-3 rounded-xl border border-red-100 bg-red-50/60"
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="w-6 h-6 rounded-full bg-white text-red-600 text-sm font-bold flex items-center justify-center shadow">
-                              {slot.rank}
-                            </span>
-                            <div>
-                              <div className="text-sm font-semibold text-gray-900">{slot.label}</div>
-                              <div className="text-xs text-gray-500">
-                                平均觀看 {formatFullNumber(slot.views)} 次
+                {viewingHours.length === 0 ? (
+                  <div className="text-sm text-gray-500 bg-amber-50 border border-amber-100 rounded-xl p-4">
+                    尚未取得觀看時段資料。請確保已授權 YouTube Analytics API 並重新刷新，或擴大日期範圍。
+                  </div>
+                ) : (
+                  <>
+                    {bestPublishingSlots.length > 0 && (
+                      <div className="space-y-3">
+                        {bestPublishingSlots.map((slot) => (
+                          <div
+                            key={`${slot.dayOfWeek}-${slot.hour}`}
+                            className="flex items-center justify-between p-3 rounded-xl border border-red-100 bg-red-50/60"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="w-6 h-6 rounded-full bg-white text-red-600 text-sm font-bold flex items-center justify-center shadow">
+                                {slot.rank}
+                              </span>
+                              <div>
+                                <div className="text-sm font-semibold text-gray-900">{slot.label}</div>
+                                <div className="text-xs text-gray-500">
+                                  平均觀看 {formatFullNumber(slot.views)} 次
+                                </div>
                               </div>
                             </div>
+                            <span className="text-[11px] text-red-600 bg-white border border-red-100 rounded-full px-3 py-1 shadow-sm">
+                              安排上片
+                            </span>
                           </div>
-                          <span className="text-[11px] text-red-600 bg-white border border-red-100 rounded-full px-3 py-1 shadow-sm">
-                            安排上片
-                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {viewingHoursSource === 'analytics' && (
+                      <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-4">
+                        目前 YouTube Analytics API 僅提供每日資料，建議時段依「哪一天觀看最高」估算。
+                      </p>
+                    )}
+
+                    {viewingHourHeatmap && (
+                      <div className="mt-5">
+                        <div className="text-xs text-gray-500 mb-2 flex items-center justify-between">
+                          <span>一週行事曆（越深代表觀眾越多）</span>
+                          <span className="text-[10px] text-gray-400">台灣時間</span>
                         </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {viewingHoursSource === 'analytics' && (
-                    <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-4">
-                      目前 YouTube Analytics API 僅提供每日資料，建議時段依「哪一天觀看最高」估算。
-                    </p>
-                  )}
-
-                  {viewingHourHeatmap && (
-                    <div className="mt-5">
-                      <div className="text-xs text-gray-500 mb-2 flex items-center justify-between">
-                        <span>一週行事曆（越深代表觀眾越多）</span>
-                        <span className="text-[10px] text-gray-400">台灣時間</span>
-                      </div>
-                      <div className="grid grid-cols-8 gap-2 text-xs">
-                        <div />
-                        {DAY_OF_WEEK_LABELS.map((label) => (
-                          <div
-                            key={`header-${label}`}
-                            className="text-center text-[11px] font-semibold text-gray-500"
-                          >
-                            {label}
-                          </div>
-                        ))}
-                        {viewingHourHeatmap.rows.map((row) => (
-                          <React.Fragment key={row.bucketLabel}>
-                            <div className="text-right pr-2 text-[11px] text-gray-500 font-semibold">
-                              {row.bucketLabel}
+                        <div className="grid grid-cols-8 gap-2 text-xs">
+                          <div />
+                          {DAY_OF_WEEK_LABELS.map((label) => (
+                            <div
+                              key={`header-${label}`}
+                              className="text-center text-[11px] font-semibold text-gray-500"
+                            >
+                              {label}
                             </div>
-                            {row.values.map((cell) => {
-                              const bgOpacity = 0.15 + cell.intensity * 0.65;
-                              return (
-                                <div
-                                  key={`${row.bucketLabel}-${cell.dayIndex}`}
-                                  className="h-12 rounded-lg border border-red-50 flex flex-col items-center justify-center"
-                                  style={{
-                                    backgroundColor: `rgba(239, 68, 68, ${bgOpacity.toFixed(3)})`,
-                                  }}
-                                >
-                                  <span className="text-xs font-semibold text-red-900">
-                                    {cell.views > 0 ? formatNumber(cell.views) : '—'}
-                                  </span>
-                                  <span className="text-[10px] text-red-900/70">次</span>
-                                </div>
-                              );
-                            })}
-                          </React.Fragment>
-                        ))}
+                          ))}
+                          {viewingHourHeatmap.rows.map((row) => (
+                            <React.Fragment key={row.bucketLabel}>
+                              <div className="text-right pr-2 text-[11px] text-gray-500 font-semibold">
+                                {row.bucketLabel}
+                              </div>
+                              {row.values.map((cell) => {
+                                const bgOpacity = 0.15 + cell.intensity * 0.65;
+                                return (
+                                  <div
+                                    key={`${row.bucketLabel}-${cell.dayIndex}`}
+                                    className="h-12 rounded-lg border border-red-50 flex flex-col items-center justify-center"
+                                    style={{
+                                      backgroundColor: `rgba(239, 68, 68, ${bgOpacity.toFixed(3)})`,
+                                    }}
+                                  >
+                                    <span className="text-xs font-semibold text-red-900">
+                                      {cell.views > 0 ? formatNumber(cell.views) : '—'}
+                                    </span>
+                                    <span className="text-[10px] text-red-900/70">次</span>
+                                  </div>
+                                );
+                              })}
+                            </React.Fragment>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {viewingHoursSource === 'cache' && !viewingHourHeatmap && (
-                    <p className="text-xs text-gray-500 mt-4">
-                      目前資料量不足以繪製行事曆，但已根據歷來影片表現排序最佳發布順位。
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
+                    {viewingHoursSource === 'cache' && !viewingHourHeatmap && (
+                      <p className="text-xs text-gray-500 mt-4">
+                        目前資料量不足以繪製行事曆，但已根據歷來影片表現排序最佳發布順位。
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
             )}
           </div>
         </>
@@ -3665,8 +3800,8 @@ const showVideoRankingsDoubleColumn =
               Shorts 與一般影片的表現對比
               {(contentTypeMetrics.shorts.views === 0 && contentTypeMetrics.regularVideos.views === 0) && (
                 <span className="block mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-orange-700 text-xs">
-                  選定的時間範圍內沒有觀看數據。請嘗試：<br/>
-                  1. 選擇更長的時間範圍（例如「過去 90 天」）<br/>
+                  選定的時間範圍內沒有觀看數據。請嘗試：<br />
+                  1. 選擇更長的時間範圍（例如「過去 90 天」）<br />
                   2. 確認頻道在此期間有發布影片
                 </span>
               )}
@@ -3789,154 +3924,152 @@ const showVideoRankingsDoubleColumn =
             {isTopVideosExpanded && (
               <>
                 <div className="flex flex-wrap gap-2 mb-6">
-              {TOP_VIDEO_METRICS.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setTopVideoMetric(option.value)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition ${
-                    topVideoMetric === option.value
-                      ? 'bg-red-600 text-white border-red-600 shadow-sm shadow-red-200'
-                      : 'bg-white text-gray-600 border-red-100 hover:bg-red-50 hover:text-red-600'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-
-            {/* 響應式網格卡片 */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-              {sortedTopVideos.map((video, index) => {
-                const metricConfig = topVideoMetricConfig[topVideoMetric];
-                const metricValue = metricConfig.value(video);
-                const metricDisplay = metricConfig.formatter(metricValue);
-                const MetricIcon = metricConfig.icon;
-
-                const isExpanded = expandedVideos.has(video.id);
-                const isDescExpanded = expandedDescriptions.has(video.id);
-
-                // Debug logging
-                if (index === 0 && sortedTopVideos.length > 0) {
-                  console.log('[Dashboard] 📊 Top Videos Sample:', {
-                    videoId: video.id,
-                    title: video.title,
-                    hasDescription: !!video.description,
-                    descriptionLength: video.description?.length || 0,
-                    isExpanded
-                  });
-                }
-
-                return (
-                  <div
-                    key={video.id}
-                    className="rounded-lg border border-red-100 hover:border-red-200 transition-colors flex flex-col h-full overflow-hidden"
-                  >
-                    {/* 可點擊的卡片頭部 */}
-                    <div
-                      onClick={() => toggleVideoExpanded(video.id)}
-                      className="p-3 cursor-pointer hover:bg-red-50/70 flex flex-col items-center text-center gap-3"
+                  {TOP_VIDEO_METRICS.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setTopVideoMetric(option.value)}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition ${topVideoMetric === option.value
+                        ? 'bg-red-600 text-white border-red-600 shadow-sm shadow-red-200'
+                        : 'bg-white text-gray-600 border-red-100 hover:bg-red-50 hover:text-red-600'
+                        }`}
                     >
-                      {/* 排名標籤 */}
-                      <div className="self-start text-xs font-semibold text-red-500 flex items-center gap-1">
-                        <span className="text-sm">#{index + 1}</span>
-                        <span className="text-[11px] text-gray-400">Top</span>
-                      </div>
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
 
-                      {/* 縮圖與主要指標 */}
-                      <div className="flex flex-col items-center w-full">
-                        <img
-                          src={video.thumbnailUrl}
-                          alt={video.title}
-                          className="w-full aspect-video object-cover rounded-lg shadow-sm"
-                        />
-                        <div className="mt-2 inline-flex items-center justify-center gap-1 text-sm text-red-600 w-full truncate">
-                          <MetricIcon className="w-4 h-4 text-red-500 flex-shrink-0" />
-                          <span className="font-semibold truncate">{metricDisplay}</span>
-                        </div>
-                        <div className="text-xs text-gray-500">{metricConfig.label}</div>
-                      </div>
+                {/* 響應式網格卡片 */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                  {sortedTopVideos.map((video, index) => {
+                    const metricConfig = topVideoMetricConfig[topVideoMetric];
+                    const metricValue = metricConfig.value(video);
+                    const metricDisplay = metricConfig.formatter(metricValue);
+                    const MetricIcon = metricConfig.icon;
 
-                      {/* 影片標題 */}
-                      <h4 className="text-sm font-medium text-gray-900 line-clamp-2 w-full leading-relaxed">
-                        {video.title}
-                      </h4>
+                    const isExpanded = expandedVideos.has(video.id);
+                    const isDescExpanded = expandedDescriptions.has(video.id);
 
-                      {/* 互動數據 */}
-                      <div className="w-full flex items-center justify-center gap-3 text-xs font-semibold flex-wrap">
-                        <span className="inline-flex items-center gap-1 text-rose-600">
-                          <ThumbsUp className="w-4 h-4 shrink-0" />
-                          {formatNumber(video.likeCount)}
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-red-500">
-                          <MessageSquare className="w-4 h-4 shrink-0" />
-                          {formatNumber(video.commentCount)}
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-amber-600">
-                          <Calendar className="w-4 h-4 shrink-0" />
-                          {formatDate(video.publishedAt)}
-                        </span>
-                      </div>
+                    // Debug logging
+                    if (index === 0 && sortedTopVideos.length > 0) {
+                      console.log('[Dashboard] 📊 Top Videos Sample:', {
+                        videoId: video.id,
+                        title: video.title,
+                        hasDescription: !!video.description,
+                        descriptionLength: video.description?.length || 0,
+                        isExpanded
+                      });
+                    }
 
-                      {/* 展開指示器 */}
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-full">
-                        {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                        <span>{isExpanded ? '收起' : '點擊展開'}</span>
-                      </div>
-                    </div>
-
-                    {/* 展開內容 */}
-                    {isExpanded && (
-                      <div className="border-t border-red-100 p-3 space-y-3 bg-red-50/30">
-                        {/* YouTube 影片播放器 */}
-                        <div className="w-full">
-                          <iframe
-                            className="w-full aspect-video rounded-lg"
-                            src={`https://www.youtube.com/embed/${video.id}`}
-                            title={video.title}
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                          />
-                        </div>
-
-                        {/* 影片說明 */}
-                        {video.description ? (
-                          <div className="space-y-2">
-                            <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
-                            <div className="bg-gray-100 rounded-lg p-3">
-                              <div
-                                className={`text-xs text-gray-800 whitespace-pre-wrap leading-relaxed ${
-                                  isDescExpanded ? '' : 'line-clamp-3'
-                                }`}
-                              >
-                                {video.description}
-                              </div>
-                            </div>
-                            {video.description.split('\n').length > 3 || video.description.length > 150 ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleDescriptionExpanded(video.id);
-                                }}
-                                className="inline-block px-3 py-1.5 text-xs text-red-600 hover:text-red-700 font-medium bg-red-50 hover:bg-red-100 rounded-full transition-colors"
-                              >
-                                {isDescExpanded ? '收起影片說明' : '展開影片說明'}
-                              </button>
-                            ) : null}
+                    return (
+                      <div
+                        key={video.id}
+                        className="rounded-lg border border-red-100 hover:border-red-200 transition-colors flex flex-col h-full overflow-hidden"
+                      >
+                        {/* 可點擊的卡片頭部 */}
+                        <div
+                          onClick={() => toggleVideoExpanded(video.id)}
+                          className="p-3 cursor-pointer hover:bg-red-50/70 flex flex-col items-center text-center gap-3"
+                        >
+                          {/* 排名標籤 */}
+                          <div className="self-start text-xs font-semibold text-red-500 flex items-center gap-1">
+                            <span className="text-sm">#{index + 1}</span>
+                            <span className="text-[11px] text-gray-400">Top</span>
                           </div>
-                        ) : (
-                          <div className="space-y-2">
-                            <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
-                            <div className="bg-gray-100 rounded-lg p-3">
-                              <p className="text-xs text-gray-500 italic">此影片暫無說明</p>
+
+                          {/* 縮圖與主要指標 */}
+                          <div className="flex flex-col items-center w-full">
+                            <img
+                              src={video.thumbnailUrl}
+                              alt={video.title}
+                              className="w-full aspect-video object-cover rounded-lg shadow-sm"
+                            />
+                            <div className="mt-2 inline-flex items-center justify-center gap-1 text-sm text-red-600 w-full truncate">
+                              <MetricIcon className="w-4 h-4 text-red-500 flex-shrink-0" />
+                              <span className="font-semibold truncate">{metricDisplay}</span>
                             </div>
+                            <div className="text-xs text-gray-500">{metricConfig.label}</div>
+                          </div>
+
+                          {/* 影片標題 */}
+                          <h4 className="text-sm font-medium text-gray-900 line-clamp-2 w-full leading-relaxed">
+                            {video.title}
+                          </h4>
+
+                          {/* 互動數據 */}
+                          <div className="w-full flex items-center justify-center gap-3 text-xs font-semibold flex-wrap">
+                            <span className="inline-flex items-center gap-1 text-rose-600">
+                              <ThumbsUp className="w-4 h-4 shrink-0" />
+                              {formatNumber(video.likeCount)}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-red-500">
+                              <MessageSquare className="w-4 h-4 shrink-0" />
+                              {formatNumber(video.commentCount)}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-amber-600">
+                              <Calendar className="w-4 h-4 shrink-0" />
+                              {formatDate(video.publishedAt)}
+                            </span>
+                          </div>
+
+                          {/* 展開指示器 */}
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-full">
+                            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            <span>{isExpanded ? '收起' : '點擊展開'}</span>
+                          </div>
+                        </div>
+
+                        {/* 展開內容 */}
+                        {isExpanded && (
+                          <div className="border-t border-red-100 p-3 space-y-3 bg-red-50/30">
+                            {/* YouTube 影片播放器 */}
+                            <div className="w-full">
+                              <iframe
+                                className="w-full aspect-video rounded-lg"
+                                src={`https://www.youtube.com/embed/${video.id}`}
+                                title={video.title}
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                              />
+                            </div>
+
+                            {/* 影片說明 */}
+                            {video.description ? (
+                              <div className="space-y-2">
+                                <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
+                                <div className="bg-gray-100 rounded-lg p-3">
+                                  <div
+                                    className={`text-xs text-gray-800 whitespace-pre-wrap leading-relaxed ${isDescExpanded ? '' : 'line-clamp-3'
+                                      }`}
+                                  >
+                                    {video.description}
+                                  </div>
+                                </div>
+                                {video.description.split('\n').length > 3 || video.description.length > 150 ? (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleDescriptionExpanded(video.id);
+                                    }}
+                                    className="inline-block px-3 py-1.5 text-xs text-red-600 hover:text-red-700 font-medium bg-red-50 hover:bg-red-100 rounded-full transition-colors"
+                                  >
+                                    {isDescExpanded ? '收起影片說明' : '展開影片說明'}
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
+                                <div className="bg-gray-100 rounded-lg p-3">
+                                  <p className="text-xs text-gray-500 italic">此影片暫無說明</p>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </div>
               </>
             )}
           </div>
@@ -3946,9 +4079,8 @@ const showVideoRankingsDoubleColumn =
       {/* 並排顯示：Shorts 和一般影片排行榜 */}
       {(topShorts.length > 0 || topRegularVideos.length > 0) && (
         <div
-          className={`grid grid-cols-1 ${
-            showVideoRankingsDoubleColumn ? 'xl:grid-cols-2' : 'xl:grid-cols-1'
-          } gap-4`}
+          className={`grid grid-cols-1 ${showVideoRankingsDoubleColumn ? 'xl:grid-cols-2' : 'xl:grid-cols-1'
+            } gap-4`}
         >
           {/* 熱門 Shorts 排行榜 */}
           {topShorts.length > 0 && (
@@ -4105,9 +4237,8 @@ const showVideoRankingsDoubleColumn =
                                   <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
                                   <div className="bg-gray-100 rounded-lg p-3">
                                     <div
-                                      className={`text-xs text-gray-800 whitespace-pre-wrap leading-relaxed ${
-                                        isDescExpanded ? '' : 'line-clamp-3'
-                                      }`}
+                                      className={`text-xs text-gray-800 whitespace-pre-wrap leading-relaxed ${isDescExpanded ? '' : 'line-clamp-3'
+                                        }`}
                                     >
                                       {video.description}
                                     </div>
@@ -4301,9 +4432,8 @@ const showVideoRankingsDoubleColumn =
                                   <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
                                   <div className="bg-gray-100 rounded-lg p-3">
                                     <div
-                                      className={`text-xs text-gray-800 whitespace-pre-wrap leading-relaxed ${
-                                        isDescExpanded ? '' : 'line-clamp-3'
-                                      }`}
+                                      className={`text-xs text-gray-800 whitespace-pre-wrap leading-relaxed ${isDescExpanded ? '' : 'line-clamp-3'
+                                        }`}
                                     >
                                       {video.description}
                                     </div>
@@ -4343,6 +4473,179 @@ const showVideoRankingsDoubleColumn =
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 冷門影片排行榜 (Bottom 10) */}
+      {bottomVideos.length > 0 && (
+        <div className={`${cardBaseClass} h-full flex flex-col mt-4`}>
+          <div className="p-6 flex-1 flex flex-col">
+            <div
+              className="flex items-center justify-between cursor-pointer mb-4"
+              onClick={() => setIsBottomVideosExpanded(!isBottomVideosExpanded)}
+            >
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+                  <TrendingDown className="w-5 h-5 text-slate-500" />
+                  冷門影片排行榜 (Bottom 10)
+                </h3>
+                <p className="text-sm text-gray-500">
+                  時間範圍內觀看次數最低的影片（需關注優化）
+                </p>
+              </div>
+              <button className="ml-4 p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                {isBottomVideosExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-gray-500" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-500" />
+                )}
+              </button>
+            </div>
+
+            {isBottomVideosExpanded && (
+              <div className="space-y-2.5 flex-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {bottomVideos.map((video, index) => {
+                    const isExpanded = expandedVideos.has(video.id);
+                    const isDescExpanded = expandedDescriptions.has(video.id);
+
+                    return (
+                      <div
+                        key={video.id}
+                        className="group relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/30 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-100/50 transition-all duration-300"
+                      >
+                        <div
+                          className="flex items-start gap-3 p-3 cursor-pointer"
+                          onClick={() => toggleVideoExpanded(video.id)}
+                        >
+                          {/* 排名徽章 (倒數) */}
+                          <div className="flex-shrink-0 relative">
+                            <div
+                              className="absolute -top-1 -left-1 w-8 h-8 bg-slate-500 rounded-full flex items-center justify-center shadow-lg z-10 ring-2 ring-white"
+                            >
+                              <span className="text-white text-xs font-black tracking-tight">
+                                {index + 1}
+                              </span>
+                            </div>
+                            <div className="relative overflow-hidden rounded-lg ring-2 ring-white shadow-md group-hover:scale-105 transition-transform duration-300">
+                              <img
+                                src={video.thumbnailUrl}
+                                alt={video.title}
+                                className="w-[120px] aspect-video object-cover grayscale-[30%] group-hover:grayscale-0 transition-all"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            </div>
+                          </div>
+
+                          {/* 內容區 */}
+                          <div className="flex-1 min-w-0 pt-0.5">
+                            {/* 標題 */}
+                            <h4 className="text-sm font-semibold text-gray-700 line-clamp-2 leading-snug mb-2 group-hover:text-slate-900 transition-colors">
+                              {video.title}
+                            </h4>
+
+                            {/* 數據網格 */}
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              {/* 觀看數 */}
+                              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 border border-slate-200">
+                                <Eye className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                                <div className="flex flex-col min-w-0">
+                                  <span className="font-bold text-slate-600 truncate text-[11px] leading-tight">
+                                    {formatFullNumber(video.viewCount)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* 按讚數 */}
+                              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 border border-slate-200">
+                                <ThumbsUp className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                                <span className="font-bold text-slate-500 truncate text-[11px] leading-tight">
+                                  {formatFullNumber(video.likeCount)}
+                                </span>
+                              </div>
+
+                              {/* 留言數 */}
+                              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 border border-slate-200">
+                                <MessageSquare className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                                <span className="font-bold text-slate-500 truncate text-[11px] leading-tight">
+                                  {formatFullNumber(video.commentCount)}
+                                </span>
+                              </div>
+
+                              {/* 觀看完成率 */}
+                              {video.avgViewPercentage > 0 && (
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 border border-slate-200">
+                                  <BarChart3 className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                                  <span className="font-bold text-slate-500 text-[11px] leading-tight">
+                                    {video.avgViewPercentage.toFixed(1)}%
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* 展開指示器 */}
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 bg-slate-100 rounded-full mt-2 group-hover:bg-slate-200 transition-colors">
+                              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                              <span>{isExpanded ? '收起' : '點擊展開'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 展開內容 */}
+                        {isExpanded && (
+                          <div className="border-t border-slate-200 p-3 space-y-3 bg-slate-50">
+                            {/* YouTube 影片播放器 */}
+                            <div className="w-full">
+                              <iframe
+                                className="w-full aspect-video rounded-lg"
+                                src={`https://www.youtube.com/embed/${video.id}`}
+                                title={video.title}
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                              />
+                            </div>
+
+                            {/* 影片說明 */}
+                            {video.description ? (
+                              <div className="space-y-2">
+                                <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
+                                <div className="bg-white border border-slate-200 rounded-lg p-3">
+                                  <div
+                                    className={`text-xs text-gray-600 whitespace-pre-wrap leading-relaxed ${isDescExpanded ? '' : 'line-clamp-3'
+                                      }`}
+                                  >
+                                    {video.description}
+                                  </div>
+                                </div>
+                                {video.description.split('\n').length > 3 || video.description.length > 150 ? (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleDescriptionExpanded(video.id);
+                                    }}
+                                    className="inline-block px-3 py-1.5 text-xs text-slate-600 hover:text-slate-800 font-medium bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"
+                                  >
+                                    {isDescExpanded ? '收起影片說明' : '展開影片說明'}
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <h5 className="text-xs font-semibold text-gray-700">影片說明</h5>
+                                <div className="bg-white border border-slate-200 rounded-lg p-3">
+                                  <p className="text-xs text-gray-400 italic">此影片暫無說明</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -4878,233 +5181,233 @@ const showVideoRankingsDoubleColumn =
           {/* 頒獎台 - 前三名 */}
           {subscriberSources.length >= 3 && (
             <div className="mb-8">
-                    {/* 桌面版：頒獎台排列（2-1-3） */}
-                    <div className="hidden md:flex items-end justify-center gap-4 mb-6">
-                      {/* 第二名 */}
-                      <div className="flex flex-col items-center w-1/3">
-                        <div className="w-full bg-gradient-to-b from-gray-100 to-gray-200 rounded-2xl p-4 border-2 border-gray-300 shadow-lg overflow-hidden flex flex-col">
-                          <div className="text-center mb-3">
-                            <div className="text-2xl font-bold text-gray-600">第 2 名</div>
-                          </div>
-                          {/* 影片縮圖 - 16:9 比例 */}
-                          <div className="mb-3 w-full aspect-video flex-shrink-0">
-                            <img
-                              src={`https://i.ytimg.com/vi/${subscriberSources[1].videoId}/mqdefault.jpg`}
-                              alt={subscriberSources[1].videoTitle}
-                              className="w-full h-full object-cover rounded-lg"
-                              onError={(e) => {
-                                e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[1].videoId}/default.jpg`;
-                              }}
-                            />
-                          </div>
-                          {/* 標題 - 固定高度 */}
-                          <div className="text-sm font-semibold text-gray-900 mb-3 line-clamp-2 h-10 flex-shrink-0">
-                            {subscriberSources[1].videoTitle}
-                          </div>
-                          {/* 訂閱數 - 推到底部 */}
-                          <div className="text-center mt-auto">
-                            <div className="text-2xl font-bold text-gray-700">
-                              +{formatNumber(subscriberSources[1].subscribersGained)}
-                            </div>
-                            <div className="text-xs text-gray-600">新訂閱</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 第一名（中間最高） */}
-                      <div className="flex flex-col items-center w-1/3">
-                        <div className="w-full bg-gradient-to-b from-yellow-50 to-yellow-100 rounded-2xl p-5 border-2 border-yellow-400 shadow-2xl overflow-hidden flex flex-col">
-                          <div className="text-center mb-3">
-                            <div className="text-3xl font-bold text-yellow-700">第 1 名</div>
-                            <div className="text-xs text-yellow-600 flex items-center justify-center gap-1">
-                              <Crown className="w-3 h-3" />
-                              冠軍
-                            </div>
-                          </div>
-                          {/* 影片縮圖 - 16:9 比例 */}
-                          <div className="mb-3 w-full aspect-video flex-shrink-0">
-                            <img
-                              src={`https://i.ytimg.com/vi/${subscriberSources[0].videoId}/mqdefault.jpg`}
-                              alt={subscriberSources[0].videoTitle}
-                              className="w-full h-full object-cover rounded-lg"
-                              onError={(e) => {
-                                e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[0].videoId}/default.jpg`;
-                              }}
-                            />
-                          </div>
-                          {/* 標題 - 固定高度 */}
-                          <div className="text-sm font-bold text-gray-900 mb-3 line-clamp-2 h-10 flex-shrink-0">
-                            {subscriberSources[0].videoTitle}
-                          </div>
-                          {/* 訂閱數 - 推到底部 */}
-                          <div className="text-center mt-auto">
-                            <div className="text-3xl font-bold text-red-600">
-                              +{formatNumber(subscriberSources[0].subscribersGained)}
-                            </div>
-                            <div className="text-xs text-gray-600">新訂閱</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 第三名 */}
-                      <div className="flex flex-col items-center w-1/3">
-                        <div className="w-full bg-gradient-to-b from-orange-50 to-orange-100 rounded-2xl p-4 border-2 border-orange-300 shadow-lg overflow-hidden flex flex-col">
-                          <div className="text-center mb-3">
-                            <div className="text-2xl font-bold text-orange-600">第 3 名</div>
-                          </div>
-                          {/* 影片縮圖 - 16:9 比例 */}
-                          <div className="mb-3 w-full aspect-video flex-shrink-0">
-                            <img
-                              src={`https://i.ytimg.com/vi/${subscriberSources[2].videoId}/mqdefault.jpg`}
-                              alt={subscriberSources[2].videoTitle}
-                              className="w-full h-full object-cover rounded-lg"
-                              onError={(e) => {
-                                e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[2].videoId}/default.jpg`;
-                              }}
-                            />
-                          </div>
-                          {/* 標題 - 固定高度 */}
-                          <div className="text-sm font-semibold text-gray-900 mb-3 line-clamp-2 h-10 flex-shrink-0">
-                            {subscriberSources[2].videoTitle}
-                          </div>
-                          {/* 訂閱數 - 推到底部 */}
-                          <div className="text-center mt-auto">
-                            <div className="text-2xl font-bold text-orange-700">
-                              +{formatNumber(subscriberSources[2].subscribersGained)}
-                            </div>
-                            <div className="text-xs text-gray-600">新訂閱</div>
-                          </div>
-                        </div>
-                      </div>
+              {/* 桌面版：頒獎台排列（2-1-3） */}
+              <div className="hidden md:flex items-end justify-center gap-4 mb-6">
+                {/* 第二名 */}
+                <div className="flex flex-col items-center w-1/3">
+                  <div className="w-full bg-gradient-to-b from-gray-100 to-gray-200 rounded-2xl p-4 border-2 border-gray-300 shadow-lg overflow-hidden flex flex-col">
+                    <div className="text-center mb-3">
+                      <div className="text-2xl font-bold text-gray-600">第 2 名</div>
                     </div>
-
-                    {/* 手機版：垂直堆疊 */}
-                    <div className="md:hidden space-y-4 mb-6">
-                      {subscriberSources.slice(0, 3).map((source, index) => {
-                        const styles = [
-                          { bg: 'from-yellow-50 to-yellow-100', border: 'border-yellow-400', text: 'text-yellow-700', label: '冠軍' },
-                          { bg: 'from-gray-50 to-gray-100', border: 'border-gray-400', text: 'text-gray-700', label: '亞軍' },
-                          { bg: 'from-orange-50 to-orange-100', border: 'border-orange-400', text: 'text-orange-700', label: '季軍' },
-                        ];
-                        const style = styles[index];
-
-                        return (
-                          <div key={source.videoId} className={`bg-gradient-to-r ${style.bg} rounded-2xl p-4 border-2 ${style.border} shadow-lg`}>
-                            <div className="flex gap-3 mb-3">
-                              {/* 影片縮圖 */}
-                              <div className="flex-shrink-0 w-32">
-                                <img
-                                  src={`https://i.ytimg.com/vi/${source.videoId}/mqdefault.jpg`}
-                                  alt={source.videoTitle}
-                                  className="w-full aspect-video object-cover rounded-lg"
-                                  onError={(e) => {
-                                    e.currentTarget.src = `https://i.ytimg.com/vi/${source.videoId}/default.jpg`;
-                                  }}
-                                />
-                              </div>
-                              <div className="flex-1">
-                                <div className={`text-xl font-bold ${style.text}`}>第 {index + 1} 名</div>
-                                <div className="text-xs text-gray-600 mb-2">{style.label}</div>
-                                <div className="text-xl font-bold text-red-600">
-                                  +{formatNumber(source.subscribersGained)}
-                                </div>
-                                <div className="text-xs text-gray-600">新訂閱</div>
-                              </div>
-                            </div>
-                            <div className="text-sm font-semibold text-gray-900 mb-2 line-clamp-2">
-                              {source.videoTitle}
-                            </div>
-                            <a
-                              href={`https://www.youtube.com/watch?v=${source.videoId}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-[#FF3B30] hover:text-[#C92A21] hover:underline inline-flex items-center gap-1"
-                            >
-                              <span>觀看影片</span>
-                              <span>↗</span>
-                            </a>
-                          </div>
-                        );
-                      })}
+                    {/* 影片縮圖 - 16:9 比例 */}
+                    <div className="mb-3 w-full aspect-video flex-shrink-0">
+                      <img
+                        src={`https://i.ytimg.com/vi/${subscriberSources[1].videoId}/mqdefault.jpg`}
+                        alt={subscriberSources[1].videoTitle}
+                        className="w-full h-full object-cover rounded-lg"
+                        onError={(e) => {
+                          e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[1].videoId}/default.jpg`;
+                        }}
+                      />
                     </div>
-                  </div>
-                )}
-
-                {/* 其他影片 - 網格顯示 */}
-                {subscriberSources.length > 3 && (
-                  <div>
-                    <h4 className="text-md font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                      <span>其他影片</span>
-                      <span className="text-sm text-gray-500">（第 4-{subscriberSources.length} 名）</span>
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {subscriberSources.slice(3).map((source, index) => (
-                        <div
-                          key={source.videoId}
-                          className="flex gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:shadow-md transition-all"
-                        >
-                          {/* 影片縮圖 */}
-                          <div className="flex-shrink-0 w-24">
-                            <img
-                              src={`https://i.ytimg.com/vi/${source.videoId}/mqdefault.jpg`}
-                              alt={source.videoTitle}
-                              className="w-full aspect-video object-cover rounded-lg"
-                              onError={(e) => {
-                                e.currentTarget.src = `https://i.ytimg.com/vi/${source.videoId}/default.jpg`;
-                              }}
-                            />
-                          </div>
-                          {/* 排名 */}
-                          <div className="flex-shrink-0 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center self-start">
-                            <span className="text-sm font-bold text-gray-600">{index + 4}</span>
-                          </div>
-                          {/* 內容 */}
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-gray-900 line-clamp-2 mb-1">
-                              {source.videoTitle}
-                            </div>
-                            <a
-                              href={`https://www.youtube.com/watch?v=${source.videoId}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-[#FF3B30] hover:text-[#C92A21] hover:underline inline-flex items-center gap-1"
-                            >
-                              <span>觀看</span>
-                              <span>↗</span>
-                            </a>
-                          </div>
-                          {/* 訂閱數 */}
-                          <div className="flex-shrink-0 text-right">
-                            <div className="text-base font-bold text-gray-700">
-                              +{formatNumber(source.subscribersGained)}
-                            </div>
-                            <div className="text-xs text-gray-500">新訂閱</div>
-                          </div>
-                        </div>
-                      ))}
+                    {/* 標題 - 固定高度 */}
+                    <div className="text-sm font-semibold text-gray-900 mb-3 line-clamp-2 h-10 flex-shrink-0">
+                      {subscriberSources[1].videoTitle}
                     </div>
-                  </div>
-                )}
-
-                {/* 總計卡片 */}
-                <div className="mt-6 p-4 bg-gradient-to-br from-red-50 to-rose-50 rounded-xl border-2 border-red-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center shadow-md">
-                        <Users className="w-5 h-5 text-white" />
-                      </div>
-                      <span className="text-sm font-semibold text-gray-700">
-                        前 {subscriberSources.length} 支影片總計
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-red-600">
-                        +{formatNumber(subscriberSources.reduce((sum, s) => sum + s.subscribersGained, 0))}
+                    {/* 訂閱數 - 推到底部 */}
+                    <div className="text-center mt-auto">
+                      <div className="text-2xl font-bold text-gray-700">
+                        +{formatNumber(subscriberSources[1].subscribersGained)}
                       </div>
                       <div className="text-xs text-gray-600">新訂閱</div>
                     </div>
                   </div>
                 </div>
+
+                {/* 第一名（中間最高） */}
+                <div className="flex flex-col items-center w-1/3">
+                  <div className="w-full bg-gradient-to-b from-yellow-50 to-yellow-100 rounded-2xl p-5 border-2 border-yellow-400 shadow-2xl overflow-hidden flex flex-col">
+                    <div className="text-center mb-3">
+                      <div className="text-3xl font-bold text-yellow-700">第 1 名</div>
+                      <div className="text-xs text-yellow-600 flex items-center justify-center gap-1">
+                        <Crown className="w-3 h-3" />
+                        冠軍
+                      </div>
+                    </div>
+                    {/* 影片縮圖 - 16:9 比例 */}
+                    <div className="mb-3 w-full aspect-video flex-shrink-0">
+                      <img
+                        src={`https://i.ytimg.com/vi/${subscriberSources[0].videoId}/mqdefault.jpg`}
+                        alt={subscriberSources[0].videoTitle}
+                        className="w-full h-full object-cover rounded-lg"
+                        onError={(e) => {
+                          e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[0].videoId}/default.jpg`;
+                        }}
+                      />
+                    </div>
+                    {/* 標題 - 固定高度 */}
+                    <div className="text-sm font-bold text-gray-900 mb-3 line-clamp-2 h-10 flex-shrink-0">
+                      {subscriberSources[0].videoTitle}
+                    </div>
+                    {/* 訂閱數 - 推到底部 */}
+                    <div className="text-center mt-auto">
+                      <div className="text-3xl font-bold text-red-600">
+                        +{formatNumber(subscriberSources[0].subscribersGained)}
+                      </div>
+                      <div className="text-xs text-gray-600">新訂閱</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 第三名 */}
+                <div className="flex flex-col items-center w-1/3">
+                  <div className="w-full bg-gradient-to-b from-orange-50 to-orange-100 rounded-2xl p-4 border-2 border-orange-300 shadow-lg overflow-hidden flex flex-col">
+                    <div className="text-center mb-3">
+                      <div className="text-2xl font-bold text-orange-600">第 3 名</div>
+                    </div>
+                    {/* 影片縮圖 - 16:9 比例 */}
+                    <div className="mb-3 w-full aspect-video flex-shrink-0">
+                      <img
+                        src={`https://i.ytimg.com/vi/${subscriberSources[2].videoId}/mqdefault.jpg`}
+                        alt={subscriberSources[2].videoTitle}
+                        className="w-full h-full object-cover rounded-lg"
+                        onError={(e) => {
+                          e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[2].videoId}/default.jpg`;
+                        }}
+                      />
+                    </div>
+                    {/* 標題 - 固定高度 */}
+                    <div className="text-sm font-semibold text-gray-900 mb-3 line-clamp-2 h-10 flex-shrink-0">
+                      {subscriberSources[2].videoTitle}
+                    </div>
+                    {/* 訂閱數 - 推到底部 */}
+                    <div className="text-center mt-auto">
+                      <div className="text-2xl font-bold text-orange-700">
+                        +{formatNumber(subscriberSources[2].subscribersGained)}
+                      </div>
+                      <div className="text-xs text-gray-600">新訂閱</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 手機版：垂直堆疊 */}
+              <div className="md:hidden space-y-4 mb-6">
+                {subscriberSources.slice(0, 3).map((source, index) => {
+                  const styles = [
+                    { bg: 'from-yellow-50 to-yellow-100', border: 'border-yellow-400', text: 'text-yellow-700', label: '冠軍' },
+                    { bg: 'from-gray-50 to-gray-100', border: 'border-gray-400', text: 'text-gray-700', label: '亞軍' },
+                    { bg: 'from-orange-50 to-orange-100', border: 'border-orange-400', text: 'text-orange-700', label: '季軍' },
+                  ];
+                  const style = styles[index];
+
+                  return (
+                    <div key={source.videoId} className={`bg-gradient-to-r ${style.bg} rounded-2xl p-4 border-2 ${style.border} shadow-lg`}>
+                      <div className="flex gap-3 mb-3">
+                        {/* 影片縮圖 */}
+                        <div className="flex-shrink-0 w-32">
+                          <img
+                            src={`https://i.ytimg.com/vi/${source.videoId}/mqdefault.jpg`}
+                            alt={source.videoTitle}
+                            className="w-full aspect-video object-cover rounded-lg"
+                            onError={(e) => {
+                              e.currentTarget.src = `https://i.ytimg.com/vi/${source.videoId}/default.jpg`;
+                            }}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <div className={`text-xl font-bold ${style.text}`}>第 {index + 1} 名</div>
+                          <div className="text-xs text-gray-600 mb-2">{style.label}</div>
+                          <div className="text-xl font-bold text-red-600">
+                            +{formatNumber(source.subscribersGained)}
+                          </div>
+                          <div className="text-xs text-gray-600">新訂閱</div>
+                        </div>
+                      </div>
+                      <div className="text-sm font-semibold text-gray-900 mb-2 line-clamp-2">
+                        {source.videoTitle}
+                      </div>
+                      <a
+                        href={`https://www.youtube.com/watch?v=${source.videoId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-[#FF3B30] hover:text-[#C92A21] hover:underline inline-flex items-center gap-1"
+                      >
+                        <span>觀看影片</span>
+                        <span>↗</span>
+                      </a>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 其他影片 - 網格顯示 */}
+          {subscriberSources.length > 3 && (
+            <div>
+              <h4 className="text-md font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                <span>其他影片</span>
+                <span className="text-sm text-gray-500">（第 4-{subscriberSources.length} 名）</span>
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {subscriberSources.slice(3).map((source, index) => (
+                  <div
+                    key={source.videoId}
+                    className="flex gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:shadow-md transition-all"
+                  >
+                    {/* 影片縮圖 */}
+                    <div className="flex-shrink-0 w-24">
+                      <img
+                        src={`https://i.ytimg.com/vi/${source.videoId}/mqdefault.jpg`}
+                        alt={source.videoTitle}
+                        className="w-full aspect-video object-cover rounded-lg"
+                        onError={(e) => {
+                          e.currentTarget.src = `https://i.ytimg.com/vi/${source.videoId}/default.jpg`;
+                        }}
+                      />
+                    </div>
+                    {/* 排名 */}
+                    <div className="flex-shrink-0 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center self-start">
+                      <span className="text-sm font-bold text-gray-600">{index + 4}</span>
+                    </div>
+                    {/* 內容 */}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-900 line-clamp-2 mb-1">
+                        {source.videoTitle}
+                      </div>
+                      <a
+                        href={`https://www.youtube.com/watch?v=${source.videoId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-[#FF3B30] hover:text-[#C92A21] hover:underline inline-flex items-center gap-1"
+                      >
+                        <span>觀看</span>
+                        <span>↗</span>
+                      </a>
+                    </div>
+                    {/* 訂閱數 */}
+                    <div className="flex-shrink-0 text-right">
+                      <div className="text-base font-bold text-gray-700">
+                        +{formatNumber(source.subscribersGained)}
+                      </div>
+                      <div className="text-xs text-gray-500">新訂閱</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 總計卡片 */}
+          <div className="mt-6 p-4 bg-gradient-to-br from-red-50 to-rose-50 rounded-xl border-2 border-red-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center shadow-md">
+                  <Users className="w-5 h-5 text-white" />
+                </div>
+                <span className="text-sm font-semibold text-gray-700">
+                  前 {subscriberSources.length} 支影片總計
+                </span>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-red-600">
+                  +{formatNumber(subscriberSources.reduce((sum, s) => sum + s.subscribersGained, 0))}
+                </div>
+                <div className="text-xs text-gray-600">新訂閱</div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
