@@ -824,14 +824,18 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
 
   // 預處理內容：識別 video ID 并替换为特殊标记
   const processVideoIds = (text: string): string => {
-    if (!videos || videos.length === 0) return text;
+    // 額外清理：移除 "(ID: undefined" 相關的文字，避免顯示錯誤資訊
+    // 匹配模式： (ID: undefined, ...) 或 (ID: undefined)
+    let processedText = text.replace(/\(ID:\s*undefined[^)]*\)/g, '');
+
+    if (!videos || videos.length === 0) return processedText;
 
     // 使用更複雜的正則表達式：匹配已存在的標記 OR 裸露的 ID
     // Group 1: 已存在的標記 (e.g., §VIDEO_CARD:abc12345678§)
     // Group 2: 裸露的 ID (e.g., abc12345678)
     const combinedRegex = /(§VIDEO_CARD:[a-zA-Z0-9_-]{11}§)|(\b[a-zA-Z0-9_-]{11}\b)/g;
 
-    return text.replace(combinedRegex, (match, existingMarker, videoId) => {
+    return processedText.replace(combinedRegex, (match, existingMarker, videoId) => {
       // 如果是已存在的標記，直接返回，不做處理
       if (existingMarker) {
         return existingMarker;
