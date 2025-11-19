@@ -472,7 +472,9 @@ export function ChannelDashboard() {
         if (parsed?.subscribersComparison) setSubscribersComparison(parsed.subscribersComparison);
         if (parsed?.contentTypeMetrics) setContentTypeMetrics(parsed.contentTypeMetrics);
         if (Array.isArray(parsed?.topShorts)) setTopShorts(parsed.topShorts);
+        if (Array.isArray(parsed?.topShorts)) setTopShorts(parsed.topShorts);
         if (Array.isArray(parsed?.topRegularVideos)) setTopRegularVideos(parsed.topRegularVideos);
+        if (Array.isArray(parsed?.bottomVideos)) setBottomVideos(parsed.bottomVideos);
       }
     } catch (err) {
       console.warn('[Dashboard] ⚠️ 無法還原快取資料:', err);
@@ -543,6 +545,7 @@ export function ChannelDashboard() {
       contentTypeMetrics,
       topShorts,
       topRegularVideos,
+      bottomVideos,
     };
 
     window.localStorage.setItem(DATA_STORAGE_KEY, JSON.stringify(payload));
@@ -565,12 +568,11 @@ export function ChannelDashboard() {
     viewsComparison,
     watchTimeComparison,
     subscribersComparison,
-    startDate,
-    endDate,
     topVideoMetric,
     contentTypeMetrics,
     topShorts,
     topRegularVideos,
+    bottomVideos,
   ]);
 
   // 計算日期範圍

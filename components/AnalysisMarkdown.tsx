@@ -197,6 +197,7 @@ interface ChartData {
   values?: unknown;
   data?: ChartListItem[] | ChartRecord;
   items?: ChartListItem[] | ChartRecord;
+  datasets?: any[]; // 兼容標準 Chart.js 結構
   colors?: string[];
   raw?: string;
 }
@@ -321,18 +322,24 @@ const buildFallbackEntries = (data: ChartData): Array<{ label: string; value: st
 };
 
 const buildStrictDataset = (data: ChartData): { labels: string[]; values: number[] } | null => {
-  if (!Array.isArray(data.labels) || !Array.isArray(data.values)) {
+  // 嘗試從標準 Chart.js 結構中提取 values
+  let sourceValues = data.values;
+  if (!Array.isArray(sourceValues) && Array.isArray(data.datasets) && data.datasets.length > 0) {
+    sourceValues = data.datasets[0].data;
+  }
+
+  if (!Array.isArray(data.labels) || !Array.isArray(sourceValues)) {
     return null;
   }
 
   const labels = data.labels.map((label) => String(label));
-  if (labels.length === 0 || labels.length !== data.values.length) {
+  if (labels.length === 0 || labels.length !== sourceValues.length) {
     return null;
   }
 
   const values: number[] = [];
-  for (let i = 0; i < data.values.length; i++) {
-    const numeric = normalizeChartNumber((data.values as unknown[])[i]);
+  for (let i = 0; i < sourceValues.length; i++) {
+    const numeric = normalizeChartNumber((sourceValues as unknown[])[i]);
     if (numeric === null) {
       return null;
     }
@@ -716,6 +723,7 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
           title: data.title,
           labels: data.labels,
           values: data.values,
+          datasets: data.datasets, // 傳遞 datasets
           data: data.data,
           items: data.items,
           colors: data.colors,

@@ -83,12 +83,14 @@ export class PromptTemplates {
 
     const topVideoSummary = topVideos.map((video, index) => {
       const published = video.publishedAt ? video.publishedAt.split('T')[0] : '未知日期';
-      return `${index + 1}. ${video.title || '未命名'}（${published}） - 觀看 ${Number(video.viewCount || 0).toLocaleString()}、讚 ${Number(video.likeCount || 0).toLocaleString()}、留言 ${Number(video.commentCount || 0).toLocaleString()}`;
+      const retention = video.avgViewPercentage ? `、續看率 ${video.avgViewPercentage.toFixed(1)}%` : '';
+      return `${index + 1}. ${video.title || '未命名'}（${published}） - 觀看 ${Number(video.viewCount || 0).toLocaleString()}、讚 ${Number(video.likeCount || 0).toLocaleString()}、留言 ${Number(video.commentCount || 0).toLocaleString()}${retention}`;
     }).join('\n') || '（目前沒有熱門樣本）';
 
     const bottomVideoSummary = bottomVideos.slice(0, 10).map((video, index) => {
       const published = video.publishedAt ? video.publishedAt.split('T')[0] : '未知日期';
-      return `${index + 1}. ${video.title || '未命名'}（${published}） - 觀看 ${Number(video.viewCount || 0).toLocaleString()}、讚 ${Number(video.likeCount || 0).toLocaleString()}、留言 ${Number(video.commentCount || 0).toLocaleString()}`;
+      const retention = video.avgViewPercentage ? `、續看率 ${video.avgViewPercentage.toFixed(1)}%` : '';
+      return `${index + 1}. ${video.title || '未命名'}（${published}） - 觀看 ${Number(video.viewCount || 0).toLocaleString()}、讚 ${Number(video.likeCount || 0).toLocaleString()}、留言 ${Number(video.commentCount || 0).toLocaleString()}${retention}`;
     }).join('\n') || '（未提供低效影片資料）';
 
     const trafficSummary = trafficSources.length > 0
@@ -137,6 +139,7 @@ ${deviceSummary}
 
 若系統有提供 trendData、monthlyData、demographics、devices 等欄位，可在分析中引用，但不得引入外部資料。
 ⚠️ 注意：以上 Top ${topVideos.length} 支影片僅代表「此期間表現最佳的樣本」，不等於期間內上傳的影片數量；請在分析時明確區分「期間內新片（${channelStats.videosInRange} 支）」與「舊片長尾」。報告中禁止把 Top 樣本數寫成上傳數，且必須明確說明新片與舊片在觀看與訂閱上的貢獻。
+⚠️ 特別注意：若低速影片樣本中包含 0 觀看或極低觀看的影片，請重點分析其「曝光與點擊」問題（標題/縮圖/選題是否完全無效），而不僅僅是內容品質。若這些影片是舊片且長期無流量，請建議是否該進行「內容修剪 (Content Pruning)」或「重新包裝」。
 
 ## 輸出格式
 生成一份「單一綜合分析報告」，以 Markdown H2/H3 結構撰寫，內容必須控制在 3000 個中文字以內（約 6000 byte），使用台灣繁體中文並確保中英文與數字之間加半形空格。建議章節如下：
@@ -146,6 +149,8 @@ ${deviceSummary}
 
 2. **內容與觀眾雙向診斷**
    - 從熱門 / 低速影片樣本、流量來源、搜尋字詞、地理與裝置等面向，說明哪些題材、受眾或觸達方式表現優秀，哪些存在問題。
+   - **尋找「潛力股 (Hidden Gems)」**：特別標註那些「觀看數低但續看率高（高於頻道平均或 >50%）」的影片，這代表內容優質但包裝（標題/縮圖）失敗，建議重新包裝。
+   - **診斷「標題黨 (Clickbait)」**：標註「觀看數高但續看率低」的影片，提醒需優化開頭前 30 秒的鉤子 (Hook)。
    - 必須拆解「期間上傳新片」與「舊片長尾」的貢獻：請引用 ${channelStats.videosInRange} 支新片的表現、Top 樣本中的舊片比例、舊片帶來的觀看 / 訂閱，避免將樣本數當成上傳數。
 
 3. **優勢 / 弱點 / 風險 / 機會**
@@ -154,7 +159,9 @@ ${deviceSummary}
 4. **行動建議與量化目標**
    - 依優先順序列出 3~5 項具體措施，每項包含：針對的指標或族群、建議動作、預期量化成效或觀察指標、時間範圍。
    - 若需要使用圖表，僅允許 HTML 註解格式的 Chart.js 柱狀圖（\`<!-- CHART:BAR {...} -->\`），不得使用其他格式或 Mermaid。
-   - \`labels\` 與 \`values\` 必須為等長陣列，且 \`values\` 只能包含數字，禁止使用 \`data\`、\`items\` 等其他欄位。
+   - \`labels\` 與 \`values\` 必須為等長陣列，且 \`values\` 只能包含數字。
+   - ❌ **嚴禁使用 \`datasets\` 物件格式**，這會導致渲染失敗。
+   - ❌ 禁止使用 \`data\`、\`items\` 等其他欄位。
    - 若需呈現比較或列表資訊，請使用標準 Markdown 表格。
 
 ### 其他規則
@@ -357,15 +364,7 @@ ${searchTerms.slice(0, 20).map((t, i) => `${i + 1}. "${t.term}" - ${t.views.toLo
 2. **圖表使用規則（可選）**：
    - ✅ **僅允許 Chart.js 柱狀圖**展示數據，禁止使用餅圖或其他格式。
    - ⚠️ **必須完全按照以下語法輸出**（\`labels\`、\`values\` 為等長陣列，\`values\` 只能是數字）：
-
-   ${'<'}!-- CHART:BAR
-   {
-     "title": "流量來源分布",
-     "labels": ["推薦流量", "搜尋流量", "外部流量", "直接流量"],
-     "values": [45, 30, 15, 10]
-   }
-   --${'>'}
-
+   - ❌ **嚴禁使用 \`datasets\` 格式**，這會導致渲染錯誤。
    - ❌ 不可輸出 \`data\`、\`items\` 等其他欄位，也不可使用 Mermaid。
    - 📋 **優先使用表格**：如果不確定語法，請改用 Markdown 表格。
 3. 每個策略必須包含執行步驟和預期成效
@@ -442,15 +441,7 @@ ${devices.map(d => `- ${d.deviceType}: ${d.views.toLocaleString()} 次 (${d.perc
 1. **圖表使用規則（可選）**：
    - ✅ **僅允許 Chart.js 柱狀圖**展示觀眾分布或比較，禁止餅圖或其他格式。
    - ⚠️ **必須使用以下語法**（\`labels\` 與 \`values\` 為等長陣列，\`values\` 僅能是數字）：
-
-   ${'<'}!-- CHART:BAR
-   {
-     "title": "觀眾年齡分布",
-     "labels": ["25-34歲", "18-24歲", "35-44歲", "45-54歲", "其他"],
-     "values": [40, 30, 20, 8, 2]
-   }
-   --${'>'}
-
+   - ❌ **嚴禁使用 \`datasets\` 格式**，這會導致渲染錯誤。
    - ❌ 不可輸出 \`data\`、\`items\` 等其他欄位，也不可使用 Mermaid。
    - 📋 **優先使用表格**：如果不確定語法，請用表格
 
@@ -478,13 +469,13 @@ ${devices.map(d => `- ${d.deviceType}: ${d.views.toLocaleString()} 次 (${d.perc
 **高效影片 Top 10：**
 ${topVideos.slice(0, 10).map((v, i) => `${i + 1}. ${v.title}
    - 觀看：${v.viewCount.toLocaleString()} | 讚：${v.likeCount.toLocaleString()} | 留言：${v.commentCount.toLocaleString()}
-   - 互動率：${((v.likeCount + v.commentCount) / v.viewCount * 100).toFixed(2)}%
+   - 互動率：${((v.likeCount + v.commentCount) / v.viewCount * 100).toFixed(2)}% | 續看率：${v.avgViewPercentage ? v.avgViewPercentage.toFixed(1) + '%' : '無資料'}
    - 發布日期：${v.publishedAt}`).join('\n\n')}
 
 ${bottomVideos ? `**低效影片 Bottom 10：**
 ${bottomVideos.slice(0, 10).map((v, i) => `${i + 1}. ${v.title}
    - 觀看：${v.viewCount.toLocaleString()} | 讚：${v.likeCount.toLocaleString()} | 留言：${v.commentCount.toLocaleString()}
-   - 互動率：${((v.likeCount + v.commentCount) / v.viewCount * 100).toFixed(2)}%`).join('\n\n')}` : ''}
+   - 互動率：${((v.likeCount + v.commentCount) / v.viewCount * 100).toFixed(2)}% | 續看率：${v.avgViewPercentage ? v.avgViewPercentage.toFixed(1) + '%' : '無資料'}`).join('\n\n')}` : ''}
 
 ---
 
@@ -503,10 +494,11 @@ ${bottomVideos.slice(0, 10).map((v, i) => `${i + 1}. ${v.title}
 
 ### 2. 低效影片診斷
 
-**分析 Bottom 10 影片的問題：**
-- 標題是否吸引人？
-- 主題是否符合觀眾期待？
-- 發布時間是否合適？
+**分析 Bottom 10 影片的問題（特別針對 0 觀看或極低觀看影片）：**
+- **曝光阻礙**：這些影片是否連曝光機會都沒有？（標題/關鍵字完全沒對到搜尋意圖？）
+- **點擊障礙**：縮圖或標題是否讓人完全不想點擊？
+- **題材相關性**：這些主題是否與頻道核心受眾完全脫節？
+- **殭屍內容**：若是舊片且長期無觀看，是否建議刪除或設為不公開以優化演算法權重？
 - SEO 是否優化？
 
 **輸出：**
@@ -515,10 +507,10 @@ ${bottomVideos.slice(0, 10).map((v, i) => `${i + 1}. ${v.title}
 ### 3. 優化策略
 
 **提供具體優化建議：**
-- 標題優化模板（3 個範例）
-- 縮圖優化建議
-- 標籤和關鍵字策略
-- 發布時間優化
+- **標題急救**：針對 Bottom 3 的影片，各提供 3 個優化後的標題建議（基於高點擊率的公式）。
+- **縮圖優化**：針對低點擊影片，具體建議縮圖構圖或文字如何調整。
+- **標籤和關鍵字策略**：建議補充哪些高流量關鍵字。
+- **發布時間優化**：根據頻道數據建議最佳發布時段。
 
 ---
 
