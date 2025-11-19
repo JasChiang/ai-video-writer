@@ -917,7 +917,7 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
               if (part && !part.startsWith('§VIDEO_CARD:')) {
                 return (
                   <span key={index} className="leading-relaxed" style={{ color: '#03045E' }}>
-                    {part}
+                    {renderWithBreaks(part)}
                   </span>
                 );
               }
@@ -927,7 +927,7 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
         );
       }
 
-      return text;
+      return renderWithBreaks(text);
     });
   };
 
