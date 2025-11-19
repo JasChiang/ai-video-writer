@@ -40,12 +40,67 @@ export class PromptTemplates {
       case 'content-strategy':
         return this.buildChannelHealthPrompt(commonData);
 
-      case 'view-optimization':
-        return this.buildVideoOptimizationPrompt({
-          topVideos: videos || [],
-          bottomVideos: null,
+      case 'content-optimization':
+        return PromptTemplates.buildContentOptimizationPrompt({
+          videos: videos || [],
           channelStats: commonData.channelStats,
         });
+
+      case 'view-optimization':
+        const videoSummary = (videos || []).map((video, index) => {
+          const published = video.publishedAt ? video.publishedAt.split('T')[0] : '未知日期';
+          return `${index + 1}. ${video.title || '未命名'}（${published}） - 觀看 ${Number(video.viewCount || 0).toLocaleString()}、讚 ${Number(video.likeCount || 0).toLocaleString()}、留言 ${Number(video.commentCount || 0).toLocaleString()}`;
+        }).join('\n');
+
+        return `
+你是一位專業的 YouTube 流量成長駭客，請根據以下頻道數據與影片列表，提供一份「流量成長戰略報告」。
+
+## 頻道概況
+- 總訂閱數：${Number(commonData.channelStats.totalSubscribers).toLocaleString()}
+- 總觀看數：${Number(commonData.channelStats.totalViews).toLocaleString()}
+- 影片總數：${commonData.channelStats.totalVideos}
+
+## 影片列表（樣本）
+${videoSummary}
+
+## 分析目標
+請針對以上影片進行分析，並提供以下兩部分的具體建議：
+
+### 1. 流量來源診斷
+- 分析目前的流量結構（搜尋、推薦、外部等）。
+- 指出哪些影片成功獲得了演算法推薦，原因為何？
+- 指出哪些影片未能獲得預期流量，可能的原因（標題、封面、主題等）。
+
+### 2. 成長機會點
+- 根據現有影片的表現，建議未來可以嘗試的主題或方向。
+- 提供 3 個具體的影片企劃建議（包含標題、內容大綱）。
+- 針對現有影片，提供 3 個可以立即執行的優化建議（例如修改標題、更換封面、增加關鍵字）。
+
+## 輸出要求
+- 請使用 Markdown 格式輸出。
+- 語氣專業、熱情且具啟發性。
+- 請直接給出具體的建議，不要只給通用的理論。
+- **圖表繪製**：
+    - 請繪製一個長條圖 (Bar Chart)，預測若執行優化建議後，未來 3 個月的流量成長潛力。
+    - 圖表必須使用 Chart.js 格式，且**嚴格遵守**以下 JSON 結構，不要使用 \`datasets\` 欄位：
+    \`\`\`json
+    {
+      "type": "bar",
+      "data": {
+        "labels": ["目前流量", "優化後第 1 個月", "優化後第 2 個月", "優化後第 3 個月"],
+        "values": [1000, 1500, 2500, 4000]
+      },
+      "options": {
+        "plugins": {
+          "title": {
+            "display": true,
+            "text": "流量成長潛力預測"
+          }
+        }
+      }
+    }
+    \`\`\`
+`;
 
       case 'audience-insights':
         return this.buildAudienceInsightsPrompt(commonData);
@@ -452,6 +507,101 @@ ${devices.map(d => `- ${d.deviceType}: ${d.views.toLocaleString()} 次 (${d.perc
    - 保持內容精煉，優先呈現最重要的洞察和建議
 
 **開始分析。**`;
+  }
+
+  /**
+   * 內容優化報告（過期影片與標題優化）
+   */
+  static buildContentOptimizationPrompt(data) {
+    const { videos, channelStats } = data;
+
+    // DEBUG: Check video object structure
+    if (videos && videos.length > 0) {
+      console.log('[PromptTemplates] First video object:', JSON.stringify(videos[0], null, 2));
+    }
+
+    const videoList = videos.map((v, i) =>
+      `${i + 1}. ${v.title} (ID: ${v.id || v.videoId}, 觀看: ${v.viewCount}, 發布: ${v.publishedAt?.split('T')[0] || '未知'})`
+    ).join('\n');
+
+    return `
+你是一位專業的 YouTube 頻道顧問，專精於內容優化與流量增長。
+請根據以下頻道數據與最近 50 支影片的清單，提供一份「內容優化報告」。
+
+## 頻道數據
+- 總訂閱數：${channelStats.subscriberCount}
+- 總觀看數：${channelStats.totalViews}
+- 總影片數：${channelStats.totalVideos}
+
+## 最近影片清單 (Sample)
+${videoList}
+
+## 分析目標
+請針對以下兩個重點進行深入分析與建議：
+
+### 1. 建議隱藏的過期影片 (Expired Videos to Hide)
+找出 3-5 支表現不佳、過時或與目前頻道方向不符的影片，建議將其設為不公開 (Unlisted) 或私人 (Private)。
+**判斷標準：**
+- 觀看次數顯著低於頻道平均水平。
+- 內容具有強烈時效性且已過期（如幾年前的新聞評論、過時的活動資訊）。
+- 製作品質與目前頻道水準落差過大，影響品牌形象。
+- 主題與頻道核心受眾不再相關。
+
+### 2. 建議調整標題的影片 (Title Optimization Candidates)
+找出 3-5 支**潛力影片**，這些影片內容可能不錯，但因為標題吸引力不足而導致點擊率低。
+**判斷標準：**
+- 觀看次數低於預期，但主題應該有市場。
+- 標題過於平淡、缺乏懸念或關鍵字。
+- 標題未能準確傳達影片價值。
+
+## 輸出格式要求
+請使用 Markdown 格式輸出，並嚴格遵守以下結構：
+
+### 1. 建議隱藏的過期影片
+請列出建議隱藏的影片，並說明原因。
+格式：
+- **[影片標題]** (ID: [Video ID], 發布日期: YYYY-MM-DD, 觀看: N)
+  - **原因：** [具體原因]
+  - **建議操作：** [設為不公開/私人/刪除]
+
+### 2. 建議調整標題的影片
+請列出建議優化的影片，並提供 3 個新的標題建議。
+格式：
+- **[原標題]** (ID: [Video ID], 發布日期: YYYY-MM-DD, 觀看: N)
+  - **問題診斷：** [原標題的問題]
+  - **優化建議 1 (SEO導向)：** [建議標題] - [設計思路]
+  - **優化建議 2 (點擊誘餌)：** [建議標題] - [設計思路]
+  - **優化建議 3 (受眾共鳴)：** [建議標題] - [設計思路]
+
+### 3. 影片健康度分佈 (Chart)
+請生成一個圓餅圖 (Pie Chart)，顯示這 50 支影片的健康度分佈。
+類別建議：
+- **表現良好 (Good Performance)**：觀看數高於平均。
+- **建議優化 (Suggested for Optimization)**：標題或縮圖有改進空間。
+- **建議隱藏 (Suggested to Hide)**：過期或成效極低。
+
+**Chart.js JSON 格式要求：**
+\`\`\`json
+{
+  "type": "pie",
+  "data": {
+    "labels": ["表現良好", "建議優化", "建議隱藏"],
+    "values": [數值1, 數值2, 數值3]
+  },
+  "options": {
+    "plugins": {
+      "title": {
+        "display": true,
+        "text": "影片健康度分佈"
+      }
+    }
+  }
+}
+\`\`\`
+**注意：** 請直接計算大約的比例或數量填入 \`values\`，確保總和為 50 (或接近 50)。JSON 必須是合法的 JSON 格式。
+
+請保持語氣專業、客觀且具建設性。
+`;
   }
 
   /**

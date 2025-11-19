@@ -1163,46 +1163,46 @@ app.post('/api/analyze-video', async (req, res) => {
 
     // 等待檔案處理完成（變成 ACTIVE 狀態）
     if (uploadedFile.state === 'PROCESSING') {
-        console.log('[Analyze] ⏳ Gemini 正在處理影片,等待處理完成...');
+      console.log('[Analyze] ⏳ Gemini 正在處理影片,等待處理完成...');
 
-        let attempts = 0;
-        const maxAttempts = 60; // 最多等待 60 次（約 5 分鐘）
-        let isActive = false;
+      let attempts = 0;
+      const maxAttempts = 60; // 最多等待 60 次（約 5 分鐘）
+      let isActive = false;
 
-        while (!isActive && attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 5000)); // 等待 5 秒
+      while (!isActive && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 等待 5 秒
 
-          try {
-            // 使用 files.get() 來檢查特定檔案的狀態
-            const fetchedFile = await ai.files.get({ name: uploadedFile.name });
+        try {
+          // 使用 files.get() 來檢查特定檔案的狀態
+          const fetchedFile = await ai.files.get({ name: uploadedFile.name });
 
-            if (fetchedFile) {
-              const progress = Math.round(((attempts + 1) / maxAttempts) * 100);
-              console.log(`[Analyze] 檢查狀態 ${attempts + 1}/${maxAttempts} (${progress}%) - State: ${fetchedFile.state}`);
+          if (fetchedFile) {
+            const progress = Math.round(((attempts + 1) / maxAttempts) * 100);
+            console.log(`[Analyze] 檢查狀態 ${attempts + 1}/${maxAttempts} (${progress}%) - State: ${fetchedFile.state}`);
 
-              if (fetchedFile.state === 'ACTIVE') {
-                isActive = true;
-                console.log('[Analyze] ✅ 檔案處理完成,可以開始分析!');
-              } else if (fetchedFile.state === 'FAILED') {
-                throw new Error('File processing failed');
-              }
+            if (fetchedFile.state === 'ACTIVE') {
+              isActive = true;
+              console.log('[Analyze] ✅ 檔案處理完成,可以開始分析!');
+            } else if (fetchedFile.state === 'FAILED') {
+              throw new Error('File processing failed');
             }
-          } catch (error) {
-            console.log(`[Analyze] ⚠️  檢查 ${attempts + 1}/${maxAttempts} 時發生錯誤: ${error.message}`);
-            // 繼續嘗試
           }
-
-          attempts++;
+        } catch (error) {
+          console.log(`[Analyze] ⚠️  檢查 ${attempts + 1}/${maxAttempts} 時發生錯誤: ${error.message}`);
+          // 繼續嘗試
         }
 
-        if (!isActive) {
-          throw new Error('File processing timeout. Please try again later.');
-        }
-      } else if (uploadedFile.state === 'ACTIVE') {
-        console.log('[Analyze] ✅ 檔案已經是 ACTIVE 狀態');
-      } else {
-        throw new Error(`Unexpected file state: ${uploadedFile.state}`);
+        attempts++;
       }
+
+      if (!isActive) {
+        throw new Error('File processing timeout. Please try again later.');
+      }
+    } else if (uploadedFile.state === 'ACTIVE') {
+      console.log('[Analyze] ✅ 檔案已經是 ACTIVE 狀態');
+    } else {
+      throw new Error(`Unexpected file state: ${uploadedFile.state}`);
+    }
 
     // 生成提示詞
     console.log('[Analyze] 步驟 4/4: 正在生成 SEO 強化內容...');
@@ -2323,39 +2323,39 @@ app.post('/api/generate-article', async (req, res) => {
 
     // 等待檔案處理完成（新上傳或重用中的 PROCESSING 檔案）
     if (uploadedFile.state === 'PROCESSING') {
-        console.log('[Article] ⏳ Gemini 正在處理影片,等待處理完成...');
-        let attempts = 0;
-        const maxAttempts = 60;
-        let isActive = false;
+      console.log('[Article] ⏳ Gemini 正在處理影片,等待處理完成...');
+      let attempts = 0;
+      const maxAttempts = 60;
+      let isActive = false;
 
-        while (!isActive && attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 5000));
-          try {
-            const fetchedFile = await ai.files.get({ name: uploadedFile.name });
-            if (fetchedFile) {
-              const progress = Math.round(((attempts + 1) / maxAttempts) * 100);
-              console.log(`[Article] 檢查狀態 ${attempts + 1}/${maxAttempts} (${progress}%) - State: ${fetchedFile.state}`);
-              if (fetchedFile.state === 'ACTIVE') {
-                isActive = true;
-                console.log('[Article] ✅ 檔案處理完成,可以開始生成文章!');
-              } else if (fetchedFile.state === 'FAILED') {
-                throw new Error('File processing failed');
-              }
+      while (!isActive && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        try {
+          const fetchedFile = await ai.files.get({ name: uploadedFile.name });
+          if (fetchedFile) {
+            const progress = Math.round(((attempts + 1) / maxAttempts) * 100);
+            console.log(`[Article] 檢查狀態 ${attempts + 1}/${maxAttempts} (${progress}%) - State: ${fetchedFile.state}`);
+            if (fetchedFile.state === 'ACTIVE') {
+              isActive = true;
+              console.log('[Article] ✅ 檔案處理完成,可以開始生成文章!');
+            } else if (fetchedFile.state === 'FAILED') {
+              throw new Error('File processing failed');
             }
-          } catch (error) {
-            console.log(`[Article] ⚠️  檢查 ${attempts + 1}/${maxAttempts} 時發生錯誤: ${error.message}`);
           }
-          attempts++;
+        } catch (error) {
+          console.log(`[Article] ⚠️  檢查 ${attempts + 1}/${maxAttempts} 時發生錯誤: ${error.message}`);
         }
-
-        if (!isActive) {
-          throw new Error('File processing timeout. Please try again later.');
-        }
-      } else if (uploadedFile.state === 'ACTIVE') {
-        console.log('[Article] ✅ 檔案已經是 ACTIVE 狀態');
-      } else {
-        throw new Error(`Unexpected file state: ${uploadedFile.state}`);
+        attempts++;
       }
+
+      if (!isActive) {
+        throw new Error('File processing timeout. Please try again later.');
+      }
+    } else if (uploadedFile.state === 'ACTIVE') {
+      console.log('[Article] ✅ 檔案已經是 ACTIVE 狀態');
+    } else {
+      throw new Error(`Unexpected file state: ${uploadedFile.state}`);
+    }
 
     // 生成文章提示詞
     console.log(reusedFile ? '[Article] 步驟 3/4: 正在生成文章內容與截圖時間點...' : '[Article] 步驟 4/5: 正在生成文章內容與截圖時間點...');
@@ -3099,6 +3099,8 @@ app.post('/api/analyze-channel/stream', async (req, res) => {
       throw new Error('Missing or invalid videos array');
     }
 
+    console.log(`[Server] 收到分析請求: 類型=${analysisType}, 影片數量=${videos.length}`);
+
     sendEvent('stage', { id: 'prepare', status: 'active' });
 
     const prompt = PromptTemplates.generatePrompt({
@@ -3674,7 +3676,7 @@ app.post('/api/analytics/keyword-analysis', async (req, res) => {
     try {
       // 嘗試從回應中提取 JSON（可能包含 markdown code block）
       const jsonMatch = response.text.match(/```json\s*([\s\S]*?)\s*```/) ||
-                        response.text.match(/```\s*([\s\S]*?)\s*```/);
+        response.text.match(/```\s*([\s\S]*?)\s*```/);
 
       const jsonText = jsonMatch ? jsonMatch[1] : response.text;
       analysis = JSON.parse(jsonText);

@@ -31,7 +31,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { Bar } from 'react-chartjs-2';
+import { Bar, Pie, Doughnut } from 'react-chartjs-2';
 import type { Components } from 'react-markdown';
 import type { YouTubeVideo } from '../types';
 import { VideoPreviewCard } from './VideoPreviewCard';
@@ -50,6 +50,7 @@ ChartJS.register(
 interface AnalysisMarkdownProps {
   children: string;
   videos?: YouTubeVideo[]; // 影片数据，用于根据 ID 查找影片信息
+  isStreaming?: boolean;
 }
 
 // 章节图标映射
@@ -191,7 +192,7 @@ interface ChartListItem {
 }
 
 interface ChartData {
-  type: 'bar';
+  type: 'bar' | 'pie' | 'doughnut';
   title?: string;
   labels?: unknown;
   values?: unknown;
@@ -206,7 +207,7 @@ const getUnitMultiplier = (value: string): number => {
   const unitMatch = value.match(/[\d.]+\s*(萬|万|億|亿|千|k|K|m|M|b|B)/);
   if (!unitMatch) return 1;
 
-  switch (unitMatch[1].toLowerCase()) {
+  switch (unitMatch?.[1]?.toLowerCase()) {
     case '萬':
     case '万':
       return 10000;
@@ -467,6 +468,43 @@ const ChartJSComponent: React.FC<{ data: ChartData }> = ({ data }) => {
     },
   };
 
+  if (data.type === 'pie' || data.type === 'doughnut') {
+    const pieData = {
+      labels: chartLabels,
+      datasets: [
+        {
+          label: data.title || '數據',
+          data: numericValues,
+          backgroundColor: safeColors || defaultColors,
+          borderColor: '#FFFFFF',
+          borderWidth: 2,
+        },
+      ],
+    };
+
+    const pieOptions = {
+      ...options,
+      plugins: {
+        ...options.plugins,
+        legend: {
+          position: 'right' as const,
+        }
+      }
+    };
+
+    return (
+      <div className="my-6 p-6 bg-white border-2 rounded-lg" style={{ borderColor: '#E5E7EB' }}>
+        <div style={{ maxWidth: '400px', margin: '0 auto' }}>
+          {data.type === 'pie' ? (
+            <Pie data={pieData} options={pieOptions} />
+          ) : (
+            <Doughnut data={pieData} options={pieOptions} />
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="my-6 p-6 bg-white border-2 rounded-lg" style={{ borderColor: '#E5E7EB' }}>
       <div style={{ maxWidth: '500px', margin: '0 auto' }}>
@@ -506,7 +544,7 @@ const components: Components = {
 
     return (
       <h2 className="flex items-center gap-2 text-xl font-bold mt-8 mb-4 pb-2 border-b-2" style={{ color: '#03045E', borderColor: '#0077B6' }}>
-        {Icon && <Icon className="w-6 h-6" style={{ color: '#0077B6' }} />}
+        {Icon && <Icon className="w-6 h-6 text-[#0077B6]" />}
         {children}
       </h2>
     );
@@ -551,7 +589,7 @@ const components: Components = {
     // 检查是否是状态标记
     for (const [status, style] of Object.entries(statusStyles)) {
       if (text.includes(status)) {
-        const StatusIcon = style.icon;
+        const StatusIcon = style.icon as React.ElementType;
         return (
           <td className="border border-gray-300 px-4 py-3">
             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm font-medium ${style.bg} ${style.text}`}>
@@ -577,7 +615,7 @@ const components: Components = {
   ),
 
   // 代码块组件 - Mermaid 支持
-  code: ({ inline, className, children, ...props }) => {
+  code: ({ inline, className, children, ...props }: any) => {
     const match = /language-(\w+)/.exec(className || '');
     const language = match ? match[1] : '';
     const codeString = String(children).replace(/\n$/, '');
@@ -622,11 +660,11 @@ const components: Components = {
     </li>
   ),
 
-  // 段落组件
+  // 段落组件 - 改用 div 避免 hydration error (因為可能包含 block 元素)
   p: ({ children }) => (
-    <p className="my-3 leading-relaxed" style={{ color: '#03045E' }}>
+    <div className="my-3 leading-relaxed" style={{ color: '#03045E' }}>
       {children}
-    </p>
+    </div>
   ),
 
   // 强调组件
@@ -663,8 +701,6 @@ const findVideoById = (videoId: string, videos?: YouTubeVideo[]): YouTubeVideo |
   return videos.find((v) => v.id === videoId) || null;
 };
 
-// YouTube video ID 正则表达式 (11 个字符，字母数字_-)
-const VIDEO_ID_REGEX = /\b([a-zA-Z0-9_-]{11})\b/g;
 
 export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
   // 存儲解析出的圖表數據
@@ -707,23 +743,69 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
 
   // 預處理內容：識別圖表並替換為特殊標記
   const processCharts = (text: string): string => {
-    const chartRegex = /<!--\s*CHART:(PIE|BAR)\s*(?:\r?\n)?([\s\S]*?)(?:\r?\n)?-->/g;
+    // 支援兩種格式：
+    // 1. HTML 註解格式: <!-- CHART:PIE ... -->
+    // 2. JSON 代碼塊格式: ```json { "type": "pie", ... } ```
+
+    const commentRegex = /<!--\s*CHART:(PIE|BAR)\s*(?:\r?\n)?([\s\S]*?)(?:\r?\n)?-->/g;
+    const codeBlockRegex = /```json\s*(\{\s*"type":\s*"(?:pie|bar|doughnut)"[\s\S]*?\})\s*```/gi;
+
     const newCharts = new Map<string, ChartData>();
     let chartIndex = 0;
 
-    const processed = text.replace(chartRegex, (match, type, jsonData) => {
+    // 處理代碼塊格式
+    let processed = text.replace(codeBlockRegex, (match, jsonData) => {
+      try {
+        const data = sanitizeChartJson(jsonData.trim());
+        if (!data) return match;
+
+        const chartId = `chart-${chartIndex++}`;
+        // 處理嵌套的 data 結構
+        const labels = data.labels || data.data?.labels;
+        const values = data.values || data.data?.values || data.data?.datasets?.[0]?.data;
+        const title = data.title || data.options?.plugins?.title?.text;
+        let chartType = (data.type || 'bar').toLowerCase();
+        if (chartType !== 'pie' && chartType !== 'doughnut' && chartType !== 'bar') chartType = 'bar';
+
+        newCharts.set(chartId, {
+          type: chartType as any,
+          title: title,
+          labels: labels,
+          values: values,
+          datasets: data.datasets || data.data?.datasets,
+          data: data.data,
+          items: data.items,
+          colors: data.colors,
+          raw: jsonData.trim(),
+        });
+        return `§CHART:${chartId}§`;
+      } catch (e) {
+        console.error('Failed to parse chart data from JSON code block:', e, jsonData);
+        return match;
+      }
+    });
+
+    // 處理註解格式 (保留原有邏輯)
+    processed = processed.replace(commentRegex, (match, _type, jsonData) => {
       try {
         const data = sanitizeChartJson(jsonData.trim());
         if (!data) {
           throw new Error('Invalid chart data');
         }
+
+        const labels = data.labels || data.data?.labels;
+        const values = data.values || data.data?.values || data.data?.datasets?.[0]?.data;
+        const title = data.title || data.options?.plugins?.title?.text;
+        let chartType = (data.type || _type || 'bar').toLowerCase();
+        if (chartType !== 'pie' && chartType !== 'doughnut' && chartType !== 'bar') chartType = 'bar';
+
         const chartId = `chart-${chartIndex++}`;
         newCharts.set(chartId, {
-          type: 'bar',
-          title: data.title,
-          labels: data.labels,
-          values: data.values,
-          datasets: data.datasets, // 傳遞 datasets
+          type: chartType as any,
+          title: title,
+          labels: labels,
+          values: values,
+          datasets: data.datasets || data.data?.datasets,
           data: data.data,
           items: data.items,
           colors: data.colors,
@@ -732,7 +814,7 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
         return `§CHART:${chartId}§`;
       } catch (error) {
         console.error('Failed to parse chart data:', error);
-        return match; // 保留原始內容
+        return match;
       }
     });
 
@@ -740,55 +822,90 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
     return processed;
   };
 
-  // 预处理内容：识别 video ID 并替换为特殊标记
+  // 預處理內容：識別 video ID 并替换为特殊标记
   const processVideoIds = (text: string): string => {
     if (!videos || videos.length === 0) return text;
 
-    return text.replace(VIDEO_ID_REGEX, (match, videoId) => {
-      const video = findVideoById(videoId, videos);
-      if (video) {
-        // 使用特殊标记，稍后在渲染时替换
-        return `§VIDEO_CARD:${videoId}§`;
+    // 使用更複雜的正則表達式：匹配已存在的標記 OR 裸露的 ID
+    // Group 1: 已存在的標記 (e.g., §VIDEO_CARD:abc12345678§)
+    // Group 2: 裸露的 ID (e.g., abc12345678)
+    const combinedRegex = /(§VIDEO_CARD:[a-zA-Z0-9_-]{11}§)|(\b[a-zA-Z0-9_-]{11}\b)/g;
+
+    return text.replace(combinedRegex, (match, existingMarker, videoId) => {
+      // 如果是已存在的標記，直接返回，不做處理
+      if (existingMarker) {
+        return existingMarker;
       }
+
+      // 如果是裸露的 ID，且是有效的影片 ID，則進行替換
+      if (videoId) {
+        const video = findVideoById(videoId, videos);
+        if (video) {
+          return `§VIDEO_CARD:${videoId}§`;
+        }
+      }
+
       return match;
     });
+
+    // 額外清理：移除 "(ID: undefined" 相關的文字，避免顯示錯誤資訊
+    // 匹配模式： (ID: undefined, ...) 或 (ID: undefined)
+    text = text.replace(/\(ID:\s*undefined[^)]*\)/g, '');
+
+    return text;
   };
 
-  // 创建自定义的 components，包含 video 和 chart 数据
-  const componentsWithVideos: Components = {
-    ...components,
-    // 段落组件 - 识别并渲染 video 卡片和圖表
-    p: ({ children }) => {
-      const text = String(children);
+  // 渲染帶有卡片和圖表的內容
+  const renderWithCards = (children: React.ReactNode): React.ReactNode => {
+    return React.Children.map(children, (child) => {
+      // 遞歸處理 React Element
+      if (React.isValidElement(child)) {
+        const element = child as React.ReactElement<{ children?: React.ReactNode }>;
+        if (element.props.children) {
+          return React.cloneElement(element, {
+            children: renderWithCards(element.props.children)
+          } as any);
+        }
+        return child;
+      }
+
+      if (typeof child !== 'string') {
+        return child;
+      }
+
+      const text = child;
 
       // 检查是否包含圖表标记
       if (text.includes('§CHART:')) {
-        const chartMatch = text.match(/§CHART:(chart-\d+)§/);
-        if (chartMatch) {
-          const chartId = chartMatch[1];
-          const chartData = charts.get(chartId);
-          if (chartData) {
-            return <ChartJSComponent data={chartData} />;
+        const parts = text.split(/(§CHART:chart-\d+§)/g);
+        return parts.map((part, index) => {
+          const chartMatch = part.match(/§CHART:(chart-\d+)§/);
+          if (chartMatch && chartMatch[1]) {
+            const chartId = chartMatch[1];
+            const chartData = charts.get(chartId);
+            if (chartData) {
+              return <ChartJSComponent key={index} data={chartData} />;
+            }
           }
-        }
+          return <span key={index}>{part}</span>;
+        });
       }
 
       // 检查是否包含 video 标记
       if (text.includes('§VIDEO_CARD:')) {
         const parts = text.split(/(§VIDEO_CARD:[a-zA-Z0-9_-]{11}§)/g);
-
         return (
-          <div className="my-4 space-y-3">
+          <span key="video-wrapper" className="block my-4 space-y-3">
             {parts.map((part, index) => {
               const match = part.match(/§VIDEO_CARD:([a-zA-Z0-9_-]{11})§/);
-              if (match) {
+              if (match && match[1]) {
                 const videoId = match[1];
                 const video = findVideoById(videoId, videos);
                 if (video) {
                   return (
-                    <div key={index} className="my-4">
+                    <span key={index} className="block my-4">
                       <VideoPreviewCard video={video} compact={true} />
-                    </div>
+                    </span>
                   );
                 }
               }
@@ -802,26 +919,119 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
               }
               return null;
             })}
-          </div>
+          </span>
         );
       }
 
-      // 正常段落
+      return text;
+    });
+  };
+
+  // 创建自定义的 components，包含 video 和 chart 数据
+  const componentsWithVideos: Components = {
+    ...components,
+    // 段落组件
+    p: ({ children }) => (
+      <div className="my-3 leading-relaxed" style={{ color: '#03045E' }}>
+        {renderWithCards(children)}
+      </div>
+    ),
+    // 列表项组件
+    li: ({ children }) => (
+      <li className="ml-4">
+        {renderWithCards(children)}
+      </li>
+    ),
+    // 強調組件 (Bold)
+    strong: ({ children }) => (
+      <strong className="font-semibold" style={{ color: '#0077B6' }}>
+        {renderWithCards(children)}
+      </strong>
+    ),
+    // 斜體組件 (Italic)
+    em: ({ children }) => (
+      <em className="italic">
+        {renderWithCards(children)}
+      </em>
+    ),
+    // 引用塊組件
+    blockquote: ({ children }) => (
+      <blockquote className="border-l-4 pl-4 py-2 my-4 bg-blue-50" style={{ borderColor: '#0077B6' }}>
+        {renderWithCards(children)}
+      </blockquote>
+    ),
+    // 表格單元格
+    td: ({ children }) => {
+      const text = String(children);
+      // 检查是否是状态标记 (保持原有邏輯)
+      for (const [status, style] of Object.entries(statusStyles)) {
+        if (text.includes(status)) {
+          const StatusIcon = style.icon as React.ElementType;
+          return (
+            <td className="border border-gray-300 px-4 py-3">
+              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm font-medium ${style.bg} ${style.text}`}>
+                <StatusIcon className="w-4 h-4" />
+                {renderWithBreaks(children)}
+              </span>
+            </td>
+          );
+        }
+      }
       return (
-        <p className="my-3 leading-relaxed" style={{ color: '#03045E' }}>
-          {children}
-        </p>
+        <td className="border border-gray-300 px-4 py-3" style={{ color: '#03045E' }}>
+          {renderWithCards(children)}
+        </td>
       );
     },
   };
 
-  // 依序處理：圖表 -> 影片 ID
+  // 預處理內容：識別影片標題並自動添加 video 卡片
+  const processVideoTitles = (text: string): string => {
+    if (!videos || videos.length === 0) return text;
+
+    let processed = text;
+    // 按標題長度降序排序，避免短標題誤匹配長標題的一部分
+    const sortedVideos = [...videos].sort((a, b) => b.title.length - a.title.length);
+
+    sortedVideos.forEach((video) => {
+      if (!video.title || video.title.length < 4) return; // 忽略太短的標題
+
+      // 轉義正則特殊字符
+      const escapedTitle = video.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // 匹配標題，且後面沒有緊跟著 video 卡片標記 (避免重複添加)
+      const regex = new RegExp(`(${escapedTitle})(?!\\s*§VIDEO_CARD:)`, 'g');
+
+      processed = processed.replace(regex, (match) => {
+        return `${match} §VIDEO_CARD:${video.id}§`;
+      });
+    });
+
+    return processed;
+  };
+
+  // 依序處理：圖表 -> 影片標題 -> 影片 ID
   const processedContent = React.useMemo(() => {
+    // DEBUG: Trace videos prop
+    if (videos && videos.length > 0) {
+      // console.log('[AnalysisMarkdown] Processing with videos:', videos.length);
+    } else {
+      console.warn('[AnalysisMarkdown] No videos provided!');
+    }
+
     let content = children;
     content = processCharts(content);
+
+    const beforeTitles = content;
+    content = processVideoTitles(content); // 新增：自動匹配標題
+
+    // DEBUG: Check if titles were matched
+    if (content !== beforeTitles) {
+      // console.log('[AnalysisMarkdown] Titles matched and replaced');
+    }
+
     content = processVideoIds(content);
     return content;
-  }, [children]);
+  }, [children, videos]);
 
   return (
     <div className="analysis-markdown">
