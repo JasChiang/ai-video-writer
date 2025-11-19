@@ -52,14 +52,8 @@ import {
   BarChart3,
   RefreshCw,
   Share2,
-  Monitor,
-  Smartphone,
-  Tablet,
-  Tv,
-  Gamepad2,
   Crown,
   TrendingDown,
-  Sparkles,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
@@ -75,7 +69,6 @@ import {
   Tooltip,
   Legend,
   Filler,
-  ChartOptions,
 } from 'chart.js';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import * as youtubeService from '../services/youtubeService';
@@ -137,15 +130,7 @@ interface TrendDataPoint {
   topVideo?: TrendTopVideo | null;
 }
 
-interface TrendChartCoordinate {
-  date: string;
-  views: number;
-  x: number;
-  y: number;
-  xPercent: number;
-  yPercent: number;
-  topVideo?: TrendTopVideo | null;
-}
+
 
 interface MonthlyDataPoint {
   month: string;           // 格式: YYYY-MM
@@ -258,9 +243,12 @@ const VIEWING_HOUR_BUCKETS = [
   { label: '20:00-23:59', start: 20, end: 23 },
 ];
 
+
+
+
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
+  (import.meta as any).env.VITE_API_URL ||
+  ((import.meta as any).env.DEV ? 'http://localhost:3001/api' : '/api');
 const YT_VIDEO_BASE_URL = 'https://www.youtube.com/watch?v=';
 const ENABLE_PUBLISHING_SLOTS = false;
 const ANALYTICS_DATA_DELAY_DAYS = 3; // API 數據比 YouTube Studio 晚 1 天，實際最晚僅能查到今天往前 3 天
@@ -332,10 +320,12 @@ export function ChannelDashboard() {
   // 狀態管理
   const defaultDates = getDefaultDateRange();
   // YouTube-style card design
-  const cardBaseClass = 'rounded-xl border border-[#E5E5E5] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.1)] hover:shadow-[0_2px_8px_rgba(0,0,0,0.15)] transition-all duration-200';
+  const cardBaseClass = 'rounded-2xl border border-white/50 bg-white/80 backdrop-blur-md shadow-sm hover:shadow-md transition-all duration-300';
   const compactCardClass = `${cardBaseClass} p-6 self-start`;
+
   const [startDate, setStartDate] = useState<string>(defaultDates.start);
   const [endDate, setEndDate] = useState<string>(defaultDates.end);
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [channelStats, setChannelStats] = useState<ChannelStats | null>(null);
@@ -824,7 +814,7 @@ export function ChannelDashboard() {
   };
 
   // 從 Analytics 結果獲取熱門影片
-  const fetchTopVideosFromAnalytics = async (analyticsRows: any[], startDate: Date, endDate: Date, token: string) => {
+  const fetchTopVideosFromAnalytics = async (analyticsRows: any[], _startDate: Date, _endDate: Date, token: string) => {
     try {
       // Analytics rows: [videoId, views, avgViewPercentage, comments, likes, shares]
       const topVideoIds = analyticsRows.slice(0, 50).map((row: any[]) => row[0]);
@@ -880,8 +870,8 @@ export function ChannelDashboard() {
             description: descriptionsMap[videoId] || '',
           };
         })
-        .filter((item: any) => item !== null) // 過濾掉非公開影片
-        .slice(0, 50); // 確保只取前 50 筆（過濾後）
+        .filter((item) => item !== null)
+        .slice(0, 50) as unknown as VideoItem[]; // 過濾掉非公開影片，確保只取前 50 筆
 
       console.log(`[Dashboard] 🏆 Analytics 熱門影片: ${topVideosWithDetails.length} 支`);
       setTopVideos(topVideosWithDetails);
@@ -933,7 +923,7 @@ export function ChannelDashboard() {
   // 策略 1: 獲取頻道等級統計（使用 OAuth + YouTube Data API）
   // 配額成本: 1 單位（channels.list with part=statistics）
   // 注意：總訂閱數會調整為期間結束日的值（而非當前值）
-  const fetchChannelStats = async (token: string, endDate: Date) => {
+  const fetchChannelStats = async (_token: string, endDate: Date) => {
     try {
       console.log('[Dashboard] 📊 獲取頻道總體統計（使用 OAuth + YouTube Data API）...');
 
@@ -941,7 +931,7 @@ export function ChannelDashboard() {
         `https://www.googleapis.com/youtube/v3/channels?part=statistics&mine=true`,
         {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${_token}`,
           },
         }
       );
@@ -975,7 +965,7 @@ export function ChannelDashboard() {
       if (typeof endPeriodTotalSubscribers !== 'number') {
         console.log('[Dashboard] ⚠️ 累積訂閱數取得失敗，回退到即時訂閱數調整策略');
         // 獲取從期間結束日到今天的訂閱數變化
-        const subscribersAfter = await fetchSubscribersAfterEndDate(endDate, token);
+        const subscribersAfter = await fetchSubscribersAfterEndDate(endDate, _token);
         const subscribersChangeAfterEnd = subscribersAfter.subscribersGained - subscribersAfter.subscribersLost;
 
         // 計算期間結束日的總訂閱數
@@ -1012,7 +1002,7 @@ export function ChannelDashboard() {
   };
 
   // 策略 2A: 獲取頻道級別的統計數據（觀看次數、觀看時間）
-  const fetchChannelAnalytics = async (startDate: Date, endDate: Date, token: string) => {
+  const fetchChannelAnalytics = async (startDate: Date, endDate: Date, _token: string) => {
     try {
       console.log('[Dashboard] 📊 從 Analytics API 獲取頻道級別數據...');
 
@@ -1054,7 +1044,7 @@ export function ChannelDashboard() {
   };
 
   // 獲取從期間結束日到今天的訂閱數變化（用於計算期末總訂閱數）
-  const fetchSubscribersAfterEndDate = async (endDate: Date, token: string) => {
+  const fetchSubscribersAfterEndDate = async (endDate: Date, _token: string) => {
     try {
       const today = new Date();
       // 如果結束日期是今天或未來，則不需要調整
@@ -1108,7 +1098,7 @@ export function ChannelDashboard() {
   };
 
   // 策略 2B: 獲取影片級別的統計數據（熱門影片）
-  const fetchVideoAnalytics = async (startDate: Date, endDate: Date, token: string) => {
+  const fetchVideoAnalytics = async (startDate: Date, endDate: Date, _token: string) => {
     try {
       console.log('[Dashboard] 🎬 從 Analytics API 獲取影片級別數據...');
 
@@ -1289,7 +1279,7 @@ export function ChannelDashboard() {
             description: descriptionsMap[videoId] || '',
           };
         })
-        .filter((item: any) => item !== null); // 過濾掉非公開影片
+        .filter((item: any) => item !== null) as unknown as VideoItem[]; // 過濾掉非公開影片
 
       console.log(`[Dashboard] 🏆 熱門 Shorts: ${topShortsWithDetails.length} 支`);
       setTopShorts(topShortsWithDetails);
@@ -1370,7 +1360,7 @@ export function ChannelDashboard() {
             description: descriptionsMap[videoId] || '',
           };
         })
-        .filter((item: any) => item !== null); // 過濾掉非公開影片
+        .filter((item: any) => item !== null) as unknown as VideoItem[]; // 過濾掉非公開影片
 
       console.log(`[Dashboard] 🏆 熱門一般影片: ${topRegularVideosWithDetails.length} 支`);
       setTopRegularVideos(topRegularVideosWithDetails);
@@ -2371,7 +2361,9 @@ export function ChannelDashboard() {
       });
 
       const generated: ViewingHourData[] = Array.from(aggregates.entries()).map(([key, views]) => {
-        const [dayStr, hourStr] = key.split('-');
+        const parts = key.split('-');
+        const dayStr = parts[0] || '0';
+        const hourStr = parts[1] || '0';
         return {
           dayOfWeek: parseInt(dayStr),
           hour: parseInt(hourStr),
@@ -2434,7 +2426,7 @@ export function ChannelDashboard() {
             views,
           };
         })
-        .filter((item) => !Number.isNaN(item.dayOfWeek));
+        .filter((item: any) => !Number.isNaN(item.dayOfWeek));
 
       console.log('[Dashboard] ✅ 觀看時段資料筆數 (日粒度):', parsed.length);
       setViewingHours(parsed);
@@ -2553,6 +2545,12 @@ export function ChannelDashboard() {
     });
   };
 
+
+
+
+
+
+
   const topVideoMetricConfig = {
     views: {
       label: '觀看次數',
@@ -2625,38 +2623,6 @@ export function ChannelDashboard() {
     }
   }, [viewingHoursSource]);
 
-  const trendChartGeometry = useMemo(() => {
-    if (trendData.length === 0) {
-      return { points: '', coordinates: [] as TrendChartCoordinate[] };
-    }
-    const chartWidth = 600;
-    const chartHeight = 160;
-    const maxViews = Math.max(...trendData.map((item) => item.views));
-    const minViews = Math.min(...trendData.map((item) => item.views));
-    const range = Math.max(maxViews - minViews, 1);
-
-    const coordinates = trendData.map((point, index) => {
-      const x =
-        trendData.length === 1 ? chartWidth / 2 : (index / (trendData.length - 1)) * chartWidth;
-      const y = chartHeight - ((point.views - minViews) / range) * chartHeight;
-      return {
-        date: point.date,
-        views: point.views,
-        x,
-        y: Number.isFinite(y) ? y : chartHeight,
-        xPercent: (x / chartWidth) * 100,
-        yPercent: ((Number.isFinite(y) ? y : chartHeight) / chartHeight) * 100,
-        topVideo: point.topVideo,
-      } as TrendChartCoordinate;
-    });
-
-    return {
-      points: coordinates.map((coord) => `${coord.x},${coord.y}`).join(' '),
-      coordinates,
-    };
-  }, [trendData]);
-  const trendChartPoints = trendChartGeometry.points;
-  const trendChartCoordinates = trendChartGeometry.coordinates;
 
   const trendSummary = useMemo(() => {
     if (trendData.length === 0) return null;
@@ -2666,7 +2632,7 @@ export function ChannelDashboard() {
     const bestDay = sortedByViews[0];
     const firstDay = trendData[0];
     const latestDay = trendData[trendData.length - 1];
-    const momentum = latestDay.views - firstDay.views;
+    const momentum = (latestDay?.views || 0) - (firstDay?.views || 0); // Safely access views
 
     return {
       totalViews,
@@ -2779,7 +2745,7 @@ export function ChannelDashboard() {
   return (
     <div className="space-y-6 font-['Roboto',sans-serif] bg-[#FAFAFA] min-h-screen">
       {/* 標題區域 */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#FF1D1D] via-[#E30000] to-[#B20000] text-white shadow-[0_20px_60px_rgba(255,0,0,0.25)] p-8">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#FF1D1D] via-[#E30000] to-[#B20000] text-white shadow-[0_20px_60px_rgba(255,0,0,0.25)] p-8 mb-6">
         <div className="absolute -right-10 -top-10 w-56 h-56 bg-white/10 rounded-full blur-3xl" />
         <div className="absolute -left-12 bottom-0 w-48 h-48 bg-black/10 rounded-full blur-2xl" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
@@ -2799,92 +2765,95 @@ export function ChannelDashboard() {
               深入了解頻道表現、觀眾互動與成長趨勢，掌握每一次流量波動。
             </p>
           </div>
+        </div>
+      </div>
 
-          <div className="flex flex-col gap-4 w-full lg:w-auto bg-white/10 border border-white/20 rounded-3xl p-5 shadow-lg shadow-black/15 backdrop-blur-[2px]">
-            {/* 快速篩選器 */}
-            <div className="flex flex-wrap gap-1.5 justify-start">
-              {QUICK_DATE_PRESETS.map((item) => {
-                const range = getQuickDateRange(item.value);
-                const isActive = startDate === range.start && endDate === range.end;
-                const disabled = isQuickPresetDisabled(item.value);
-                const showActive = isActive && !disabled;
+      {/* Sticky Filter Bar */}
+      <div className="sticky top-0 z-50 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-4 backdrop-blur-xl bg-white/80 border-y border-gray-200/50 shadow-sm transition-all duration-300 mb-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          {/* 快速篩選器 */}
+          <div className="flex flex-wrap gap-2">
+            {QUICK_DATE_PRESETS.map((item) => {
+              const range = getQuickDateRange(item.value);
+              const isActive = startDate === range.start && endDate === range.end;
+              const disabled = isQuickPresetDisabled(item.value);
+              const showActive = isActive && !disabled;
 
-                return (
-                  <button
-                    key={item.value}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => {
-                      if (disabled) return;
-                      setStartDate(range.start);
-                      setEndDate(range.end);
-                    }}
-                    className={`px-4 py-2 text-[13px] font-semibold rounded-full border transition-all duration-200 ${disabled
-                      ? 'bg-white/10 text-white/40 border-white/10 cursor-not-allowed'
-                      : showActive
-                        ? 'bg-white text-[#C30000] border-transparent shadow-[0_2px_10px_rgba(255,255,255,0.35)]'
-                        : 'bg-transparent text-white border-white/40 hover:bg-white/10 hover:border-white/60'
-                      }`}
-                    aria-disabled={disabled}
-                    title={
-                      disabled
-                        ? '尚未完整結算該月份的數據，暫時無法使用'
-                        : undefined
-                    }
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
+              return (
+                <button
+                  key={item.value}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => {
+                    if (disabled) return;
+                    setStartDate(range.start);
+                    setEndDate(range.end);
+                  }}
+                  className={`px-4 py-1.5 text-[13px] font-semibold rounded-full border transition-all duration-200 ${disabled
+                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                    : showActive
+                      ? 'bg-red-50 text-red-600 border-red-200 shadow-sm'
+                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+                    }`}
+                  aria-disabled={disabled}
+                  title={
+                    disabled
+                      ? '尚未完整結算該月份的數據，暫時無法使用'
+                      : undefined
+                  }
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-col gap-2 flex-1">
-                {/* 日期範圍選擇器 */}
-                <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-white text-[#0F0F0F] shadow-[0_6px_30px_rgba(0,0,0,0.08)]">
-                  <Calendar className="w-5 h-5 text-[#E30000]" />
-                  <input
-                    type="date"
-                    value={startDate}
-                    max={maxSelectableDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="flex-1 bg-transparent focus:outline-none text-[13px] font-semibold"
-                  />
-                  <span className="text-[#7A7A7A] font-medium">至</span>
-                  <input
-                    type="date"
-                    value={endDate}
-                    max={maxSelectableDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="flex-1 bg-transparent focus:outline-none text-[13px] font-semibold"
-                  />
-                </div>
-                <p className="text-[11px] text-white/80 text-left sm:text-right leading-tight">
-                  API 最晚僅提供到 {maxSelectableDate}（比 YouTube Studio 晚 1 天）
-                </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-1">
+              {/* 日期範圍選擇器 */}
+              <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-white border border-gray-200 text-[#0F0F0F] shadow-sm hover:border-gray-300 transition-colors">
+                <Calendar className="w-4 h-4 text-red-500" />
+                <input
+                  type="date"
+                  value={startDate}
+                  max={maxSelectableDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-transparent focus:outline-none text-[13px] font-semibold w-32"
+                />
+                <span className="text-gray-400 font-medium">to</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  max={maxSelectableDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-transparent focus:outline-none text-[13px] font-semibold w-32"
+                />
               </div>
-
-              {/* 刷新按鈕 */}
-              <button
-                onClick={fetchDashboardData}
-                disabled={isLoading}
-                className="inline-flex items-center justify-center gap-2.5 rounded-full bg-white/95 text-[#B20000] px-8 py-3 text-[13px] font-bold shadow-[0_10px_35px_rgba(0,0,0,0.15)] transition-all duration-200 hover:bg-white hover:shadow-[0_15px_40px_rgba(0,0,0,0.25)] hover:scale-[1.02] disabled:cursor-not-allowed disabled:bg-white/30 disabled:text-white/60 disabled:shadow-none disabled:scale-100"
-              >
-                {isLoading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    載入中...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="w-4 h-4" />
-                    刷新數據
-                  </>
-                )}
-              </button>
             </div>
+
+            {/* 刷新按鈕 */}
+            <button
+              onClick={fetchDashboardData}
+              disabled={isLoading}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 text-white px-6 py-2.5 text-[13px] font-bold shadow-lg shadow-gray-200 transition-all duration-200 hover:bg-black hover:scale-[1.02] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none disabled:scale-100"
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  載入中...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4" />
+                  刷新
+                </>
+              )}
+            </button>
           </div>
         </div>
+        <p className="text-[10px] text-gray-400 text-right mt-2 leading-tight">
+          API 最晚僅提供到 {maxSelectableDate}（比 YouTube Studio 晚 1 天）
+        </p>
       </div>
 
       {/* 數據來源說明（可摺疊）*/}
@@ -2963,17 +2932,13 @@ export function ChannelDashboard() {
               likeCount: video.likeCount,
               commentCount: video.commentCount,
               thumbnailUrl: video.thumbnailUrl,
-              avgViewPercentage: video.avgViewPercentage,
+              avgViewPercentage: video.avgViewPercentage || 0,
               shareCount: video.shareCount,
             }))}
             channelStats={{
               totalViews: channelStats.totalViews,
-              totalSubscribers: channelStats.totalSubscribers,
+              subscriberCount: channelStats.totalSubscribers,
               totalVideos: channelStats.totalVideos,
-              viewsInRange: channelStats.viewsInRange,
-              watchTimeHours: channelStats.watchTimeHours,
-              subscribersGained: channelStats.subscribersGained,
-              videosInRange: channelStats.videosInRange,
             }}
             analytics={{
               subscribersGained: channelStats.subscribersGained,
@@ -3000,303 +2965,272 @@ export function ChannelDashboard() {
 
       {/* KPI 指標卡片（可點擊切換圖表）- 緊湊型設計 */}
       {channelStats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-          {/* 觀看次數（時間範圍內）*/}
-          <button
-            onClick={() => setSelectedMetric('views')}
-            className={`group relative overflow-hidden rounded-lg border bg-gradient-to-br from-white to-gray-50/30 shadow-sm transition-all duration-300 p-4 text-left hover:shadow-lg ${selectedMetric === 'views'
-              ? 'border-red-500 shadow-red-100 ring-1 ring-red-500/20'
-              : 'border-gray-200 hover:border-gray-300'
-              }`}
-            style={{ fontFamily: '"JetBrains Mono", "Consolas", monospace' }}
-          >
-            {/* 背景裝飾 */}
-            <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl transition-opacity duration-300 ${selectedMetric === 'views' ? 'opacity-10 bg-red-500' : 'opacity-0'
-              }`} />
-
-            <div className="relative">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Eye className={`w-5 h-5 transition-colors ${selectedMetric === 'views' ? 'text-red-500' : 'text-gray-500'}`} />
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-600">觀看次數</span>
-                </div>
-                {selectedMetric === 'views' && (
-                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                )}
-              </div>
-
-              {/* 主數字 */}
-              <div className="mb-2">
-                <div className="text-4xl font-bold text-gray-900 leading-none tracking-tight">
-                  {formatNumber(channelStats.viewsInRange)}
-                </div>
-                <div className="text-[11px] text-gray-600 mt-1.5 font-medium">
-                  {formatFullNumber(channelStats.viewsInRange)} 次觀看
-                </div>
-              </div>
-
-              {/* 比較數據 - 橫向緊湊佈局 */}
-              {viewsComparison && (
-                <div className="flex gap-2.5 text-[10px] mt-3 pt-3 border-t border-gray-200">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-gray-500 font-semibold mb-0.5">較前期</div>
-                    {comparisonDateRanges && (
-                      <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.previous}</div>
-                    )}
-                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${viewsComparison.changeFromPrevious >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                      <span>{viewsComparison.changeFromPrevious >= 0 ? '↑' : '↓'}</span>
-                      <span>{Math.abs(viewsComparison.changeFromPreviousPercent).toFixed(1)}%</span>
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-gray-500 font-semibold mb-0.5">較去年同期</div>
-                    {comparisonDateRanges && (
-                      <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.yearAgo}</div>
-                    )}
-                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${viewsComparison.changeFromYearAgo >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                      <span>{viewsComparison.changeFromYearAgo >= 0 ? '↑' : '↓'}</span>
-                      <span>{Math.abs(viewsComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </button>
-
-          {/* 觀看時間（小時）*/}
-          <button
-            onClick={() => setSelectedMetric('watchTime')}
-            className={`group relative overflow-hidden rounded-lg border bg-gradient-to-br from-white to-gray-50/30 shadow-sm transition-all duration-300 p-4 text-left hover:shadow-lg ${selectedMetric === 'watchTime'
-              ? 'border-red-500 shadow-red-100 ring-1 ring-red-500/20'
-              : 'border-gray-200 hover:border-gray-300'
-              }`}
-            style={{ fontFamily: '"JetBrains Mono", "Consolas", monospace' }}
-          >
-            {/* 背景裝飾 */}
-            <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl transition-opacity duration-300 ${selectedMetric === 'watchTime' ? 'opacity-10 bg-red-500' : 'opacity-0'
-              }`} />
-
-            <div className="relative">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Clock className={`w-5 h-5 transition-colors ${selectedMetric === 'watchTime' ? 'text-red-500' : 'text-gray-500'}`} />
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-600">觀看時間</span>
-                </div>
-                {selectedMetric === 'watchTime' && (
-                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                )}
-              </div>
-
-              {/* 主數字 */}
-              <div className="mb-2">
-                <div className="text-4xl font-bold text-gray-900 leading-none tracking-tight">
-                  {formatNumber(channelStats.watchTimeHours)}
-                </div>
-                <div className="text-[11px] text-gray-600 mt-1.5 font-medium">
-                  {formatFullNumber(channelStats.watchTimeHours)} 小時
-                </div>
-              </div>
-
-              {/* 比較數據 */}
-              {watchTimeComparison && (
-                <div className="flex gap-2.5 text-[10px] mt-3 pt-3 border-t border-gray-200">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-gray-500 font-semibold mb-0.5">較前期</div>
-                    {comparisonDateRanges && (
-                      <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.previous}</div>
-                    )}
-                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${watchTimeComparison.changeFromPrevious >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                      <span>{watchTimeComparison.changeFromPrevious >= 0 ? '↑' : '↓'}</span>
-                      <span>{Math.abs(watchTimeComparison.changeFromPreviousPercent).toFixed(1)}%</span>
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-gray-500 font-semibold mb-0.5">較去年同期</div>
-                    {comparisonDateRanges && (
-                      <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.yearAgo}</div>
-                    )}
-                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${watchTimeComparison.changeFromYearAgo >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                      <span>{watchTimeComparison.changeFromYearAgo >= 0 ? '↑' : '↓'}</span>
-                      <span>{Math.abs(watchTimeComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </button>
-
-          {/* 新增訂閱數 */}
-          <button
-            onClick={() => setSelectedMetric('subscribers')}
-            className={`group relative overflow-hidden rounded-lg border bg-gradient-to-br from-white to-gray-50/30 shadow-sm transition-all duration-300 p-4 text-left hover:shadow-lg ${selectedMetric === 'subscribers'
-              ? 'border-red-500 shadow-red-100 ring-1 ring-red-500/20'
-              : 'border-gray-200 hover:border-gray-300'
-              }`}
-            style={{ fontFamily: '"JetBrains Mono", "Consolas", monospace' }}
-          >
-            {/* 背景裝飾 */}
-            <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl transition-opacity duration-300 ${selectedMetric === 'subscribers' ? 'opacity-10 bg-red-500' : 'opacity-0'
-              }`} />
-
-            <div className="relative">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Users className={`w-5 h-5 transition-colors ${selectedMetric === 'subscribers' ? 'text-red-500' : 'text-gray-500'}`} />
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-600">新增訂閱數</span>
-                </div>
-                {selectedMetric === 'subscribers' && (
-                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                )}
-              </div>
-
-              {/* 主數字 */}
-              <div className="mb-2">
-                <div className="text-4xl font-bold text-gray-900 leading-none tracking-tight">
-                  {channelStats.subscribersGained >= 0 ? '+' : ''}{formatNumber(channelStats.subscribersGained)}
-                </div>
-                <div className="text-[11px] text-gray-600 mt-1.5 font-medium">
-                  {formatFullNumber(channelStats.subscribersGained)} 位訂閱者
-                </div>
-              </div>
-
-              {/* 總訂閱數 */}
-              <div className="mb-3 pb-3 border-b border-gray-200">
-                <div className="flex items-center gap-2">
-                  <div className="text-sm text-gray-600 font-medium">總訂閱數</div>
-                  <div className="text-xl font-bold text-gray-900">
-                    {formatNumber(channelStats.totalSubscribers)}
-                  </div>
-                </div>
-                <div className="text-[10px] text-gray-500 mt-0.5">
-                  {formatFullNumber(channelStats.totalSubscribers)} 位訂閱者
-                </div>
-              </div>
-
-              {/* 比較數據 */}
-              {subscribersComparison && (
-                <div className="flex gap-2.5 text-[10px] mt-3 pt-3 border-t border-gray-200">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-gray-500 font-semibold mb-0.5">較前期</div>
-                    {comparisonDateRanges && (
-                      <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.previous}</div>
-                    )}
-                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${subscribersComparison.changeFromPrevious >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                      <span>{subscribersComparison.changeFromPrevious >= 0 ? '↑' : '↓'}</span>
-                      <span>{Math.abs(subscribersComparison.changeFromPreviousPercent).toFixed(1)}%</span>
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-gray-500 font-semibold mb-0.5">較去年同期</div>
-                    {comparisonDateRanges && (
-                      <div className="text-[9px] text-gray-500 mb-1.5 leading-tight">{comparisonDateRanges.yearAgo}</div>
-                    )}
-                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded font-bold ${subscribersComparison.changeFromYearAgo >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                      <span>{subscribersComparison.changeFromYearAgo >= 0 ? '↑' : '↓'}</span>
-                      <span>{Math.abs(subscribersComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </button>
-
-          {/* 觀看指標（平均時長 + 完成度）- 雙指標緊湊佈局 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {/* 1. 觀看次數 (Hero Card - 2 cols) */}
           <div
-            className="relative overflow-hidden rounded-lg border border-gray-200 bg-gradient-to-br from-white to-gray-50/30 shadow-sm transition-all duration-300 p-4 hover:shadow-lg hover:border-gray-300"
-            style={{ fontFamily: '"JetBrains Mono", "Consolas", monospace' }}
+            onClick={() => setSelectedMetric('views')}
+            className={`col-span-1 md:col-span-2 relative overflow-hidden rounded-2xl border bg-white shadow-sm hover:shadow-md transition-all duration-300 group cursor-pointer ${selectedMetric === 'views' ? 'border-red-500 ring-1 ring-red-500/20' : 'border-gray-100'}`}
           >
-            <div className="relative">
-              {/* Header */}
-              <div className="flex items-center gap-2 mb-3">
-                <BarChart3 className="w-5 h-5 text-gray-500" />
-                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-600">觀看指標</span>
+            <div className="p-6 h-full flex flex-col justify-between relative z-10">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className={`p-2 rounded-lg ${selectedMetric === 'views' ? 'bg-red-100 text-red-600' : 'bg-red-50 text-red-600'}`}>
+                      <Eye className="w-5 h-5" />
+                    </div>
+                    <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">觀看次數</span>
+                  </div>
+                  {viewsComparison && (
+                    <div className="flex flex-col items-end gap-1">
+                      <div
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${viewsComparison.changeFromPrevious >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
+                        title={`較前期 (${comparisonDateRanges?.previous || 'N/A'}): ${viewsComparison.changeFromPrevious >= 0 ? '+' : ''}${formatNumber(viewsComparison.changeFromPrevious)}`}
+                      >
+                        <span className="text-gray-400 font-normal mr-1">前期</span>
+                        {viewsComparison.changeFromPrevious >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                        <span>{Math.abs(viewsComparison.changeFromPreviousPercent).toFixed(1)}%</span>
+                      </div>
+                      <div className="text-[9px] text-gray-400 text-right -mt-0.5">
+                        {comparisonDateRanges?.previous}
+                      </div>
+                      <div
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${viewsComparison.changeFromYearAgo >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
+                        title={`較去年同期 (${comparisonDateRanges?.yearAgo || 'N/A'}): ${viewsComparison.changeFromYearAgo >= 0 ? '+' : ''}${formatNumber(viewsComparison.changeFromYearAgo)}`}
+                      >
+                        <span className="text-gray-400 font-normal mr-1">去年</span>
+                        {viewsComparison.changeFromYearAgo >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                        <span>{Math.abs(viewsComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
+                      </div>
+                      <div className="text-[9px] text-gray-400 text-right -mt-0.5 mb-0.5">
+                        {comparisonDateRanges?.yearAgo}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <h3 className="text-4xl font-extrabold text-gray-900 tracking-tight">
+                    {formatNumber(channelStats.viewsInRange)}
+                  </h3>
+                  <span className="text-sm text-gray-500 font-medium">次觀看</span>
+                </div>
               </div>
 
-              {/* 雙列佈局 - 更緊湊 */}
-              <div className="grid grid-cols-2 gap-3">
-                {/* 平均觀看時長 */}
-                <div className="border-r border-gray-200 pr-3">
-                  <div className="text-[10px] text-gray-500 font-semibold mb-1.5">平均觀看時長</div>
-                  <div className="text-3xl font-bold text-gray-900 leading-none mb-1.5">
-                    {Math.floor(avgViewDuration / 60)}:{String(avgViewDuration % 60).padStart(2, '0')}
-                  </div>
-                  <div className="text-[10px] text-gray-600 font-medium">
-                    {avgViewDuration} 秒
-                  </div>
-                </div>
-
-                {/* 平均觀看百分比 */}
-                <div className="pl-0">
-                  <div className="text-[10px] text-gray-500 font-semibold mb-1.5">平均完成度</div>
-                  <div className="text-3xl font-bold text-gray-900 leading-none mb-1.5">
-                    {avgViewPercentage.toFixed(1)}%
-                  </div>
-                  <div className="text-[10px] text-gray-600 font-medium">
-                    觀眾平均看完比例
-                  </div>
-                </div>
-              </div>
-
-              {/* 進度條視覺化 */}
-              <div className="mt-3 pt-3 border-t border-gray-200">
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-gray-500 to-gray-700 rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(avgViewPercentage, 100)}%` }}
+              {/* Sparkline Chart */}
+              <div className="h-16 w-full mt-4 -mb-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                {trendData.length > 0 && (
+                  <Line
+                    data={{
+                      labels: trendData.map(d => d.date),
+                      datasets: [{
+                        data: trendData.map(d => d.views),
+                        borderColor: '#ef4444',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        fill: true,
+                        backgroundColor: (context) => {
+                          const ctx = context.chart.ctx;
+                          const gradient = ctx.createLinearGradient(0, 0, 0, 60);
+                          gradient.addColorStop(0, 'rgba(239, 68, 68, 0.2)');
+                          gradient.addColorStop(1, 'rgba(239, 68, 68, 0)');
+                          return gradient;
+                        }
+                      }]
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                      scales: { x: { display: false }, y: { display: false } },
+                      interaction: { intersect: false, mode: 'index' },
+                    }}
                   />
-                </div>
-              </div>
-
-              <div className="text-[10px] text-gray-500 mt-2 leading-relaxed">
-                {error?.includes('Analytics API')
-                  ? '無法獲取（需要 Analytics API）'
-                  : '觀眾參與度指標'}
+                )}
               </div>
             </div>
           </div>
-          {/* 期間上傳（公開） */}
+
+          {/* 2. 新增訂閱數 (Hero Card - 2 cols) */}
           <div
-            className="group relative overflow-hidden rounded-lg border bg-gradient-to-br from-white to-gray-50/30 shadow-sm transition-all duration-300 p-4"
-            style={{ fontFamily: '"JetBrains Mono", "Consolas", monospace' }}
+            onClick={() => setSelectedMetric('subscribers')}
+            className={`col-span-1 md:col-span-2 relative overflow-hidden rounded-2xl border bg-white shadow-sm hover:shadow-md transition-all duration-300 group cursor-pointer ${selectedMetric === 'subscribers' ? 'border-red-500 ring-1 ring-red-500/20' : 'border-gray-100'}`}
           >
-            <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-0 group-hover:opacity-20 bg-red-500 transition-opacity" />
-            <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Video className="w-5 h-5 text-red-500" />
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-600">
-                    期間上傳（公開）
-                  </span>
+            <div className="p-6 h-full flex flex-col justify-between relative z-10">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className={`p-2 rounded-lg ${selectedMetric === 'subscribers' ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-700'}`}>
+                      <Users className="w-5 h-5" />
+                    </div>
+                    <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">新增訂閱</span>
+                  </div>
+                  {subscribersComparison && (
+                    <div className="flex flex-col items-end gap-1">
+                      <div
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${subscribersComparison.changeFromPrevious >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
+                        title={`較前期 (${comparisonDateRanges?.previous || 'N/A'}): ${subscribersComparison.changeFromPrevious >= 0 ? '+' : ''}${formatNumber(subscribersComparison.changeFromPrevious)}`}
+                      >
+                        <span className="text-gray-400 font-normal mr-1">前期</span>
+                        {subscribersComparison.changeFromPrevious >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                        <span>{Math.abs(subscribersComparison.changeFromPreviousPercent).toFixed(1)}%</span>
+                      </div>
+                      <div className="text-[9px] text-gray-400 text-right -mt-0.5">
+                        {comparisonDateRanges?.previous}
+                      </div>
+                      <div
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${subscribersComparison.changeFromYearAgo >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
+                        title={`較去年同期 (${comparisonDateRanges?.yearAgo || 'N/A'}): ${subscribersComparison.changeFromYearAgo >= 0 ? '+' : ''}${formatNumber(subscribersComparison.changeFromYearAgo)}`}
+                      >
+                        <span className="text-gray-400 font-normal mr-1">去年</span>
+                        {subscribersComparison.changeFromYearAgo >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                        <span>{Math.abs(subscribersComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
+                      </div>
+                      <div className="text-[9px] text-gray-400 text-right -mt-0.5 mb-0.5">
+                        {comparisonDateRanges?.yearAgo}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <h3 className="text-4xl font-extrabold text-gray-900 tracking-tight">
+                    {channelStats.subscribersGained > 0 ? '+' : ''}{formatNumber(channelStats.subscribersGained)}
+                  </h3>
+                  <span className="text-sm text-gray-500 font-medium">位訂閱者</span>
+                </div>
+                <div className="text-xs text-gray-400 mt-1">
+                  總訂閱數: {formatFullNumber(channelStats.totalSubscribers)}
                 </div>
               </div>
-              <div className="mb-2">
-                <div className="text-4xl font-bold text-gray-900 leading-none tracking-tight">
-                  {formatNumber(channelStats.videosInRange || 0)}
-                </div>
-                <div className="text-[11px] text-gray-600 mt-1.5 font-medium">
-                  支公開影片
-                </div>
+
+              {/* Sparkline Chart */}
+              <div className="h-16 w-full mt-4 -mb-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                {trendData.length > 0 && (
+                  <Line
+                    data={{
+                      labels: trendData.map(d => d.date),
+                      datasets: [{
+                        data: trendData.map(d => d.subscribers),
+                        borderColor: '#4b5563',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        fill: true,
+                        backgroundColor: (context) => {
+                          const ctx = context.chart.ctx;
+                          const gradient = ctx.createLinearGradient(0, 0, 0, 60);
+                          gradient.addColorStop(0, 'rgba(75, 85, 99, 0.2)');
+                          gradient.addColorStop(1, 'rgba(75, 85, 99, 0)');
+                          return gradient;
+                        }
+                      }]
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                      scales: { x: { display: false }, y: { display: false } },
+                      interaction: { intersect: false, mode: 'index' },
+                    }}
+                  />
+                )}
               </div>
-              <div className="text-[11px] text-gray-500 border-t border-gray-200 pt-3 mt-3 leading-relaxed">
-                僅統計 {startDate} ~ {endDate} 期間內發布且維持公開的影片（以 GMT+8 為準）。
+            </div>
+          </div>
+
+          {/* 3. 觀看時間 (2 cols) */}
+          <div
+            onClick={() => setSelectedMetric('watchTime')}
+            className={`col-span-1 md:col-span-2 relative overflow-hidden rounded-2xl border bg-white shadow-sm hover:shadow-md transition-all duration-300 p-6 cursor-pointer ${selectedMetric === 'watchTime' ? 'border-red-500 ring-1 ring-red-500/20' : 'border-gray-100'}`}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className={`p-2 rounded-lg ${selectedMetric === 'watchTime' ? 'bg-orange-100 text-orange-700' : 'bg-orange-50 text-orange-600'}`}>
+                  <Clock className="w-5 h-5" />
+                </div>
+                <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">觀看時間</span>
               </div>
+              {watchTimeComparison && (
+                <div className="flex flex-col items-end gap-1">
+                  <div
+                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${watchTimeComparison.changeFromPrevious >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
+                    title={`較前期 (${comparisonDateRanges?.previous || 'N/A'}): ${watchTimeComparison.changeFromPrevious >= 0 ? '+' : ''}${formatNumber(watchTimeComparison.changeFromPrevious)}`}
+                  >
+                    <span className="text-gray-400 font-normal mr-1">前期</span>
+                    {watchTimeComparison.changeFromPrevious >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    <span>{Math.abs(watchTimeComparison.changeFromPreviousPercent).toFixed(1)}%</span>
+                  </div>
+                  <div className="text-[9px] text-gray-400 text-right -mt-0.5">
+                    {comparisonDateRanges?.previous}
+                  </div>
+                  <div
+                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${watchTimeComparison.changeFromYearAgo >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
+                    title={`較去年同期 (${comparisonDateRanges?.yearAgo || 'N/A'}): ${watchTimeComparison.changeFromYearAgo >= 0 ? '+' : ''}${formatNumber(watchTimeComparison.changeFromYearAgo)}`}
+                  >
+                    <span className="text-gray-400 font-normal mr-1">去年</span>
+                    {watchTimeComparison.changeFromYearAgo >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    <span>{Math.abs(watchTimeComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
+                  </div>
+                  <div className="text-[9px] text-gray-400 text-right -mt-0.5 mb-0.5">
+                    {comparisonDateRanges?.yearAgo}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex items-baseline gap-2">
+              <h3 className="text-3xl font-bold text-gray-900 tracking-tight">
+                {formatNumber(channelStats.watchTimeHours)}
+              </h3>
+              <span className="text-sm text-gray-500 font-medium">小時</span>
+            </div>
+          </div>
+
+          {/* 4. 觀看指標 (1 col) */}
+          <div className="col-span-1 relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition-all duration-300 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+                <BarChart3 className="w-5 h-5" />
+              </div>
+              <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">平均完成度</span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <h3 className="text-3xl font-bold text-gray-900 tracking-tight">
+                {avgViewPercentage.toFixed(1)}%
+              </h3>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-1.5 mt-3">
+              <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${Math.min(avgViewPercentage, 100)}%` }}></div>
+            </div>
+            <div className="text-xs text-gray-400 mt-2">
+              平均時長: {Math.floor(avgViewDuration / 60)}:{String(avgViewDuration % 60).padStart(2, '0')}
+            </div>
+          </div>
+
+          {/* 5. 期間上傳 (1 col) */}
+          <div className="col-span-1 relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition-all duration-300 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="p-2 rounded-lg bg-purple-50 text-purple-600">
+                <Video className="w-5 h-5" />
+              </div>
+              <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">期間上傳</span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <h3 className="text-3xl font-bold text-gray-900 tracking-tight">
+                {formatNumber(channelStats.videosInRange || 0)}
+              </h3>
+              <span className="text-sm text-gray-500 font-medium">支</span>
+            </div>
+            <div className="text-xs text-gray-400 mt-2">
+              公開影片 ({startDate} ~ {endDate})
             </div>
           </div>
         </div>
       )}
 
       {/* 過去 12 個月趨勢圖表 */}
-      <div className={`${cardBaseClass} p-6`}>
-        <h3 className="text-lg font-semibold mb-4">
+      <div className={`relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm p-6`}>
+        <h3 className="text-lg font-bold tracking-tight text-gray-900 mb-4">
           過去 12 個月趨勢
           {monthlyData.length > 0 && (
             <span className="text-sm font-normal text-gray-500 ml-2">
@@ -3337,7 +3271,7 @@ export function ChannelDashboard() {
                           case 'watchTime':
                             return isCurrentMonth ? 'rgba(251, 113, 133, 0.4)' : 'rgba(251, 113, 133, 0.8)';
                           case 'subscribers':
-                            const value = monthlyData[index].subscribersNet;
+                            const value = monthlyData[index]?.subscribersNet || 0;
                             if (isCurrentMonth) {
                               return value >= 0 ? 'rgba(220, 38, 38, 0.4)' : 'rgba(209, 213, 219, 0.4)';
                             }
@@ -3354,7 +3288,7 @@ export function ChannelDashboard() {
                           case 'watchTime':
                             return isCurrentMonth ? '#fb7185' : '#fb7185';
                           case 'subscribers':
-                            const value = monthlyData[index].subscribersNet;
+                            const value = monthlyData[index]?.subscribersNet || 0;
                             return value >= 0 ? '#dc2626' : '#d1d5db';
                           default:
                             return '#ef4444';
@@ -3364,7 +3298,7 @@ export function ChannelDashboard() {
                       borderDash: monthlyData.map(d => d.isCurrentMonth ? [5, 5] : []),
                       borderRadius: 8,
                       borderSkipped: false,
-                    },
+                    } as any,
                   ],
                 }}
                 options={{
@@ -3384,7 +3318,7 @@ export function ChannelDashboard() {
                       displayColors: true,
                       titleFont: {
                         size: 13,
-                        weight: '600',
+                        weight: 'bold',
                       },
                       bodyFont: {
                         size: 12,
@@ -3394,16 +3328,17 @@ export function ChannelDashboard() {
                           const value = context.parsed.y;
                           const index = context.dataIndex;
                           const dataPoint = monthlyData[index];
+                          if (!dataPoint) return '';
                           let label = '';
                           switch (selectedMetric) {
                             case 'views':
-                              label = `觀看次數：${formatFullNumber(value)}`;
+                              label = `觀看次數：${formatFullNumber(value || 0)}`;
                               break;
                             case 'watchTime':
-                              label = `觀看時長：${formatFullNumber(value)} 小時`;
+                              label = `觀看時長：${formatFullNumber(value || 0)} 小時`;
                               break;
                             case 'subscribers':
-                              label = `訂閱淨增長：${value >= 0 ? '+' : ''}${formatFullNumber(value)}`;
+                              label = `訂閱淨增長：${(value || 0) >= 0 ? '+' : ''}${formatFullNumber(value || 0)}`;
                               break;
                           }
                           if (dataPoint.isCurrentMonth) {
@@ -3433,7 +3368,7 @@ export function ChannelDashboard() {
                       grid: {
                         color: '#fee2e2',
                         drawBorder: false,
-                      },
+                      } as any,
                       ticks: {
                         color: '#6b7280',
                         font: {
@@ -3458,15 +3393,15 @@ export function ChannelDashboard() {
 
       {(trendData.length > 0 || (ENABLE_PUBLISHING_SLOTS && viewingHours.length > 0) || error?.includes('Analytics API')) && (
         <>
-          <h2 className="text-lg font-semibold text-gray-900 border-l-4 border-red-500 pl-3 mt-2">
+          <h2 className="text-lg font-bold tracking-tight text-gray-900 border-l-4 border-red-500 pl-3 mt-2">
             {ENABLE_PUBLISHING_SLOTS ? '趨勢走勢與建議發布時段' : '觀看趨勢'}
           </h2>
           <div className={`grid grid-cols-1 ${ENABLE_PUBLISHING_SLOTS ? 'xl:grid-cols-2' : ''} gap-6`}>
-            <div className={`${cardBaseClass} p-6`}>
+            <div className={`relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm p-6`}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-red-500" />
-                  <h3 className="text-lg font-semibold text-gray-900">觀看趨勢走勢</h3>
+                  <h3 className="text-lg font-bold tracking-tight text-gray-900">觀看趨勢走勢</h3>
                 </div>
                 <span className="text-xs text-gray-500">
                   {startDate} ~ {endDate}
@@ -3531,7 +3466,7 @@ export function ChannelDashboard() {
                             displayColors: false,
                             titleFont: {
                               size: 13,
-                              weight: '600',
+                              weight: 'bold',
                             },
                             bodyFont: {
                               size: 12,
@@ -3540,8 +3475,9 @@ export function ChannelDashboard() {
                               label: (context) => {
                                 const views = context.parsed.y;
                                 const index = context.dataIndex;
-                                const topVideo = trendData[index]?.topVideo;
-                                let lines = [`觀看次數：${formatFullNumber(views)}`];
+                                const dataPoint = trendData[index]; // Get the dataPoint for the current index
+                                const topVideo = dataPoint?.topVideo; // Safely access topVideo
+                                let lines = [`觀看次數：${formatFullNumber(views || 0)}`]; // Fix number | null
                                 if (topVideo) {
                                   lines.push('');
                                   lines.push(`當日熱門：${topVideo.title.substring(0, 40)}...`);
@@ -3549,6 +3485,13 @@ export function ChannelDashboard() {
                                 }
                                 return lines;
                               },
+                              title: (context) => {
+                                const item = context[0];
+                                if (!item) return '';
+                                const index = item.dataIndex;
+                                const dataPoint = trendData[index];
+                                return dataPoint ? formatDateString(new Date(dataPoint.date)) : '';
+                              }
                             },
                           },
                         },
@@ -3571,7 +3514,7 @@ export function ChannelDashboard() {
                             grid: {
                               color: '#fee2e2',
                               drawBorder: false,
-                            },
+                            } as any,
                             ticks: {
                               color: '#6b7280',
                               font: {
@@ -3595,10 +3538,10 @@ export function ChannelDashboard() {
                       <div>
                         <div className="text-gray-500">最高峰</div>
                         <div className="text-sm font-semibold text-gray-900">
-                          {formatDate(trendSummary.bestDay.date)}
+                          {trendSummary.bestDay ? formatDate(trendSummary.bestDay.date) : '-'}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {formatFullNumber(trendSummary.bestDay.views)} 次觀看
+                          {trendSummary.bestDay ? formatFullNumber(trendSummary.bestDay.views) : 0} 次觀看
                         </div>
                       </div>
                       <div>
@@ -3657,7 +3600,7 @@ export function ChannelDashboard() {
                                 {leader.title}
                               </a>
                               <div className="text-xs text-gray-500 mt-1">
-                                {leader.count} 天拿下每日第一 · 最近 {formatDate(leader.lastDate)}
+                                {leader.count} 天拿下每日第一 · 最近 {formatDate(leader.lastDate || '')}
                               </div>
                             </div>
                             <div className="text-right">
@@ -3679,11 +3622,11 @@ export function ChannelDashboard() {
             </div>
 
             {ENABLE_PUBLISHING_SLOTS && (
-              <div className={`${cardBaseClass} p-6`}>
+              <div className={`relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm p-6`}>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <Clock className="w-5 h-5 text-red-500" />
-                    <h3 className="text-lg font-semibold text-gray-900">建議發布時段</h3>
+                    <h3 className="text-lg font-bold tracking-tight text-gray-900">建議發布時段</h3>
                   </div>
                   <span className="text-xs text-gray-500">{viewingHoursSubtitle}</span>
                 </div>
@@ -3785,16 +3728,16 @@ export function ChannelDashboard() {
 
       {/* 內容類型分析區塊標題 */}
       {(contentTypeMetrics || topShorts.length > 0 || topRegularVideos.length > 0 || sortedTopVideos.length > 0) && (
-        <h2 className="text-lg font-semibold text-gray-900 border-l-4 border-red-500 pl-3 mt-2">
+        <h2 className="text-lg font-bold tracking-tight text-gray-900 border-l-4 border-red-500 pl-3 mt-2">
           內容表現分析
         </h2>
       )}
 
       {/* Shorts vs 一般影片對比 */}
       {contentTypeMetrics && (
-        <div className={cardBaseClass}>
+        <div className={`relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm`}>
           <div className="p-6">
-            <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+            <h3 className="text-lg font-bold tracking-tight text-gray-900 mb-1 flex items-center gap-2">
               <Video className="w-5 h-5 text-red-500" />
               內容類型分析
             </h3>
@@ -3899,14 +3842,14 @@ export function ChannelDashboard() {
 
       {/* 熱門影片列表 */}
       {sortedTopVideos.length > 0 && (
-        <div className={cardBaseClass}>
+        <div className={`relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm`}>
           <div className="p-6">
             <div
               className="flex items-center justify-between cursor-pointer mb-4"
               onClick={() => setIsTopVideosExpanded(!isTopVideosExpanded)}
             >
               <div className="flex-1">
-                <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                <h3 className="text-lg font-bold tracking-tight text-gray-900 mb-2 flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-red-500" />
                   熱門影片 (Top 10)
                 </h3>
@@ -4086,7 +4029,7 @@ export function ChannelDashboard() {
         >
           {/* 熱門 Shorts 排行榜 */}
           {topShorts.length > 0 && (
-            <div className={`${cardBaseClass} h-full flex flex-col`}>
+            <div className={`relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm h-full flex flex-col`}>
               <div className="p-6 flex-1 flex flex-col">
                 <div
                   className="flex items-center justify-between cursor-pointer mb-4"
@@ -4199,7 +4142,7 @@ export function ChannelDashboard() {
                                 </div>
 
                                 {/* 觀看完成率 */}
-                                {video.avgViewPercentage > 0 && (
+                                {video.avgViewPercentage !== undefined && (
                                   <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100/50">
                                     <BarChart3 className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
                                     <span className="font-bold text-amber-700 text-[11px] leading-tight">
@@ -4283,7 +4226,7 @@ export function ChannelDashboard() {
 
           {/* 熱門一般影片排行榜 */}
           {topRegularVideos.length > 0 && (
-            <div className={`${cardBaseClass} h-full flex flex-col`}>
+            <div className={`relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm h-full flex flex-col`}>
               <div className="p-6 flex-1 flex flex-col">
                 <div
                   className="flex items-center justify-between cursor-pointer mb-4"
@@ -4396,7 +4339,7 @@ export function ChannelDashboard() {
                                 </div>
 
                                 {/* 觀看完成率 */}
-                                {video.avgViewPercentage > 0 && (
+                                {video.avgViewPercentage !== undefined && (
                                   <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100/50">
                                     <BarChart3 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
                                     <span className="font-bold text-emerald-700 text-[11px] leading-tight">
@@ -4480,7 +4423,7 @@ export function ChannelDashboard() {
 
       {/* 冷門影片排行榜 (Bottom 10) */}
       {bottomVideos.length > 0 && (
-        <div className={`${cardBaseClass} h-full flex flex-col mt-4`}>
+        <div className={`relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm h-full flex flex-col mt-4`}>
           <div className="p-6 flex-1 flex flex-col">
             <div
               className="flex items-center justify-between cursor-pointer mb-4"
@@ -4575,7 +4518,7 @@ export function ChannelDashboard() {
                               </div>
 
                               {/* 觀看完成率 */}
-                              {video.avgViewPercentage > 0 && (
+                              {video.avgViewPercentage !== undefined && (
                                 <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 border border-slate-200">
                                   <BarChart3 className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                                   <span className="font-bold text-slate-500 text-[11px] leading-tight">
@@ -4662,7 +4605,7 @@ export function ChannelDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* 熱門流量來源 - 甜甜圈圖 */}
         {trafficSources.length > 0 && (
-          <div className={compactCardClass}>
+          <div className={`relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm p-6`}>
             <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-red-500" />
               熱門流量來源
@@ -4672,10 +4615,10 @@ export function ChannelDashboard() {
               <div className="relative w-72 h-72 mb-6">
                 <Doughnut
                   data={{
-                    labels: trafficSources.map(s => translateTrafficSource(s.source)),
+                    labels: trafficSources.map(_s => translateTrafficSource(_s.source)),
                     datasets: [
                       {
-                        data: trafficSources.map(s => s.views),
+                        data: trafficSources.map(_s => _s.views),
                         backgroundColor: [
                           '#dc2626', // red-600
                           '#ef4444', // red-500
@@ -4711,7 +4654,7 @@ export function ChannelDashboard() {
                         displayColors: true,
                         titleFont: {
                           size: 13,
-                          weight: '600',
+                          weight: 'bold',
                         },
                         bodyFont: {
                           size: 12,
@@ -4720,6 +4663,7 @@ export function ChannelDashboard() {
                           label: (context) => {
                             const index = context.dataIndex;
                             const source = trafficSources[index];
+                            if (!source) return '';
                             return [
                               `觀看次數：${formatFullNumber(source.views)}`,
                               `佔比：${source.percentage.toFixed(1)}%`
@@ -4762,12 +4706,11 @@ export function ChannelDashboard() {
                     { hex: '#06b6d4', bg: 'bg-cyan-500' },
                     { hex: '#10b981', bg: 'bg-emerald-500' },
                   ];
-                  const color = colors[index % colors.length];
-
+                  const colorScheme = colors[index % colors.length] || { hex: '#9ca3af', bg: 'bg-gray-400' };
                   return (
                     <div key={index} className="flex items-center justify-between py-1.5">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className={`w-3 h-3 rounded-full ${color.bg}`} />
+                        <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: colorScheme?.hex || '#e5e7eb' }} />
                         <span className="text-sm text-gray-700 truncate">{translateTrafficSource(source.source)}</span>
                       </div>
                       <div className="flex items-center gap-3 ml-2">
@@ -4788,7 +4731,7 @@ export function ChannelDashboard() {
 
         {/* 外部來源排行 - 橫向柱狀圖 */}
         {externalSources.length > 0 && (
-          <div className={compactCardClass}>
+          <div className={`relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm p-6`}>
             <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-red-500" />
               外部來源排行
@@ -4802,13 +4745,13 @@ export function ChannelDashboard() {
                   '#d946ef', '#ec4899', '#f43f5e', '#ef4444'
                 ];
                 const color = colors[index % colors.length];
-                const maxViews = Math.max(...externalSources.slice(0, 8).map(s => s.views));
+                const maxViews = Math.max(...externalSources.slice(0, 8).map(_s => _s.views));
                 const barWidth = (source.views / maxViews) * 100;
 
                 return (
                   <div key={index} className="space-y-1.5">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium text-gray-700 truncate pr-4">
+                      <span className="font-medium" style={{ color: color || '#9ca3af' }}>
                         {source.source}
                       </span>
                       <span className="text-gray-900 font-semibold whitespace-nowrap">
@@ -4821,7 +4764,7 @@ export function ChannelDashboard() {
                           className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2"
                           style={{
                             width: `${barWidth}%`,
-                            backgroundColor: color,
+                            backgroundColor: color || '#e5e7eb'
                           }}
                         >
                           <span className="text-xs font-semibold text-white">
@@ -4841,7 +4784,7 @@ export function ChannelDashboard() {
 
       {/* 搜尋字詞排行榜（跨2欄） */}
       {searchTerms.length > 0 && (
-        <div className={compactCardClass}>
+        <div className={`relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm p-6`}>
           <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-red-500" />
             熱門搜尋字詞排行
@@ -4859,7 +4802,7 @@ export function ChannelDashboard() {
 
               const isTopThree = index < 3;
               const colorScheme = isTopThree
-                ? rankColors[index]
+                ? (rankColors[index] || rankColors[0]!)
                 : { bg: 'bg-white', border: 'border-gray-200', text: 'text-gray-600', rankBg: 'bg-gray-300' };
 
               return (
@@ -4885,7 +4828,7 @@ export function ChannelDashboard() {
                         <div
                           className={`${isTopThree ? colorScheme.rankBg : 'bg-red-400'} h-1.5 rounded-full transition-all duration-500`}
                           style={{
-                            width: `${(term.views / searchTerms[0].views) * 100}%`
+                            width: `${(term.views / (searchTerms[0]?.views || 1)) * 100}%`
                           }}
                         />
                       </div>
@@ -4919,7 +4862,7 @@ export function ChannelDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             {/* 年齡與性別分佈 - 人口金字塔 */}
             {demographics.length > 0 && (
-              <div className={compactCardClass}>
+              <div className={`relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm p-6`}>
                 <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
                   <Users className="w-5 h-5 text-red-500" />
                   年齡與性別分佈
@@ -5004,7 +4947,7 @@ export function ChannelDashboard() {
 
             {/* 地理位置分佈 */}
             {geography.length > 0 && (
-              <div className={compactCardClass}>
+              <div className={`relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm p-6`}>
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-red-500" />
                   觀眾地理分佈（前 10 名）
@@ -5031,7 +4974,7 @@ export function ChannelDashboard() {
                       <div className="w-full bg-gray-100 rounded-full h-2">
                         <div
                           className="bg-red-500 h-2 rounded-full"
-                          style={{ width: `${item.percentage}%` }}
+                          style={{ width: `${item.percentage || 0}%` }}
                         />
                       </div>
                     </div>
@@ -5103,7 +5046,7 @@ export function ChannelDashboard() {
                           displayColors: true,
                           titleFont: {
                             size: 13,
-                            weight: '600',
+                            weight: 'bold',
                           },
                           bodyFont: {
                             size: 12,
@@ -5112,6 +5055,7 @@ export function ChannelDashboard() {
                             label: (context) => {
                               const index = context.dataIndex;
                               const device = devices[index];
+                              if (!device) return '';
                               return [
                                 `觀看次數：${formatFullNumber(device.views)}`,
                                 `佔比：${device.percentage.toFixed(1)}%`
@@ -5126,7 +5070,7 @@ export function ChannelDashboard() {
                           grid: {
                             color: '#fee2e2',
                             drawBorder: false,
-                          },
+                          } as any,
                           ticks: {
                             color: '#6b7280',
                             font: {
@@ -5143,7 +5087,7 @@ export function ChannelDashboard() {
                             color: '#374151',
                             font: {
                               size: 12,
-                              weight: '600',
+                              weight: 'bold',
                             },
                           },
                         },
@@ -5187,99 +5131,117 @@ export function ChannelDashboard() {
               <div className="hidden md:flex items-end justify-center gap-4 mb-6">
                 {/* 第二名 */}
                 <div className="flex flex-col items-center w-1/3">
-                  <div className="w-full bg-gradient-to-b from-gray-100 to-gray-200 rounded-2xl p-4 border-2 border-gray-300 shadow-lg overflow-hidden flex flex-col">
-                    <div className="text-center mb-3">
-                      <div className="text-2xl font-bold text-gray-600">第 2 名</div>
-                    </div>
-                    {/* 影片縮圖 - 16:9 比例 */}
-                    <div className="mb-3 w-full aspect-video flex-shrink-0">
-                      <img
-                        src={`https://i.ytimg.com/vi/${subscriberSources[1].videoId}/mqdefault.jpg`}
-                        alt={subscriberSources[1].videoTitle}
-                        className="w-full h-full object-cover rounded-lg"
-                        onError={(e) => {
-                          e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[1].videoId}/default.jpg`;
-                        }}
-                      />
-                    </div>
-                    {/* 標題 - 固定高度 */}
-                    <div className="text-sm font-semibold text-gray-900 mb-3 line-clamp-2 h-10 flex-shrink-0">
-                      {subscriberSources[1].videoTitle}
-                    </div>
-                    {/* 訂閱數 - 推到底部 */}
-                    <div className="text-center mt-auto">
-                      <div className="text-2xl font-bold text-gray-700">
-                        +{formatNumber(subscriberSources[1].subscribersGained)}
+                  {(() => {
+                    const second = subscriberSources[1];
+                    if (!second) return null;
+                    return (
+                      <div className="w-full bg-gradient-to-b from-gray-100 to-gray-200 rounded-2xl p-4 border-2 border-gray-300 shadow-lg overflow-hidden flex flex-col">
+                        <div className="text-center mb-3">
+                          <div className="text-2xl font-bold text-gray-600">第 2 名</div>
+                        </div>
+                        {/* 影片縮圖 - 16:9 比例 */}
+                        <div className="mb-3 w-full aspect-video flex-shrink-0">
+                          <img
+                            src={`https://i.ytimg.com/vi/${second.videoId}/mqdefault.jpg`}
+                            alt={second.videoTitle}
+                            className="w-full h-full object-cover rounded-lg"
+                            onError={(e) => {
+                              e.currentTarget.src = `https://i.ytimg.com/vi/${second.videoId}/default.jpg`;
+                            }}
+                          />
+                        </div>
+                        {/* 標題 - 固定高度 */}
+                        <div className="text-sm font-semibold text-gray-900 mb-3 line-clamp-2 h-10 flex-shrink-0">
+                          {second.videoTitle}
+                        </div>
+                        {/* 訂閱數 - 推到底部 */}
+                        <div className="text-center mt-auto">
+                          <div className="text-2xl font-bold text-gray-700">
+                            +{formatNumber(second.subscribersGained)}
+                          </div>
+                          <div className="text-xs text-gray-600">新訂閱</div>
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-600">新訂閱</div>
-                    </div>
-                  </div>
+                    );
+                  })()}
                 </div>
 
                 {/* 第一名（中間最高） */}
                 <div className="flex flex-col items-center w-1/3">
-                  <div className="w-full bg-gradient-to-b from-yellow-50 to-yellow-100 rounded-2xl p-5 border-2 border-yellow-400 shadow-2xl overflow-hidden flex flex-col">
-                    <div className="text-center mb-3">
-                      <div className="text-3xl font-bold text-yellow-700">第 1 名</div>
-                      <div className="text-xs text-yellow-600 flex items-center justify-center gap-1">
-                        <Crown className="w-3 h-3" />
-                        冠軍
+                  {(() => {
+                    const first = subscriberSources[0];
+                    if (!first) return null;
+                    return (
+                      <div className="w-full bg-gradient-to-b from-yellow-50 to-yellow-100 rounded-2xl p-5 border-2 border-yellow-400 shadow-2xl overflow-hidden flex flex-col">
+                        <div className="text-center mb-3">
+                          <div className="text-3xl font-bold text-yellow-700">第 1 名</div>
+                          <div className="text-xs text-yellow-600 flex items-center justify-center gap-1">
+                            <Crown className="w-3 h-3" />
+                            冠軍
+                          </div>
+                        </div>
+                        {/* 影片縮圖 - 16:9 比例 */}
+                        <div className="mb-3 w-full aspect-video flex-shrink-0">
+                          <img
+                            src={`https://i.ytimg.com/vi/${first.videoId}/mqdefault.jpg`}
+                            alt={first.videoTitle}
+                            className="w-full h-full object-cover rounded-lg"
+                            onError={(e) => {
+                              e.currentTarget.src = `https://i.ytimg.com/vi/${first.videoId}/default.jpg`;
+                            }}
+                          />
+                        </div>
+                        {/* 標題 - 固定高度 */}
+                        <div className="text-sm font-bold text-gray-900 mb-3 line-clamp-2 h-10 flex-shrink-0">
+                          {first.videoTitle}
+                        </div>
+                        {/* 訂閱數 - 推到底部 */}
+                        <div className="text-center mt-auto">
+                          <div className="text-3xl font-bold text-red-600">
+                            +{formatNumber(first.subscribersGained)}
+                          </div>
+                          <div className="text-xs text-gray-600">新訂閱</div>
+                        </div>
                       </div>
-                    </div>
-                    {/* 影片縮圖 - 16:9 比例 */}
-                    <div className="mb-3 w-full aspect-video flex-shrink-0">
-                      <img
-                        src={`https://i.ytimg.com/vi/${subscriberSources[0].videoId}/mqdefault.jpg`}
-                        alt={subscriberSources[0].videoTitle}
-                        className="w-full h-full object-cover rounded-lg"
-                        onError={(e) => {
-                          e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[0].videoId}/default.jpg`;
-                        }}
-                      />
-                    </div>
-                    {/* 標題 - 固定高度 */}
-                    <div className="text-sm font-bold text-gray-900 mb-3 line-clamp-2 h-10 flex-shrink-0">
-                      {subscriberSources[0].videoTitle}
-                    </div>
-                    {/* 訂閱數 - 推到底部 */}
-                    <div className="text-center mt-auto">
-                      <div className="text-3xl font-bold text-red-600">
-                        +{formatNumber(subscriberSources[0].subscribersGained)}
-                      </div>
-                      <div className="text-xs text-gray-600">新訂閱</div>
-                    </div>
-                  </div>
+                    );
+                  })()}
                 </div>
 
                 {/* 第三名 */}
                 <div className="flex flex-col items-center w-1/3">
-                  <div className="w-full bg-gradient-to-b from-orange-50 to-orange-100 rounded-2xl p-4 border-2 border-orange-300 shadow-lg overflow-hidden flex flex-col">
-                    <div className="text-center mb-3">
-                      <div className="text-2xl font-bold text-orange-600">第 3 名</div>
-                    </div>
-                    {/* 影片縮圖 - 16:9 比例 */}
-                    <div className="mb-3 w-full aspect-video flex-shrink-0">
-                      <img
-                        src={`https://i.ytimg.com/vi/${subscriberSources[2].videoId}/mqdefault.jpg`}
-                        alt={subscriberSources[2].videoTitle}
-                        className="w-full h-full object-cover rounded-lg"
-                        onError={(e) => {
-                          e.currentTarget.src = `https://i.ytimg.com/vi/${subscriberSources[2].videoId}/default.jpg`;
-                        }}
-                      />
-                    </div>
-                    {/* 標題 - 固定高度 */}
-                    <div className="text-sm font-semibold text-gray-900 mb-3 line-clamp-2 h-10 flex-shrink-0">
-                      {subscriberSources[2].videoTitle}
-                    </div>
-                    {/* 訂閱數 - 推到底部 */}
-                    <div className="text-center mt-auto">
-                      <div className="text-2xl font-bold text-orange-700">
-                        +{formatNumber(subscriberSources[2].subscribersGained)}
+                  {(() => {
+                    const third = subscriberSources[2];
+                    if (!third) return null;
+                    return (
+                      <div className="w-full bg-gradient-to-b from-orange-50 to-orange-100 rounded-2xl p-4 border-2 border-orange-300 shadow-lg overflow-hidden flex flex-col">
+                        <div className="text-center mb-3">
+                          <div className="text-2xl font-bold text-orange-600">第 3 名</div>
+                        </div>
+                        {/* 影片縮圖 - 16:9 比例 */}
+                        <div className="mb-3 w-full aspect-video flex-shrink-0">
+                          <img
+                            src={`https://i.ytimg.com/vi/${third.videoId}/mqdefault.jpg`}
+                            alt={third.videoTitle}
+                            className="w-full h-full object-cover rounded-lg"
+                            onError={(e) => {
+                              e.currentTarget.src = `https://i.ytimg.com/vi/${third.videoId}/default.jpg`;
+                            }}
+                          />
+                        </div>
+                        {/* 標題 - 固定高度 */}
+                        <div className="text-sm font-semibold text-gray-900 mb-3 line-clamp-2 h-10 flex-shrink-0">
+                          {third.videoTitle}
+                        </div>
+                        {/* 訂閱數 - 推到底部 */}
+                        <div className="text-center mt-auto">
+                          <div className="text-2xl font-bold text-orange-700">
+                            +{formatNumber(third.subscribersGained)}
+                          </div>
+                          <div className="text-xs text-gray-600">新訂閱</div>
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-600">新訂閱</div>
-                    </div>
-                  </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -5291,7 +5253,7 @@ export function ChannelDashboard() {
                     { bg: 'from-gray-50 to-gray-100', border: 'border-gray-400', text: 'text-gray-700', label: '亞軍' },
                     { bg: 'from-orange-50 to-orange-100', border: 'border-orange-400', text: 'text-orange-700', label: '季軍' },
                   ];
-                  const style = styles[index];
+                  const style = styles[index] || styles[2]!;
 
                   return (
                     <div key={source.videoId} className={`bg-gradient-to-r ${style.bg} rounded-2xl p-4 border-2 ${style.border} shadow-lg`}>
