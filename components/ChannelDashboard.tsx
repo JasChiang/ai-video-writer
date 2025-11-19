@@ -2963,432 +2963,438 @@ export function ChannelDashboard() {
         </div>
       )}
 
-      {/* KPI 指標卡片（可點擊切換圖表）- 緊湊型設計 */}
+      {/* 頻道分析統一區塊 */}
       {channelStats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {/* 1. 觀看次數 (Hero Card - 2 cols) */}
-          <div
-            onClick={() => setSelectedMetric('views')}
-            className={`col-span-1 md:col-span-2 relative overflow-hidden rounded-2xl border bg-white shadow-sm hover:shadow-md transition-all duration-300 group cursor-pointer ${selectedMetric === 'views' ? 'border-red-500 ring-1 ring-red-500/20' : 'border-gray-100'}`}
-          >
-            <div className="p-6 h-full flex flex-col justify-between relative z-10">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className={`p-2 rounded-lg ${selectedMetric === 'views' ? 'bg-red-100 text-red-600' : 'bg-red-50 text-red-600'}`}>
-                      <Eye className="w-5 h-5" />
-                    </div>
-                    <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">觀看次數</span>
-                  </div>
-                  {viewsComparison && (
-                    <div className="flex flex-col items-end gap-1">
-                      <div
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${viewsComparison.changeFromPrevious >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
-                        title={`較前期 (${comparisonDateRanges?.previous || 'N/A'}): ${viewsComparison.changeFromPrevious >= 0 ? '+' : ''}${formatNumber(viewsComparison.changeFromPrevious)}`}
-                      >
-                        <span className="text-gray-400 font-normal mr-1">前期</span>
-                        {viewsComparison.changeFromPrevious >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                        <span>{Math.abs(viewsComparison.changeFromPreviousPercent).toFixed(1)}%</span>
-                      </div>
-                      <div className="text-[9px] text-gray-400 text-right -mt-0.5">
-                        {comparisonDateRanges?.previous}
-                      </div>
-                      <div
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${viewsComparison.changeFromYearAgo >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
-                        title={`較去年同期 (${comparisonDateRanges?.yearAgo || 'N/A'}): ${viewsComparison.changeFromYearAgo >= 0 ? '+' : ''}${formatNumber(viewsComparison.changeFromYearAgo)}`}
-                      >
-                        <span className="text-gray-400 font-normal mr-1">去年</span>
-                        {viewsComparison.changeFromYearAgo >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                        <span>{Math.abs(viewsComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
-                      </div>
-                      <div className="text-[9px] text-gray-400 text-right -mt-0.5 mb-0.5">
-                        {comparisonDateRanges?.yearAgo}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-baseline gap-2 mt-2">
-                  <h3 className="text-4xl font-extrabold text-gray-900 tracking-tight">
-                    {formatNumber(channelStats.viewsInRange)}
-                  </h3>
-                  <span className="text-sm text-gray-500 font-medium">次觀看</span>
-                </div>
-              </div>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            {/* Row 1: Secondary Metrics (Avg View %, Uploads) */}
 
-              {/* Sparkline Chart */}
-              <div className="h-16 w-full mt-4 -mb-2 opacity-80 group-hover:opacity-100 transition-opacity">
-                {trendData.length > 0 && (
-                  <Line
-                    data={{
-                      labels: trendData.map(d => d.date),
-                      datasets: [{
-                        data: trendData.map(d => d.views),
-                        borderColor: '#ef4444',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        pointRadius: 0,
-                        pointHoverRadius: 4,
-                        fill: true,
-                        backgroundColor: (context) => {
-                          const ctx = context.chart.ctx;
-                          const gradient = ctx.createLinearGradient(0, 0, 0, 60);
-                          gradient.addColorStop(0, 'rgba(239, 68, 68, 0.2)');
-                          gradient.addColorStop(1, 'rgba(239, 68, 68, 0)');
-                          return gradient;
-                        }
-                      }]
-                    }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: { legend: { display: false }, tooltip: { enabled: false } },
-                      scales: { x: { display: false }, y: { display: false } },
-                      interaction: { intersect: false, mode: 'index' },
-                    }}
-                  />
-                )}
+            {/* 4. 觀看指標 (3 cols) - Average View Percentage */}
+            <div className="col-span-1 md:col-span-3 relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition-all duration-300 p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+                  <BarChart3 className="w-5 h-5" />
+                </div>
+                <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">平均完成度</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <h3 className="text-3xl font-bold text-gray-900 tracking-tight">
+                  {avgViewPercentage.toFixed(1)}%
+                </h3>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-1.5 mt-3">
+                <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${Math.min(avgViewPercentage, 100)}%` }}></div>
+              </div>
+              <div className="text-xs text-gray-400 mt-2">
+                平均時長: {Math.floor(avgViewDuration / 60)}:{String(avgViewDuration % 60).padStart(2, '0')}
               </div>
             </div>
-          </div>
 
-          {/* 2. 新增訂閱數 (Hero Card - 2 cols) */}
-          <div
-            onClick={() => setSelectedMetric('subscribers')}
-            className={`col-span-1 md:col-span-2 relative overflow-hidden rounded-2xl border bg-white shadow-sm hover:shadow-md transition-all duration-300 group cursor-pointer ${selectedMetric === 'subscribers' ? 'border-red-500 ring-1 ring-red-500/20' : 'border-gray-100'}`}
-          >
-            <div className="p-6 h-full flex flex-col justify-between relative z-10">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className={`p-2 rounded-lg ${selectedMetric === 'subscribers' ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-700'}`}>
-                      <Users className="w-5 h-5" />
-                    </div>
-                    <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">新增訂閱</span>
-                  </div>
-                  {subscribersComparison && (
-                    <div className="flex flex-col items-end gap-1">
-                      <div
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${subscribersComparison.changeFromPrevious >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
-                        title={`較前期 (${comparisonDateRanges?.previous || 'N/A'}): ${subscribersComparison.changeFromPrevious >= 0 ? '+' : ''}${formatNumber(subscribersComparison.changeFromPrevious)}`}
-                      >
-                        <span className="text-gray-400 font-normal mr-1">前期</span>
-                        {subscribersComparison.changeFromPrevious >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                        <span>{Math.abs(subscribersComparison.changeFromPreviousPercent).toFixed(1)}%</span>
-                      </div>
-                      <div className="text-[9px] text-gray-400 text-right -mt-0.5">
-                        {comparisonDateRanges?.previous}
-                      </div>
-                      <div
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${subscribersComparison.changeFromYearAgo >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
-                        title={`較去年同期 (${comparisonDateRanges?.yearAgo || 'N/A'}): ${subscribersComparison.changeFromYearAgo >= 0 ? '+' : ''}${formatNumber(subscribersComparison.changeFromYearAgo)}`}
-                      >
-                        <span className="text-gray-400 font-normal mr-1">去年</span>
-                        {subscribersComparison.changeFromYearAgo >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                        <span>{Math.abs(subscribersComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
-                      </div>
-                      <div className="text-[9px] text-gray-400 text-right -mt-0.5 mb-0.5">
-                        {comparisonDateRanges?.yearAgo}
-                      </div>
-                    </div>
-                  )}
+            {/* 5. 期間上傳 (3 cols) */}
+            <div className="col-span-1 md:col-span-3 relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition-all duration-300 p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 rounded-lg bg-purple-50 text-purple-600">
+                  <Video className="w-5 h-5" />
                 </div>
-                <div className="flex items-baseline gap-2 mt-2">
-                  <h3 className="text-4xl font-extrabold text-gray-900 tracking-tight">
-                    {channelStats.subscribersGained > 0 ? '+' : ''}{formatNumber(channelStats.subscribersGained)}
-                  </h3>
-                  <span className="text-sm text-gray-500 font-medium">位訂閱者</span>
-                </div>
-                <div className="text-xs text-gray-400 mt-1">
-                  總訂閱數: {formatFullNumber(channelStats.totalSubscribers)}
-                </div>
+                <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">期間上傳</span>
               </div>
-
-              {/* Sparkline Chart */}
-              <div className="h-16 w-full mt-4 -mb-2 opacity-80 group-hover:opacity-100 transition-opacity">
-                {trendData.length > 0 && (
-                  <Line
-                    data={{
-                      labels: trendData.map(d => d.date),
-                      datasets: [{
-                        data: trendData.map(d => d.subscribers),
-                        borderColor: '#4b5563',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        pointRadius: 0,
-                        pointHoverRadius: 4,
-                        fill: true,
-                        backgroundColor: (context) => {
-                          const ctx = context.chart.ctx;
-                          const gradient = ctx.createLinearGradient(0, 0, 0, 60);
-                          gradient.addColorStop(0, 'rgba(75, 85, 99, 0.2)');
-                          gradient.addColorStop(1, 'rgba(75, 85, 99, 0)');
-                          return gradient;
-                        }
-                      }]
-                    }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: { legend: { display: false }, tooltip: { enabled: false } },
-                      scales: { x: { display: false }, y: { display: false } },
-                      interaction: { intersect: false, mode: 'index' },
-                    }}
-                  />
-                )}
+              <div className="flex items-baseline gap-2">
+                <h3 className="text-3xl font-bold text-gray-900 tracking-tight">
+                  {formatNumber(channelStats.videosInRange || 0)}
+                </h3>
+                <span className="text-sm text-gray-500 font-medium">支</span>
+              </div>
+              <div className="text-xs text-gray-400 mt-2">
+                公開影片 ({startDate} ~ {endDate})
               </div>
             </div>
-          </div>
 
-          {/* 3. 觀看時間 (2 cols) */}
-          <div
-            onClick={() => setSelectedMetric('watchTime')}
-            className={`col-span-1 md:col-span-2 relative overflow-hidden rounded-2xl border bg-white shadow-sm hover:shadow-md transition-all duration-300 p-6 cursor-pointer ${selectedMetric === 'watchTime' ? 'border-red-500 ring-1 ring-red-500/20' : 'border-gray-100'}`}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className={`p-2 rounded-lg ${selectedMetric === 'watchTime' ? 'bg-orange-100 text-orange-700' : 'bg-orange-50 text-orange-600'}`}>
-                  <Clock className="w-5 h-5" />
+            {/* Row 2: Primary Metrics (Views, Subs, Watch Time) */}
+
+            {/* 1. 觀看次數 (2 cols) */}
+            <div
+              onClick={() => setSelectedMetric('views')}
+              className={`col-span-1 md:col-span-2 relative overflow-hidden rounded-2xl border bg-white shadow-sm hover:shadow-md transition-all duration-300 group cursor-pointer ${selectedMetric === 'views' ? 'border-red-500 ring-1 ring-red-500/20' : 'border-gray-100'}`}
+            >
+              <div className="p-6 h-full flex flex-col justify-between relative z-10">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`p-2 rounded-lg ${selectedMetric === 'views' ? 'bg-red-100 text-red-600' : 'bg-red-50 text-red-600'}`}>
+                        <Eye className="w-5 h-5" />
+                      </div>
+                      <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">觀看次數</span>
+                    </div>
+                    {viewsComparison && (
+                      <div className="flex flex-col items-end gap-1">
+                        <div
+                          className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${viewsComparison.changeFromPrevious >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
+                          title={`較前期 (${comparisonDateRanges?.previous || 'N/A'}): ${viewsComparison.changeFromPrevious >= 0 ? '+' : ''}${formatNumber(viewsComparison.changeFromPrevious)}`}
+                        >
+                          <span className="text-gray-400 font-normal mr-1">前期</span>
+                          {viewsComparison.changeFromPrevious >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                          <span>{Math.abs(viewsComparison.changeFromPreviousPercent).toFixed(1)}%</span>
+                        </div>
+                        <div className="text-[9px] text-gray-400 text-right -mt-0.5">
+                          {comparisonDateRanges?.previous}
+                        </div>
+                        <div
+                          className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${viewsComparison.changeFromYearAgo >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
+                          title={`較去年同期 (${comparisonDateRanges?.yearAgo || 'N/A'}): ${viewsComparison.changeFromYearAgo >= 0 ? '+' : ''}${formatNumber(viewsComparison.changeFromYearAgo)}`}
+                        >
+                          <span className="text-gray-400 font-normal mr-1">去年</span>
+                          {viewsComparison.changeFromYearAgo >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                          <span>{Math.abs(viewsComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
+                        </div>
+                        <div className="text-[9px] text-gray-400 text-right -mt-0.5 mb-0.5">
+                          {comparisonDateRanges?.yearAgo}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <h3 className="text-4xl font-extrabold text-gray-900 tracking-tight">
+                      {formatNumber(channelStats.viewsInRange)}
+                    </h3>
+                    <span className="text-sm text-gray-500 font-medium">次觀看</span>
+                  </div>
                 </div>
-                <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">觀看時間</span>
+
+                {/* Sparkline Chart */}
+                <div className="h-16 w-full mt-4 -mb-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                  {trendData.length > 0 && (
+                    <Line
+                      data={{
+                        labels: trendData.map(d => d.date),
+                        datasets: [{
+                          data: trendData.map(d => d.views),
+                          borderColor: '#ef4444',
+                          borderWidth: 2,
+                          tension: 0.4,
+                          pointRadius: 0,
+                          pointHoverRadius: 4,
+                          fill: true,
+                          backgroundColor: (context) => {
+                            const ctx = context.chart.ctx;
+                            const gradient = ctx.createLinearGradient(0, 0, 0, 60);
+                            gradient.addColorStop(0, 'rgba(239, 68, 68, 0.2)');
+                            gradient.addColorStop(1, 'rgba(239, 68, 68, 0)');
+                            return gradient;
+                          }
+                        }]
+                      }}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                        scales: { x: { display: false }, y: { display: false } },
+                        interaction: { intersect: false, mode: 'index' },
+                      }}
+                    />
+                  )}
+                </div>
               </div>
-              {watchTimeComparison && (
-                <div className="flex flex-col items-end gap-1">
-                  <div
-                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${watchTimeComparison.changeFromPrevious >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
-                    title={`較前期 (${comparisonDateRanges?.previous || 'N/A'}): ${watchTimeComparison.changeFromPrevious >= 0 ? '+' : ''}${formatNumber(watchTimeComparison.changeFromPrevious)}`}
-                  >
-                    <span className="text-gray-400 font-normal mr-1">前期</span>
-                    {watchTimeComparison.changeFromPrevious >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                    <span>{Math.abs(watchTimeComparison.changeFromPreviousPercent).toFixed(1)}%</span>
+            </div>
+
+            {/* 2. 新增訂閱數 (2 cols) */}
+            <div
+              onClick={() => setSelectedMetric('subscribers')}
+              className={`col-span-1 md:col-span-2 relative overflow-hidden rounded-2xl border bg-white shadow-sm hover:shadow-md transition-all duration-300 group cursor-pointer ${selectedMetric === 'subscribers' ? 'border-red-500 ring-1 ring-red-500/20' : 'border-gray-100'}`}
+            >
+              <div className="p-6 h-full flex flex-col justify-between relative z-10">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`p-2 rounded-lg ${selectedMetric === 'subscribers' ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-700'}`}>
+                        <Users className="w-5 h-5" />
+                      </div>
+                      <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">新增訂閱</span>
+                    </div>
+                    {subscribersComparison && (
+                      <div className="flex flex-col items-end gap-1">
+                        <div
+                          className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${subscribersComparison.changeFromPrevious >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
+                          title={`較前期 (${comparisonDateRanges?.previous || 'N/A'}): ${subscribersComparison.changeFromPrevious >= 0 ? '+' : ''}${formatNumber(subscribersComparison.changeFromPrevious)}`}
+                        >
+                          <span className="text-gray-400 font-normal mr-1">前期</span>
+                          {subscribersComparison.changeFromPrevious >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                          <span>{Math.abs(subscribersComparison.changeFromPreviousPercent).toFixed(1)}%</span>
+                        </div>
+                        <div className="text-[9px] text-gray-400 text-right -mt-0.5">
+                          {comparisonDateRanges?.previous}
+                        </div>
+                        <div
+                          className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${subscribersComparison.changeFromYearAgo >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
+                          title={`較去年同期 (${comparisonDateRanges?.yearAgo || 'N/A'}): ${subscribersComparison.changeFromYearAgo >= 0 ? '+' : ''}${formatNumber(subscribersComparison.changeFromYearAgo)}`}
+                        >
+                          <span className="text-gray-400 font-normal mr-1">去年</span>
+                          {subscribersComparison.changeFromYearAgo >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                          <span>{Math.abs(subscribersComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
+                        </div>
+                        <div className="text-[9px] text-gray-400 text-right -mt-0.5 mb-0.5">
+                          {comparisonDateRanges?.yearAgo}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-[9px] text-gray-400 text-right -mt-0.5">
-                    {comparisonDateRanges?.previous}
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <h3 className="text-4xl font-extrabold text-gray-900 tracking-tight">
+                      {channelStats.subscribersGained > 0 ? '+' : ''}{formatNumber(channelStats.subscribersGained)}
+                    </h3>
+                    <span className="text-sm text-gray-500 font-medium">位訂閱者</span>
                   </div>
-                  <div
-                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${watchTimeComparison.changeFromYearAgo >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
-                    title={`較去年同期 (${comparisonDateRanges?.yearAgo || 'N/A'}): ${watchTimeComparison.changeFromYearAgo >= 0 ? '+' : ''}${formatNumber(watchTimeComparison.changeFromYearAgo)}`}
-                  >
-                    <span className="text-gray-400 font-normal mr-1">去年</span>
-                    {watchTimeComparison.changeFromYearAgo >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                    <span>{Math.abs(watchTimeComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
-                  </div>
-                  <div className="text-[9px] text-gray-400 text-right -mt-0.5 mb-0.5">
-                    {comparisonDateRanges?.yearAgo}
+                  <div className="text-xs text-gray-400 mt-1">
+                    總訂閱數: {formatFullNumber(channelStats.totalSubscribers)}
                   </div>
                 </div>
+
+                {/* Sparkline Chart */}
+                <div className="h-16 w-full mt-4 -mb-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                  {trendData.length > 0 && (
+                    <Line
+                      data={{
+                        labels: trendData.map(d => d.date),
+                        datasets: [{
+                          data: trendData.map(d => d.subscribers),
+                          borderColor: '#4b5563',
+                          borderWidth: 2,
+                          tension: 0.4,
+                          pointRadius: 0,
+                          pointHoverRadius: 4,
+                          fill: true,
+                          backgroundColor: (context) => {
+                            const ctx = context.chart.ctx;
+                            const gradient = ctx.createLinearGradient(0, 0, 0, 60);
+                            gradient.addColorStop(0, 'rgba(75, 85, 99, 0.2)');
+                            gradient.addColorStop(1, 'rgba(75, 85, 99, 0)');
+                            return gradient;
+                          }
+                        }]
+                      }}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                        scales: { x: { display: false }, y: { display: false } },
+                        interaction: { intersect: false, mode: 'index' },
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 3. 觀看時間 (2 cols) */}
+            <div
+              onClick={() => setSelectedMetric('watchTime')}
+              className={`col-span-1 md:col-span-2 relative overflow-hidden rounded-2xl border bg-white shadow-sm hover:shadow-md transition-all duration-300 p-6 cursor-pointer ${selectedMetric === 'watchTime' ? 'border-red-500 ring-1 ring-red-500/20' : 'border-gray-100'}`}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className={`p-2 rounded-lg ${selectedMetric === 'watchTime' ? 'bg-orange-100 text-orange-700' : 'bg-orange-50 text-orange-600'}`}>
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">觀看時間</span>
+                </div>
+                {watchTimeComparison && (
+                  <div className="flex flex-col items-end gap-1">
+                    <div
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${watchTimeComparison.changeFromPrevious >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
+                      title={`較前期 (${comparisonDateRanges?.previous || 'N/A'}): ${watchTimeComparison.changeFromPrevious >= 0 ? '+' : ''}${formatNumber(watchTimeComparison.changeFromPrevious)}`}
+                    >
+                      <span className="text-gray-400 font-normal mr-1">前期</span>
+                      {watchTimeComparison.changeFromPrevious >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      <span>{Math.abs(watchTimeComparison.changeFromPreviousPercent).toFixed(1)}%</span>
+                    </div>
+                    <div className="text-[9px] text-gray-400 text-right -mt-0.5">
+                      {comparisonDateRanges?.previous}
+                    </div>
+                    <div
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${watchTimeComparison.changeFromYearAgo >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
+                      title={`較去年同期 (${comparisonDateRanges?.yearAgo || 'N/A'}): ${watchTimeComparison.changeFromYearAgo >= 0 ? '+' : ''}${formatNumber(watchTimeComparison.changeFromYearAgo)}`}
+                    >
+                      <span className="text-gray-400 font-normal mr-1">去年</span>
+                      {watchTimeComparison.changeFromYearAgo >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      <span>{Math.abs(watchTimeComparison.changeFromYearAgoPercent).toFixed(1)}%</span>
+                    </div>
+                    <div className="text-[9px] text-gray-400 text-right -mt-0.5 mb-0.5">
+                      {comparisonDateRanges?.yearAgo}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-baseline gap-2">
+                <h3 className="text-3xl font-bold text-gray-900 tracking-tight">
+                  {formatNumber(channelStats.watchTimeHours)}
+                </h3>
+                <span className="text-sm text-gray-500 font-medium">小時</span>
+              </div>
+            </div>
+
+            {/* Row 3: Trend Chart (6 cols) */}
+            <div className="col-span-1 md:col-span-6 mt-4 pt-6 border-t border-gray-100">
+              <h3 className="text-lg font-bold tracking-tight text-gray-900 mb-4">
+                過去 12 個月趨勢
+                {monthlyData.length > 0 && (
+                  <span className="text-sm font-normal text-gray-500 ml-2">
+                    ({monthlyMeta.fullMonthsCount} 個完整月份{monthlyMeta.hasCurrent ? ' + 本月至今' : ''})
+                  </span>
+                )}
+              </h3>
+
+              {monthlyData.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <BarChart3 className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                  <p>暫無月度數據</p>
+                  <p className="text-sm mt-2">請點擊「刷新數據」載入過去 12 個月的統計數據</p>
+                </div>
+              ) : (
+                <>
+                  {/* Chart.js 柱狀圖 */}
+                  <div className="mt-6 h-80">
+                    <Bar
+                      data={{
+                        labels: monthlyData.map(d => d.isCurrentMonth ? `${d.month} (至今)` : d.month),
+                        datasets: [
+                          {
+                            label: selectedMetric === 'views' ? '觀看次數' : selectedMetric === 'watchTime' ? '觀看時長（小時）' : '訂閱淨增長',
+                            data: monthlyData.map(d => {
+                              switch (selectedMetric) {
+                                case 'views': return d.views;
+                                case 'watchTime': return d.watchTimeHours;
+                                case 'subscribers': return d.subscribersNet;
+                                default: return 0;
+                              }
+                            }),
+                            backgroundColor: monthlyData.map((d, index) => {
+                              const isCurrentMonth = d.isCurrentMonth;
+                              switch (selectedMetric) {
+                                case 'views':
+                                  return isCurrentMonth ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.8)';
+                                case 'watchTime':
+                                  return isCurrentMonth ? 'rgba(251, 113, 133, 0.4)' : 'rgba(251, 113, 133, 0.8)';
+                                case 'subscribers':
+                                  const value = monthlyData[index]?.subscribersNet || 0;
+                                  if (isCurrentMonth) {
+                                    return value >= 0 ? 'rgba(220, 38, 38, 0.4)' : 'rgba(209, 213, 219, 0.4)';
+                                  }
+                                  return value >= 0 ? 'rgba(220, 38, 38, 0.8)' : 'rgba(209, 213, 219, 0.8)';
+                                default:
+                                  return 'rgba(239, 68, 68, 0.8)';
+                              }
+                            }),
+                            borderColor: monthlyData.map((d, index) => {
+                              const isCurrentMonth = d.isCurrentMonth;
+                              switch (selectedMetric) {
+                                case 'views':
+                                  return isCurrentMonth ? '#ef4444' : '#ef4444';
+                                case 'watchTime':
+                                  return isCurrentMonth ? '#fb7185' : '#fb7185';
+                                case 'subscribers':
+                                  const value = monthlyData[index]?.subscribersNet || 0;
+                                  return value >= 0 ? '#dc2626' : '#d1d5db';
+                                default:
+                                  return '#ef4444';
+                              }
+                            }),
+                            borderWidth: monthlyData.map(d => d.isCurrentMonth ? 2 : 0),
+                            borderDash: monthlyData.map(d => d.isCurrentMonth ? [5, 5] : []),
+                            borderRadius: 8,
+                            borderSkipped: false,
+                          } as any,
+                        ],
+                      }}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                          legend: {
+                            display: false,
+                          },
+                          tooltip: {
+                            backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                            titleColor: '#374151',
+                            bodyColor: '#6b7280',
+                            borderColor: '#fca5a5',
+                            borderWidth: 1,
+                            padding: 12,
+                            displayColors: true,
+                            titleFont: {
+                              size: 13,
+                              weight: 'bold',
+                            },
+                            bodyFont: {
+                              size: 12,
+                            },
+                            callbacks: {
+                              label: (context) => {
+                                const value = context.parsed.y;
+                                const index = context.dataIndex;
+                                const dataPoint = monthlyData[index];
+                                if (!dataPoint) return '';
+                                let label = '';
+                                switch (selectedMetric) {
+                                  case 'views':
+                                    label = `觀看次數：${formatFullNumber(value || 0)}`;
+                                    break;
+                                  case 'watchTime':
+                                    label = `觀看時長：${formatFullNumber(value || 0)} 小時`;
+                                    break;
+                                  case 'subscribers':
+                                    label = `訂閱淨增長：${(value || 0) >= 0 ? '+' : ''}${formatFullNumber(value || 0)}`;
+                                    break;
+                                }
+                                if (dataPoint.isCurrentMonth) {
+                                  label += ' (本月至今)';
+                                }
+                                return label;
+                              },
+                            },
+                          },
+                        },
+                        scales: {
+                          x: {
+                            grid: {
+                              display: false,
+                            },
+                            ticks: {
+                              color: '#6b7280',
+                              font: {
+                                size: 11,
+                              },
+                              maxRotation: 45,
+                              minRotation: 45,
+                            },
+                          },
+                          y: {
+                            beginAtZero: true,
+                            grid: {
+                              color: '#fee2e2',
+                              drawBorder: false,
+                            } as any,
+                            ticks: {
+                              color: '#6b7280',
+                              font: {
+                                size: 11,
+                              },
+                              callback: (value) => formatNumber(value as number),
+                            },
+                          },
+                        },
+                      }}
+                    />
+                  </div>
+                  {monthlyMeta.hasCurrent && (
+                    <p className="text-xs text-gray-500 mt-3 text-right">
+                      本月至今資料更新至 {todayLabel}，數值尚未滿整月。
+                    </p>
+                  )}
+                </>
               )}
-            </div>
-            <div className="flex items-baseline gap-2">
-              <h3 className="text-3xl font-bold text-gray-900 tracking-tight">
-                {formatNumber(channelStats.watchTimeHours)}
-              </h3>
-              <span className="text-sm text-gray-500 font-medium">小時</span>
-            </div>
-          </div>
-
-          {/* 4. 觀看指標 (1 col) */}
-          <div className="col-span-1 relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition-all duration-300 p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
-                <BarChart3 className="w-5 h-5" />
-              </div>
-              <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">平均完成度</span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <h3 className="text-3xl font-bold text-gray-900 tracking-tight">
-                {avgViewPercentage.toFixed(1)}%
-              </h3>
-            </div>
-            <div className="w-full bg-gray-100 rounded-full h-1.5 mt-3">
-              <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${Math.min(avgViewPercentage, 100)}%` }}></div>
-            </div>
-            <div className="text-xs text-gray-400 mt-2">
-              平均時長: {Math.floor(avgViewDuration / 60)}:{String(avgViewDuration % 60).padStart(2, '0')}
-            </div>
-          </div>
-
-          {/* 5. 期間上傳 (1 col) */}
-          <div className="col-span-1 relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition-all duration-300 p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-2 rounded-lg bg-purple-50 text-purple-600">
-                <Video className="w-5 h-5" />
-              </div>
-              <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">期間上傳</span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <h3 className="text-3xl font-bold text-gray-900 tracking-tight">
-                {formatNumber(channelStats.videosInRange || 0)}
-              </h3>
-              <span className="text-sm text-gray-500 font-medium">支</span>
-            </div>
-            <div className="text-xs text-gray-400 mt-2">
-              公開影片 ({startDate} ~ {endDate})
             </div>
           </div>
         </div>
       )}
-
-      {/* 過去 12 個月趨勢圖表 */}
-      <div className={`relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm p-6`}>
-        <h3 className="text-lg font-bold tracking-tight text-gray-900 mb-4">
-          過去 12 個月趨勢
-          {monthlyData.length > 0 && (
-            <span className="text-sm font-normal text-gray-500 ml-2">
-              ({monthlyMeta.fullMonthsCount} 個完整月份{monthlyMeta.hasCurrent ? ' + 本月至今' : ''})
-            </span>
-          )}
-        </h3>
-
-        {monthlyData.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            <BarChart3 className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-            <p>暫無月度數據</p>
-            <p className="text-sm mt-2">請點擊「刷新數據」載入過去 12 個月的統計數據</p>
-          </div>
-        ) : (
-          <>
-            {/* Chart.js 柱狀圖 */}
-            <div className="mt-6 h-80">
-              <Bar
-                data={{
-                  labels: monthlyData.map(d => d.isCurrentMonth ? `${d.month} (至今)` : d.month),
-                  datasets: [
-                    {
-                      label: selectedMetric === 'views' ? '觀看次數' : selectedMetric === 'watchTime' ? '觀看時長（小時）' : '訂閱淨增長',
-                      data: monthlyData.map(d => {
-                        switch (selectedMetric) {
-                          case 'views': return d.views;
-                          case 'watchTime': return d.watchTimeHours;
-                          case 'subscribers': return d.subscribersNet;
-                          default: return 0;
-                        }
-                      }),
-                      backgroundColor: monthlyData.map((d, index) => {
-                        const isCurrentMonth = d.isCurrentMonth;
-                        switch (selectedMetric) {
-                          case 'views':
-                            return isCurrentMonth ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.8)';
-                          case 'watchTime':
-                            return isCurrentMonth ? 'rgba(251, 113, 133, 0.4)' : 'rgba(251, 113, 133, 0.8)';
-                          case 'subscribers':
-                            const value = monthlyData[index]?.subscribersNet || 0;
-                            if (isCurrentMonth) {
-                              return value >= 0 ? 'rgba(220, 38, 38, 0.4)' : 'rgba(209, 213, 219, 0.4)';
-                            }
-                            return value >= 0 ? 'rgba(220, 38, 38, 0.8)' : 'rgba(209, 213, 219, 0.8)';
-                          default:
-                            return 'rgba(239, 68, 68, 0.8)';
-                        }
-                      }),
-                      borderColor: monthlyData.map((d, index) => {
-                        const isCurrentMonth = d.isCurrentMonth;
-                        switch (selectedMetric) {
-                          case 'views':
-                            return isCurrentMonth ? '#ef4444' : '#ef4444';
-                          case 'watchTime':
-                            return isCurrentMonth ? '#fb7185' : '#fb7185';
-                          case 'subscribers':
-                            const value = monthlyData[index]?.subscribersNet || 0;
-                            return value >= 0 ? '#dc2626' : '#d1d5db';
-                          default:
-                            return '#ef4444';
-                        }
-                      }),
-                      borderWidth: monthlyData.map(d => d.isCurrentMonth ? 2 : 0),
-                      borderDash: monthlyData.map(d => d.isCurrentMonth ? [5, 5] : []),
-                      borderRadius: 8,
-                      borderSkipped: false,
-                    } as any,
-                  ],
-                }}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: {
-                      display: false,
-                    },
-                    tooltip: {
-                      backgroundColor: 'rgba(255, 255, 255, 0.98)',
-                      titleColor: '#374151',
-                      bodyColor: '#6b7280',
-                      borderColor: '#fca5a5',
-                      borderWidth: 1,
-                      padding: 12,
-                      displayColors: true,
-                      titleFont: {
-                        size: 13,
-                        weight: 'bold',
-                      },
-                      bodyFont: {
-                        size: 12,
-                      },
-                      callbacks: {
-                        label: (context) => {
-                          const value = context.parsed.y;
-                          const index = context.dataIndex;
-                          const dataPoint = monthlyData[index];
-                          if (!dataPoint) return '';
-                          let label = '';
-                          switch (selectedMetric) {
-                            case 'views':
-                              label = `觀看次數：${formatFullNumber(value || 0)}`;
-                              break;
-                            case 'watchTime':
-                              label = `觀看時長：${formatFullNumber(value || 0)} 小時`;
-                              break;
-                            case 'subscribers':
-                              label = `訂閱淨增長：${(value || 0) >= 0 ? '+' : ''}${formatFullNumber(value || 0)}`;
-                              break;
-                          }
-                          if (dataPoint.isCurrentMonth) {
-                            label += ' (本月至今)';
-                          }
-                          return label;
-                        },
-                      },
-                    },
-                  },
-                  scales: {
-                    x: {
-                      grid: {
-                        display: false,
-                      },
-                      ticks: {
-                        color: '#6b7280',
-                        font: {
-                          size: 11,
-                        },
-                        maxRotation: 45,
-                        minRotation: 45,
-                      },
-                    },
-                    y: {
-                      beginAtZero: true,
-                      grid: {
-                        color: '#fee2e2',
-                        drawBorder: false,
-                      } as any,
-                      ticks: {
-                        color: '#6b7280',
-                        font: {
-                          size: 11,
-                        },
-                        callback: (value) => formatNumber(value as number),
-                      },
-                    },
-                  },
-                }}
-              />
-            </div>
-            {monthlyMeta.hasCurrent && (
-              <p className="text-xs text-gray-500 mt-3 text-right">
-                本月至今資料更新至 {todayLabel}，數值尚未滿整月。
-              </p>
-            )}
-          </>
-        )}
-      </div>
 
 
       {(trendData.length > 0 || (ENABLE_PUBLISHING_SLOTS && viewingHours.length > 0) || error?.includes('Analytics API')) && (
