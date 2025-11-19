@@ -469,6 +469,27 @@ const ChartJSComponent: React.FC<{ data: ChartData }> = ({ data }) => {
   );
 };
 
+// 辅助函数：处理文本中的 <br> 标签
+const renderWithBreaks = (content: React.ReactNode): React.ReactNode => {
+  if (typeof content === 'string') {
+    const parts = content.split(/<br\s*\/?>/gi);
+    if (parts.length === 1) return content;
+
+    return parts.map((part, index) => (
+      <React.Fragment key={index}>
+        {part}
+        {index < parts.length - 1 && <br />}
+      </React.Fragment>
+    ));
+  }
+
+  if (Array.isArray(content)) {
+    return React.Children.map(content, (child) => renderWithBreaks(child));
+  }
+
+  return content;
+};
+
 // 自定义 Markdown 组件
 const components: Components = {
   // 标题组件 - 添加图标
@@ -528,7 +549,7 @@ const components: Components = {
           <td className="border border-gray-300 px-4 py-3">
             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm font-medium ${style.bg} ${style.text}`}>
               <StatusIcon className="w-4 h-4" />
-              {children}
+              {renderWithBreaks(children)}
             </span>
           </td>
         );
@@ -537,7 +558,7 @@ const components: Components = {
 
     return (
       <td className="border border-gray-300 px-4 py-3" style={{ color: '#03045E' }}>
-        {children}
+        {renderWithBreaks(children)}
       </td>
     );
   },
