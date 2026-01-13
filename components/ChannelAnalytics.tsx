@@ -85,7 +85,7 @@ const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
   (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
 
-type TabType = 'dashboard' | 'report';
+type TabType = 'dashboard' | 'report' | 'duration';
 
 export function ChannelAnalytics() {
   // 分頁狀態
@@ -100,6 +100,14 @@ export function ChannelAnalytics() {
   const [channelId, setChannelId] = useState<string>('');
   const [selectedMetrics, setSelectedMetrics] = useState<Array<keyof AnalyticsData>>(['views', 'likes']);
   const [channelCountry, setChannelCountry] = useState<string>('');
+
+  // 競爭對手分析狀態
+  const [analysisMode, setAnalysisMode] = useState<'own' | 'competitor'>('own');
+  const [competitorChannelId, setCompetitorChannelId] = useState<string>('');
+
+  // 時長分析狀態
+  const [durationData, setDurationData] = useState<TableData[]>([]);
+  const [isDurationLoading, setIsDurationLoading] = useState(false);
 
   // 模板管理
   const [templates, setTemplates] = useState<TemplateData[]>([]);
@@ -186,6 +194,15 @@ export function ChannelAnalytics() {
 
   // 獲取頻道 ID
   const fetchChannelId = async (): Promise<string> => {
+    // 如果是競爭對手模式，使用輸入的頻道 ID
+    if (analysisMode === 'competitor') {
+      if (!competitorChannelId.trim()) {
+        throw new Error('請輸入競爭對手的頻道 ID');
+      }
+      return competitorChannelId.trim();
+    }
+
+    // 如果是自己的頻道，從快取或 API 獲取
     if (channelId) {
       return channelId;
     }
@@ -283,6 +300,7 @@ export function ChannelAnalytics() {
             };
           }),
           dateRanges,
+          isOwnChannel: analysisMode === 'own',
         }),
       });
 
@@ -460,6 +478,90 @@ export function ChannelAnalytics() {
     }
   };
 
+  // 獲取時長分析數據
+  const fetchDurationAnalysis = async () => {
+    if (dateColumns.length === 0) {
+      setError('請至少添加一個日期範圍');
+      return;
+    }
+
+    setIsDurationLoading(true);
+    setError(null);
+
+    try {
+      const token = youtubeService.getAccessToken();
+      if (!token) {
+        throw new Error('未登入 YouTube');
+      }
+
+      const id = await fetchChannelId();
+
+      // 解析日期範圍
+      const dateRanges: Array<{ label: string; startDate: string; endDate: string }> = [];
+
+      for (const column of dateColumns) {
+        const range = parseDateConfig(column.config);
+        if (!range) {
+          throw new Error(`無法解析日期配置: ${column.config}`);
+        }
+        dateRanges.push({
+          label: column.label,
+          startDate: range.startDate,
+          endDate: range.endDate,
+        });
+      }
+
+      // 調用後端 API
+      const response = await fetch(`${API_BASE_URL}/channel-analytics/duration-analysis`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          accessToken: token,
+          channelId: id,
+          dateRanges,
+          isOwnChannel: analysisMode === 'own',
+        }),
+      });
+
+      const contentType = response.headers.get('content-type') || '';
+      const responseText = await response.text();
+      let parsedResponse: any = null;
+
+      if (contentType.includes('application/json') && responseText) {
+        try {
+          parsedResponse = JSON.parse(responseText);
+        } catch (parseErr) {
+          console.warn('無法解析 JSON 回應:', parseErr);
+        }
+      }
+
+      if (!response.ok) {
+        const message =
+          parsedResponse?.error ||
+          parsedResponse?.message ||
+          responseText ||
+          '獲取時長分析數據失敗';
+        throw new Error(message);
+      }
+
+      if (!parsedResponse) {
+        throw new Error('後端回傳格式錯誤（非 JSON）');
+      }
+
+      const result = parsedResponse;
+
+      // 設定表格數據
+      setDurationData(result.rows);
+    } catch (err: any) {
+      console.error('獲取時長分析數據失敗:', err);
+      setError(err.message || '獲取時長分析數據失敗');
+    } finally {
+      setIsDurationLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-8 font-['Roboto',sans-serif] text-[#0F0F0F]">
       {/* 分頁選擇器 */}
@@ -490,6 +592,19 @@ export function ChannelAnalytics() {
             關鍵字報表
           </div>
         </button>
+        <button
+          onClick={() => setActiveTab('duration')}
+          className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+            activeTab === 'duration'
+              ? 'bg-[#FF0000] text-white shadow-[0_4px_16px_rgba(255,0,0,0.25)]'
+              : 'text-[#606060] hover:text-[#0F0F0F] hover:bg-[#FFF5F5]'
+          }`}
+        >
+          <div className="flex items-center justify-center gap-2 text-sm sm:text-base">
+            <Calendar className="w-5 h-5" />
+            時長分析
+          </div>
+        </button>
       </div>
 
       {/* 儀錶板視圖 */}
@@ -515,7 +630,11 @@ export function ChannelAnalytics() {
                 </p>
                 <div className="mt-3 space-y-2">
                   <div className="text-sm text-[#B40000] bg-[#FFF0F0] border border-[#FFD4D4] px-3 py-2 rounded-xl shadow-inner">
-                    💡 系統會獲取頻道<strong>所有影片</strong>（公開、未列出、私人），再根據<strong>關鍵字</strong>過濾，並統計您選擇的<strong>時間段內</strong>的數據
+                    {analysisMode === 'own' ? (
+                      <>💡 系統會獲取頻道<strong>所有影片</strong>（公開、未列出、私人），再根據<strong>關鍵字</strong>過濾，並統計您選擇的<strong>時間段內</strong>的數據</>
+                    ) : (
+                      <>🔍 競爭對手分析僅能獲取<strong>公開影片</strong>數據，並根據<strong>關鍵字</strong>過濾</>
+                    )}
                   </div>
                 </div>
               </div>
@@ -529,6 +648,63 @@ export function ChannelAnalytics() {
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* 分析模式選擇 */}
+          <div className="bg-white rounded-2xl border border-[#EAEAEA] shadow-sm p-5">
+            <div className="mb-4">
+              <h3 className="font-semibold text-lg text-[#111111]">分析模式</h3>
+              <p className="text-sm text-[#707070]">選擇要分析的頻道類型</p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setAnalysisMode('own')}
+                className={`flex-1 px-6 py-4 rounded-xl border-2 transition-all text-sm font-semibold ${
+                  analysisMode === 'own'
+                    ? 'border-[#FF5F5F] bg-[#FFF0F0] text-[#B40000] shadow-inner'
+                    : 'border-[#E5E5E5] hover:border-[#FF7C7C] text-[#5E5E5E]'
+                }`}
+              >
+                <div className="text-center">
+                  <div className="text-base font-bold">我的頻道</div>
+                  <div className="text-xs mt-1 opacity-75">分析您自己的頻道數據</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setAnalysisMode('competitor')}
+                className={`flex-1 px-6 py-4 rounded-xl border-2 transition-all text-sm font-semibold ${
+                  analysisMode === 'competitor'
+                    ? 'border-[#FF5F5F] bg-[#FFF0F0] text-[#B40000] shadow-inner'
+                    : 'border-[#E5E5E5] hover:border-[#FF7C7C] text-[#5E5E5E]'
+                }`}
+              >
+                <div className="text-center">
+                  <div className="text-base font-bold">競爭對手分析</div>
+                  <div className="text-xs mt-1 opacity-75">分析其他頻道的公開數據</div>
+                </div>
+              </button>
+            </div>
+
+            {/* 競爭對手頻道 ID 輸入 */}
+            {analysisMode === 'competitor' && (
+              <div className="mt-4">
+                <label className="block text-sm font-semibold text-[#111111] mb-2">
+                  競爭對手頻道 ID
+                </label>
+                <input
+                  type="text"
+                  placeholder="例如：UCxxxxxxxxxxxxxxxxxxxxxx"
+                  value={competitorChannelId}
+                  onChange={(e) => setCompetitorChannelId(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-[#E5E5E5] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7A7A] focus:border-transparent"
+                />
+                <p className="text-xs text-[#8A8A8A] mt-2">
+                  💡 提示：可從頻道網址中找到頻道 ID（例如：youtube.com/channel/UCxxxxxx）
+                </p>
+              </div>
+            )}
           </div>
 
       {/* 模板管理區域 */}
@@ -842,6 +1018,268 @@ export function ChannelAnalytics() {
           />
         </div>
       )}
+        </div>
+      )}
+
+      {/* 時長分析視圖 */}
+      {activeTab === 'duration' && (
+        <div className="space-y-6">
+          {/* 標題區域 */}
+          <div className="relative overflow-hidden rounded-3xl border border-[#E5E5E5] bg-white shadow-sm p-6">
+            <div className="absolute -right-16 -top-16 w-48 h-48 bg-[#FF0000]/10 rounded-full blur-3xl" />
+            <div className="absolute -left-20 bottom-0 w-40 h-40 bg-[#FF5858]/10 rounded-full blur-2xl" />
+            <div className="relative flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex-1">
+                <h2 className="text-2xl font-extrabold flex items-center gap-2 text-[#111111]">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[#FF0000] text-white shadow-lg">
+                    <Calendar className="w-5 h-5" />
+                  </span>
+                  影片時長分析
+                </h2>
+                <p className="text-[#5F5F5F] mt-1">
+                  分析不同時長區間的影片表現，找出最佳時長策略
+                </p>
+                <div className="mt-3 space-y-2">
+                  <div className="text-sm text-[#B40000] bg-[#FFF0F0] border border-[#FFD4D4] px-3 py-2 rounded-xl shadow-inner">
+                    {analysisMode === 'own' ? (
+                      <>📊 系統會將影片按時長分組（Shorts、1-5分鐘、5-10分鐘、10-20分鐘、20+分鐘），並分析每個區間的平均表現</>
+                    ) : (
+                      <>🔍 競爭對手分析僅能分析<strong>公開影片</strong>的時長表現</>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 分析模式選擇 */}
+          <div className="bg-white rounded-2xl border border-[#EAEAEA] shadow-sm p-5">
+            <div className="mb-4">
+              <h3 className="font-semibold text-lg text-[#111111]">分析模式</h3>
+              <p className="text-sm text-[#707070]">選擇要分析的頻道類型</p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setAnalysisMode('own')}
+                className={`flex-1 px-6 py-4 rounded-xl border-2 transition-all text-sm font-semibold ${
+                  analysisMode === 'own'
+                    ? 'border-[#FF5F5F] bg-[#FFF0F0] text-[#B40000] shadow-inner'
+                    : 'border-[#E5E5E5] hover:border-[#FF7C7C] text-[#5E5E5E]'
+                }`}
+              >
+                <div className="text-center">
+                  <div className="text-base font-bold">我的頻道</div>
+                  <div className="text-xs mt-1 opacity-75">分析您自己的頻道數據</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setAnalysisMode('competitor')}
+                className={`flex-1 px-6 py-4 rounded-xl border-2 transition-all text-sm font-semibold ${
+                  analysisMode === 'competitor'
+                    ? 'border-[#FF5F5F] bg-[#FFF0F0] text-[#B40000] shadow-inner'
+                    : 'border-[#E5E5E5] hover:border-[#FF7C7C] text-[#5E5E5E]'
+                }`}
+              >
+                <div className="text-center">
+                  <div className="text-base font-bold">競爭對手分析</div>
+                  <div className="text-xs mt-1 opacity-75">分析其他頻道的公開數據</div>
+                </div>
+              </button>
+            </div>
+
+            {/* 競爭對手頻道 ID 輸入 */}
+            {analysisMode === 'competitor' && (
+              <div className="mt-4">
+                <label className="block text-sm font-semibold text-[#111111] mb-2">
+                  競爭對手頻道 ID
+                </label>
+                <input
+                  type="text"
+                  placeholder="例如：UCxxxxxxxxxxxxxxxxxxxxxx"
+                  value={competitorChannelId}
+                  onChange={(e) => setCompetitorChannelId(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-[#E5E5E5] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7A7A] focus:border-transparent"
+                />
+                <p className="text-xs text-[#8A8A8A] mt-2">
+                  💡 提示：可從頻道網址中找到頻道 ID（例如：youtube.com/channel/UCxxxxxx）
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* 日期範圍設定 */}
+          <div className="bg-white rounded-2xl border border-[#EAEAEA] shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold flex items-center gap-2 text-lg text-[#111111]">
+                <Calendar className="w-5 h-5 text-[#FF0000]" />
+                時間範圍（表格列）
+              </h3>
+              <button
+                onClick={addDateColumn}
+                className="px-4 py-2 bg-[#FF3838] text-white rounded-xl hover:bg-[#D40000] flex items-center gap-2 text-sm font-semibold shadow-[0_4px_12px_rgba(255,0,0,0.25)]"
+              >
+                <Plus className="w-4 h-4" />
+                添加時間
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {dateColumns.map(column => (
+                <div key={column.id} className="flex gap-3 items-center">
+                  <select
+                    value={column.config}
+                    onChange={(e) => updateDateColumn(column.id, e.target.value)}
+                    className="flex-1 px-3 py-2 border border-[#E5E5E5] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7A7A]"
+                  >
+                    <optgroup label="相對日期">
+                      {RELATIVE_DATE_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="或輸入絕對日期（如：2024、202410）"
+                    value={!RELATIVE_DATE_OPTIONS.some(opt => opt.value === column.config) ? column.config : ''}
+                    onChange={(e) => updateDateColumn(column.id, e.target.value)}
+                    className="flex-1 px-3 py-2 border border-[#E5E5E5] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7A7A]"
+                  />
+                  <button
+                    onClick={() => removeDateColumn(column.id)}
+                    className="text-[#FF3B30] hover:text-[#C92A21] p-2 rounded-full hover:bg-[#FFECEC]"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 數據指標選擇 */}
+          <div className="bg-white rounded-2xl border border-[#EAEAEA] shadow-sm p-5">
+            <div className="mb-4">
+              <h3 className="font-semibold text-lg text-[#111111]">選擇要顯示的數據指標</h3>
+              <p className="text-sm text-[#6B6B6B] mt-1">
+                至少選擇一個指標（點擊切換選擇）
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {AVAILABLE_METRICS.map(metric => (
+                <button
+                  key={metric.key}
+                  onClick={() => toggleMetric(metric.key)}
+                  className={`px-4 py-3 rounded-xl border-2 transition-all text-sm font-semibold ${
+                    selectedMetrics.includes(metric.key)
+                      ? 'border-[#FF5F5F] bg-[#FFF0F0] text-[#B40000] shadow-inner'
+                      : 'border-[#E5E5E5] hover:border-[#FF7C7C] text-[#5E5E5E]'
+                  }`}
+                >
+                  {metric.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 獲取數據按鈕 */}
+          <div className="flex justify-center">
+            <button
+              onClick={fetchDurationAnalysis}
+              disabled={isDurationLoading}
+              className="px-8 py-3 bg-gradient-to-r from-[#FF4B4B] to-[#D40000] text-white rounded-full hover:shadow-[0_6px_20px_rgba(255,0,0,0.35)] disabled:bg-[#C4C4C4] disabled:shadow-none disabled:cursor-not-allowed flex items-center gap-2 text-lg font-semibold tracking-wide transition-all"
+            >
+              {isDurationLoading ? (
+                <>
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  分析中...
+                </>
+              ) : (
+                <>
+                  <Calendar className="w-5 h-5" />
+                  開始分析
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* 錯誤訊息 */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+              {error}
+            </div>
+          )}
+
+          {/* 時長分析數據表格 */}
+          {durationData.length > 0 && (
+            <div className="bg-white rounded-3xl border border-[#E5E5E5] shadow-sm overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-[#FFFAFA] border-b border-[#FFE0E0] text-[#B40000]">
+                  <tr className="uppercase tracking-wider text-xs">
+                    <th className="px-5 py-4 text-left font-semibold">時長區間</th>
+                    <th className="px-5 py-4 text-left font-semibold">影片數</th>
+                    {dateColumns.map(column => (
+                      <th key={column.id} className="px-5 py-4 text-center font-semibold">
+                        {column.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F3F3F3]">
+                  {durationData.map((row, rowIndex) => (
+                    <tr key={rowIndex} className="hover:bg-[#FFF5F5] transition-colors">
+                      <td className="px-5 py-4 align-top">
+                        <div className="font-semibold text-[#181818]">{row.label || row.name}</div>
+                      </td>
+                      <td className="px-5 py-4 align-top text-center font-bold text-[#111111]">{row.videoCount}</td>
+                      {dateColumns.map(column => {
+                        const data = row.dateRanges[column.label];
+                        if (!data) {
+                          return (
+                            <td key={column.id} className="px-5 py-4 text-center text-[#C4C4C4]">
+                              -
+                            </td>
+                          );
+                        }
+
+                        if (data.error) {
+                          return (
+                            <td key={column.id} className="px-5 py-4 text-center">
+                              <div className="text-[#FF3B30] text-sm font-semibold">錯誤</div>
+                            </td>
+                          );
+                        }
+
+                        return (
+                          <td key={column.id} className="px-5 py-4 align-top">
+                            <div className="text-sm space-y-1.5">
+                              {selectedMetrics.map(metricKey => {
+                                const metric = AVAILABLE_METRICS.find(m => m.key === metricKey);
+                                if (!metric) return null;
+
+                                const value = data[metricKey] as number;
+                                const formattedValue = formatValue(value, metric.format);
+
+                                return (
+                                  <div key={metricKey} className="flex justify-between gap-2">
+                                    <span className="text-[#6B6B6B]">{metric.label}:</span>
+                                    <span className="font-semibold text-[#111111]">{formattedValue}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
