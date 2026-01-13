@@ -13,7 +13,7 @@ import { generateArticlePrompt, generateArticlePromptWithReferences } from './se
 import { AIModelManager } from './services/aiProviders/AIModelManager.js';
 import { PromptTemplates } from './services/analysisPrompts/PromptTemplates.js';
 import { aggregateChannelData, clearAnalyticsCache } from './services/channelAnalyticsService.js';
-import { searchVideosFromCache } from './services/videoCacheService.js';
+import { fetchAllVideoTitles, uploadToGist, searchVideosFromCache } from './services/videoCacheService.js';
 import { getChannelVideosAnalytics, calculateUpdatePriority, getVideoSearchTerms, getVideoExternalTrafficDetails } from './services/analyticsService.js';
 import { generateKeywordAnalysisPrompt } from './services/keywordAnalysisPromptService.js';
 import {
@@ -3847,6 +3847,75 @@ app.post('/api/analytics/external-traffic', async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || '獲取外部流量細節失敗',
+    });
+  }
+});
+
+// ==================== 影片快取 API ====================
+
+/**
+ * API: 生成並上傳影片快取到 Gist
+ * POST /api/video-cache/generate
+ */
+app.post('/api/video-cache/generate', async (req, res) => {
+  try {
+    const { accessToken, channelId, gistToken, gistId } = req.body;
+
+    console.log('[API] ========================================');
+    console.log('[API] 📦 收到生成影片快取請求');
+    console.log('[API] ========================================');
+
+    if (!accessToken) {
+      console.log('[API] ❌ 缺少 accessToken');
+      return res.status(400).json({ error: '缺少 accessToken' });
+    }
+
+    if (!channelId) {
+      console.log('[API] ❌ 缺少 channelId');
+      return res.status(400).json({ error: '缺少 channelId' });
+    }
+
+    if (!gistToken) {
+      console.log('[API] ❌ 缺少 gistToken');
+      return res.status(400).json({ error: '缺少 gistToken' });
+    }
+
+    console.log(`[API] 📺 頻道 ID: ${channelId}`);
+    console.log(`[API] 🆔 Gist ID: ${gistId || '(首次建立)'}`);
+    console.log('[API] 🚀 開始生成影片快取...\n');
+
+    // 步驟 1: 從 YouTube 抓取所有影片標題
+    const videos = await fetchAllVideoTitles(accessToken, channelId);
+
+    console.log(`\n[API] ✅ 抓取完成，共 ${videos.length} 支影片`);
+
+    // 步驟 2: 上傳到 Gist
+    const gistInfo = await uploadToGist(videos, gistToken, gistId || null);
+
+    console.log('\n[API] ========================================');
+    console.log('[API] ✅ 影片快取生成成功！');
+    console.log('[API] ========================================');
+    console.log(`[API] 📊 總影片數: ${videos.length}`);
+    console.log(`[API] 🆔 Gist ID: ${gistInfo.id}`);
+    console.log(`[API] 🔗 Gist URL: ${gistInfo.url}`);
+    console.log('[API] ========================================\n');
+
+    res.json({
+      success: true,
+      totalVideos: videos.length,
+      gistId: gistInfo.id,
+      gistUrl: gistInfo.url,
+      rawUrl: gistInfo.rawUrl,
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('\n[API] ========================================');
+    console.error('[API] ❌ 生成影片快取錯誤');
+    console.error('[API] ========================================');
+    console.error(`[API] 錯誤訊息: ${error.message}`);
+    console.error('[API] ========================================\n');
+    res.status(500).json({
+      error: error.message || '生成影片快取失敗',
     });
   }
 });
