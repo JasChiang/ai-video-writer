@@ -59,7 +59,8 @@ export type AppIconName =
   | 'trophy'
   | 'video'
   | 'wand'
-  | 'fileImage';
+  | 'fileImage'
+  | 'filter';
 
 export interface ProgressMessage {
   icon: AppIconName;

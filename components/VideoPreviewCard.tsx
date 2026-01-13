@@ -5,7 +5,7 @@
 
 import React from 'react';
 import type { YouTubeVideo } from '../types';
-import { Play, Eye, Calendar } from 'lucide-react';
+import { Play, Eye, Calendar, Edit } from 'lucide-react';
 import { formatViewCount, formatPublishedDate } from '../utils/formatters';
 
 interface VideoPreviewCardProps {
@@ -16,6 +16,11 @@ interface VideoPreviewCardProps {
 export function VideoPreviewCard({ video, compact = false }: VideoPreviewCardProps) {
   const openYouTube = () => {
     window.open(`https://www.youtube.com/watch?v=${video.id}`, '_blank');
+  };
+
+  const openStudio = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.open(`https://studio.youtube.com/video/${video.id}/edit`, '_blank');
   };
 
   if (compact) {
@@ -55,6 +60,13 @@ export function VideoPreviewCard({ video, compact = false }: VideoPreviewCardPro
             )}
           </div>
         </div>
+        <button
+          onClick={openStudio}
+          className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors flex-shrink-0"
+          title="在 YouTube Studio 中編輯"
+        >
+          <Edit className="w-4 h-4" />
+        </button>
       </div>
     );
   }
@@ -114,6 +126,16 @@ export function VideoPreviewCard({ video, compact = false }: VideoPreviewCardPro
             )}
           </div>
         )}
+
+        <div className="mt-4 pt-3 border-t border-gray-100 flex justify-end">
+          <button
+            onClick={openStudio}
+            className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-blue-50"
+          >
+            <Edit className="w-4 h-4" />
+            編輯影片
+          </button>
+        </div>
       </div>
     </div>
   );

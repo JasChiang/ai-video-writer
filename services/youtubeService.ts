@@ -136,14 +136,14 @@ function initializeGapiClient(): Promise<void> {
 
 function initializeGisClient(): Promise<void> {
     if (gisInitializationPromise) return gisInitializationPromise;
-    
+
     gisInitializationPromise = new Promise((resolve, reject) => {
         const script = document.createElement('script');
         script.src = 'https://accounts.google.com/gsi/client';
         script.async = true;
         script.defer = true;
         script.onload = () => {
-             try {
+            try {
                 tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: YOUTUBE_CLIENT_ID,
                     scope: YOUTUBE_SCOPES,
@@ -416,7 +416,7 @@ async function searchInPlaylist(
     while (matchedVideos.length < maxResults) {
         pagesScanned++;
 
-        const playlistResponse = await gapi.client.youtube.playlistItems.list({
+        const playlistResponse: any = await gapi.client.youtube.playlistItems.list({
             part: 'snippet,contentDetails,status',
             playlistId,
             maxResults: 50,
@@ -488,7 +488,7 @@ async function searchInPlaylist(
                     return false;
                 })
                 .map(mapVideoItem)
-                .filter(video => titleMatchesQuery(video.title, searchQuery));
+                .filter((video: YouTubeVideo) => titleMatchesQuery(video.title, searchQuery));
 
             matchedVideos.push(...pageVideos);
 
@@ -524,7 +524,7 @@ async function searchInPlaylist(
 
     // 回傳 currentPageToken，讓使用者可以繼續 loadmore
     // 只有在沒有更多影片時才回傳 null
-    return { videos: resultVideos, nextPageToken: currentPageToken };
+    return { videos: resultVideos, nextPageToken: currentPageToken || null };
 }
 
 export async function listVideos(
@@ -559,6 +559,7 @@ export async function listVideos(
         throw new Error(error.result?.error?.message || "Failed to fetch videos from YouTube.");
     }
 }
+
 
 export async function fetchVideoDetails(videoId: string): Promise<YouTubeVideo> {
     if (!isGapiInitialized || !isTokenValid()) {
@@ -613,6 +614,7 @@ export async function searchVideosByKeyword(query: string, maxResults = 10): Pro
             maxResults,
             trigger: 'article-search',
             caller: 'youtubeService.searchVideosByKeyword',
+            searchQuery: query,
         });
 
         const items = searchResponse.result.items || [];
@@ -642,9 +644,9 @@ export async function searchVideosByKeyword(query: string, maxResults = 10): Pro
         const details = videosResponse.result.items || [];
         const mapById = new Map(details.map((item: any) => [item.id, mapVideoItem(item)]));
         const videos = ids
-            .map(id => mapById.get(id))
-            .filter((video): video is YouTubeVideo => Boolean(video));
-        const filteredVideos = videos.filter(video => titleMatchesQuery(video.title, query));
+            .map((id: any) => mapById.get(id))
+            .filter((video: any): video is YouTubeVideo => Boolean(video));
+        const filteredVideos = videos.filter((video: YouTubeVideo) => titleMatchesQuery(video.title, query));
         console.log('[YouTubeService] searchVideosByKeyword:done', {
             query,
             requested: ids.length,
@@ -709,7 +711,7 @@ export async function updateVideo(
     video: Partial<YouTubeVideo> & { id: string; categoryId: string },
     options: QuotaTriggerOptions = {}
 ): Promise<any> {
-     if (!isGapiInitialized || !isTokenValid()) {
+    if (!isGapiInitialized || !isTokenValid()) {
         throw new Error("Authentication required.");
     }
     try {
@@ -806,5 +808,37 @@ export async function getChannelId(options: QuotaTriggerOptions = {}): Promise<s
     } catch (error: any) {
         console.error('Failed to get channel ID:', error);
         throw new Error(`Failed to get channel ID: ${error.message}`);
+    }
+}
+
+export async function getChannelStats(channelId: string): Promise<{ viewCount: string; subscriberCount: string; videoCount: string }> {
+    if (!isGapiInitialized || !isTokenValid()) {
+        throw new Error('Authentication required.');
+    }
+
+    try {
+        const response = await gapi.client.youtube.channels.list({
+            part: 'statistics',
+            id: channelId,
+        });
+        recordQuota('youtube.channels.list', YT_QUOTA_COST.channelsList, {
+            part: 'statistics',
+            context: 'getChannelStats',
+            channelId,
+        });
+
+        const item = response.result.items?.[0];
+        if (!item) {
+            throw new Error('找不到頻道統計資訊');
+        }
+
+        return {
+            viewCount: item.statistics?.viewCount || '0',
+            subscriberCount: item.statistics?.subscriberCount || '0',
+            videoCount: item.statistics?.videoCount || '0',
+        };
+    } catch (error: any) {
+        console.error('Error fetching channel stats:', error);
+        throw new Error(error.result?.error?.message || '無法取得頻道統計資訊');
     }
 }

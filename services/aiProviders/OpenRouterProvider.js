@@ -13,21 +13,25 @@ export class OpenRouterProvider extends BaseAIProvider {
 
   async analyze(request) {
     try {
-      const messages = [];
+      let messages = [];
 
-      // 如果有 system prompt，加入 system message
-      if (request.systemPrompt) {
+      if (request.messages) {
+        messages = request.messages;
+      } else {
+        // 如果有 system prompt，加入 system message
+        if (request.systemPrompt) {
+          messages.push({
+            role: 'system',
+            content: request.systemPrompt,
+          });
+        }
+
+        // 加入 user prompt
         messages.push({
-          role: 'system',
-          content: request.systemPrompt,
+          role: 'user',
+          content: request.prompt,
         });
       }
-
-      // 加入 user prompt
-      messages.push({
-        role: 'user',
-        content: request.prompt,
-      });
 
       const maxTokens = request.maxTokens ?? this.config.maxTokens ?? 4096;
 
@@ -47,6 +51,7 @@ export class OpenRouterProvider extends BaseAIProvider {
           max_tokens: maxTokens,
           max_output_tokens: maxTokens,
           route: 'fallback', // 如果模型不可用，自動降級
+          ...(request.reasoning ? { reasoning: request.reasoning } : {}),
         }),
       });
 
@@ -94,6 +99,7 @@ export class OpenRouterProvider extends BaseAIProvider {
         },
         cost: data.usage?.total_cost, // OpenRouter 提供的成本
         finishReason,
+        reasoningDetails: completion.message?.reasoning_details,
       };
     } catch (error) {
       console.error('[OpenRouterProvider] Error:', error);
@@ -108,13 +114,13 @@ export class OpenRouterProvider extends BaseAIProvider {
   async streamAnalyze(request, handlers = {}) {
     const abortSignal = request.abortSignal;
     let abortRequested = false;
-    let reader = null;
+    let currentReader = null;
 
     const handleAbort = () => {
       abortRequested = true;
-      if (reader) {
+      if (currentReader) {
         try {
-          reader.cancel();
+          currentReader.cancel();
         } catch (err) {
           console.error('[OpenRouterProvider] reader cancel error:', err);
         }
@@ -125,157 +131,195 @@ export class OpenRouterProvider extends BaseAIProvider {
       abortSignal.addEventListener('abort', handleAbort);
     }
 
+    let attempts = 0;
+    const maxAttempts = 3;
+    let lastError = null;
+
     try {
-      const messages = [];
+      while (attempts < maxAttempts) {
+        attempts++;
+        let hasEmittedData = false;
 
-      if (request.systemPrompt) {
-        messages.push({
-          role: 'system',
-          content: request.systemPrompt,
-        });
-      }
-
-      messages.push({
-        role: 'user',
-        content: request.prompt,
-      });
-
-      const maxTokens = request.maxTokens ?? this.config.maxTokens ?? 4096;
-
-      const response = await fetch(`${this.baseURL}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.config.apiKey}`,
-          'HTTP-Referer': process.env.APP_URL || 'https://ai-video-writer.com',
-          'X-Title': 'AI Video Writer - YouTube Analytics',
-        },
-        body: JSON.stringify({
-          model: this.config.model,
-          messages,
-          temperature: request.temperature ?? this.config.temperature ?? 0.7,
-          max_tokens: maxTokens,
-          max_output_tokens: maxTokens,
-          stream: true,
-          route: 'fallback',
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.error?.message || `OpenRouter API 錯誤: ${response.status}`
-        );
-      }
-
-      reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('無法讀取 OpenRouter 串流回應');
-      }
-
-      const decoder = new TextDecoder('utf-8');
-      let buffer = '';
-      let aggregatedText = '';
-      let finishReason = null;
-      let usage = null;
-
-      const processEvent = (rawEvent) => {
-        if (!rawEvent.trim()) return;
-        const lines = rawEvent.split('\n');
-        let eventName = 'message';
-        const dataLines = [];
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (trimmed.startsWith('event:')) {
-            eventName = trimmed.slice(6).trim();
-          } else if (trimmed.startsWith('data:')) {
-            dataLines.push(trimmed.slice(5).trim());
-          }
-        }
-
-        const dataStr = dataLines.join('\n');
-        if (!dataStr) return;
-        if (dataStr === '[DONE]') {
-          finishReason = finishReason || 'stop';
-          return 'done';
-        }
-
-        let payload;
         try {
-          payload = JSON.parse(dataStr);
-        } catch (err) {
-          console.error('[OpenRouterProvider] 無法解析串流資料:', err);
-          return;
-        }
+          const messages = [];
 
-        const choice = payload.choices?.[0];
-        if (choice?.delta?.content) {
-          const chunkText = this.extractDeltaText(choice.delta.content);
-          if (chunkText) {
-            aggregatedText += chunkText;
-            if (typeof handlers.onChunk === 'function') {
-              handlers.onChunk(chunkText);
+          if (request.systemPrompt) {
+            messages.push({
+              role: 'system',
+              content: request.systemPrompt,
+            });
+          }
+
+          messages.push({
+            role: 'user',
+            content: request.prompt,
+          });
+
+          const maxTokens = request.maxTokens ?? this.config.maxTokens ?? 4096;
+
+          const response = await fetch(`${this.baseURL}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${this.config.apiKey}`,
+              'HTTP-Referer': process.env.APP_URL || 'https://ai-video-writer.com',
+              'X-Title': 'AI Video Writer - YouTube Analytics',
+            },
+            body: JSON.stringify({
+              model: this.config.model,
+              messages,
+              temperature: request.temperature ?? this.config.temperature ?? 0.7,
+              max_tokens: maxTokens,
+              max_output_tokens: maxTokens,
+              stream: true,
+              route: 'fallback',
+              ...(request.reasoning ? { reasoning: request.reasoning } : {}),
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(
+              errorData.error?.message || `OpenRouter API 錯誤: ${response.status}`
+            );
+          }
+
+          currentReader = response.body?.getReader();
+          if (!currentReader) {
+            throw new Error('無法讀取 OpenRouter 串流回應');
+          }
+
+          const decoder = new TextDecoder('utf-8');
+          let buffer = '';
+          let aggregatedText = '';
+          let finishReason = null;
+          let usage = null;
+
+          const processEvent = (rawEvent) => {
+            if (!rawEvent.trim()) return;
+            const lines = rawEvent.split('\n');
+            let eventName = 'message';
+            const dataLines = [];
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (trimmed.startsWith('event:')) {
+                eventName = trimmed.slice(6).trim();
+              } else if (trimmed.startsWith('data:')) {
+                dataLines.push(trimmed.slice(5).trim());
+              }
+            }
+
+            const dataStr = dataLines.join('\n');
+            if (!dataStr) return;
+            if (dataStr === '[DONE]') {
+              finishReason = finishReason || 'stop';
+              return 'done';
+            }
+
+            let payload;
+            try {
+              payload = JSON.parse(dataStr);
+            } catch (err) {
+              console.error('[OpenRouterProvider] 無法解析串流資料:', err);
+              return;
+            }
+
+            const choice = payload.choices?.[0];
+            if (choice?.delta?.content) {
+              const chunkText = this.extractDeltaText(choice.delta.content);
+              if (chunkText) {
+                aggregatedText += chunkText;
+                if (typeof handlers.onChunk === 'function') {
+                  handlers.onChunk(chunkText);
+                  hasEmittedData = true;
+                }
+              }
+            }
+
+            if (choice?.finish_reason) {
+              finishReason = choice.finish_reason;
+            }
+
+            if (payload.usage) {
+              usage = {
+                promptTokens: payload.usage.prompt_tokens || 0,
+                completionTokens: payload.usage.completion_tokens || 0,
+                totalTokens: payload.usage.total_tokens || 0,
+              };
+            }
+
+            if (payload.error) {
+              throw new Error(payload.error.message || 'OpenRouter 串流錯誤');
+            }
+
+            return eventName;
+          };
+
+          let streamClosed = false;
+          while (!streamClosed && !abortRequested) {
+            const { value, done } = await currentReader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            let separatorIndex;
+            while ((separatorIndex = buffer.indexOf('\n\n')) !== -1) {
+              const rawEvent = buffer.slice(0, separatorIndex);
+              buffer = buffer.slice(separatorIndex + 2);
+              const result = processEvent(rawEvent);
+              if (result === 'done') {
+                streamClosed = true;
+                break;
+              }
             }
           }
-        }
 
-        if (choice?.finish_reason) {
-          finishReason = choice.finish_reason;
-        }
-
-        if (payload.usage) {
-          usage = {
-            promptTokens: payload.usage.prompt_tokens || 0,
-            completionTokens: payload.usage.completion_tokens || 0,
-            totalTokens: payload.usage.total_tokens || 0,
-          };
-        }
-
-        if (payload.error) {
-          throw new Error(payload.error.message || 'OpenRouter 串流錯誤');
-        }
-
-        return eventName;
-      };
-
-      let streamClosed = false;
-      while (!streamClosed && !abortRequested) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        let separatorIndex;
-        while ((separatorIndex = buffer.indexOf('\n\n')) !== -1) {
-          const rawEvent = buffer.slice(0, separatorIndex);
-          buffer = buffer.slice(separatorIndex + 2);
-          const result = processEvent(rawEvent);
-          if (result === 'done') {
-            streamClosed = true;
-            break;
+          if (abortRequested) {
+            const abortError = new Error('串流已中止');
+            abortError.name = 'AbortError';
+            throw abortError;
           }
+
+          const finalResult = {
+            text: aggregatedText,
+            model: this.config.model,
+            provider: this.getProviderName(),
+            usage,
+            finishReason,
+            reasoningDetails: null, // Stream mode usually doesn't return reasoningDetails in the same way, or we need to capture it
+          };
+
+          if (typeof handlers.onComplete === 'function') {
+            handlers.onComplete(finalResult);
+          }
+
+          return finalResult;
+
+        } catch (error) {
+          lastError = error;
+
+          // Check if we should retry
+          const isNetworkError = error.message.includes('Network connection lost') ||
+            error.message.includes('fetch failed') ||
+            error.message.includes('socket hang up');
+
+          if (isNetworkError && !hasEmittedData && attempts < maxAttempts && !abortRequested) {
+            console.warn(`[OpenRouterProvider] Stream failed (attempt ${attempts}/${maxAttempts}), retrying... Error: ${error.message}`);
+
+            // Cancel current reader if it exists
+            if (currentReader) {
+              try { currentReader.cancel(); } catch (e) { }
+              currentReader = null;
+            }
+
+            // Wait with exponential backoff
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+            continue;
+          }
+
+          throw error;
         }
       }
-
-      if (abortRequested) {
-        const abortError = new Error('串流已中止');
-        abortError.name = 'AbortError';
-        throw abortError;
-      }
-
-      const finalResult = {
-        text: aggregatedText,
-        model: this.config.model,
-        provider: this.getProviderName(),
-        usage,
-        finishReason,
-      };
-
-      if (typeof handlers.onComplete === 'function') {
-        handlers.onComplete(finalResult);
-      }
-
-      return finalResult;
     } catch (error) {
       if (abortRequested || error?.name === 'AbortError') {
         const abortError = new Error('串流已中止');
@@ -346,6 +390,12 @@ export class OpenRouterProvider extends BaseAIProvider {
         provider: 'Meta',
         cost: 'Low',
         description: '開源大模型，經濟實惠',
+      },
+      'google/gemini-3-pro-preview': {
+        name: 'Gemini 3 Pro Preview',
+        provider: 'Google',
+        cost: 'Medium',
+        description: 'Google 最新預覽版模型，支援推理功能',
       },
     };
 

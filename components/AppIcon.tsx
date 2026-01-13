@@ -12,6 +12,7 @@ import {
   Download,
   FileImage,
   FileText,
+  Filter,
   Home,
   Hourglass,
   Image as ImageIcon,
@@ -80,6 +81,7 @@ const ICON_MAP: Record<AppIconName, React.ComponentType<any>> = {
   video: Clapperboard,
   wand: Wand2,
   fileImage: FileImage,
+  filter: Filter,
 };
 
 export interface AppIconProps {

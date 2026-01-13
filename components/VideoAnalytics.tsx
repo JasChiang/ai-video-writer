@@ -1,37 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Loader } from './Loader';
-import * as youtubeService from '../services/youtubeService';
-import { VideoAnalyticsExpandedView } from './VideoAnalyticsExpandedView';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { AppIcon } from './AppIcon';
-
-interface AnalyticsMetrics {
-  views: number;
-  estimatedMinutesWatched: number;
-  averageViewDuration: number;
-  averageViewPercentage: string;
-  likes: number;
-  comments: number;
-  shares: number;
-  subscribersGained: number;
-  likeRatio: string;
-}
-
-interface TrafficSources {
-  youtubeSearch: number;
-  googleSearch: number;
-  suggested: number;
-  external: number;
-  other: number;
-  searchPercentage: string;
-  topExternalSources: { name: string; views: number }[];
-  externalDetailsLoaded?: boolean;
-}
-
-interface Impressions {
-  impressions: number;
-  clicks: number;
-  ctr: number;
-}
+import { AnalysisMarkdown } from './AnalysisMarkdown';
+import * as youtubeService from '../services/youtubeService';
+import { loadVideoDetailsBatch } from '../services/videoCacheClient';
+import { Loader } from './Loader';
+import { AIModelSelector, type AIModel } from './AIModelSelector';
+import { Sparkles, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface VideoAnalyticsData {
   videoId: string;
@@ -40,640 +14,633 @@ interface VideoAnalyticsData {
   tags: string[];
   publishedAt: string;
   thumbnail: string;
-  metrics: AnalyticsMetrics;
-  trafficSources: TrafficSources;
-  impressions: Impressions;
-  priorityScore: number;
-  updateReasons: string[];
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
 }
 
-interface AnalyticsResponse {
-  success: boolean;
-  totalVideos: number;
-  recommendations: VideoAnalyticsData[];
+type StageStatus = 'pending' | 'active' | 'completed' | 'error';
+
+interface AnalysisStageDefinition {
+  id: string;
+  label: string;
+  description: string;
 }
 
-interface KeywordAnalysis {
-  currentKeywords: {
-    score: number;
-    strengths: string[];
-    weaknesses: string[];
-  };
-  recommendedKeywords: {
-    primary: string[];
-    secondary: string[];
-    longtail: string[];
-  };
-  titleSuggestions: string[];
-  descriptionTips: string[];
-  actionPlan: {
-    priority: string;
-    estimatedImpact: string;
-    steps: string[];
-  };
-  metadataHints: {
-    titleHooks: string[];
-    descriptionAngles: string[];
-    callToActions: string[];
-  };
+interface AnalysisStage extends AnalysisStageDefinition {
+  status: StageStatus;
 }
 
-const ANALYTICS_CACHE_KEY = 'videoAnalytics.cache';
-const ACTIVE_CHANNEL_STORAGE_KEY = 'videoAnalytics.activeChannelId';
-const LEGACY_DATA_KEY = 'videoAnalyticsData';
-const LEGACY_TIMESTAMP_KEY = 'videoAnalyticsTimestamp';
-const LEGACY_CHANNEL_KEY = 'channelId';
-const CACHE_TTL = 24 * 60 * 60 * 1000;
+const ANALYSIS_STAGE_TEMPLATE: AnalysisStageDefinition[] = [
+  {
+    id: 'prepare',
+    label: '整理頻道資料',
+    description: '彙整頻道指標與影片樣本',
+  },
+  {
+    id: 'request',
+    label: 'AI 生成中',
+    description: '正在等待模型完成分析',
+  },
+  {
+    id: 'render',
+    label: '整理分析報告',
+    description: '套用 Markdown、圖表與影片卡片',
+  },
+];
 
-interface AnalyticsCachePayload {
-  channelId: string;
-  timestamp: number;
-  yearRange: number;
-  data: VideoAnalyticsData[];
-}
+type ModelSelectionMode = 'auto' | 'manual';
 
 export function VideoAnalytics() {
   const [isLoading, setIsLoading] = useState(false);
-  const [analyticsData, setAnalyticsData] = useState<VideoAnalyticsData[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [expandedVideoId, setExpandedVideoId] = useState<string | null>(null);
-  const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
-  const [keywordAnalysisCache, setKeywordAnalysisCache] = useState<Record<string, KeywordAnalysis>>({});
-  const [isAnalyzingKeywords, setIsAnalyzingKeywords] = useState(false);
-  const [selectedYears, setSelectedYears] = useState(1); // 預設 1 年
-  const [currentYearRange, setCurrentYearRange] = useState(1); // 當前已載入的年份範圍
-  const [showMetadataGenerator, setShowMetadataGenerator] = useState<Record<string, boolean>>({});
-  const previousChannelIdRef = useRef<string | null>(null);
-
-  const persistAnalyticsData = useCallback((channelId: string, data: VideoAnalyticsData[], yearRange: number) => {
-    if (!channelId) return;
-
-    const payload: AnalyticsCachePayload = {
-      channelId,
-      timestamp: Date.now(),
-      yearRange: Math.max(1, Number.isFinite(yearRange) ? yearRange : 1),
-      data,
-    };
-
-    try {
-      localStorage.setItem(ANALYTICS_CACHE_KEY, JSON.stringify(payload));
-      localStorage.setItem(ACTIVE_CHANNEL_STORAGE_KEY, channelId);
-      // 保留舊版鍵值，提供其他元件相容性
-      localStorage.setItem(LEGACY_CHANNEL_KEY, channelId);
-      localStorage.removeItem(LEGACY_DATA_KEY);
-      localStorage.removeItem(LEGACY_TIMESTAMP_KEY);
-    } catch (error) {
-      console.warn('Failed to persist analytics data', error);
-    }
-  }, []);
-
-  const handleTrafficSourcesUpdate = useCallback(
-    (videoId: string, updates: Partial<TrafficSources>) => {
-      setAnalyticsData(prev => {
-        const updated = prev.map(video => {
-          if (video.videoId !== videoId) return video;
-
-          const updatedTraffic: TrafficSources = {
-            ...video.trafficSources,
-            ...updates,
-            searchPercentage: (updates.searchPercentage ?? video.trafficSources.searchPercentage) as string,
-            topExternalSources: updates.topExternalSources ?? video.trafficSources.topExternalSources,
-            externalDetailsLoaded: updates.externalDetailsLoaded ?? video.trafficSources.externalDetailsLoaded ?? false,
-          };
-
-          return {
-            ...video,
-            trafficSources: updatedTraffic,
-          };
-        });
-
-        if (activeChannelId) {
-          persistAnalyticsData(activeChannelId, updated, currentYearRange || selectedYears || 1);
-        }
-        return updated;
-      });
-    },
-    [activeChannelId, currentYearRange, persistAnalyticsData, selectedYears]
+  const [videos, setVideos] = useState<VideoAnalyticsData[]>([]);
+  const [channelStats, setChannelStats] = useState<any>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
+  const activeStreamController = useRef<AbortController | null>(null);
+  const [analysisStages, setAnalysisStages] = useState<AnalysisStage[]>(
+    () =>
+      ANALYSIS_STAGE_TEMPLATE.map((stage) => ({
+        ...stage,
+        status: 'pending',
+      }))
   );
 
-  // 復原並確認目前的頻道 ID，以便後續比對快取
+  // Model Selection State
+  const [modelSelectionMode, setModelSelectionMode] = useState<ModelSelectionMode>('auto');
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [recommendedModel, setRecommendedModel] = useState<string | null>(null);
+  const [availableModels, setAvailableModels] = useState<AIModel[]>([]);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const startAnalysisStages = useCallback(() => {
+    setAnalysisStages(
+      ANALYSIS_STAGE_TEMPLATE.map((stage, index) => ({
+        ...stage,
+        status: index === 0 ? 'active' : 'pending',
+      }))
+    );
+  }, []);
+
+  const setStageStatus = useCallback((stageId: string, status: StageStatus) => {
+    setAnalysisStages((prev) =>
+      prev.map((stage) =>
+        stage.id === stageId
+          ? {
+            ...stage,
+            status,
+          }
+          : stage
+      )
+    );
+  }, []);
+
   useEffect(() => {
-    let isMounted = true;
-
-    const restoreChannelIdFromStorage = () => {
-      try {
-        const stored = localStorage.getItem(ACTIVE_CHANNEL_STORAGE_KEY) || localStorage.getItem(LEGACY_CHANNEL_KEY);
-        if (stored && isMounted) {
-          setActiveChannelId(prev => prev ?? stored);
-        }
-      } catch (error) {
-        console.warn('Failed to restore channel ID from storage', error);
-      }
-    };
-
-    const resolveChannelId = async () => {
-      try {
-        const channelId = await youtubeService.getChannelId({
-          source: 'VideoAnalytics',
-          trigger: 'resolve-active-channel',
-        });
-        if (!isMounted || !channelId) return;
-
-        setActiveChannelId(prev => (prev === channelId ? prev : channelId));
-        localStorage.setItem(ACTIVE_CHANNEL_STORAGE_KEY, channelId);
-        localStorage.setItem(LEGACY_CHANNEL_KEY, channelId);
-      } catch (error) {
-        console.warn('Failed to resolve channel ID for analytics cache', error);
-      }
-    };
-
-    restoreChannelIdFromStorage();
-    resolveChannelId();
-
     return () => {
-      isMounted = false;
+      activeStreamController.current?.abort();
     };
   }, []);
 
-  // 根據當前頻道載入對應的快取，若不相符則清除舊資料
+  // 初始化：載入模型列表
   useEffect(() => {
-    if (!activeChannelId) return;
-
-    const previousChannelId = previousChannelIdRef.current;
-    if (previousChannelId !== null && previousChannelId === activeChannelId) {
-      return;
-    }
-
-    const channelChanged = Boolean(previousChannelId && previousChannelId !== activeChannelId);
-    previousChannelIdRef.current = activeChannelId;
-
-    if (channelChanged) {
-      setAnalyticsData([]);
-      setKeywordAnalysisCache({});
-      setExpandedVideoId(null);
-      setShowMetadataGenerator({});
-      setCurrentYearRange(1);
-    }
-
-    const now = Date.now();
-    let cacheApplied = false;
-
-    try {
-      const raw = localStorage.getItem(ANALYTICS_CACHE_KEY);
-      if (raw) {
-        const payload = JSON.parse(raw) as AnalyticsCachePayload;
-        if (payload.channelId === activeChannelId) {
-          if (now - payload.timestamp < CACHE_TTL && Array.isArray(payload.data)) {
-            setAnalyticsData(payload.data);
-            setCurrentYearRange(Math.max(1, Number.isFinite(payload.yearRange) ? payload.yearRange : 1));
-            cacheApplied = true;
-          } else {
-            localStorage.removeItem(ANALYTICS_CACHE_KEY);
-          }
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to load analytics cache', error);
-    }
-
-    if (!cacheApplied) {
-      const legacyDataRaw = localStorage.getItem(LEGACY_DATA_KEY);
-      const legacyTimestampRaw = localStorage.getItem(LEGACY_TIMESTAMP_KEY);
-      const legacyChannelId = localStorage.getItem(LEGACY_CHANNEL_KEY);
-
-      if (legacyDataRaw && legacyTimestampRaw && legacyChannelId === activeChannelId) {
-        const legacyTimestamp = parseInt(legacyTimestampRaw, 10);
-        if (Number.isFinite(legacyTimestamp) && now - legacyTimestamp < CACHE_TTL) {
-          try {
-            const legacyData = JSON.parse(legacyDataRaw);
-            if (Array.isArray(legacyData)) {
-              setAnalyticsData(legacyData);
-              setCurrentYearRange(1);
-              persistAnalyticsData(activeChannelId, legacyData, 1);
-              cacheApplied = true;
-            }
-          } catch (error) {
-            console.warn('Failed to parse legacy analytics cache', error);
-          }
-        }
-      }
-    }
-
-    // 若未載入任何快取，保留當前狀態，讓使用者重新觸發分析
-  }, [activeChannelId, persistAnalyticsData]);
-
-  const fetchAnalytics = async (yearsToFetch: number = selectedYears, append: boolean = false) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // 獲取當前用戶的 access token 和 channel ID
-      const accessToken = youtubeService.getAccessToken();
-      const channelId = await youtubeService.getChannelId({
-        source: 'VideoAnalytics',
-        trigger: append ? 'load-more-analytics' : 'fetch-analytics',
-      });
-
-      if (!accessToken || !channelId) {
-        throw new Error('請先登入 YouTube 帳號');
-      }
-
-      // 確保更新頻道 ID（避免切換頻道仍使用舊值）
+    const loadModels = async () => {
       try {
-        localStorage.setItem(ACTIVE_CHANNEL_STORAGE_KEY, channelId);
-        localStorage.setItem(LEGACY_CHANNEL_KEY, channelId);
-      } catch (storageError) {
-        console.warn('Failed to persist channel ID for analytics cache', storageError);
+        const res = await fetch('/api/ai-models/available');
+        const data = await res.json();
+
+        if (data.success && Array.isArray(data.models)) {
+          setAvailableModels(data.models);
+
+          // 設定預設推薦模型 (Gemini 2.0 Flash Thinking)
+          const models = data.models;
+          const defaultModel = models.find((m: AIModel) => m.id.includes('gemini-2.0-flash-thinking'))?.id ||
+            models.find((m: AIModel) => m.id.includes('gemini'))?.id ||
+            models[0]?.id;
+
+          if (defaultModel) {
+            setRecommendedModel(defaultModel);
+            setSelectedModel(defaultModel);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load AI models:', error);
       }
-      setActiveChannelId(prev => (prev === channelId ? prev : channelId));
+    };
+    loadModels();
+  }, []);
 
-      console.log(`[Analytics] 開始獲取分析數據（${yearsToFetch} 年）...`);
+  const [videoRange, setVideoRange] = useState<'recent' | 'year-old' | 'two-years-old'>('recent');
 
-      // 調用後端 API
-      // 開發模式使用 localhost:3001，生產模式使用空字符串（相對路徑）
-      const baseUrl = import.meta.env?.VITE_SERVER_BASE_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
-      const response = await fetch(`${baseUrl}/api/analytics/channel`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          accessToken,
-          channelId,
-          daysThreshold: yearsToFetch * 365, // 轉換為天數
-        }),
-      });
+  // 初始化：載入影片數據
+  const fetchVideos = useCallback(async (range: 'recent' | 'year-old' | 'two-years-old') => {
+    setIsLoading(true);
+    setVideos([]); // 清空現有影片
+    try {
+      // 1. 獲取頻道 ID
+      const channelId = await youtubeService.getChannelId();
+      if (!channelId) throw new Error('無法獲取頻道 ID');
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || '分析失敗');
-      }
+      // 2. 獲取頻道統計
+      const stats = await youtubeService.getChannelStats(channelId);
+      setChannelStats(stats);
 
-      const data: AnalyticsResponse = await response.json();
-      console.log('[Analytics] 分析完成:', data);
+      // 3. 根據篩選範圍獲取影片
+      let targetVideos: any[] = [];
 
-      let newData: VideoAnalyticsData[];
-      if (append) {
-        // 合併新舊數據並去重
-        const existingIds = new Set(analyticsData.map(v => v.videoId));
-        const newVideos = data.recommendations.filter(v => !existingIds.has(v.videoId));
-        newData = [...analyticsData, ...newVideos];
+      if (range === 'recent') {
+        // 獲取最近影片 (確保取足 50 支)
+        let allVideos: any[] = [];
+        let nextPageToken: string | undefined = undefined;
+        let fetchCount = 0;
+
+        while (allVideos.length < 50 && fetchCount < 3) {
+          const videoResponse: any = await youtubeService.listVideos(
+            50,
+            nextPageToken,
+            false,
+            undefined,
+            false,
+            { source: 'VideoAnalytics' }
+          );
+
+          if (videoResponse.videos) {
+            allVideos = [...allVideos, ...videoResponse.videos];
+          }
+
+          nextPageToken = videoResponse.nextPageToken;
+          fetchCount++;
+
+          if (!nextPageToken) break;
+        }
+        targetVideos = allVideos.slice(0, 50);
       } else {
-        newData = data.recommendations;
+        // 獲取老舊影片 (使用快取 API)
+        console.log('[VideoAnalytics] Fetching from cache for old videos...');
+        const response = await fetch('/api/video-cache/search?maxResults=10000');
+        if (!response.ok) {
+          throw new Error('無法從快取載入影片資料，請確認伺服器設定');
+        }
+        const data = await response.json();
+        const allCachedVideos = data.videos || [];
+
+        const date = new Date();
+        if (range === 'year-old') {
+          date.setFullYear(date.getFullYear() - 1);
+        } else if (range === 'two-years-old') {
+          date.setFullYear(date.getFullYear() - 2);
+        }
+
+        // 篩選符合日期的影片
+        const filteredVideos = allCachedVideos.filter((v: any) => {
+          if (!v.publishedAt) return false;
+          return new Date(v.publishedAt) < date;
+        });
+
+        // 取前 75 支 (多取一些以備過濾非公開影片)
+        const selectedCachedVideos = filteredVideos.slice(0, 75);
+        const videoIds = selectedCachedVideos.map((v: any) => v.videoId);
+
+        if (videoIds.length > 0) {
+          // 獲取完整詳細資訊 (包含 description)
+          const details = await loadVideoDetailsBatch(videoIds);
+          // 過濾非公開影片
+          targetVideos = details.filter((v: any) => v.privacyStatus === 'public').slice(0, 50);
+        }
       }
 
-      // 依影片 ID 去重，避免 React key 重複
-      const deduped = Array.from(new Map(newData.map(video => [video.videoId, video])).values());
+      const formattedVideos = targetVideos
+        .filter((v: any) => v.privacyStatus === 'public') // 再次確保只包含公開影片
+        .map((v: any) => ({
+          videoId: v.id,
+          title: v.title,
+          description: v.description,
+          tags: v.tags || [],
+          publishedAt: v.publishedAt,
+          thumbnail: v.thumbnailUrl,
+          viewCount: parseInt(v.viewCount || '0'),
+          likeCount: parseInt(v.likeCount || '0'),
+          commentCount: parseInt(v.commentCount || '0'),
+        }));
 
-      setAnalyticsData(deduped);
-      setCurrentYearRange(yearsToFetch);
-
-      // 儲存到 localStorage（記錄對應頻道與時間範圍）
-      persistAnalyticsData(channelId, deduped, yearsToFetch);
+      setVideos(formattedVideos);
     } catch (err: any) {
-      console.error('[Analytics] 錯誤:', err);
-      setError(err.message || '分析失敗，請稍後再試');
+      console.error('Failed to load initial data:', err);
+      setAnalysisError(err.message || '載入數據失敗');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const loadMoreYears = () => {
-    const nextYearRange = currentYearRange + 1;
-    fetchAnalytics(nextYearRange, true);
-  };
+  useEffect(() => {
+    fetchVideos(videoRange);
+  }, [fetchVideos, videoRange]);
 
-  const formatNumber = (num: number): string => {
-    if (num >= 1000000) {
-      return (num / 1000000).toFixed(1) + 'M';
-    } else if (num >= 1000) {
-      return (num / 1000).toFixed(1) + 'K';
-    }
-    return num.toString();
-  };
-
-  const formatDate = (dateStr: string): string => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('zh-TW', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-  };
-
-  const analyzeKeywords = async (videoId: string, video: VideoAnalyticsData) => {
-    // 檢查快取
-    if (keywordAnalysisCache[videoId]) {
-      console.log('[Keyword Analysis] 使用快取的分析結果');
+  const handleAnalyze = async () => {
+    if (videos.length === 0) {
+      setAnalysisError('沒有可分析的影片數據');
       return;
     }
 
-    setIsAnalyzingKeywords(true);
+    const modelToUse = modelSelectionMode === 'auto' ? recommendedModel : selectedModel;
+    if (!modelToUse) {
+      setAnalysisError('請選擇 AI 模型');
+      return;
+    }
+
+    startAnalysisStages();
+    setIsAnalyzing(true);
+    setAnalysisResult(null);
+    setAnalysisError(null);
+    setStreamingText('');
+    setIsStreaming(false);
 
     try {
-      console.log('[Keyword Analysis] 開始分析關鍵字...');
+      const controller = new AbortController();
+      if (activeStreamController.current) {
+        activeStreamController.current.abort();
+      }
+      activeStreamController.current = controller;
 
-      const description = video.description || '';
-      const tags = video.tags || [];
+      const channelId = await youtubeService.getChannelId();
 
-      // 調用後端 API
-      // 開發模式使用 localhost:3001，生產模式使用空字符串（相對路徑）
-      const baseUrl = import.meta.env?.VITE_SERVER_BASE_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
-      const response = await fetch(`${baseUrl}/api/analytics/keyword-analysis`, {
+      const response = await fetch('/api/analyze-channel/stream', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          videoData: {
-            title: video.title,
-            description,
-            tags,
-            analytics: video,
+          startDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 預設一年
+          endDate: new Date().toISOString().split('T')[0],
+          channelId,
+          videos,
+          channelStats: {
+            totalViews: parseInt(channelStats?.viewCount || '0'),
+            subscriberCount: parseInt(channelStats?.subscriberCount || '0'),
+            totalVideos: parseInt(channelStats?.videoCount || '0'),
           },
+          analysisType: 'content-optimization', // 指定新的分析類型
+          modelType: modelToUse, // 使用選擇的模型
         }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || '關鍵字分析失敗');
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
-      console.log('[Keyword Analysis] 分析完成:', data);
+      if (!response.body) {
+        throw new Error('ReadableStream not supported');
+      }
 
-      const analysis = data.analysis as KeywordAnalysis;
-      const metadataHints = analysis?.metadataHints || { titleHooks: [], descriptionAngles: [], callToActions: [] };
-      analysis.metadataHints = {
-        titleHooks: Array.isArray(metadataHints.titleHooks) ? metadataHints.titleHooks : [],
-        descriptionAngles: Array.isArray(metadataHints.descriptionAngles) ? metadataHints.descriptionAngles : [],
-        callToActions: Array.isArray(metadataHints.callToActions) ? metadataHints.callToActions : [],
-      };
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-      // 儲存到快取
-      setKeywordAnalysisCache(prev => ({
-        ...prev,
-        [videoId]: analysis
-      }));
+      setIsStreaming(true);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const block of lines) {
+          if (!block.trim()) continue;
+
+          const blockLines = block.split('\n');
+          let eventType = '';
+          let data = null;
+
+          for (const line of blockLines) {
+            if (line.startsWith('event: ')) {
+              eventType = line.substring(7).trim();
+            } else if (line.startsWith('data: ')) {
+              try {
+                data = JSON.parse(line.substring(6));
+              } catch (e) {
+                console.error('Failed to parse SSE data:', e);
+              }
+            }
+          }
+
+          if (eventType && data) {
+            console.log(`[VideoAnalytics] Received event: ${eventType}`, data);
+            switch (eventType) {
+              case 'stage':
+                setStageStatus(data.id, data.status);
+                break;
+              case 'chunk':
+                setStreamingText((prev) => prev + data.text);
+                break;
+              case 'complete':
+                setAnalysisResult(data);
+                setIsStreaming(false);
+                break;
+              case 'error':
+                throw new Error(data.message);
+            }
+          }
+        }
+      }
     } catch (err: any) {
-      console.error('[Keyword Analysis] 錯誤:', err);
-      alert(`關鍵字分析失敗: ${err.message}`);
+      if (err.name === 'AbortError') {
+        console.log('Analysis aborted');
+      } else {
+        console.error('Analysis failed:', err);
+        let errorMessage = err.message || '分析過程中發生錯誤';
+
+        // 處理 503 Service Unavailable (模型過載)
+        if (errorMessage.includes('503') || errorMessage.includes('UNAVAILABLE') || errorMessage.includes('overloaded')) {
+          errorMessage = 'AI 模型目前負載過高 (503)，請稍後再試，或嘗試切換其他模型。';
+        }
+
+        setAnalysisError(errorMessage);
+        setAnalysisStages((prev) =>
+          prev.map((stage) =>
+            stage.status === 'active' ? { ...stage, status: 'error' } : stage
+          )
+        );
+      }
+      setIsAnalyzing(false);
+      setIsStreaming(false);
     } finally {
-      setIsAnalyzingKeywords(false);
+      activeStreamController.current = null;
     }
   };
 
-  const toggleVideoExpansion = (videoId: string) => {
-    setExpandedVideoId(expandedVideoId === videoId ? null : videoId);
+  // 獲取推薦模型的詳細信息
+  const getRecommendedModelInfo = () => {
+    if (!recommendedModel) return null;
+    return availableModels.find((m) => m.id === recommendedModel);
   };
 
-  const clearCache = () => {
-    localStorage.removeItem(ANALYTICS_CACHE_KEY);
-    localStorage.removeItem(LEGACY_DATA_KEY);
-    localStorage.removeItem(LEGACY_TIMESTAMP_KEY);
-    setAnalyticsData([]);
-    setKeywordAnalysisCache({});
-    setExpandedVideoId(null);
-    setShowMetadataGenerator({});
-    setCurrentYearRange(1);
-  };
+  const recommendedModelInfo = getRecommendedModelInfo();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl mx-auto">
       {/* 標題與說明 */}
       <div className="text-center space-y-3">
         <h2 className="text-3xl font-bold text-neutral-900 flex items-center justify-center gap-2">
           <AppIcon name="analytics" size={28} className="text-red-600" />
-          影片表現分析
+          內容優化報告
         </h2>
-        <p className="text-lg text-red-600">
-          分析你的影片表現，找出需要優化的影片
+        <p className="text-lg text-neutral-600">
+          AI 智能診斷：找出建議隱藏的過期影片與標題優化機會
         </p>
       </div>
 
-      {/* 開始分析按鈕與年度選擇 */}
-      {analyticsData.length === 0 && !isLoading && (
-        <div className="flex flex-col items-center gap-4">
-          {/* 年度選擇器 */}
-          <div className="flex flex-col items-center gap-2">
-            <label className="text-sm font-semibold text-red-600">
-              選擇分析時間範圍
-            </label>
-            <div className="flex gap-2">
-              {[1, 2, 3, 5].map((years) => (
-                <button
-                  key={years}
-                  onClick={() => setSelectedYears(years)}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-all border ${
-                    selectedYears === years
-                      ? 'bg-red-600 text-white shadow-lg scale-105 border-red-600'
-                      : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
-                  }`}
-                >
-                  {years} 年
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-center text-red-600 max-w-[400px] flex items-center justify-center gap-1">
-              <AppIcon name="idea" size={14} className="text-red-500" />
-              建議先選擇 1 年，避免超過 API 配額限制。分析完成後可載入更多年份。
-            </p>
-          </div>
-
-          {/* 開始分析按鈕 */}
-          <button
-            onClick={() => fetchAnalytics()}
-            className="px-8 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 active:scale-95 shadow-lg bg-red-600 text-white"
-          >
-            <span className="inline-flex items-center gap-2">
-              <AppIcon name="rocket" size={18} className="text-white" />
-              開始分析（近 {selectedYears} 年影片）
-            </span>
-          </button>
-        </div>
-      )}
-
-      {/* 載入中 */}
+      {/* 初始載入狀態 */}
       {isLoading && (
-        <div className="flex flex-col items-center justify-center py-12 space-y-4">
+        <div className="flex justify-center py-12">
           <Loader />
-          <p className="text-lg text-red-600">
-            正在分析影片數據，請稍候...
-          </p>
-          <p className="text-sm text-red-600">
-            這可能需要 1-2 分鐘，取決於影片數量
-          </p>
         </div>
       )}
 
-      {/* 錯誤訊息 */}
-      {error && (
-        <div className="p-4 rounded-lg text-center bg-red-50 border border-red-200 text-red-700">
-          <p className="font-bold">分析失敗</p>
-          <p>{error}</p>
-          <button
-            onClick={fetchAnalytics}
-            className="mt-4 px-6 py-2 rounded-lg font-semibold transition-all bg-red-600 text-white hover:bg-red-700"
-          >
-            重試
-          </button>
-        </div>
-      )}
-
-      {/* 分析結果 */}
-      {analyticsData.length > 0 && !isLoading && (
-        <div className="space-y-4">
-          {/* 統計摘要 */}
-          <div className="p-6 rounded-lg shadow-md bg-red-50/70 border border-red-200">
-            <h3 className="text-xl font-bold mb-2 text-neutral-900 flex items-center gap-2">
-              <AppIcon name="analytics" size={18} className="text-red-600" />
-              分析摘要
-            </h3>
-            <p className="text-red-600">
-              找到 <span className="font-bold">{analyticsData.length}</span> 支建議更新的影片
-              <span className="text-sm ml-2">（近 {currentYearRange} 年內發布）</span>
-            </p>
-            <p className="text-sm mt-2 text-red-600">
-              以下影片根據優先級排序（分數越高越建議更新）
-            </p>
-          </div>
-
-          {/* 操作按鈕 */}
-          <div className="flex justify-between items-center">
-            <button
-              onClick={clearCache}
-              className="px-4 py-2 rounded-lg font-semibold transition-all hover:shadow-lg text-sm bg-red-50 text-red-600 border border-red-200"
-            >
-              <span className="inline-flex items-center gap-2">
-                <AppIcon name="trash" size={16} className="text-red-600" />
-                清除快取
-              </span>
-            </button>
-            <div className="flex gap-2">
+      {/* 分析按鈕與模型選擇 (尚未開始分析且資料已載入) */}
+      {!isLoading && !isAnalyzing && !analysisResult && !analysisError && videos.length > 0 && (
+        <div className="space-y-6">
+          {/* 影片範圍篩選 */}
+          <div className="mb-6 bg-white p-6 rounded-xl shadow-sm border border-neutral-200">
+            <h2 className="text-lg font-semibold text-neutral-800 mb-4 flex items-center gap-2">
+              <AppIcon name="filter" className="w-5 h-5 text-red-600" />
+              選擇分析影片範圍
+            </h2>
+            <div className="flex gap-4">
               <button
-                onClick={loadMoreYears}
-                className="px-6 py-2 rounded-lg font-semibold transition-all hover:shadow-lg bg-red-50 text-red-600 border border-red-200"
+                onClick={() => setVideoRange('recent')}
+                className={`px-4 py-2 rounded-lg border transition-colors ${videoRange === 'recent'
+                  ? 'bg-red-50 border-red-200 text-red-700'
+                  : 'bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                  }`}
               >
-                <span className="inline-flex items-center gap-2">
-                  <AppIcon name="hourglass" size={16} className="text-red-600" />
-                  載入更多（往前 1 年）
-                </span>
+                最近 50 支影片
               </button>
               <button
-                onClick={() => fetchAnalytics()}
-                className="px-6 py-2 rounded-lg font-semibold transition-all hover:shadow-lg bg-red-600 text-white"
+                onClick={() => setVideoRange('year-old')}
+                className={`px-4 py-2 rounded-lg border transition-colors ${videoRange === 'year-old'
+                  ? 'bg-red-50 border-red-200 text-red-700'
+                  : 'bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                  }`}
               >
-                <span className="inline-flex items-center gap-2">
-                  <AppIcon name="refresh" size={16} className="text-white" />
-                  重新分析
-                </span>
+                一年以上的影片
+              </button>
+              <button
+                onClick={() => setVideoRange('two-years-old')}
+                className={`px-4 py-2 rounded-lg border transition-colors ${videoRange === 'two-years-old'
+                  ? 'bg-red-50 border-red-200 text-red-700'
+                  : 'bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                  }`}
+              >
+                兩年以上的影片
               </button>
             </div>
+            <p className="mt-2 text-sm text-neutral-500">
+              {videoRange === 'recent' && '分析頻道最新的影片表現，適合日常優化。'}
+              {videoRange === 'year-old' && '找出發布超過 1 年的影片，評估是否過期或需更新。'}
+              {videoRange === 'two-years-old' && '找出發布超過 2 年的影片，進行深度內容清理。'}
+            </p>
           </div>
 
-          {/* 影片列表 */}
-          <div className="grid gap-4">
-            {analyticsData.map((video, index) => (
-              <div key={video.videoId}>
-                {/* 影片卡片 */}
-                <div
-                  className={`p-6 rounded-lg shadow-md hover:shadow-xl transition-all cursor-pointer bg-white border-2 ${
-                    expandedVideoId === video.videoId ? 'border-red-600' : 'border-red-200'
-                  }`}
-                  onClick={() => toggleVideoExpansion(video.videoId)}
+          {/* AI 模型選擇 */}
+          <div className="bg-white rounded-xl border border-red-100 p-6 shadow-sm max-w-3xl mx-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-sm">
+                  <Sparkles className="w-4 h-4 text-white" />
+                </div>
+                <label className="text-sm font-bold text-gray-800">
+                  AI 模型選擇
+                </label>
+              </div>
+
+              {/* 模式切換按鈕 */}
+              <div className="flex gap-1.5 p-1 bg-gray-100/80 backdrop-blur-sm rounded-xl">
+                <button
+                  onClick={() => setModelSelectionMode('auto')}
+                  className={`
+                    relative px-4 py-2 text-sm rounded-lg flex items-center gap-2 transition-all duration-300 font-medium
+                    ${modelSelectionMode === 'auto'
+                      ? 'bg-white text-red-700 shadow-md'
+                      : 'text-gray-600 hover:text-gray-900'
+                    }
+                  `}
                 >
-                <div className="flex gap-4">
-                  {/* 排名徽章 */}
-                  <div className="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl bg-red-600 text-white">
-                    {index + 1}
-                  </div>
+                  <Sparkles className={`w-4 h-4 ${modelSelectionMode === 'auto' ? 'animate-pulse' : ''}`} />
+                  智慧推薦
+                  {modelSelectionMode === 'auto' && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                  )}
+                </button>
 
-                  {/* 縮圖 */}
-                  <img
-                    src={video.thumbnail}
-                    alt={video.title}
-                    className="w-40 h-24 object-cover rounded-lg flex-shrink-0"
-                  />
+                <button
+                  onClick={() => setModelSelectionMode('manual')}
+                  className={`
+                    relative px-4 py-2 text-sm rounded-lg flex items-center gap-2 transition-all duration-300 font-medium
+                    ${modelSelectionMode === 'manual'
+                      ? 'bg-white text-red-700 shadow-md'
+                      : 'text-gray-600 hover:text-gray-900'
+                    }
+                  `}
+                >
+                  <Settings className="w-4 h-4" />
+                  手動選擇
+                  {modelSelectionMode === 'manual' && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                  )}
+                </button>
+              </div>
+            </div>
 
-                  {/* 影片資訊 */}
-                  <div className="flex-grow space-y-2">
-                    <h4 className="font-bold text-lg line-clamp-2 text-neutral-900">
-                      {video.title}
-                    </h4>
-                    <p className="text-sm text-red-600">
-                      發布日期: {formatDate(video.publishedAt)}
+            {/* 智能推薦模式 */}
+            {modelSelectionMode === 'auto' && recommendedModelInfo && (
+              <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-red-50 via-red-50/70 to-pink-50/50 border-2 border-red-200/50 p-4 shadow-sm">
+                <div className="relative flex items-start gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <h4 className="font-bold text-gray-900">系統推薦模型</h4>
+                    </div>
+                    <p className="text-sm text-red-700 mb-3 leading-relaxed">
+                      系統推薦使用：<span className="font-semibold">{recommendedModelInfo?.name}</span>
                     </p>
-
-                    {/* 關鍵指標 */}
-                    <div className="flex flex-wrap gap-4 text-sm">
-                      <div>
-                        <span className="text-red-600">觀看次數: </span>
-                        <span className="font-semibold text-neutral-900">
-                          {formatNumber(video.metrics.views)}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-red-600">觀看時長: </span>
-                        <span className="font-semibold text-neutral-900">
-                          {video.metrics.averageViewPercentage}%
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-red-600">搜尋流量: </span>
-                        <span className="font-semibold text-neutral-900">
-                          {video.trafficSources.searchPercentage}%
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-red-600">優先分數: </span>
-                        <span className="font-bold text-lg text-red-600">
-                          {video.priorityScore}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 更新建議 */}
-                    <div className="space-y-1">
-                      {video.updateReasons.map((reason, idx) => (
-                        <div
-                          key={idx}
-                          className="text-sm px-3 py-1 rounded inline-block mr-2 bg-red-50 text-red-600"
-                        >
-                          <span className="inline-flex items-center gap-1">
-                            <AppIcon name="idea" size={14} className="text-red-500" />
-                            {reason}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* 展開/收合指示器 */}
-                    <div className="flex items-center justify-center mt-2">
-                      <span className="text-sm text-red-600">
-                        {expandedVideoId === video.videoId ? '▲ 點擊收合' : '▼ 點擊查看詳情'}
-                      </span>
-                    </div>
+                    <p className="text-sm text-gray-700 mb-3 leading-relaxed">
+                      {recommendedModelInfo?.description}
+                    </p>
                   </div>
                 </div>
               </div>
+            )}
 
-                {/* 展開的詳細資訊 */}
-                {expandedVideoId === video.videoId && (
-                  <div
-                    className="mt-4 p-6 rounded-lg shadow-inner animate-fade-in bg-red-50 border-2 border-red-200"
-                    onClick={(e) => e.stopPropagation()}
-                 >
-                    <VideoAnalyticsExpandedView
-                      video={video}
-                      keywordAnalysis={keywordAnalysisCache[video.videoId] || null}
-                      onAnalyzeKeywords={() => analyzeKeywords(video.videoId, video)}
-                      isAnalyzing={isAnalyzingKeywords}
-                      onTrafficSourcesUpdate={handleTrafficSourcesUpdate}
+            {/* 手動選擇模式 */}
+            {modelSelectionMode === 'manual' && (
+              <div>
+                <AIModelSelector
+                  models={availableModels}
+                  selectedModel={selectedModel}
+                  onModelSelect={setSelectedModel}
+                  disabled={false}
+                  showComparison={false}
+                />
+                <button
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="mt-4 px-4 py-2 text-sm flex items-center gap-2 transition-all duration-300 rounded-lg hover:bg-red-50 text-red-700 font-medium group"
+                >
+                  {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  {showAdvanced ? '隱藏' : '顯示'}模型對比表格
+                </button>
+                {showAdvanced && (
+                  <div className="mt-4 animate-fadeIn">
+                    <AIModelSelector
+                      models={availableModels}
+                      selectedModel={selectedModel}
+                      onModelSelect={setSelectedModel}
+                      disabled={false}
+                      showComparison={true}
                     />
                   </div>
                 )}
               </div>
-            ))}
+            )}
           </div>
+
+          <div className="flex justify-center py-4">
+            <button
+              onClick={handleAnalyze}
+              className="px-8 py-4 rounded-full font-bold text-lg transition-all transform hover:scale-105 active:scale-95 shadow-lg bg-gradient-to-r from-red-600 to-red-500 text-white flex items-center gap-3"
+            >
+              <AppIcon name="sparkles" size={24} className="text-yellow-300" />
+              開始 AI 內容診斷
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 分析過程與結果顯示 */}
+      {(isAnalyzing || analysisResult || analysisError) && (
+        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+          {/* 進度條 */}
+          {isAnalyzing && !analysisResult && (
+            <div className="p-6 border-b border-neutral-100 bg-neutral-50">
+              <div className="flex justify-between items-center mb-4">
+                {analysisStages.map((stage, index) => (
+                  <div key={stage.id} className="flex flex-col items-center flex-1 relative">
+                    {/* 連接線 */}
+                    {index < analysisStages.length - 1 && (
+                      <div className={`absolute top-4 left-1/2 w-full h-0.5 -z-0 ${analysisStages[index + 1]?.status !== 'pending' ? 'bg-red-500' : 'bg-neutral-200'
+                        }`} />
+                    )}
+
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center z-10 mb-2 transition-colors duration-300 ${stage.status === 'completed' ? 'bg-red-600 text-white' :
+                      stage.status === 'active' ? 'bg-red-100 text-red-600 border-2 border-red-600' :
+                        stage.status === 'error' ? 'bg-red-100 text-red-600' :
+                          'bg-neutral-200 text-neutral-400'
+                      }`}>
+                      {stage.status === 'completed' ? (
+                        <AppIcon name="check" size={16} />
+                      ) : stage.status === 'active' ? (
+                        <div className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
+                      ) : (
+                        <span className="text-xs">{index + 1}</span>
+                      )}
+                    </div>
+                    <span className={`text-sm font-medium ${stage.status === 'active' ? 'text-red-600' : 'text-neutral-600'
+                      }`}>
+                      {stage.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 錯誤訊息 */}
+          {analysisError && (
+            <div className="p-6 bg-red-50 border-b border-red-100 text-center">
+              <p className="text-red-600 font-medium mb-4">{analysisError}</p>
+              <button
+                onClick={handleAnalyze}
+                className="px-6 py-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+              >
+                重試
+              </button>
+            </div>
+          )}
+
+          {/* Markdown 內容 */}
+          <div className="p-6 min-h-[400px]">
+            <AnalysisMarkdown
+              isStreaming={isStreaming}
+              videos={videos.map(v => ({
+                id: v.videoId,
+                title: v.title,
+                description: v.description,
+                thumbnailUrl: v.thumbnail,
+                tags: v.tags,
+                categoryId: '', // Default or missing
+                publishedAt: v.publishedAt,
+                viewCount: v.viewCount.toString(),
+                likeCount: v.likeCount.toString(),
+                commentCount: v.commentCount.toString(),
+              }))}
+            >
+              {analysisResult ? analysisResult.text : streamingText}
+            </AnalysisMarkdown>
+          </div>
+
+          {/* 底部操作列 */}
+          {analysisResult && (
+            <div className="p-4 bg-neutral-50 border-t border-neutral-200 flex justify-end">
+              <button
+                onClick={handleAnalyze}
+                className="px-4 py-2 text-neutral-600 hover:text-neutral-900 font-medium flex items-center gap-2"
+              >
+                <AppIcon name="refresh" size={16} />
+                重新分析
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

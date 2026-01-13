@@ -49,6 +49,15 @@ export interface ChannelAnalysisRequest {
     }>;
     trendData?: any[];
     monthlyData?: any[];
+    bottomVideos?: Array<{
+      videoId: string;
+      title: string;
+      publishedAt: string;
+      viewCount: number;
+      likeCount: number;
+      commentCount: number;
+      tags?: string[];
+    }>;
   };
 }
 
@@ -182,15 +191,21 @@ ${videos.map(v => `- **${v.title}** (${v.publishedAt.split('T')[0]})
   - 觀看: ${v.viewCount.toLocaleString()}, 按讚: ${v.likeCount.toLocaleString()}, 留言: ${v.commentCount}
   - 標籤: ${v.tags?.join(', ') || '無'}`).join('\n\n')}
 
+${analytics?.bottomVideos && analytics.bottomVideos.length > 0 ? `**低效影片樣本（Bottom ${analytics.bottomVideos.length}）：**
+${analytics.bottomVideos.map(v => `- **${v.title}** (${v.publishedAt.split('T')[0]})
+  - 觀看: ${v.viewCount.toLocaleString()}, 按讚: ${v.likeCount.toLocaleString()}, 留言: ${v.commentCount}
+  - 標籤: ${v.tags?.join(', ') || '無'}`).join('\n\n')}
+` : ''}
+
 ---
 
 ${analytics ? `**5. 觀眾行為與流量分析數據：**
 
 ${analytics.trafficSources && analytics.trafficSources.length > 0 ? `**流量來源分佈（Traffic Sources）：**
 ${analytics.trafficSources.slice(0, 10).map(item => {
-  const sourceName = trafficSourceNames[item.source] || item.source;
-  return `- **${sourceName}**: ${item.views.toLocaleString()} 次觀看 (${item.percentage.toFixed(1)}%)`;
-}).join('\n')}
+    const sourceName = trafficSourceNames[item.source] || item.source;
+    return `- **${sourceName}**: ${item.views.toLocaleString()} 次觀看 (${item.percentage.toFixed(1)}%)`;
+  }).join('\n')}
 ` : ''}
 ${analytics.searchTerms && analytics.searchTerms.length > 0 ? `**熱門搜尋字詞（Top Search Terms）：**
 ${analytics.searchTerms.slice(0, 15).map(item => `- **${item.term}**: ${item.views.toLocaleString()} 次觀看`).join('\n')}
@@ -200,16 +215,16 @@ ${analytics.geography.slice(0, 10).map(item => `- **${item.country}**: ${item.vi
 ` : ''}
 ${analytics.devices && analytics.devices.length > 0 ? `**觀看裝置分佈（Device Types）：**
 ${analytics.devices.map(item => {
-  const deviceName = deviceTypeNames[item.deviceType] || item.deviceType;
-  return `- **${deviceName}**: ${item.views.toLocaleString()} 次觀看 (${item.percentage.toFixed(1)}%)`;
-}).join('\n')}
+    const deviceName = deviceTypeNames[item.deviceType] || item.deviceType;
+    return `- **${deviceName}**: ${item.views.toLocaleString()} 次觀看 (${item.percentage.toFixed(1)}%)`;
+  }).join('\n')}
 ` : ''}
 ${analytics.demographics && analytics.demographics.length > 0 ? `**觀眾年齡與性別分佈（Demographics）：**
 ${analytics.demographics.slice(0, 15).map(item => {
-  const age = ageGroupNames[item.ageGroup] || item.ageGroup;
-  const gender = genderNames[item.gender] || item.gender;
-  return `- **${age} · ${gender}**: ${item.viewsPercentage.toFixed(1)}%`;
-}).join('\n')}
+    const age = ageGroupNames[item.ageGroup] || item.ageGroup;
+    const gender = genderNames[item.gender] || item.gender;
+    return `- **${age} · ${gender}**: ${item.viewsPercentage.toFixed(1)}%`;
+  }).join('\n')}
 ` : ''}
 ${analytics.subscribersGained ? `**訂閱者增長：** ${analytics.subscribersGained.toLocaleString()} 位新訂閱者
 
@@ -251,7 +266,7 @@ ${analytics.subscribersGained ? `**訂閱者增長：** ${analytics.subscribersG
 *   **識別「內容磁鐵」：** 找出哪些影片或主題是：
     *   **「訂閱磁鐵」：** 擁有最高的按讚數和留言互動（推測能吸引訂閱）。
     *   **「觀看磁鐵」：** 擁有最高的觀看次數。
-*   **識別低效內容：** 哪些主題表現出「高產量、低效率」的特徵（即影片數量多，但觀看和互動均偏低）？
+*   **識別低效內容：** 哪些主題表現出「高產量、低效率」的特徵（即影片數量多，但觀看和互動均偏低）？${analytics?.bottomVideos && analytics.bottomVideos.length > 0 ? `\n    *   **參考低效影片樣本：** 請分析提供的低速影片樣本，找出它們的共同問題（如選題、標題、發布時間等）。` : ''}
 *   **策略評估：** 表現最好的內容，是否具有明確的主題定位和系列化特徵？
 
 ${analytics && (analytics.trafficSources || analytics.searchTerms || analytics.geography || analytics.devices) ? `**4. 流量與觀眾分析：**
@@ -290,3 +305,4 @@ ${analytics && (analytics.trafficSources || analytics.searchTerms || analytics.g
 
   return prompt;
 }
+

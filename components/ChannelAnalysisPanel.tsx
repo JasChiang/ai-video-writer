@@ -52,6 +52,9 @@ interface ChannelAnalysisPanelProps {
     demographics?: any[];
     geography?: any[];
     devices?: any[];
+    trendData?: any[];
+    monthlyData?: any[];
+    bottomVideos?: any[];
   };
 }
 
@@ -99,9 +102,9 @@ export function ChannelAnalysisPanel({
       prev.map((stage) =>
         stage.id === stageId
           ? {
-              ...stage,
-              status,
-            }
+            ...stage,
+            status,
+          }
           : stage
       )
     );
@@ -112,9 +115,9 @@ export function ChannelAnalysisPanel({
       prev.map((stage) =>
         stage.status === 'active'
           ? {
-              ...stage,
-              status: 'error',
-            }
+            ...stage,
+            status: 'error',
+          }
           : stage
       )
     );
@@ -437,10 +440,9 @@ export function ChannelAnalysisPanel({
                     disabled={isAnalyzing}
                     className={`
                       relative px-4 py-2 text-sm rounded-lg flex items-center gap-2 transition-all duration-300 font-medium
-                      ${
-                        modelSelectionMode === 'auto'
-                          ? 'bg-white text-red-700 shadow-md'
-                          : 'text-gray-600 hover:text-gray-900'
+                      ${modelSelectionMode === 'auto'
+                        ? 'bg-white text-red-700 shadow-md'
+                        : 'text-gray-600 hover:text-gray-900'
                       }
                       ${isAnalyzing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/50'}
                     `}
@@ -457,10 +459,9 @@ export function ChannelAnalysisPanel({
                     disabled={isAnalyzing}
                     className={`
                       relative px-4 py-2 text-sm rounded-lg flex items-center gap-2 transition-all duration-300 font-medium
-                      ${
-                        modelSelectionMode === 'manual'
-                          ? 'bg-white text-red-700 shadow-md'
-                          : 'text-gray-600 hover:text-gray-900'
+                      ${modelSelectionMode === 'manual'
+                        ? 'bg-white text-red-700 shadow-md'
+                        : 'text-gray-600 hover:text-gray-900'
                       }
                       ${isAnalyzing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/50'}
                     `}
@@ -503,56 +504,55 @@ export function ChannelAnalysisPanel({
                       <div className="relative overflow-hidden bg-white/90 backdrop-blur-sm rounded-xl p-4 border border-red-300/50 shadow-md hover:shadow-lg transition-all duration-300">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-red-100/40 to-transparent rounded-full -mr-16 -mt-16"></div>
 
-                    <div className="relative">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <div className="font-bold text-gray-900 text-lg mb-1">
-                            {recommendedModelInfo.name}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-gray-600">
-                            <span className="font-medium">{recommendedModelInfo.provider}</span>
-                            {recommendedModelInfo.useOpenRouter && (
-                              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full font-semibold">
-                                via OpenRouter
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <span
-                          className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${
-                            recommendedModelInfo.cost === 'low'
-                              ? 'bg-green-100 text-green-700 border border-green-200'
-                              : recommendedModelInfo.cost === 'medium'
-                              ? 'bg-yellow-100 text-yellow-700 border border-yellow-200'
-                              : 'bg-red-100 text-red-700 border border-red-200'
-                          }`}
-                        >
-                          {recommendedModelInfo.cost === 'low'
-                            ? '經濟'
-                            : recommendedModelInfo.cost === 'medium'
-                            ? '中等'
-                            : '高級'}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-700 mb-3 leading-relaxed">
-                        {recommendedModelInfo.description}
-                      </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {recommendedModelInfo.bestFor.map((use) => (
+                        <div className="relative">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <div className="font-bold text-gray-900 text-lg mb-1">
+                                {recommendedModelInfo.name}
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-gray-600">
+                                <span className="font-medium">{recommendedModelInfo.provider}</span>
+                                {recommendedModelInfo.useOpenRouter && (
+                                  <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full font-semibold">
+                                    via OpenRouter
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                             <span
-                              key={use}
-                              className="text-xs px-2.5 py-1 bg-red-100/70 text-red-700 rounded-lg font-medium"
+                              className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${recommendedModelInfo.cost === 'low'
+                                  ? 'bg-green-100 text-green-700 border border-green-200'
+                                  : recommendedModelInfo.cost === 'medium'
+                                    ? 'bg-yellow-100 text-yellow-700 border border-yellow-200'
+                                    : 'bg-red-100 text-red-700 border border-red-200'
+                                }`}
                             >
-                              {use}
+                              {recommendedModelInfo.cost === 'low'
+                                ? '經濟'
+                                : recommendedModelInfo.cost === 'medium'
+                                  ? '中等'
+                                  : '高級'}
                             </span>
-                          ))}
+                          </div>
+                          <p className="text-sm text-gray-700 mb-3 leading-relaxed">
+                            {recommendedModelInfo.description}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {recommendedModelInfo.bestFor.map((use) => (
+                              <span
+                                key={use}
+                                className="text-xs px-2.5 py-1 bg-red-100/70 text-red-700 rounded-lg font-medium"
+                              >
+                                {use}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
               {/* 手動選擇模式 */}
               {modelSelectionMode === 'manual' && (
@@ -661,62 +661,62 @@ export function ChannelAnalysisPanel({
               </div>
             )}
 
-      {shouldShowStageTracker && (
-        <div className="mt-6">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-            <p className="text-sm font-semibold text-gray-700">分析進度</p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            {analysisStages.map((stage) => {
-              const style = getStageStyle(stage.status);
-              return (
-                <div
-                  key={stage.id}
-                  className={`rounded-xl border ${style.border} bg-white/80 backdrop-blur px-4 py-3 shadow-sm`}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    {style.icon}
-                    <span className={`text-sm font-semibold ${style.text}`}>{stage.label}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 leading-relaxed">{stage.description}</p>
+          {shouldShowStageTracker && (
+            <div className="mt-6">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                <p className="text-sm font-semibold text-gray-700">分析進度</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                {analysisStages.map((stage) => {
+                  const style = getStageStyle(stage.status);
+                  return (
+                    <div
+                      key={stage.id}
+                      className={`rounded-xl border ${style.border} bg-white/80 backdrop-blur px-4 py-3 shadow-sm`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        {style.icon}
+                        <span className={`text-sm font-semibold ${style.text}`}>{stage.label}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 leading-relaxed">{stage.description}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {isStreaming && (
+            <div className="mt-6 p-5 bg-gray-900 text-gray-100 rounded-2xl border border-gray-700 shadow-inner">
+              <div className="flex items-center gap-2 mb-3">
+                <Loader2 className="w-5 h-5 animate-spin text-red-400" />
+                <p className="text-sm font-semibold tracking-wide">AI 正在撰寫報告...</p>
+              </div>
+              <div className="bg-gray-800 rounded-xl p-4 max-h-64 overflow-y-auto font-mono text-sm whitespace-pre-wrap leading-relaxed">
+                {streamingText || '等待模型輸出...'}
+              </div>
+              <p className="mt-2 text-xs text-gray-400">
+                此區為即時輸出，最終會以完整 Markdown 呈現。
+              </p>
+            </div>
+          )}
+
+          {/* 錯誤提示 - 改進版 */}
+          {analysisError && (
+            <div className="relative overflow-hidden p-5 bg-gradient-to-br from-red-50 to-pink-50 border-2 border-red-200/50 rounded-xl shadow-sm">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-red-200/20 rounded-full blur-2xl -mr-16 -mt-16"></div>
+              <div className="relative flex items-start gap-3">
+                <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="text-white text-lg">✕</span>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {isStreaming && (
-        <div className="mt-6 p-5 bg-gray-900 text-gray-100 rounded-2xl border border-gray-700 shadow-inner">
-          <div className="flex items-center gap-2 mb-3">
-            <Loader2 className="w-5 h-5 animate-spin text-red-400" />
-            <p className="text-sm font-semibold tracking-wide">AI 正在撰寫報告...</p>
-          </div>
-          <div className="bg-gray-800 rounded-xl p-4 max-h-64 overflow-y-auto font-mono text-sm whitespace-pre-wrap leading-relaxed">
-            {streamingText || '等待模型輸出...'}
-          </div>
-          <p className="mt-2 text-xs text-gray-400">
-            此區為即時輸出，最終會以完整 Markdown 呈現。
-          </p>
-        </div>
-      )}
-
-      {/* 錯誤提示 - 改進版 */}
-      {analysisError && (
-        <div className="relative overflow-hidden p-5 bg-gradient-to-br from-red-50 to-pink-50 border-2 border-red-200/50 rounded-xl shadow-sm">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-red-200/20 rounded-full blur-2xl -mr-16 -mt-16"></div>
-          <div className="relative flex items-start gap-3">
-            <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-lg">✕</span>
+                <div className="flex-1">
+                  <p className="font-semibold text-red-900 mb-1">發生錯誤</p>
+                  <p className="text-sm text-red-700 leading-relaxed">{analysisError}</p>
+                </div>
+              </div>
             </div>
-            <div className="flex-1">
-              <p className="font-semibold text-red-900 mb-1">發生錯誤</p>
-              <p className="text-sm text-red-700 leading-relaxed">{analysisError}</p>
-            </div>
-          </div>
-        </div>
-      )}
+          )}
 
           {/* 分析結果 - YouTube 紅白風格 */}
           {analysisResult && (
