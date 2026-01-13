@@ -147,135 +147,145 @@ export default function App() {
 
       const actionTrigger = trigger ?? (reset ? 'initial-load' : 'load-more');
 
-      // 如果有搜尋關鍵字且有 GIST_ID，優先使用 Gist 快取搜尋（配額成本 0）
-      if (searchQuery && searchQuery.trim() && GITHUB_GIST_ID) {
-        console.log('[App] 使用 Gist 快取搜尋，關鍵字:', searchQuery);
+      // 如果有搜尋關鍵字，優先使用 Gist 快取搜尋（配額成本 0），失敗才回退 YouTube API
+      if (searchQuery && searchQuery.trim()) {
+        const trimmedQuery = searchQuery.trim();
+        let cacheSucceeded = false;
 
-        const response = await fetch(
-          `/api/video-cache/search?gistId=${encodeURIComponent(GITHUB_GIST_ID)}&query=${encodeURIComponent(searchQuery.trim())}&maxResults=10000`
-        );
+        try {
+          console.log('[App] 使用 Gist 快取搜尋，關鍵字:', trimmedQuery);
 
-        if (!response.ok) {
-          throw new Error(`快取搜尋失敗: ${response.status}`);
-        }
+          const response = await fetch(
+            `/api/video-cache/search?query=${encodeURIComponent(trimmedQuery)}&maxResults=10000`
+          );
 
-        const data = await response.json();
+          if (!response.ok) {
+            throw new Error(`快取搜尋失敗: ${response.status}`);
+          }
 
-        if (!data.success) {
-          throw new Error(data.error || '快取搜尋失敗');
-        }
+          const data = await response.json();
 
-        console.log(`[App] API 返回 ${data.videos.length} 支影片`);
+          if (!data.success) {
+            throw new Error(data.error || '快取搜尋失敗');
+          }
 
-        // 將快取資料格式轉換為 YouTubeVideo 格式
-        const cacheVideos: YouTubeVideo[] = [];
-        const skippedVideos: any[] = [];
+          console.log(`[App] API 返回 ${data.videos.length} 支影片`);
 
-        for (const v of data.videos) {
-          try {
-            // 檢查必要欄位
-            if (!v.videoId) {
-              skippedVideos.push({ reason: 'missing videoId', data: v });
-              continue;
+          // 將快取資料格式轉換為 YouTubeVideo 格式
+          const cacheVideos: YouTubeVideo[] = [];
+          const skippedVideos: any[] = [];
+
+          for (const v of data.videos) {
+            try {
+              // 檢查必要欄位
+              if (!v.videoId) {
+                skippedVideos.push({ reason: 'missing videoId', data: v });
+                continue;
+              }
+
+              cacheVideos.push({
+                id: v.videoId,
+                title: v.title || '(無標題)',
+                description: '', // 描述未包含在快取中，需要時才抓取
+                thumbnailUrl: v.thumbnail || '',
+                tags: v.tags || [],
+                categoryId: v.categoryId || '',
+                privacyStatus: v.privacyStatus || 'public',
+                publishedAt: v.publishedAt || '',
+                viewCount: v.viewCount || 0,
+                likeCount: v.likeCount || 0,
+                commentCount: v.commentCount || 0,
+              });
+            } catch (err: any) {
+              skippedVideos.push({ reason: err.message, data: v });
             }
-
-            cacheVideos.push({
-              id: v.videoId,
-              title: v.title || '(無標題)',
-              description: '', // 描述未包含在快取中，需要時才抓取
-              thumbnailUrl: v.thumbnail || '',
-              tags: v.tags || [],
-              categoryId: v.categoryId || '',
-              privacyStatus: v.privacyStatus || 'public',
-              publishedAt: v.publishedAt || '',
-              viewCount: v.viewCount || 0,
-              likeCount: v.likeCount || 0,
-              commentCount: v.commentCount || 0,
-            });
-          } catch (err: any) {
-            skippedVideos.push({ reason: err.message, data: v });
           }
-        }
 
-        if (skippedVideos.length > 0) {
-          console.warn(`[App] ⚠️ 轉換時跳過 ${skippedVideos.length} 支影片:`);
-          console.table(skippedVideos);
-        }
+          if (skippedVideos.length > 0) {
+            console.warn(`[App] ⚠️ 轉換時跳過 ${skippedVideos.length} 支影片:`);
+            console.table(skippedVideos);
+          }
 
-        console.log(`[App] 轉換後 ${cacheVideos.length} 支影片`);
+          console.log(`[App] 轉換後 ${cacheVideos.length} 支影片`);
 
-        // 過濾影片狀態
-        const filteredVideos = cacheVideos.filter(video => {
-          if (video.privacyStatus === 'public') return true;
-          if (video.privacyStatus === 'unlisted') return showUnlistedVideos;
-          if (video.privacyStatus === 'private') return showPrivateVideos;
-          return false;
-        });
-
-        // Debug: 顯示被過濾掉的影片
-        const filtered = cacheVideos.filter(video => {
-          if (video.privacyStatus === 'public') return false;
-          if (video.privacyStatus === 'unlisted' && showUnlistedVideos) return false;
-          if (video.privacyStatus === 'private' && showPrivateVideos) return false;
-          return true;
-        });
-
-        if (filtered.length > 0) {
-          console.log(`[App] 共 ${cacheVideos.length} 支影片，過濾掉 ${filtered.length} 支 (${filtered.map(v => v.privacyStatus).join(', ')})`);
-          console.table(filtered.map(v => ({
-            videoId: v.id,
-            title: v.title,
-            privacyStatus: v.privacyStatus,
-            publishedAt: v.publishedAt
-          })));
-        }
-
-        console.log(`[App] 過濾後 ${filteredVideos.length} 支影片`);
-
-        // 去重：確保每個影片 ID 只出現一次
-        const uniqueVideos = Array.from(
-          new Map(filteredVideos.map(video => [video.id, video])).values()
-        );
-
-        const duplicateCount = filteredVideos.length - uniqueVideos.length;
-        if (duplicateCount > 0) {
-          console.warn(`[App] ⚠️ 去重移除 ${duplicateCount} 支重複影片`);
-
-          // 找出重複的影片
-          const idCounts = new Map<string, number>();
-          filteredVideos.forEach(video => {
-            idCounts.set(video.id, (idCounts.get(video.id) || 0) + 1);
+          // 過濾影片狀態
+          const filteredVideos = cacheVideos.filter(video => {
+            if (video.privacyStatus === 'public') return true;
+            if (video.privacyStatus === 'unlisted') return showUnlistedVideos;
+            if (video.privacyStatus === 'private') return showPrivateVideos;
+            return false;
           });
-          const duplicates = Array.from(idCounts.entries())
-            .filter(([_, count]) => count > 1)
-            .map(([id, count]) => ({
-              videoId: id,
-              count,
-              title: filteredVideos.find(v => v.id === id)?.title
-            }));
-          console.table(duplicates);
-        }
 
-        console.log(`[App] 最終顯示 ${uniqueVideos.length} 支影片`);
+          // Debug: 顯示被過濾掉的影片
+          const filtered = cacheVideos.filter(video => {
+            if (video.privacyStatus === 'public') return false;
+            if (video.privacyStatus === 'unlisted' && showUnlistedVideos) return false;
+            if (video.privacyStatus === 'private' && showPrivateVideos) return false;
+            return true;
+          });
 
-        // 合併本地更新（覆蓋 Gist 快取中的舊資料）
-        const mergedVideos = mergeLocalUpdates(uniqueVideos);
-
-        setVideos(mergedVideos);
-        setNextPageToken(null);
-        setHasMore(false); // 快取搜尋一次返回所有結果
-        setSelectedVideoId(prev => {
-          if (prev && mergedVideos.some(video => video.id === prev)) {
-            return prev;
+          if (filtered.length > 0) {
+            console.log(`[App] 共 ${cacheVideos.length} 支影片，過濾掉 ${filtered.length} 支 (${filtered.map(v => v.privacyStatus).join(', ')})`);
+            console.table(filtered.map(v => ({
+              videoId: v.id,
+              title: v.title,
+              privacyStatus: v.privacyStatus,
+              publishedAt: v.publishedAt
+            })));
           }
-          return showDetailSidebar ? mergedVideos[0]?.id ?? null : null;
-        });
-      } else {
-        // 無搜尋關鍵字或沒有 GIST_ID，使用 YouTube API
-        if (searchQuery && searchQuery.trim() && !GITHUB_GIST_ID) {
-          console.warn('[App] 未設定 GIST_ID，使用 YouTube API 搜尋（配額成本較高）');
+
+          console.log(`[App] 過濾後 ${filteredVideos.length} 支影片`);
+
+          // 去重：確保每個影片 ID 只出現一次
+          const uniqueVideos = Array.from(
+            new Map(filteredVideos.map(video => [video.id, video])).values()
+          );
+
+          const duplicateCount = filteredVideos.length - uniqueVideos.length;
+          if (duplicateCount > 0) {
+            console.warn(`[App] ⚠️ 去重移除 ${duplicateCount} 支重複影片`);
+
+            // 找出重複的影片
+            const idCounts = new Map<string, number>();
+            filteredVideos.forEach(video => {
+              idCounts.set(video.id, (idCounts.get(video.id) || 0) + 1);
+            });
+            const duplicates = Array.from(idCounts.entries())
+              .filter(([_, count]) => count > 1)
+              .map(([id, count]) => ({
+                videoId: id,
+                count,
+                title: filteredVideos.find(v => v.id === id)?.title
+              }));
+            console.table(duplicates);
+          }
+
+          console.log(`[App] 最終顯示 ${uniqueVideos.length} 支影片`);
+
+          // 合併本地更新（覆蓋 Gist 快取中的舊資料）
+          const mergedVideos = mergeLocalUpdates(uniqueVideos);
+
+          setVideos(mergedVideos);
+          setNextPageToken(null);
+          setHasMore(false); // 快取搜尋一次返回所有結果
+          setSelectedVideoId(prev => {
+            if (prev && mergedVideos.some(video => video.id === prev)) {
+              return prev;
+            }
+            return showDetailSidebar ? mergedVideos[0]?.id ?? null : null;
+          });
+
+          cacheSucceeded = true;
+        } catch (cacheError: any) {
+          console.warn('[App] ⚠️ 快取搜尋失敗，改用 YouTube API:', cacheError?.message || cacheError);
         }
 
+        if (cacheSucceeded) {
+          return;
+        }
+      }
+
+      {
         // 增加單次載入數量到 24，減少 loadmore 次數
         // 這樣可以在有搜尋關鍵字時，減少總配額消耗
         const result = await youtubeService.listVideos(
