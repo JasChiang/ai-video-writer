@@ -747,25 +747,29 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
     // 1. HTML 註解格式: <!-- CHART:PIE ... -->
     // 2. JSON 代碼塊格式: ```json { "type": "pie", ... } ```
 
-    const commentRegex = /<!--\s*CHART:(PIE|BAR)\s*(?:\r?\n)?([\s\S]*?)(?:\r?\n)?-->/g;
-    const codeBlockRegex = /```json\s*(\{\s*"type":\s*"(?:pie|bar|doughnut)"[\s\S]*?\})\s*```/gi;
+    const commentRegex = /<!--\s*CHART:(PIE|BAR|DOUGHNUT)\s*(?:\r?\n)?([\s\S]*?)(?:\r?\n)?-->/g;
+    const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/gi;
 
     const newCharts = new Map<string, ChartData>();
     let chartIndex = 0;
 
     // 處理代碼塊格式
-    let processed = text.replace(codeBlockRegex, (match, jsonData) => {
+    let processed = text.replace(codeBlockRegex, (match, rawBlock) => {
       try {
-        const data = sanitizeChartJson(jsonData.trim());
+        const data = sanitizeChartJson(rawBlock.trim());
         if (!data) return match;
+
+        let chartType = (data.type || 'bar').toLowerCase();
+        if (chartType !== 'pie' && chartType !== 'doughnut' && chartType !== 'bar') chartType = 'bar';
+        if (!data.type && !rawBlock.includes('"type"')) {
+          return match;
+        }
 
         const chartId = `chart-${chartIndex++}`;
         // 處理嵌套的 data 結構
         const labels = data.labels || data.data?.labels;
         const values = data.values || data.data?.values || data.data?.datasets?.[0]?.data;
         const title = data.title || data.options?.plugins?.title?.text;
-        let chartType = (data.type || 'bar').toLowerCase();
-        if (chartType !== 'pie' && chartType !== 'doughnut' && chartType !== 'bar') chartType = 'bar';
 
         newCharts.set(chartId, {
           type: chartType as any,
@@ -776,11 +780,11 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
           data: data.data,
           items: data.items,
           colors: data.colors,
-          raw: jsonData.trim(),
+          raw: rawBlock.trim(),
         });
         return `§CHART:${chartId}§`;
       } catch (e) {
-        console.error('Failed to parse chart data from JSON code block:', e, jsonData);
+        console.error('Failed to parse chart data from JSON code block:', e, rawBlock);
         return match;
       }
     });
