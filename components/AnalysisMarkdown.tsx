@@ -643,19 +643,19 @@ const components: Components = {
 
   // 列表组件 - 美化样式
   ul: ({ children }) => (
-    <ul className="list-disc list-inside space-y-2 my-4 ml-4" style={{ color: '#03045E' }}>
+    <ul className="list-disc list-outside space-y-3 my-4 pl-6" style={{ color: '#03045E' }}>
       {children}
     </ul>
   ),
 
   ol: ({ children }) => (
-    <ol className="list-decimal list-inside space-y-2 my-4 ml-4" style={{ color: '#03045E' }}>
+    <ol className="list-decimal list-outside space-y-3 my-4 pl-7" style={{ color: '#03045E' }}>
       {children}
     </ol>
   ),
 
   li: ({ children }) => (
-    <li className="ml-4">
+    <li className="ml-0 pl-1 leading-relaxed">
       {children}
     </li>
   ),
@@ -946,7 +946,7 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
     ),
     // 列表项组件
     li: ({ children }) => (
-      <li className="ml-4">
+      <li className="ml-0 pl-1 leading-relaxed">
         {renderWithCards(children)}
       </li>
     ),
