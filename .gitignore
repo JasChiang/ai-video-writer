@@ -22,6 +22,8 @@ temp_videos/
 !.vscode/extensions.json
 .idea
 .DS_Store
+.codex-*.pid
+.codex-*.log
 *.suo
 *.ntvs*
 *.njsproj
