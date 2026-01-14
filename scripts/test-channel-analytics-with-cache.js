@@ -4,8 +4,8 @@
 
 import dotenv from 'dotenv';
 import readline from 'readline';
-import { refreshAccessToken } from '../services/youtubeTokenService.js';
-import { aggregateChannelData } from '../services/channelAnalyticsService.js';
+import { refreshAccessToken } from '../services/server/youtubeTokenService.js';
+import { aggregateChannelData } from '../services/server/channelAnalyticsService.js';
 
 dotenv.config({ path: '.env.local' });
 

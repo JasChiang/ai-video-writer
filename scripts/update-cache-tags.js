@@ -5,9 +5,9 @@
 
 import { google } from 'googleapis';
 import dotenv from 'dotenv';
-import { refreshAccessToken, parseTokenInput } from '../services/youtubeTokenService.js';
-import { loadFromGist, uploadToGist } from '../services/videoCacheService.js';
-import { recordQuota as recordQuotaServer } from '../services/quotaTracker.js';
+import { refreshAccessToken, parseTokenInput } from '../services/server/youtubeTokenService.js';
+import { loadFromGist, uploadToGist } from '../services/server/videoCacheService.js';
+import { recordQuota as recordQuotaServer } from '../services/server/quotaTracker.js';
 
 dotenv.config({ path: '.env.local' });
 

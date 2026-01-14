@@ -7,21 +7,6 @@ import React, { useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
-  TrendingUp,
-  Target,
-  Lightbulb,
-  Search,
-  BarChart3,
-  Users,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  TrendingDown,
-  Activity,
-  Zap,
-  List,
-} from 'lucide-react';
-import {
   Chart as ChartJS,
   ArcElement,
   CategoryScale,
@@ -33,8 +18,10 @@ import {
 } from 'chart.js';
 import { Bar, Pie, Doughnut } from 'react-chartjs-2';
 import type { Components } from 'react-markdown';
+import type { AnalysisMarkdownProps, ChartData, ChartListItem, ChartRecord, ChartValue } from './analysis-markdown/types';
 import type { YouTubeVideo } from '../types';
 import { VideoPreviewCard } from './VideoPreviewCard';
+import { sectionIcons, statusStyles } from './analysis-markdown/constants';
 
 // 註冊 Chart.js 組件
 ChartJS.register(
@@ -47,53 +34,6 @@ ChartJS.register(
   Legend
 );
 
-interface AnalysisMarkdownProps {
-  children: string;
-  videos?: YouTubeVideo[]; // 影片数据，用于根据 ID 查找影片信息
-  isStreaming?: boolean;
-}
-
-// 章节图标映射
-const sectionIcons: Record<string, React.ComponentType<{ className?: string }>> = {
-  // 频道分析相关
-  頻道總體診斷: Activity,
-  增長飛輪: TrendingUp,
-  健康狀況: Activity,
-  內容支柱: BarChart3,
-  資源配置: Target,
-  內容磁鐵: Zap,
-  低效內容: TrendingDown,
-  卡點診斷: AlertTriangle,
-  行動項目: CheckCircle,
-  最終建議: Lightbulb,
-  頻道定位: Target,
-
-  // 关键字分析相关
-  單元總結: List,
-  流量獲取: TrendingUp,
-  觀眾留存: Users,
-  訂閱轉換: Target,
-  時間序列: TrendingUp,
-  'YouTube SEO': Search,
-  'SEO 優化': Search,
-  系列化內容: List,
-
-  // 状态相关
-  訂閱磁鐵: Zap,
-  潛力單元: Lightbulb,
-  流量單元: TrendingUp,
-  低效單元: TrendingDown,
-  內容黑洞: XCircle,
-
-  // 通用
-  診斷: Search,
-  分析: BarChart3,
-  建議: Lightbulb,
-  策略: Target,
-  優化: TrendingUp,
-  警訊: AlertTriangle,
-};
-
 // 根据标题文本选择图标
 const getIconForHeading = (text: string): React.ComponentType<{ className?: string }> | null => {
   for (const [keyword, Icon] of Object.entries(sectionIcons)) {
@@ -102,18 +42,6 @@ const getIconForHeading = (text: string): React.ComponentType<{ className?: stri
     }
   }
   return null;
-};
-
-// 状态标记样式映射
-const statusStyles: Record<string, { bg: string; text: string; icon: React.ComponentType }> = {
-  加速期: { bg: 'bg-green-100', text: 'text-green-700', icon: TrendingUp },
-  平台期: { bg: 'bg-yellow-100', text: 'text-yellow-700', icon: AlertTriangle },
-  衰退期: { bg: 'bg-red-100', text: 'text-red-700', icon: TrendingDown },
-  停滯期: { bg: 'bg-gray-100', text: 'text-gray-700', icon: XCircle },
-  訂閱磁鐵: { bg: 'bg-purple-100', text: 'text-purple-700', icon: Zap },
-  潛力支柱: { bg: 'bg-blue-100', text: 'text-blue-700', icon: Lightbulb },
-  內容黑洞: { bg: 'bg-red-100', text: 'text-red-700', icon: XCircle },
-  低效單元: { bg: 'bg-orange-100', text: 'text-orange-700', icon: TrendingDown },
 };
 
 // Mermaid 渲染组件
@@ -182,26 +110,6 @@ const MermaidDiagram: React.FC<{ chart: string }> = ({ chart }) => {
 };
 
 // Chart.js 圖表組件
-type ChartValue = number | string | boolean | null;
-
-type ChartRecord = Record<string, ChartValue>;
-
-interface ChartListItem {
-  label?: string;
-  value?: ChartValue;
-}
-
-interface ChartData {
-  type: 'bar' | 'pie' | 'doughnut';
-  title?: string;
-  labels?: unknown;
-  values?: unknown;
-  data?: ChartListItem[] | ChartRecord;
-  items?: ChartListItem[] | ChartRecord;
-  datasets?: any[]; // 兼容標準 Chart.js 結構
-  colors?: string[];
-  raw?: string;
-}
 
 const getUnitMultiplier = (value: string): number => {
   const unitMatch = value.match(/[\d.]+\s*(萬|万|億|亿|千|k|K|m|M|b|B)/);

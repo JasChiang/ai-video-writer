@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { GeneratedContentType, ProgressMessage, YouTubeVideo } from '../types';
-import * as geminiService from '../services/geminiService';
-import * as youtubeService from '../services/youtubeService';
+import * as geminiService from '../services/client/geminiService';
+import * as youtubeService from '../services/client/youtubeService';
 import { Loader } from './Loader';
 import { SparklesIcon, CheckIcon } from './Icons';
 import { AppIcon } from './AppIcon';

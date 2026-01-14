@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Save, RefreshCw, Calendar, TrendingUp, BarChart3 } from 'lucide-react';
-import * as youtubeService from '../services/youtubeService';
+import * as youtubeService from '../services/client/youtubeService';
 import {
   getRelativeDateRange,
   parseAbsoluteDateRange,

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { Loader } from './components/Loader';
-import * as youtubeService from './services/youtubeService';
+import * as youtubeService from './services/client/youtubeService';
 import type { YouTubeVideo } from './types';
 import { YouTubeLogin } from './components/YouTubeLogin';
 import { VideoSelector } from './components/VideoSelector';
@@ -13,6 +13,7 @@ import { QuotaDebugger } from './components/QuotaDebugger';
 import { ArticleWorkspace } from './components/ArticleWorkspace';
 import { ChannelAnalytics } from './components/ChannelAnalytics';
 import { GITHUB_GIST_ID } from './config';
+import { useViewportWidth } from './hooks/useViewport';
 
 type ActiveTab = 'videos' | 'analytics' | 'articles' | 'channel-analytics';
 
@@ -30,23 +31,11 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('videos');
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
-  const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 0));
+  const viewportWidth = useViewportWidth();
   const [portalReady, setPortalReady] = useState(false);
   const isDesktop = viewportWidth >= 1024;
   const showDetailSidebar = viewportWidth >= 1280;
   const useInlineDetail = !showDetailSidebar;
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleResize = () => {
-      setViewportWidth(window.innerWidth);
-    };
-
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
   
   const init = async () => {
     setIsInitializing(true);

@@ -1,4 +1,4 @@
-import type { AppIconName, GeneratedContentType, ProgressCallback } from '../types';
+import type { AppIconName, GeneratedContentType, ProgressCallback } from '../../types';
 import * as youtubeService from './youtubeService';
 import { executeAsyncTask, pollTaskUntilComplete } from './taskPollingService';
 

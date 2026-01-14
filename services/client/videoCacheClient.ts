@@ -3,8 +3,8 @@
  * 從 Gist 載入快取並進行搜尋
  */
 
-import type { YouTubeVideo } from '../types';
-import { recordQuota } from '../utils/quotaTracker';
+import type { YouTubeVideo } from '../../types';
+import { recordQuota } from '../../utils/quotaTracker';
 
 declare const gapi: any;
 

@@ -1,4 +1,4 @@
-import type { GeneratedContentType, ProgressCallback } from "../types";
+import type { GeneratedContentType, ProgressCallback } from "../../types";
 import * as videoApiService from './videoApiService';
 import * as youtubeService from './youtubeService';
 

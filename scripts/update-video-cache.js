@@ -6,7 +6,7 @@
 
 import dotenv from 'dotenv';
 import fs from 'fs';
-import { refreshAccessToken, parseTokenInput } from '../services/youtubeTokenService.js';
+import { refreshAccessToken, parseTokenInput } from '../services/server/youtubeTokenService.js';
 
 // 載入環境變數
 dotenv.config({ path: '.env.local' });

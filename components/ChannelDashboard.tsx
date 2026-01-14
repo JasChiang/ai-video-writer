@@ -71,8 +71,34 @@ import {
   Filler,
 } from 'chart.js';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
-import * as youtubeService from '../services/youtubeService';
+import * as youtubeService from '../services/client/youtubeService';
 import { ChannelAnalysisPanel } from './ChannelAnalysisPanel';
+import type {
+  ChannelStats,
+  VideoItem,
+  TrendTopVideo,
+  TrendDataPoint,
+  MonthlyDataPoint,
+  TrafficSourceItem,
+  SearchTermItem,
+  DemographicsItem,
+  GeographyItem,
+  DeviceItem,
+  ViewingHourData,
+  SubscriberSourceItem,
+  ComparisonData,
+  ContentTypeMetrics,
+  ChartMetric,
+  QuickDateRange,
+} from './channel-dashboard/types';
+import {
+  FILTER_STORAGE_KEY,
+  DATA_STORAGE_KEY,
+  QUICK_DATE_PRESETS,
+  TOP_VIDEO_METRICS,
+  DAY_OF_WEEK_LABELS,
+  VIEWING_HOUR_BUCKETS,
+} from './channel-dashboard/constants';
 
 declare const gapi: any;
 
@@ -89,159 +115,6 @@ ChartJS.register(
   Legend,
   Filler
 );
-
-interface ChannelStats {
-  // 頻道總體統計（不受時間範圍影響）
-  totalSubscribers: number;
-  totalViews: number;
-  totalVideos: number;         // 頻道總影片數
-
-  // 時間範圍內的統計（基於 Analytics API）
-  viewsInRange: number;        // 時間範圍內實際產生的觀看數
-  watchTimeHours: number;      // 時間範圍內的觀看時長（小時）
-  subscribersGained: number;   // 時間範圍內新增訂閱數
-  videosInRange: number;       // 時間範圍內的影片數
-}
-
-interface VideoItem {
-  id: string;
-  title: string;
-  viewCount: number;
-  likeCount: number;
-  commentCount: number;
-  avgViewPercentage?: number;
-  shareCount?: number;
-  publishedAt: string;
-  thumbnailUrl: string;
-  description?: string;
-}
-
-interface TrendTopVideo {
-  id: string;
-  title: string;
-  thumbnailUrl: string;
-  views: number;
-}
-
-interface TrendDataPoint {
-  date: string;
-  views: number;
-  subscribers: number;
-  topVideo?: TrendTopVideo | null;
-}
-
-
-
-interface MonthlyDataPoint {
-  month: string;           // 格式: YYYY-MM
-  views: number;
-  watchTimeHours: number;
-  subscribersGained: number;  // 新增訂閱
-  subscribersLost: number;    // 取消訂閱
-  subscribersNet: number;     // 淨增長 = subscribersGained - subscribersLost
-  isCurrentMonth?: boolean;   // 是否為本月至今
-}
-
-interface TrafficSourceItem {
-  source: string;          // 流量來源類型或名稱
-  views: number;           // 觀看次數
-  percentage: number;      // 百分比
-}
-
-interface SearchTermItem {
-  term: string;            // 搜尋字詞
-  views: number;           // 觀看次數
-}
-
-interface DemographicsItem {
-  ageGroup: string;        // 年齡層
-  gender: string;          // 性別
-  viewsPercentage: number; // 觀看百分比
-}
-
-interface GeographyItem {
-  country: string;         // 國家代碼
-  views: number;           // 觀看次數
-  percentage: number;      // 百分比
-}
-
-interface DeviceItem {
-  deviceType: string;      // 裝置類型
-  views: number;           // 觀看次數
-  percentage: number;      // 百分比
-}
-
-interface ViewingHourData {
-  dayOfWeek: number;       // 0=星期日, 6=星期六
-  hour: number;            // 小時 (0-23)
-  views: number;           // 觀看次數
-}
-
-interface SubscriberSourceItem {
-  videoId: string;         // 影片 ID
-  videoTitle: string;      // 影片標題
-  subscribersGained: number; // 獲得訂閱數
-}
-
-interface ComparisonData {
-  current: number;                    // 當前期間數據
-  previous: number;                   // 環比：前一期數據
-  yearAgo: number;                    // 同比：去年同期數據
-  changeFromPrevious: number;         // 環比變化量
-  changeFromPreviousPercent: number;  // 環比變化百分比
-  changeFromYearAgo: number;          // 同比變化量
-  changeFromYearAgoPercent: number;   // 同比變化百分比
-}
-
-interface ContentTypeMetrics {
-  shorts: {
-    views: number;
-    watchTime: number;
-    likes: number;
-    shares: number;
-    comments: number;
-    videoCount: number;
-  };
-  regularVideos: {
-    views: number;
-    watchTime: number;
-    likes: number;
-    shares: number;
-    comments: number;
-    videoCount: number;
-  };
-}
-
-type ChartMetric = 'views' | 'watchTime' | 'subscribers';
-type QuickDateRange = '7d' | '30d' | '90d' | 'this_month' | 'last_month';
-
-const FILTER_STORAGE_KEY = 'channel_dashboard_filters';
-const DATA_STORAGE_KEY = 'channel_dashboard_data';
-
-const QUICK_DATE_PRESETS: { label: string; value: QuickDateRange }[] = [
-  { label: '過去 7 天', value: '7d' },
-  { label: '過去 30 天', value: '30d' },
-  { label: '過去 90 天', value: '90d' },
-  { label: '本月', value: 'this_month' },
-  { label: '上月', value: 'last_month' },
-];
-
-const TOP_VIDEO_METRICS = [
-  { label: '觀看次數', value: 'views' as const },
-  { label: '平均觀看百分比', value: 'avgViewPercent' as const },
-  { label: '分享次數', value: 'shares' as const },
-  { label: '留言次數', value: 'comments' as const },
-];
-
-const DAY_OF_WEEK_LABELS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
-const VIEWING_HOUR_BUCKETS = [
-  { label: '00:00-03:59', start: 0, end: 3 },
-  { label: '04:00-07:59', start: 4, end: 7 },
-  { label: '08:00-11:59', start: 8, end: 11 },
-  { label: '12:00-15:59', start: 12, end: 15 },
-  { label: '16:00-19:59', start: 16, end: 19 },
-  { label: '20:00-23:59', start: 20, end: 23 },
-];
 
 
 

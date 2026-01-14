@@ -2,9 +2,9 @@
 declare const gapi: any;
 declare const google: any;
 
-import { YOUTUBE_CLIENT_ID, YOUTUBE_SCOPES } from '../config';
-import type { YouTubeVideo } from '../types';
-import { recordQuota } from '../utils/quotaTracker';
+import { YOUTUBE_CLIENT_ID, YOUTUBE_SCOPES } from '../../config';
+import type { YouTubeVideo } from '../../types';
+import { recordQuota } from '../../utils/quotaTracker';
 
 let tokenClient: any = null;
 let isGapiInitialized = false;

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { AppIcon } from './AppIcon';
 import { AnalysisMarkdown } from './AnalysisMarkdown';
-import * as youtubeService from '../services/youtubeService';
-import { loadVideoDetailsBatch } from '../services/videoCacheClient';
+import * as youtubeService from '../services/client/youtubeService';
+import { loadVideoDetailsBatch } from '../services/client/videoCacheClient';
 import { Loader } from './Loader';
 import { AIModelSelector, type AIModel } from './AIModelSelector';
 import { Sparkles, Settings, ChevronDown, ChevronUp } from 'lucide-react';

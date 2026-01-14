@@ -3,7 +3,7 @@
  */
 
 import dotenv from 'dotenv';
-import { loadFromGist, searchVideosFromCache } from '../services/videoCacheService.js';
+import { loadFromGist, searchVideosFromCache } from '../services/server/videoCacheService.js';
 
 // 載入環境變數
 dotenv.config({ path: '.env.local' });

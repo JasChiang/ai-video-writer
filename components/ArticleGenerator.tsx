@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ArticleGenerationResult, ProgressMessage, YouTubeVideo } from '../types';
-import * as videoApiService from '../services/videoApiService';
-import * as notionClient from '../services/notionClient';
+import * as videoApiService from '../services/client/videoApiService';
+import * as notionClient from '../services/client/notionClient';
 import { Loader } from './Loader';
 import { CopyButton } from './CopyButton';
-import { TEMPLATE_METADATA } from '../services/prompts/templateMetadata.js';
 import { AppIcon, resolveIconName } from './AppIcon';
+import type { NotionStatus, TemplateOption, UploadedFile } from './article-generator/types';
+import { getServerBaseUrl } from '../utils/serverBaseUrl';
+import { getDefaultTemplateOptions } from './article-generator/templateOptions';
 
 interface ArticleGeneratorProps {
   video: YouTubeVideo;
@@ -13,53 +15,6 @@ interface ArticleGeneratorProps {
   cachedContent?: ArticleGenerationResult | null;
   onContentUpdate?: (content: ArticleGenerationResult | null) => void;
 }
-
-interface UploadedFile {
-  name: string;
-  uri: string;
-  mimeType: string;
-  displayName: string;
-  sizeBytes: number;
-}
-
-type NotionStatus =
-  | { type: 'success'; message: string; url?: string }
-  | { type: 'error'; message: string; url?: string };
-
-interface TemplateOption {
-  id: string;
-  name: string;
-  description: string;
-  icon?: string;
-  targetAudience?: string;
-  category?: string;
-  platforms?: string[];
-  keywords?: string[];
-  source?: 'built-in' | 'custom';
-}
-
-const getDefaultTemplateOptions = (): TemplateOption[] => {
-  return Object.values(TEMPLATE_METADATA as Record<string, any>).map((template) => ({
-    id: template.id,
-    name: template.name,
-    description: template.description,
-    icon: template.icon,
-    category: template.category,
-    targetAudience: template.targetAudience,
-    platforms: template.platforms,
-    keywords: template.keywords,
-    source: 'built-in',
-  }));
-};
-
-// 取得伺服器基礎 URL
-// 開發模式使用 localhost:3001，生產模式使用空字符串（相對路徑，與前端同域）
-const getServerBaseUrl = () => {
-  if (import.meta.env?.VITE_SERVER_BASE_URL) {
-    return import.meta.env.VITE_SERVER_BASE_URL;
-  }
-  return import.meta.env.DEV ? 'http://localhost:3001' : '';
-};
 
 export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdate }: ArticleGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false);

@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import type { ArticleGenerationResult, YouTubeVideo } from '../types';
-import * as youtubeService from '../services/youtubeService';
+import * as youtubeService from '../services/client/youtubeService';
 import { ArticleGenerator } from './ArticleGenerator';
 import { Loader } from './Loader';
 

@@ -13,7 +13,8 @@
 
 ```
 components/        # 前端 UI 組件
-services/          # 後端服務與 AI 模型整合
+services/client/   # 前端服務（API/SDK 包裝）
+services/server/   # 後端服務與 AI 模型整合
 scripts/           # 影片快取/維運腳本
 server.js          # 主要 API 伺服器
 ```
@@ -46,10 +47,10 @@ server.js          # 主要 API 伺服器
 
 ## 重要服務模組
 
-- `services/aiProviders/*`：多模型 AI 供應者管理。
-- `services/analysisPrompts/*`：分析提示詞模板。
-- `services/channelAnalyticsService.js`：頻道數據聚合。
-- `services/durationAnalysisService.js`：影片長度分析。
-- `services/videoCacheService.js`：影片快取存取。
-- `services/taskQueue.js`：非同步任務與輪詢。
-- `services/notionService.js`：Notion 發佈。
+- `services/server/aiProviders/*`：多模型 AI 供應者管理。
+- `services/server/analysisPrompts/*`：分析提示詞模板。
+- `services/server/channelAnalyticsService.js`：頻道數據聚合。
+- `services/server/durationAnalysisService.js`：影片長度分析。
+- `services/server/videoCacheService.js`：影片快取存取。
+- `services/server/taskQueue.js`：非同步任務與輪詢。
+- `services/server/notionService.js`：Notion 發佈。
