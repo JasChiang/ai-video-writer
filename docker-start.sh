@@ -69,10 +69,11 @@ echo ""
 
 # ==================== 建立必要的目錄 ====================
 echo "📁 建立必要的目錄..."
-mkdir -p temp_videos public/images temp_files
+mkdir -p temp_videos public/images temp_files temp_uploads
 echo "  ✓ temp_videos/ (暫存影片)"
 echo "  ✓ public/images/ (截圖)"
 echo "  ✓ temp_files/ (上傳的參考檔案)"
+echo "  ✓ temp_uploads/ (上傳暫存)"
 echo ""
 
 # ==================== 啟動 Docker Compose ====================

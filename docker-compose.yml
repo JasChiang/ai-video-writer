@@ -53,6 +53,8 @@ services:
       - ./public/images:/app/public/images
       # 持久化上傳的參考檔案
       - ./temp_files:/app/temp_files
+      # 持久化上傳暫存
+      - ./temp_uploads:/app/temp_uploads
 
     restart: unless-stopped
 
