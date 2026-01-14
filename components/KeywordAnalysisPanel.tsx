@@ -1,7 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { Sparkles, Settings, Zap, ChevronDown, ChevronUp, Loader2, CheckCircle2, Clock, AlertTriangle } from 'lucide-react';
 import { AIModelSelector, type AIModel } from './AIModelSelector';
-import { AnalysisMarkdown } from './AnalysisMarkdown';
+
+const AnalysisMarkdown = lazy(() =>
+  import('./AnalysisMarkdown').then((mod) => ({ default: mod.AnalysisMarkdown }))
+);
 
 type StageStatus = 'pending' | 'active' | 'completed' | 'error';
 
@@ -857,7 +860,9 @@ export function KeywordAnalysisPanel({
                   <div className="h-1.5 bg-red-600"></div>
 
                   <div className="p-8">
-                    <AnalysisMarkdown videos={videos}>{analysisResult.text}</AnalysisMarkdown>
+                    <Suspense fallback={<div className="text-sm text-gray-500">載入分析模組中...</div>}>
+                      <AnalysisMarkdown videos={videos}>{analysisResult.text}</AnalysisMarkdown>
+                    </Suspense>
                   </div>
                 </div>
               </div>

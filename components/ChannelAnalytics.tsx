@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Plus, Trash2, Save, RefreshCw, Calendar, TrendingUp, BarChart3 } from 'lucide-react';
 import * as youtubeService from '../services/client/youtubeService';
 import {
@@ -8,8 +8,11 @@ import {
   type RelativeDateType,
   type DateRange
 } from '../utils/dateRangeUtils';
-import { ChannelDashboard } from './ChannelDashboard';
 import { KeywordAnalysisPanel } from './KeywordAnalysisPanel';
+
+const ChannelDashboard = lazy(() =>
+  import('./ChannelDashboard').then((mod) => ({ default: mod.ChannelDashboard }))
+);
 
 interface KeywordGroup {
   id: string;
@@ -608,7 +611,11 @@ export function ChannelAnalytics() {
       </div>
 
       {/* 儀錶板視圖 */}
-      {activeTab === 'dashboard' && <ChannelDashboard />}
+      {activeTab === 'dashboard' && (
+        <Suspense fallback={<div className="text-sm text-gray-500">載入儀表板中...</div>}>
+          <ChannelDashboard />
+        </Suspense>
+      )}
 
       {/* 報表分析視圖 */}
       {activeTab === 'report' && (

@@ -15,8 +15,8 @@ export interface YouTubeVideo {
   categoryId: string;
   privacyStatus?: string; // 'public', 'unlisted', 'private'
   duration?: string; // ISO 8601 duration format (e.g., "PT4M13S")
-  viewCount?: string;
-  likeCount?: string;
+  viewCount?: number;
+  likeCount?: number;
   publishedAt?: string; // ISO 8601 date format
   isUrlOnly?: boolean; // 標記為純網址模式（不是 YouTube 影片）
 }

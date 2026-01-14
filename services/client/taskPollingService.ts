@@ -3,9 +3,7 @@
  * 用於處理異步任務的狀態查詢和結果獲取
  */
 
-// 從環境變數獲取 API 基址
-// 開發模式使用 localhost:3001，生產模式使用相對路徑（與前端同域）
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
+import { ApiError, requestJson, requestNoContent } from './api';
 
 export interface TaskStatus {
   id: string;
@@ -31,17 +29,16 @@ export interface PollingOptions {
  * @returns 任務狀態
  */
 export async function getTaskStatus(taskId: string): Promise<TaskStatus> {
-  const response = await fetch(`${API_BASE_URL}/task/${taskId}`);
-
-  if (!response.ok) {
-    if (response.status === 404) {
+  try {
+    return await requestJson<TaskStatus>(`/task/${taskId}`, {
+      errorMessage: 'Failed to get task status'
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
       throw new Error('Task not found');
     }
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to get task status');
+    throw error;
   }
-
-  return await response.json();
 }
 
 /**
@@ -108,14 +105,10 @@ export async function pollTaskUntilComplete<T = any>(
  * @param taskId - 任務 ID
  */
 export async function cancelTask(taskId: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/task/${taskId}`, {
-    method: 'DELETE'
+  await requestNoContent(`/task/${taskId}`, {
+    method: 'DELETE',
+    errorMessage: 'Failed to cancel task'
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to cancel task');
-  }
 
   console.log(`[TaskPolling] Task ${taskId} cancelled`);
 }

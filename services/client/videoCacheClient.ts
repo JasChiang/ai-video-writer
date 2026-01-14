@@ -47,6 +47,17 @@ function calculatePartCost(parts: string, mapping: Record<string, number>): numb
         .reduce((total, part) => total + (mapping[part] ?? 0), 0);
 }
 
+const parseCount = (value: unknown): number | undefined => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+    }
+    if (typeof value === 'string' && value.trim() !== '') {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : undefined;
+    }
+    return undefined;
+};
+
 /**
  * 從 localStorage 載入快取
  */
@@ -194,8 +205,8 @@ export async function loadVideoDetailsBatch(
                 categoryId: item.snippet.categoryId,
                 privacyStatus: item.status?.privacyStatus || 'public',
                 duration: item.contentDetails?.duration,
-                viewCount: item.statistics?.viewCount,
-                likeCount: item.statistics?.likeCount,
+                viewCount: parseCount(item.statistics?.viewCount),
+                likeCount: parseCount(item.statistics?.likeCount),
                 publishedAt: item.snippet?.publishedAt,
             }));
 

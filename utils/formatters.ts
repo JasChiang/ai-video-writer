@@ -22,10 +22,11 @@ export function formatDuration(duration?: string): string {
  * 將數字格式化為易讀的格式
  * 例如：1234567 -> "123 萬", 1234 -> "1,234"
  */
-export function formatViewCount(count?: string): string {
-  if (!count) return '0';
+export function formatViewCount(count?: number | string): string {
+  if (count === undefined || count === null || count === '') return '0';
 
-  const num = parseInt(count, 10);
+  const num = typeof count === 'number' ? count : parseInt(count, 10);
+  if (!Number.isFinite(num)) return '0';
   if (num >= 100000000) {
     return `${(num / 100000000).toFixed(1)} 億`;
   }

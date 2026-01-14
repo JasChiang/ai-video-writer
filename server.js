@@ -134,6 +134,12 @@ if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
+// 確保參考檔案暫存目錄存在
+const TEMP_FILES_DIR = path.join(process.cwd(), 'temp_files');
+if (!fs.existsSync(TEMP_FILES_DIR)) {
+  fs.mkdirSync(TEMP_FILES_DIR, { recursive: true });
+}
+
 // 設定 multer 用於檔案上傳
 const upload = multer({
   dest: UPLOAD_DIR,
@@ -353,9 +359,26 @@ async function startupCleanup() {
   console.log('[Cleanup] 檢查 public/images 目錄...');
   const imagesResult = await cleanupOldFiles(IMAGES_DIR, FILE_RETENTION_DAYS);
 
+  // 清理上傳暫存
+  console.log('[Cleanup] 檢查 temp_uploads 目錄...');
+  const uploadsResult = await cleanupOldFiles(UPLOAD_DIR, FILE_RETENTION_DAYS);
+
+  // 清理參考檔案暫存
+  console.log('[Cleanup] 檢查 temp_files 目錄...');
+  const tempFilesResult = await cleanupOldFiles(TEMP_FILES_DIR, FILE_RETENTION_DAYS);
+
   // 統計總計
-  const totalDeleted = tempResult.deletedCount + imagesResult.deletedCount;
-  const totalSize = (tempResult.deletedSize + imagesResult.deletedSize) / (1024 * 1024);
+  const totalDeleted =
+    tempResult.deletedCount +
+    imagesResult.deletedCount +
+    uploadsResult.deletedCount +
+    tempFilesResult.deletedCount;
+  const totalSize =
+    (tempResult.deletedSize +
+      imagesResult.deletedSize +
+      uploadsResult.deletedSize +
+      tempFilesResult.deletedSize) /
+    (1024 * 1024);
 
   if (totalDeleted > 0) {
     console.log(`[Cleanup] ✅ 清理完成: 刪除 ${totalDeleted} 個檔案，釋放 ${totalSize.toFixed(2)} MB 空間`);

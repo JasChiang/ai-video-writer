@@ -47,6 +47,17 @@ function calculatePartCost(parts: string, mapping: Record<string, number>): numb
         .reduce((total, part) => total + (mapping[part] ?? 0), 0);
 }
 
+function parseCount(value: unknown): number | undefined {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+    }
+    if (typeof value === 'string' && value.trim() !== '') {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : undefined;
+    }
+    return undefined;
+}
+
 function persistToken(token: any, expiresIn?: number) {
     if (typeof window === 'undefined') return;
 
@@ -252,8 +263,8 @@ function mapVideoItem(item: any): YouTubeVideo {
         categoryId: item.snippet.categoryId,
         privacyStatus: item.status?.privacyStatus || 'public',
         duration: item.contentDetails?.duration,
-        viewCount: item.statistics?.viewCount,
-        likeCount: item.statistics?.likeCount,
+        viewCount: parseCount(item.statistics?.viewCount),
+        likeCount: parseCount(item.statistics?.likeCount),
         publishedAt: item.snippet?.publishedAt,
     };
 }
@@ -811,7 +822,7 @@ export async function getChannelId(options: QuotaTriggerOptions = {}): Promise<s
     }
 }
 
-export async function getChannelStats(channelId: string): Promise<{ viewCount: string; subscriberCount: string; videoCount: string }> {
+export async function getChannelStats(channelId: string): Promise<{ viewCount: number; subscriberCount: number; videoCount: number }> {
     if (!isGapiInitialized || !isTokenValid()) {
         throw new Error('Authentication required.');
     }
@@ -833,9 +844,9 @@ export async function getChannelStats(channelId: string): Promise<{ viewCount: s
         }
 
         return {
-            viewCount: item.statistics?.viewCount || '0',
-            subscriberCount: item.statistics?.subscriberCount || '0',
-            videoCount: item.statistics?.videoCount || '0',
+            viewCount: parseCount(item.statistics?.viewCount) || 0,
+            subscriberCount: parseCount(item.statistics?.subscriberCount) || 0,
+            videoCount: parseCount(item.statistics?.videoCount) || 0,
         };
     } catch (error: any) {
         console.error('Error fetching channel stats:', error);

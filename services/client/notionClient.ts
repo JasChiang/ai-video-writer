@@ -1,6 +1,4 @@
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
+import { ApiError, requestJson } from './api';
 
 export interface NotionPublishPayload {
   title: string;
@@ -70,29 +68,14 @@ export interface NotionDatabaseInfo {
 export async function publishArticleToNotion(
   payload: NotionPublishPayload
 ): Promise<NotionPublishResponse> {
-  const response = await fetch(`${API_BASE_URL}/notion/publish`, {
+  return requestJson<NotionPublishResponse>('/notion/publish', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
+    errorMessage: 'Notion 發佈失敗，請稍後再試。'
   });
-
-  if (!response.ok) {
-    let errorMessage = 'Notion 發佈失敗，請稍後再試。';
-    try {
-      const errorData = await response.json();
-      if (errorData?.error) {
-        errorMessage = errorData.error;
-      }
-    } catch (err) {
-      console.error('無法解析 Notion API 錯誤：', err);
-    }
-
-    throw new Error(errorMessage);
-  }
-
-  return response.json();
 }
 
 export async function getNotionAuthUrl(clientOrigin?: string): Promise<NotionAuthUrlResponse> {
@@ -101,71 +84,48 @@ export async function getNotionAuthUrl(clientOrigin?: string): Promise<NotionAut
     searchParams.set('origin', clientOrigin);
   }
 
-  const response = await fetch(`${API_BASE_URL}/notion/oauth/url${searchParams.size ? `?${searchParams.toString()}` : ''}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    let errorMessage = '無法取得 Notion 授權網址。';
-    try {
-      const errorData = await response.json();
-      if (errorData?.error) {
-        errorMessage = errorData.error;
-      }
-    } catch (err) {
-      console.error('解析 Notion 授權錯誤時失敗：', err);
+  return requestJson<NotionAuthUrlResponse>(
+    `/notion/oauth/url${searchParams.size ? `?${searchParams.toString()}` : ''}`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      errorMessage: '無法取得 Notion 授權網址。'
     }
-    throw new Error(errorMessage);
-  }
-
-  return response.json();
+  );
 }
 
 export async function listNotionDatabases(
   notionToken: string,
   params?: { pageSize?: number; startCursor?: string }
 ): Promise<NotionDatabasesResponse> {
-  const response = await fetch(`${API_BASE_URL}/notion/databases`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      notionToken,
-      pageSize: params?.pageSize,
-      startCursor: params?.startCursor,
-    }),
-  });
-
-  if (!response.ok) {
-    let errorMessage = '取得 Notion 資料庫列表失敗。';
-    try {
-      const errorData = await response.json();
-      if (errorData?.error) {
-        errorMessage = errorData.error;
-      }
-    } catch (err) {
-      console.error('解析 Notion 資料庫列表錯誤時失敗：', err);
+  try {
+    return await requestJson<NotionDatabasesResponse>('/notion/databases', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        notionToken,
+        pageSize: params?.pageSize,
+        startCursor: params?.startCursor,
+      }),
+      errorMessage: '取得 Notion 資料庫列表失敗。'
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      throw new Error('Notion 權杖已失效，請重新登入。');
     }
-
-    if (response.status === 401) {
-      errorMessage = 'Notion 權杖已失效，請重新登入。';
-    }
-
-    throw new Error(errorMessage);
+    throw error;
   }
-
-  return response.json();
 }
 
 export async function getNotionDatabaseInfo(
   notionToken: string,
   databaseId: string
 ): Promise<NotionDatabaseInfo> {
-  const response = await fetch(`${API_BASE_URL}/notion/database-info`, {
+  return requestJson<NotionDatabaseInfo>('/notion/database-info', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -174,21 +134,6 @@ export async function getNotionDatabaseInfo(
       notionToken,
       databaseId,
     }),
+    errorMessage: '取得 Notion 資料庫資訊失敗。'
   });
-
-  if (!response.ok) {
-    let errorMessage = '取得 Notion 資料庫資訊失敗。';
-    try {
-      const errorData = await response.json();
-      if (errorData?.error) {
-        errorMessage = errorData.error;
-      }
-    } catch (err) {
-      console.error('解析 Notion 資料庫資訊錯誤時失敗：', err);
-    }
-
-    throw new Error(errorMessage);
-  }
-
-  return response.json();
 }

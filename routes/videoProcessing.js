@@ -1,4 +1,13 @@
 import { Router } from 'express';
+import { ensureGeminiFileActive, uploadGeminiFile } from '../services/server/videoProcessing/geminiFiles.js';
+import { parseGeminiJson } from '../services/server/videoProcessing/jsonParser.js';
+import {
+  appendJsonInstruction,
+  buildAnalysisPrompt,
+  buildArticlePrompt,
+  buildArticlePromptWithReferences
+} from '../services/server/videoProcessing/promptAssembly.js';
+import { validateBody, validateParams } from '../services/server/requestValidation.js';
 
 export function createVideoProcessingRouter({
   execAsync,
@@ -31,7 +40,14 @@ export function createVideoProcessingRouter({
    * POST /api/download-video
    * Body: { videoId: string, accessToken: string, quality?: number }
    */
-  router.post('/download-video', async (req, res) => {
+  router.post(
+    '/download-video',
+    validateBody({
+      videoId: { type: 'string' },
+      accessToken: { type: 'string', optional: true },
+      quality: { type: 'number', optional: true, allowStringNumber: true },
+    }),
+    async (req, res) => {
     const { videoId, accessToken, quality = 2 } = req.body;
 
     if (!videoId || !isValidVideoId(videoId)) {
@@ -122,14 +138,22 @@ export function createVideoProcessingRouter({
         videoUrl,
       });
     }
-  });
+    }
+  );
 
   /**
    * 使用 YouTube URL 直接分析影片（僅限公開影片）
    * POST /api/analyze-video-url
    * Body: { videoId: string, prompt: string, videoTitle: string }
    */
-  router.post('/analyze-video-url', async (req, res) => {
+  router.post(
+    '/analyze-video-url',
+    validateBody({
+      videoId: { type: 'string' },
+      prompt: { type: 'string' },
+      videoTitle: { type: 'string' },
+    }),
+    async (req, res) => {
     const { videoId, prompt, videoTitle } = req.body;
 
     if (!videoId || !isValidVideoId(videoId)) {
@@ -150,7 +174,7 @@ export function createVideoProcessingRouter({
       });
 
       console.log('[Analyze URL] 正在生成 SEO 強化內容...');
-      const fullPrompt = generateFullPrompt(videoTitle, prompt);
+      const fullPrompt = buildAnalysisPrompt(videoTitle, prompt, generateFullPrompt);
 
       const response = await aiClient.models.generateContent({
         model: 'gemini-2.5-flash',
@@ -170,7 +194,7 @@ export function createVideoProcessingRouter({
       });
 
       console.log('[Analyze URL] ✅ Gemini 分析完成!');
-      const result = JSON.parse(response.text);
+      const result = parseGeminiJson(response.text);
       console.log(`[Analyze URL] Generated: ${result.titleA}`);
       console.log(`========== 分析完成 ==========\n`);
 
@@ -186,14 +210,22 @@ export function createVideoProcessingRouter({
         details: error.message,
       });
     }
-  });
+    }
+  );
 
   /**
    * 使用 YouTube URL 直接分析影片（異步版本，適合手機端）
    * POST /api/analyze-video-url-async
    * Body: { videoId: string, prompt: string, videoTitle: string }
    */
-  router.post('/analyze-video-url-async', async (req, res) => {
+  router.post(
+    '/analyze-video-url-async',
+    validateBody({
+      videoId: { type: 'string' },
+      prompt: { type: 'string' },
+      videoTitle: { type: 'string' },
+    }),
+    async (req, res) => {
     const { videoId, prompt, videoTitle } = req.body;
 
     if (!videoId || !isValidVideoId(videoId)) {
@@ -224,7 +256,7 @@ export function createVideoProcessingRouter({
         });
 
         taskQueue.updateTaskProgress(taskId, 30, '正在生成 SEO 強化內容...');
-        const fullPrompt = generateFullPrompt(videoTitle, prompt);
+        const fullPrompt = buildAnalysisPrompt(videoTitle, prompt, generateFullPrompt);
 
         taskQueue.updateTaskProgress(taskId, 50, '正在使用 YouTube URL 分析影片...');
         const response = await aiClient.models.generateContent({
@@ -245,7 +277,7 @@ export function createVideoProcessingRouter({
         });
 
         taskQueue.updateTaskProgress(taskId, 90, '正在解析 Gemini 回應...');
-        const result = JSON.parse(response.text);
+        const result = parseGeminiJson(response.text);
 
         console.log(`[Analyze URL Async] ✅ 分析完成: ${result.titleA}`);
 
@@ -262,14 +294,23 @@ export function createVideoProcessingRouter({
         details: error.message,
       });
     }
-  });
+    }
+  );
 
   /**
    * 上傳影片到 Gemini 並生成 metadata（用於非公開影片）
    * POST /api/analyze-video
    * Body: { videoId: string, filePath?: string, prompt: string, videoTitle: string }
    */
-  router.post('/analyze-video', async (req, res) => {
+  router.post(
+    '/analyze-video',
+    validateBody({
+      videoId: { type: 'string' },
+      filePath: { type: 'string', optional: true },
+      prompt: { type: 'string' },
+      videoTitle: { type: 'string' },
+    }),
+    async (req, res) => {
     const { videoId, filePath, prompt, videoTitle } = req.body;
 
     if (!videoId || !isValidVideoId(videoId)) {
@@ -288,40 +329,24 @@ export function createVideoProcessingRouter({
       });
 
       console.log('[Analyze] 步驟 1/4: 檢查 Files API 中是否已有此檔案...');
-      const existingFile = await findFileByDisplayName(aiClient, videoId);
+      const { file: uploadedFile, reusedFile } = await ensureGeminiFileActive({
+        aiClient,
+        displayName: videoId,
+        filePath,
+        mimeType: 'video/mp4',
+        findFileByDisplayName,
+        fs,
+        logPrefix: '[Analyze] ',
+      });
 
-      let uploadedFile;
-      let reusedFile = false;
-
-      if (existingFile) {
+      if (reusedFile) {
         console.log(`[Analyze] ✅ 找到已存在的檔案，將重複使用！`);
-        console.log(`[Analyze] File Name: ${existingFile.name}`);
-        console.log(`[Analyze] Display Name: ${existingFile.displayName}`);
-        console.log(`[Analyze] File URI: ${existingFile.uri}`);
+        console.log(`[Analyze] File Name: ${uploadedFile.name}`);
+        console.log(`[Analyze] Display Name: ${uploadedFile.displayName}`);
+        console.log(`[Analyze] File URI: ${uploadedFile.uri}`);
         console.log(`[Analyze] 跳過上傳步驟，節省時間和流量！`);
-        uploadedFile = existingFile;
-        reusedFile = true;
-
-        if (filePath && fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-          console.log(`[Analyze] 🗑️  已刪除不需要的暫存檔案: ${filePath}`);
-        }
       } else {
-        if (!filePath) {
-          return res.status(400).json({
-            error: 'File not found in Files API and no filePath provided for upload',
-          });
-        }
-
         console.log('[Analyze] 檔案不存在，需要上傳...');
-        uploadedFile = await aiClient.files.upload({
-          file: filePath,
-          config: {
-            mimeType: 'video/mp4',
-            displayName: videoId,
-          },
-        });
-
         console.log(`[Analyze] ✅ 檔案已上傳`);
         console.log(`[Analyze] File Name (系統生成): ${uploadedFile.name}`);
         console.log(`[Analyze] Display Name (我們設定): ${uploadedFile.displayName}`);
@@ -329,48 +354,8 @@ export function createVideoProcessingRouter({
         console.log(`[Analyze] File State: ${uploadedFile.state}`);
       }
 
-      if (uploadedFile.state === 'PROCESSING') {
-        console.log('[Analyze] ⏳ Gemini 正在處理影片,等待處理完成...');
-
-        let attempts = 0;
-        const maxAttempts = 60;
-        let isActive = false;
-
-        while (!isActive && attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 5000));
-
-          try {
-            const fetchedFile = await aiClient.files.get({ name: uploadedFile.name });
-
-            if (fetchedFile) {
-              const progress = Math.round(((attempts + 1) / maxAttempts) * 100);
-              console.log(`[Analyze] 檢查狀態 ${attempts + 1}/${maxAttempts} (${progress}%) - State: ${fetchedFile.state}`);
-
-              if (fetchedFile.state === 'ACTIVE') {
-                isActive = true;
-                console.log('[Analyze] ✅ 檔案處理完成,可以開始分析!');
-              } else if (fetchedFile.state === 'FAILED') {
-                throw new Error('File processing failed');
-              }
-            }
-          } catch (error) {
-            console.log(`[Analyze] ⚠️  檢查 ${attempts + 1}/${maxAttempts} 時發生錯誤: ${error.message}`);
-          }
-
-          attempts++;
-        }
-
-        if (!isActive) {
-          throw new Error('File processing timeout. Please try again later.');
-        }
-      } else if (uploadedFile.state === 'ACTIVE') {
-        console.log('[Analyze] ✅ 檔案已經是 ACTIVE 狀態');
-      } else {
-        throw new Error(`Unexpected file state: ${uploadedFile.state}`);
-      }
-
       console.log('[Analyze] 步驟 4/4: 正在生成 SEO 強化內容...');
-      const fullPrompt = generateFullPrompt(videoTitle, prompt);
+      const fullPrompt = buildAnalysisPrompt(videoTitle, prompt, generateFullPrompt);
 
       const response = await aiClient.models.generateContent({
         model: 'gemini-2.5-flash',
@@ -390,7 +375,7 @@ export function createVideoProcessingRouter({
       });
 
       console.log('[Analyze] ✅ Gemini 分析完成!');
-      const result = JSON.parse(response.text);
+      const result = parseGeminiJson(response.text);
       console.log(`[Analyze] Generated: ${result.titleA}`);
 
       if (!reusedFile && filePath && fs.existsSync(filePath)) {
@@ -412,19 +397,31 @@ export function createVideoProcessingRouter({
         fs.unlinkSync(filePath);
       }
 
+      if (error.message === 'File not found in Files API and no filePath provided for upload') {
+        return res.status(400).json({ error: error.message });
+      }
+
       res.status(500).json({
         error: 'Failed to analyze video',
         details: error.message,
       });
     }
-  });
+    }
+  );
 
   /**
    * 檢查 Gemini 檔案是否仍然存在並重新分析
    * POST /api/reanalyze-with-existing-file
    * Body: { geminiFileName: string, prompt: string, videoTitle: string }
    */
-  router.post('/reanalyze-with-existing-file', async (req, res) => {
+  router.post(
+    '/reanalyze-with-existing-file',
+    validateBody({
+      geminiFileName: { type: 'string' },
+      prompt: { type: 'string' },
+      videoTitle: { type: 'string' },
+    }),
+    async (req, res) => {
     const { geminiFileName, prompt, videoTitle } = req.body;
 
     if (!geminiFileName) {
@@ -457,7 +454,7 @@ export function createVideoProcessingRouter({
 
       console.log(`✅ File found and active: ${fileInfo.uri}`);
 
-      const fullPrompt = generateFullPrompt(videoTitle, prompt);
+      const fullPrompt = buildAnalysisPrompt(videoTitle, prompt, generateFullPrompt);
 
       const response = await aiClient.models.generateContent({
         model: 'gemini-2.5-flash',
@@ -476,7 +473,7 @@ export function createVideoProcessingRouter({
         },
       });
 
-      const result = JSON.parse(response.text);
+      const result = parseGeminiJson(response.text);
 
       res.json({
         success: true,
@@ -492,7 +489,8 @@ export function createVideoProcessingRouter({
         details: error.message,
       });
     }
-  });
+    }
+  );
 
   /**
    * 上傳參考檔案到 Gemini Files API
@@ -512,12 +510,9 @@ export function createVideoProcessingRouter({
 
       const filePath = req.file.path;
 
-      const uploadedFile = await ai.files.upload({
-        file: filePath,
-        config: {
-          mimeType: req.file.mimetype,
-          displayName: req.file.originalname,
-        },
+      const uploadedFile = await uploadGeminiFile(ai, filePath, {
+        mimeType: req.file.mimetype,
+        displayName: req.file.originalname,
       });
 
       console.log(`[Gemini Upload] ✅ 檔案上傳成功`);
@@ -611,7 +606,15 @@ export function createVideoProcessingRouter({
    * POST /api/generate-article-url
    * Body: { videoId: string, prompt: string, videoTitle: string, quality?: number }
    */
-  router.post('/generate-article-url', async (req, res) => {
+  router.post(
+    '/generate-article-url',
+    validateBody({
+      videoId: { type: 'string' },
+      prompt: { type: 'string' },
+      videoTitle: { type: 'string' },
+      quality: { type: 'number', optional: true, allowStringNumber: true },
+    }),
+    async (req, res) => {
     const { videoId, prompt, videoTitle, quality = 2 } = req.body;
 
     if (!videoId || !isValidVideoId(videoId)) {
@@ -646,7 +649,7 @@ export function createVideoProcessingRouter({
       });
 
       console.log('[Article URL] 步驟 1/3: 使用 YouTube URL 分析影片並生成文章...');
-      const fullPrompt = generateArticlePrompt(videoTitle, prompt);
+      const fullPrompt = buildArticlePrompt(videoTitle, prompt, generateArticlePrompt);
 
       const response = await aiClient.models.generateContent({
         model: 'gemini-2.5-flash',
@@ -668,11 +671,9 @@ export function createVideoProcessingRouter({
       try {
         const responseText = response.text;
         console.log(`[Article URL] ✅ Gemini 回應長度: ${responseText.length} 字元`);
-        result = JSON.parse(responseText);
-
-        if (!result.titleA || !result.titleB || !result.titleC || !result.article_text || !result.screenshots) {
-          throw new Error('Missing required fields in response');
-        }
+        result = parseGeminiJson(responseText, {
+          requiredFields: ['titleA', 'titleB', 'titleC', 'article_text', 'screenshots'],
+        });
 
         console.log(`[Article URL] ✅ 文章生成成功! 找到 ${result.screenshots.length} 個截圖時間點`);
         console.log(`[Article URL] 標題 A: ${result.titleA}`);
@@ -706,14 +707,28 @@ export function createVideoProcessingRouter({
         details: error.message,
       });
     }
-  });
+    }
+  );
 
   /**
    * 使用 YouTube URL 生成文章（異步版本，適合手機端）
    * POST /api/generate-article-url-async
    * Body: { videoId: string, prompt: string, videoTitle: string, quality?: number }
    */
-  router.post('/generate-article-url-async', async (req, res) => {
+  router.post(
+    '/generate-article-url-async',
+    validateBody({
+      videoId: { type: 'string' },
+      prompt: { type: 'string' },
+      videoTitle: { type: 'string' },
+      quality: { type: 'number', optional: true, allowStringNumber: true },
+      uploadedFiles: { type: 'array', optional: true, elementType: 'object' },
+      accessToken: { type: 'string', optional: true },
+      templateId: { type: 'string', optional: true },
+      referenceUrls: { type: 'array', optional: true, elementType: 'string' },
+      referenceVideos: { type: 'array', optional: true, elementType: 'string' },
+    }),
+    async (req, res) => {
     const {
       videoId,
       prompt,
@@ -803,7 +818,14 @@ export function createVideoProcessingRouter({
           referenceUrls: referenceUrls || [],
         };
 
-        const fullPrompt = await generateArticlePromptWithReferences(videoTitle, prompt, references, templateId, 'video');
+        const fullPrompt = await buildArticlePromptWithReferences({
+          subject: videoTitle,
+          prompt,
+          references,
+          templateId,
+          mode: 'video',
+          generateArticlePromptWithReferences,
+        });
 
         const parts = [
           { fileData: { fileUri: youtubeUrl } },
@@ -834,7 +856,7 @@ export function createVideoProcessingRouter({
           console.log(`[Article URL] 📎 參考網址: ${referenceUrls.length} 個`);
         }
 
-        const finalPrompt = `${fullPrompt}\n\n**重要：請確保你的回應是有效的 JSON 格式，不要包含任何額外的說明文字。**`;
+        const finalPrompt = appendJsonInstruction(fullPrompt);
         parts.push({ text: finalPrompt });
 
         console.log(`[Article URL] 📊 Parts 結構總覽:`);
@@ -908,25 +930,16 @@ export function createVideoProcessingRouter({
 
         let result;
         try {
-          let responseText = response.text;
+          const responseText = response.text;
           console.log(`[Article URL] ✅ Gemini 回應長度: ${responseText.length} 字元`);
 
           if (referenceUrls && referenceUrls.length > 0) {
             console.log(`[Article URL] 🔍 使用工具模式，嘗試提取 JSON...`);
-            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              responseText = jsonMatch[0];
-              console.log(`[Article URL] ✅ 成功提取 JSON (長度: ${responseText.length} 字元)`);
-            } else {
-              console.log(`[Article URL] ⚠️ 無法找到 JSON 對象，使用原始回應`);
-            }
           }
 
-          result = JSON.parse(responseText);
-
-          if (!result.titleA || !result.titleB || !result.titleC || !result.article_text || !result.screenshots) {
-            throw new Error('Missing required fields in response');
-          }
+          result = parseGeminiJson(responseText, {
+            requiredFields: ['titleA', 'titleB', 'titleC', 'article_text', 'screenshots'],
+          });
 
           console.log(`[Article URL] ✅ 文章生成成功! 找到 ${result.screenshots.length} 個截圖時間點`);
           console.log(`[Article URL] 標題 A: ${result.titleA}`);
@@ -961,14 +974,22 @@ export function createVideoProcessingRouter({
         details: error.message,
       });
     }
-  });
+    }
+  );
 
   /**
    * 手動執行截圖（使用者觸發）
    * POST /api/capture-screenshots
    * Body: { videoId: string, screenshots: array, quality?: number }
    */
-  router.post('/capture-screenshots', async (req, res) => {
+  router.post(
+    '/capture-screenshots',
+    validateBody({
+      videoId: { type: 'string' },
+      screenshots: { type: 'array' },
+      quality: { type: 'number', optional: true, allowStringNumber: true },
+    }),
+    async (req, res) => {
     const { videoId, screenshots, quality = 2 } = req.body;
 
     if (!videoId || !isValidVideoId(videoId)) {
@@ -1081,14 +1102,25 @@ export function createVideoProcessingRouter({
         details: error.message,
       });
     }
-  });
+    }
+  );
 
   /**
    * 從任意 URL 生成文章（異步版本）
    * POST /api/generate-article-from-url-async
    * Body: { url: string, prompt: string, uploadedFiles?: any[], templateId?: string, referenceUrls?: string[], referenceVideos?: string[] }
    */
-  router.post('/generate-article-from-url-async', async (req, res) => {
+  router.post(
+    '/generate-article-from-url-async',
+    validateBody({
+      url: { type: 'string' },
+      prompt: { type: 'string' },
+      uploadedFiles: { type: 'array', optional: true, elementType: 'object' },
+      templateId: { type: 'string', optional: true },
+      referenceUrls: { type: 'array', optional: true, elementType: 'string' },
+      referenceVideos: { type: 'array', optional: true, elementType: 'string' },
+    }),
+    async (req, res) => {
     const {
       url,
       prompt,
@@ -1151,7 +1183,14 @@ export function createVideoProcessingRouter({
           referenceUrls: referenceUrls || [],
         };
 
-        const fullPrompt = await generateArticlePromptWithReferences(url, prompt, references, templateId, 'url');
+        const fullPrompt = await buildArticlePromptWithReferences({
+          subject: url,
+          prompt,
+          references,
+          templateId,
+          mode: 'url',
+          generateArticlePromptWithReferences,
+        });
 
         const parts = [];
 
@@ -1181,7 +1220,7 @@ export function createVideoProcessingRouter({
           console.log(`[Article URL-Only]   ${index + 1}. ${url}`);
         });
 
-        const finalPrompt = `${fullPrompt}\n\n**重要：請確保你的回應是有效的 JSON 格式，不要包含任何額外的說明文字。**`;
+        const finalPrompt = appendJsonInstruction(fullPrompt);
         parts.push({ text: finalPrompt });
 
         console.log(`[Article URL-Only] 📊 Parts 結構總覽:`);
@@ -1251,57 +1290,15 @@ export function createVideoProcessingRouter({
 
         let result;
         try {
-          let responseText = response.text;
+          const responseText = response.text;
           console.log(`[Article URL-Only] ✅ Gemini 回應長度: ${responseText.length} 字元`);
 
           console.log(`[Article URL-Only] 🔍 使用工具模式，嘗試提取 JSON...`);
 
-          let jsonText = null;
-
-          const lastBraceIndex = responseText.lastIndexOf('}');
-          if (lastBraceIndex !== -1) {
-            let braceCount = 1;
-            let startIndex = -1;
-
-            for (let i = lastBraceIndex - 1; i >= 0; i--) {
-              if (responseText[i] === '}') {
-                braceCount++;
-              } else if (responseText[i] === '{') {
-                braceCount--;
-                if (braceCount === 0) {
-                  startIndex = i;
-                  break;
-                }
-              }
-            }
-
-            if (startIndex !== -1) {
-              jsonText = responseText.substring(startIndex, lastBraceIndex + 1);
-              console.log(`[Article URL-Only] ✅ 提取最後一個完整 JSON 對象 (長度: ${jsonText.length} 字元)`);
-
-              if (!jsonText.includes('"titleA"')) {
-                console.log(`[Article URL-Only] ⚠️ 提取的 JSON 不包含 titleA，嘗試其他方法...`);
-                jsonText = null;
-              }
-            }
-          }
-
-          if (!jsonText) {
-            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              jsonText = jsonMatch[0];
-              console.log(`[Article URL-Only] ✅ 使用貪婪匹配提取 JSON (長度: ${jsonText.length} 字元)`);
-            } else {
-              console.log(`[Article URL-Only] ⚠️ 無法找到 JSON 對象，使用原始回應`);
-              jsonText = responseText;
-            }
-          }
-
-          result = JSON.parse(jsonText);
-
-          if (!result.titleA || !result.titleB || !result.titleC || !result.article_text) {
-            throw new Error('Missing required fields in response');
-          }
+          result = parseGeminiJson(responseText, {
+            requiredFields: ['titleA', 'titleB', 'titleC', 'article_text'],
+            preferLastObject: true,
+          });
 
           console.log(`[Article URL-Only] ✅ 文章生成成功!`);
           console.log(`[Article URL-Only] 標題 A: ${result.titleA}`);
@@ -1335,14 +1332,27 @@ export function createVideoProcessingRouter({
         details: error.message,
       });
     }
-  });
+    }
+  );
 
   /**
    * 生成文章與截圖（用於非公開影片）
    * POST /api/generate-article
    * Body: { videoId: string, filePath: string, prompt: string, videoTitle: string, quality?: number }
    */
-  router.post('/generate-article', async (req, res) => {
+  router.post(
+    '/generate-article',
+    validateBody({
+      videoId: { type: 'string' },
+      filePath: { type: 'string', optional: true },
+      prompt: { type: 'string' },
+      videoTitle: { type: 'string' },
+      templateId: { type: 'string', optional: true },
+      referenceUrls: { type: 'array', optional: true, elementType: 'string' },
+      uploadedFiles: { type: 'array', optional: true, elementType: 'object' },
+      referenceVideos: { type: 'array', optional: true, elementType: 'string' },
+    }),
+    async (req, res) => {
     const { videoId, filePath, prompt, videoTitle, templateId = 'default', referenceUrls = [], uploadedFiles = [], referenceVideos = [] } = req.body;
 
     if (!videoId || !isValidVideoId(videoId)) {
@@ -1361,82 +1371,30 @@ export function createVideoProcessingRouter({
       });
 
       console.log('[Article] 步驟 1/5: 檢查 Files API 中是否已有此檔案...');
-      const existingFile = await findFileByDisplayName(aiClient, videoId);
+      const { file: uploadedFile, reusedFile } = await ensureGeminiFileActive({
+        aiClient,
+        displayName: videoId,
+        filePath,
+        mimeType: 'video/mp4',
+        findFileByDisplayName,
+        fs,
+        logPrefix: '[Article] ',
+      });
 
-      let uploadedFile;
-      let reusedFile = false;
-
-      if (existingFile) {
+      if (reusedFile) {
         console.log(`[Article] ✅ 找到已存在的檔案，將重複使用！`);
-        console.log(`[Article] File Name: ${existingFile.name}`);
-        console.log(`[Article] Display Name: ${existingFile.displayName}`);
-        console.log(`[Article] File URI: ${existingFile.uri}`);
+        console.log(`[Article] File Name: ${uploadedFile.name}`);
+        console.log(`[Article] Display Name: ${uploadedFile.displayName}`);
+        console.log(`[Article] File URI: ${uploadedFile.uri}`);
         console.log(`[Article] 跳過上傳步驟，節省時間和流量！`);
-        uploadedFile = existingFile;
-        reusedFile = true;
-
-        if (filePath && fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-          console.log(`[Article] 🗑️  已刪除不需要的暫存檔案: ${filePath}`);
-        }
       } else {
-        if (!filePath) {
-          return res.status(400).json({
-            error: 'File not found in Files API and no filePath provided for upload',
-          });
-        }
-
         console.log('[Article] 檔案不存在於 Files API，需要上傳...');
         console.log('[Article] 步驟 2/5: 正在上傳影片到 Gemini...');
-
-        uploadedFile = await aiClient.files.upload({
-          file: filePath,
-          config: {
-            mimeType: 'video/mp4',
-            displayName: videoId,
-          },
-        });
-
         console.log(`[Article] ✅ 檔案已上傳`);
         console.log(`[Article] File Name (系統生成): ${uploadedFile.name}`);
         console.log(`[Article] Display Name (我們設定): ${uploadedFile.displayName}`);
         console.log(`[Article] File URI: ${uploadedFile.uri}`);
         console.log(`[Article] File State: ${uploadedFile.state}`);
-      }
-
-      if (uploadedFile.state === 'PROCESSING') {
-        console.log('[Article] ⏳ Gemini 正在處理影片,等待處理完成...');
-        let attempts = 0;
-        const maxAttempts = 60;
-        let isActive = false;
-
-        while (!isActive && attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 5000));
-          try {
-            const fetchedFile = await aiClient.files.get({ name: uploadedFile.name });
-            if (fetchedFile) {
-              const progress = Math.round(((attempts + 1) / maxAttempts) * 100);
-              console.log(`[Article] 檢查狀態 ${attempts + 1}/${maxAttempts} (${progress}%) - State: ${fetchedFile.state}`);
-              if (fetchedFile.state === 'ACTIVE') {
-                isActive = true;
-                console.log('[Article] ✅ 檔案處理完成,可以開始生成文章!');
-              } else if (fetchedFile.state === 'FAILED') {
-                throw new Error('File processing failed');
-              }
-            }
-          } catch (error) {
-            console.log(`[Article] ⚠️  檢查 ${attempts + 1}/${maxAttempts} 時發生錯誤: ${error.message}`);
-          }
-          attempts++;
-        }
-
-        if (!isActive) {
-          throw new Error('File processing timeout. Please try again later.');
-        }
-      } else if (uploadedFile.state === 'ACTIVE') {
-        console.log('[Article] ✅ 檔案已經是 ACTIVE 狀態');
-      } else {
-        throw new Error(`Unexpected file state: ${uploadedFile.state}`);
       }
 
       console.log(reusedFile ? '[Article] 步驟 3/4: 正在生成文章內容與截圖時間點...' : '[Article] 步驟 4/5: 正在生成文章內容與截圖時間點...');
@@ -1449,7 +1407,14 @@ export function createVideoProcessingRouter({
         referenceUrls: referenceUrls || [],
       };
 
-      const fullPrompt = await generateArticlePromptWithReferences(videoTitle, prompt, references, templateId, 'video');
+      const fullPrompt = await buildArticlePromptWithReferences({
+        subject: videoTitle,
+        prompt,
+        references,
+        templateId,
+        mode: 'video',
+        generateArticlePromptWithReferences,
+      });
 
       const geminiConfig = {};
 
@@ -1489,7 +1454,7 @@ export function createVideoProcessingRouter({
         console.log(`[Article] 📎 參考網址: ${referenceUrls.length} 個`);
       }
 
-      const finalPrompt = `${fullPrompt}\n\n**重要：請確保你的回應是有效的 JSON 格式，不要包含任何額外的說明文字。**`;
+      const finalPrompt = appendJsonInstruction(fullPrompt);
       parts.push({ text: finalPrompt });
 
       console.log(`[Article] 📊 Parts 結構總覽:`);
@@ -1534,25 +1499,17 @@ export function createVideoProcessingRouter({
 
       let result;
       try {
-        let responseText = response.text;
+        const responseText = response.text;
         console.log(`[Article] ✅ Gemini 回應長度: ${responseText.length} 字元`);
         console.log(`[Article] 回應預覽: ${responseText.substring(0, 150)}...`);
 
         if (referenceUrls && referenceUrls.length > 0) {
           console.log(`[Article] 🔍 使用工具模式，嘗試提取 JSON...`);
-          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            responseText = jsonMatch[0];
-            console.log(`[Article] ✅ 成功提取 JSON (長度: ${responseText.length} 字元)`);
-          } else {
-            console.log(`[Article] ⚠️ 無法找到 JSON 對象，使用原始回應`);
-          }
         }
 
-        result = JSON.parse(responseText);
-        if (!result.titleA || !result.titleB || !result.titleC || !result.article_text || !result.screenshots) {
-          throw new Error('Missing required fields in response');
-        }
+        result = parseGeminiJson(responseText, {
+          requiredFields: ['titleA', 'titleB', 'titleC', 'article_text', 'screenshots'],
+        });
 
         console.log(`[Article] ✅ 文章生成成功! 找到 ${result.screenshots.length} 個截圖時間點`);
         console.log(`[Article] 標題 A: ${result.titleA}`);
@@ -1588,19 +1545,32 @@ export function createVideoProcessingRouter({
     } catch (error) {
       console.error('Article generation error:', error);
 
+      if (error.message === 'File not found in Files API and no filePath provided for upload') {
+        return res.status(400).json({ error: error.message });
+      }
+
       res.status(500).json({
         error: 'Failed to generate article',
         details: error.message,
       });
     }
-  });
+    }
+  );
 
   /**
    * 使用現有 Gemini 檔案重新生成文章
    * POST /api/regenerate-article
    * Body: { videoId: string, geminiFileName: string, prompt: string, videoTitle: string }
    */
-  router.post('/regenerate-article', async (req, res) => {
+  router.post(
+    '/regenerate-article',
+    validateBody({
+      videoId: { type: 'string' },
+      geminiFileName: { type: 'string' },
+      prompt: { type: 'string' },
+      videoTitle: { type: 'string' },
+    }),
+    async (req, res) => {
     const { videoId, geminiFileName, prompt, videoTitle } = req.body;
 
     if (!videoId || !isValidVideoId(videoId)) {
@@ -1639,7 +1609,7 @@ export function createVideoProcessingRouter({
 
       console.log(`✅ File found and active: ${fileInfo.uri}`);
 
-      const fullPrompt = generateArticlePrompt(videoTitle, prompt);
+      const fullPrompt = buildArticlePrompt(videoTitle, prompt, generateArticlePrompt);
 
       const response = await aiClient.models.generateContent({
         model: 'gemini-2.5-flash',
@@ -1664,11 +1634,9 @@ export function createVideoProcessingRouter({
         console.log('Response length:', responseText.length);
         console.log('Response preview:', responseText.substring(0, 200));
 
-        result = JSON.parse(responseText);
-
-        if (!result.titleA || !result.titleB || !result.titleC || !result.article_text || !result.screenshots) {
-          throw new Error('Missing required fields in response');
-        }
+        result = parseGeminiJson(responseText, {
+          requiredFields: ['titleA', 'titleB', 'titleC', 'article_text', 'screenshots'],
+        });
 
         console.log(`Article regenerated successfully. Found ${result.screenshots.length} screenshots.`);
       } catch (parseError) {
@@ -1698,14 +1666,24 @@ export function createVideoProcessingRouter({
         details: error.message,
       });
     }
-  });
+    }
+  );
 
   /**
    * 重新生成截圖（讓 Gemini 重新看影片並提供新的截圖建議）
    * POST /api/regenerate-screenshots
    * Body: { videoId: string, videoTitle: string, filePath: string, prompt?: string, quality?: number }
    */
-  router.post('/regenerate-screenshots', async (req, res) => {
+  router.post(
+    '/regenerate-screenshots',
+    validateBody({
+      videoId: { type: 'string' },
+      videoTitle: { type: 'string' },
+      filePath: { type: 'string' },
+      prompt: { type: 'string', optional: true },
+      quality: { type: 'number', optional: true, allowStringNumber: true },
+    }),
+    async (req, res) => {
     const { videoId, videoTitle, filePath, prompt, quality = 2 } = req.body;
 
     if (!videoId || !isValidVideoId(videoId)) {
@@ -1728,67 +1706,29 @@ export function createVideoProcessingRouter({
       });
 
       console.log('[Regenerate Screenshots] 步驟 1/4: 檢查 Files API 中是否已有此檔案...');
-      const filesList = await aiClient.files.list();
-      const files = filesList.pageInternal || [];
-      const existingFile = files.find(file =>
-        file.displayName === videoId && file.state === 'ACTIVE'
-      );
+      const { file: uploadedFile, reusedFile } = await ensureGeminiFileActive({
+        aiClient,
+        displayName: videoId,
+        filePath,
+        mimeType: 'video/mp4',
+        findFileByDisplayName,
+        fs,
+        logPrefix: '[Regenerate Screenshots] ',
+        preserveLocalFile: true,
+      });
 
-      let uploadedFile;
-      if (existingFile) {
+      if (reusedFile) {
         console.log('[Regenerate Screenshots] ✅ 找到已存在的檔案');
-        uploadedFile = existingFile;
       } else {
         console.log('[Regenerate Screenshots] 檔案不存在，需要重新上傳...');
-
-        const uploadResult = await aiClient.files.upload({
-          file: filePath,
-          config: {
-            mimeType: 'video/mp4',
-            displayName: videoId,
-          },
-        });
-
-        uploadedFile = uploadResult;
-      }
-
-      if (uploadedFile.state === 'PROCESSING') {
-        console.log('[Regenerate Screenshots] ⏳ Gemini 正在處理影片...');
-        let attempts = 0;
-        const maxAttempts = 60;
-        let isActive = false;
-
-        while (!isActive && attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 5000));
-          try {
-            const fetchedFile = await aiClient.files.get({ name: uploadedFile.name });
-            if (fetchedFile) {
-              const progress = Math.round(((attempts + 1) / maxAttempts) * 100);
-              console.log(`[Regenerate Screenshots] 檢查狀態 ${attempts + 1}/${maxAttempts} (${progress}%) - State: ${fetchedFile.state}`);
-              if (fetchedFile.state === 'ACTIVE') {
-                isActive = true;
-                console.log('[Regenerate Screenshots] ✅ 檔案處理完成');
-              } else if (fetchedFile.state === 'FAILED') {
-                throw new Error('File processing failed');
-              }
-            }
-          } catch (error) {
-            console.log(`[Regenerate Screenshots] ⚠️ 檢查 ${attempts + 1}/${maxAttempts} 時發生錯誤: ${error.message}`);
-          }
-          attempts++;
-        }
-
-        if (!isActive) {
-          throw new Error('File processing timeout. Please try again later.');
-        }
-      } else if (uploadedFile.state === 'ACTIVE') {
-        console.log('[Regenerate Screenshots] ✅ 檔案已經是 ACTIVE 狀態');
-      } else {
-        throw new Error(`Unexpected file state: ${uploadedFile.state}`);
       }
 
       console.log('[Regenerate Screenshots] 步驟 2/4: 生成截圖時間點...');
-      const fullPrompt = generateArticlePrompt(videoTitle, prompt || '請提供新的截圖時間點建議');
+      const fullPrompt = buildArticlePrompt(
+        videoTitle,
+        prompt || '請提供新的截圖時間點建議',
+        generateArticlePrompt
+      );
 
       const response = await aiClient.models.generateContent({
         model: 'gemini-2.5-flash',
@@ -1808,7 +1748,7 @@ export function createVideoProcessingRouter({
 
       let result;
       try {
-        result = JSON.parse(response.text);
+        result = parseGeminiJson(response.text);
       } catch (parseError) {
         console.error('[Regenerate Screenshots] ❌ JSON parsing error:', parseError.message);
         throw new Error(`無法解析 Gemini 回應為 JSON 格式。錯誤：${parseError.message}`);
@@ -1825,13 +1765,19 @@ export function createVideoProcessingRouter({
         details: error.message,
       });
     }
-  });
+    }
+  );
 
   /**
    * 檢查是否已有指定影片檔案
    * GET /api/check-file/:videoId
    */
-  router.get('/check-file/:videoId', async (req, res) => {
+  router.get(
+    '/check-file/:videoId',
+    validateParams({
+      videoId: { type: 'string' },
+    }),
+    async (req, res) => {
     const { videoId } = req.params;
 
     if (!videoId || !isValidVideoId(videoId)) {
@@ -1871,13 +1817,19 @@ export function createVideoProcessingRouter({
         details: error.message,
       });
     }
-  });
+    }
+  );
 
   /**
    * 清理暫存檔案
    * DELETE /api/cleanup/:videoId
    */
-  router.delete('/cleanup/:videoId', (req, res) => {
+  router.delete(
+    '/cleanup/:videoId',
+    validateParams({
+      videoId: { type: 'string' },
+    }),
+    (req, res) => {
     const { videoId } = req.params;
 
     if (!videoId || !isValidVideoId(videoId)) {
@@ -1896,7 +1848,8 @@ export function createVideoProcessingRouter({
       console.error('Cleanup error:', error);
       res.status(500).json({ error: 'Cleanup failed' });
     }
-  });
+    }
+  );
 
   return router;
 }

@@ -73,6 +73,10 @@ import {
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import * as youtubeService from '../services/client/youtubeService';
 import { ChannelAnalysisPanel } from './ChannelAnalysisPanel';
+import { DashboardHeader } from './channel-dashboard/DashboardHeader';
+import { FilterBar } from './channel-dashboard/FilterBar';
+import { DataSourceInfo } from './channel-dashboard/DataSourceInfo';
+import { ErrorBanner } from './channel-dashboard/ErrorBanner';
 import type {
   ChannelStats,
   VideoItem,
@@ -823,7 +827,7 @@ export function ChannelDashboard() {
       }
 
       const currentTotalSubscribers = parseInt(stats.subscriberCount || '0');
-      const currentTotalViews = parseInt(stats.viewCount || '0');
+      const currentTotalViews = Number(stats.viewCount ?? 0);
       const currentTotalVideos = parseInt(stats.videoCount || '0');
 
       console.log('[Dashboard] ✅ 頻道當前統計:', {
@@ -1266,8 +1270,8 @@ export function ChannelDashboard() {
 
       // 升序排列 (Lowest views first)
       validVideos.sort((a, b) => {
-        const viewsA = parseInt(a.viewCount) || 0;
-        const viewsB = parseInt(b.viewCount) || 0;
+        const viewsA = Number(a.viewCount ?? 0);
+        const viewsB = Number(b.viewCount ?? 0);
         return viewsA - viewsB;
       });
 
@@ -1949,7 +1953,7 @@ export function ChannelDashboard() {
       let totalWatchTimeSeconds = 0;
 
       videosInRange.forEach((v: any) => {
-        totalViews += parseInt(v.viewCount || '0');
+        totalViews += Number(v.viewCount ?? 0);
 
         // 計算觀看時長：平均觀看時長 = 總觀看數 * 影片時長的估算
         // 注意：這是估算值，真實數據需要 Analytics API
@@ -1957,7 +1961,7 @@ export function ChannelDashboard() {
         const avgVideoDurationMinutes = 10;
         const avgWatchPercentage = 0.4;
         const watchTimePerView = avgVideoDurationMinutes * 60 * avgWatchPercentage;
-        totalWatchTimeSeconds += parseInt(v.viewCount || '0') * watchTimePerView;
+        totalWatchTimeSeconds += Number(v.viewCount ?? 0) * watchTimePerView;
       });
 
       const watchTimeHours = Math.floor(totalWatchTimeSeconds / 3600);
@@ -1981,14 +1985,14 @@ export function ChannelDashboard() {
 
       // 按觀看次數排序並取前 50 名（從時間範圍內的影片）
       const topVideosInRange = videosInRange
-        .filter((v: any) => v.viewCount && parseInt(v.viewCount) > 0)
-        .sort((a: any, b: any) => parseInt(b.viewCount) - parseInt(a.viewCount))
+        .filter((v: any) => Number(v.viewCount ?? 0) > 0)
+        .sort((a: any, b: any) => Number(b.viewCount ?? 0) - Number(a.viewCount ?? 0))
         .slice(0, 50)
         .map((v: any) => ({
           id: v.videoId || v.id,
           title: v.title,
-          viewCount: parseInt(v.viewCount || '0'),
-          likeCount: parseInt(v.likeCount || '0'),
+          viewCount: Number(v.viewCount ?? 0),
+          likeCount: Number(v.likeCount ?? 0),
           commentCount: parseInt(v.commentCount || '0'),
           avgViewPercentage: parseFloat(v.avgViewPercentage || v.averageViewPercentage || '0') || 0,
           shareCount: parseInt(v.shareCount || '0') || 0,
@@ -2226,7 +2230,7 @@ export function ChannelDashboard() {
 
         const dayOfWeek = published.getDay();
         const hour = published.getHours();
-        const views = parseInt(video.viewCount || '0') || 0;
+        const views = Number(video.viewCount ?? 0);
         if (views <= 0) return;
 
         const key = `${dayOfWeek}-${hour}`;
@@ -2617,179 +2621,28 @@ export function ChannelDashboard() {
 
   return (
     <div className="space-y-6 font-['Roboto',sans-serif] bg-[#FAFAFA] min-h-screen">
-      {/* 標題區域 */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#FF1D1D] via-[#E30000] to-[#B20000] text-white shadow-[0_20px_60px_rgba(255,0,0,0.25)] p-8 mb-6">
-        <div className="absolute -right-10 -top-10 w-56 h-56 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute -left-12 bottom-0 w-48 h-48 bg-black/10 rounded-full blur-2xl" />
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-4">
-            <div className="inline-flex items-center gap-4">
-              <div className="h-14 w-14 rounded-2xl bg-white/15 border border-white/30 text-white flex items-center justify-center shadow-lg shadow-black/20">
-                <BarChart3 className="w-7 h-7" />
-              </div>
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/70 mb-1">
-                  YouTube Analytics
-                </p>
-                <h2 className="text-[32px] font-extrabold leading-tight">頻道數據儀表板</h2>
-              </div>
-            </div>
-            <p className="text-white/80 text-[15px] leading-relaxed max-w-2xl">
-              深入了解頻道表現、觀眾互動與成長趨勢，掌握每一次流量波動。
-            </p>
-          </div>
-        </div>
-      </div>
+      <DashboardHeader />
 
-      {/* Sticky Filter Bar */}
-      <div className="sticky top-0 z-50 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-4 backdrop-blur-xl bg-white/80 border-y border-gray-200/50 shadow-sm transition-all duration-300 mb-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          {/* 快速篩選器 */}
-          <div className="flex flex-wrap gap-2">
-            {QUICK_DATE_PRESETS.map((item) => {
-              const range = getQuickDateRange(item.value);
-              const isActive = startDate === range.start && endDate === range.end;
-              const disabled = isQuickPresetDisabled(item.value);
-              const showActive = isActive && !disabled;
+      <FilterBar
+        quickDatePresets={QUICK_DATE_PRESETS}
+        startDate={startDate}
+        endDate={endDate}
+        maxSelectableDate={maxSelectableDate}
+        isLoading={isLoading}
+        getQuickDateRange={getQuickDateRange}
+        isQuickPresetDisabled={isQuickPresetDisabled}
+        onStartDateChange={setStartDate}
+        onEndDateChange={setEndDate}
+        onRefresh={fetchDashboardData}
+      />
 
-              return (
-                <button
-                  key={item.value}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => {
-                    if (disabled) return;
-                    setStartDate(range.start);
-                    setEndDate(range.end);
-                  }}
-                  className={`px-4 py-1.5 text-[13px] font-semibold rounded-full border transition-all duration-200 ${disabled
-                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                    : showActive
-                      ? 'bg-red-50 text-red-600 border-red-200 shadow-sm'
-                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
-                    }`}
-                  aria-disabled={disabled}
-                  title={
-                    disabled
-                      ? '尚未完整結算該月份的數據，暫時無法使用'
-                      : undefined
-                  }
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="flex flex-col gap-1">
-              {/* 日期範圍選擇器 */}
-              <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-white border border-gray-200 text-[#0F0F0F] shadow-sm hover:border-gray-300 transition-colors">
-                <Calendar className="w-4 h-4 text-red-500" />
-                <input
-                  type="date"
-                  value={startDate}
-                  max={maxSelectableDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-transparent focus:outline-none text-[13px] font-semibold w-32"
-                />
-                <span className="text-gray-400 font-medium">to</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  max={maxSelectableDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-transparent focus:outline-none text-[13px] font-semibold w-32"
-                />
-              </div>
-            </div>
-
-            {/* 刷新按鈕 */}
-            <button
-              onClick={fetchDashboardData}
-              disabled={isLoading}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 text-white px-6 py-2.5 text-[13px] font-bold shadow-lg shadow-gray-200 transition-all duration-200 hover:bg-black hover:scale-[1.02] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none disabled:scale-100"
-            >
-              {isLoading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  載入中...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4" />
-                  刷新
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-        <p className="text-[10px] text-gray-400 text-right mt-2 leading-tight">
-          API 最晚僅提供到 {maxSelectableDate}（比 YouTube Studio 晚 1 天）
-        </p>
-      </div>
-
-      {/* 數據來源說明（可摺疊）*/}
-      <div className="rounded-2xl border border-[#E5E5E5] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)] overflow-hidden">
-        <button
-          onClick={() => setShowDataSourceInfo(!showDataSourceInfo)}
-          className="w-full p-5 flex items-center justify-between hover:bg-[#FFF5F5] transition-colors duration-150"
-        >
-          <div className="flex items-center gap-3">
-            <BarChart3 className="w-5 h-5 text-[#FF3B30]" />
-            <strong className="text-[13px] text-[#0F0F0F] font-semibold">數據來源說明</strong>
-          </div>
-          <svg
-            className={`w-5 h-5 text-[#606060] transition-transform duration-200 ${showDataSourceInfo ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-
-        {showDataSourceInfo && (
-          <div className="px-4 pb-4 bg-white border-t border-[#E5E5E5]">
-            <ul className="space-y-2 text-sm text-[#030303] pt-4">
-              <li className="flex gap-2">
-                <span className="text-[#606060]">•</span>
-                <span><strong className="font-medium">時區</strong>：所有數據使用<strong className="font-medium">台灣時間（UTC+8）</strong>，與 YouTube Studio 後台一致</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-[#606060]">•</span>
-                <span><strong className="font-medium">觀看次數 & 觀看時間</strong>：所選時間範圍內<strong className="font-medium">實際產生</strong>的觀看數據（YouTube Analytics API，配額：1-2 單位）</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-[#606060]">•</span>
-                <span><strong className="font-medium">新增訂閱數</strong>：時間範圍內淨增長（新增訂閱 - 取消訂閱）</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-[#606060]">•</span>
-                <span><strong className="font-medium">熱門影片</strong>：基於時間範圍內的觀看次數排序（Analytics API + Gist 快取）</span>
-              </li>
-              <li className="text-[#0F9D58] font-medium mt-2 flex gap-2">
-                <span>✓</span>
-                <span>這是真實的時間段內數據，非累計數據</span>
-              </li>
-              <li className="text-xs text-[#606060] mt-2 flex gap-2">
-                <span className="text-[#909090]">•</span>
-                <span>如果 Analytics API 不可用，會自動回退到 Gist 快取方案（顯示發布影片的累計數據）</span>
-              </li>
-            </ul>
-          </div>
-        )}
-      </div>
+      <DataSourceInfo
+        isOpen={showDataSourceInfo}
+        onToggle={() => setShowDataSourceInfo(!showDataSourceInfo)}
+      />
 
       {/* 錯誤訊息 */}
-      {error && (
-        <div className="bg-[#FEF7F7] border border-[#FCE8E8] rounded-xl p-4 text-[#C5221F] shadow-[0_1px_2px_rgba(0,0,0,0.1)]">
-          <div className="flex items-start gap-2">
-            <span className="font-medium">⚠</span>
-            <span>{error}</span>
-          </div>
-        </div>
-      )}
+      {error && <ErrorBanner message={error} />}
 
       {/* 多模型 AI 分析面板 */}
       {channelStats && topVideos.length > 0 && (

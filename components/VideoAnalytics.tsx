@@ -1,11 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { AppIcon } from './AppIcon';
-import { AnalysisMarkdown } from './AnalysisMarkdown';
 import * as youtubeService from '../services/client/youtubeService';
 import { loadVideoDetailsBatch } from '../services/client/videoCacheClient';
 import { Loader } from './Loader';
 import { AIModelSelector, type AIModel } from './AIModelSelector';
 import { Sparkles, Settings, ChevronDown, ChevronUp } from 'lucide-react';
+
+const AnalysisMarkdown = lazy(() =>
+  import('./AnalysisMarkdown').then((mod) => ({ default: mod.AnalysisMarkdown }))
+);
 
 interface VideoAnalyticsData {
   videoId: string;
@@ -220,8 +223,8 @@ export function VideoAnalytics() {
           tags: v.tags || [],
           publishedAt: v.publishedAt,
           thumbnail: v.thumbnailUrl,
-          viewCount: parseInt(v.viewCount || '0'),
-          likeCount: parseInt(v.likeCount || '0'),
+          viewCount: Number(v.viewCount ?? 0),
+          likeCount: Number(v.likeCount ?? 0),
           commentCount: parseInt(v.commentCount || '0'),
         }));
 
@@ -275,9 +278,9 @@ export function VideoAnalytics() {
           channelId,
           videos,
           channelStats: {
-            totalViews: parseInt(channelStats?.viewCount || '0'),
-            subscriberCount: parseInt(channelStats?.subscriberCount || '0'),
-            totalVideos: parseInt(channelStats?.videoCount || '0'),
+            totalViews: Number(channelStats?.viewCount ?? 0),
+            subscriberCount: Number(channelStats?.subscriberCount ?? 0),
+            totalVideos: Number(channelStats?.videoCount ?? 0),
           },
           analysisType: 'content-optimization', // 指定新的分析類型
           modelType: modelToUse, // 使用選擇的模型
@@ -610,23 +613,25 @@ export function VideoAnalytics() {
 
           {/* Markdown 內容 */}
           <div className="p-6 min-h-[400px]">
-            <AnalysisMarkdown
-              isStreaming={isStreaming}
-              videos={videos.map(v => ({
-                id: v.videoId,
-                title: v.title,
-                description: v.description,
-                thumbnailUrl: v.thumbnail,
-                tags: v.tags,
-                categoryId: '', // Default or missing
-                publishedAt: v.publishedAt,
-                viewCount: v.viewCount.toString(),
-                likeCount: v.likeCount.toString(),
-                commentCount: v.commentCount.toString(),
-              }))}
-            >
-              {analysisResult ? analysisResult.text : streamingText}
-            </AnalysisMarkdown>
+            <Suspense fallback={<div className="text-sm text-neutral-500">載入分析模組中...</div>}>
+              <AnalysisMarkdown
+                isStreaming={isStreaming}
+                videos={videos.map(v => ({
+                  id: v.videoId,
+                  title: v.title,
+                  description: v.description,
+                  thumbnailUrl: v.thumbnail,
+                  tags: v.tags,
+                  categoryId: '', // Default or missing
+                  publishedAt: v.publishedAt,
+                  viewCount: String(v.viewCount ?? 0),
+                  likeCount: String(v.likeCount ?? 0),
+                  commentCount: v.commentCount.toString(),
+                }))}
+              >
+                {analysisResult ? analysisResult.text : streamingText}
+              </AnalysisMarkdown>
+            </Suspense>
           </div>
 
           {/* 底部操作列 */}
