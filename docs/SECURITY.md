@@ -1,6 +1,6 @@
 # 🔒 AI Video Writer 專案安全政策與最佳實踐
 
-> **最後更新**: 2025-01-05
+> **最後更新**: 2026-04-15
 >
 > 本文件詳細說明 AI Video Writer 專案的資安政策、開發與部署的最佳實踐，以及如何識別、緩解和回報潛在的安全風險。
 
@@ -24,18 +24,29 @@
 
 AI Video Writer 是一個利用 Google Gemini 和 YouTube API 的內容生成工具。其安全策略旨在保護用戶數據、API 憑證和應用程式的完整性。
 
-### 資料流向與敏感資訊隔離
+### 認證架構
+
+本工具採用兩層認證：
+
+1. **Google OAuth（YouTube 功能）**：前端用 Google Identity Services 取得 access token，用於直接呼叫 YouTube API
+2. **Session JWT（後端保護）**：Google OAuth 完成後，前端將 access token 傳給 `POST /api/auth/login`；後端向 Google 驗證並比對 `ALLOWED_EMAILS` 白名單後，簽發 session JWT（8 小時有效）；之後所有 `/api/*` 請求都必須帶此 JWT
 
 ```mermaid
 graph TD
-    A[使用者瀏覽器] -- OAuth Token (前端安全處理) --> B(前端 React 應用)
-    B -- API 請求 --> C(後端 Express 服務)
+    A[使用者瀏覽器] -- Google OAuth --> B(Google Identity Services)
+    B -- access_token --> A
+    A -- POST /api/auth/login + access_token --> C(後端 Express)
+    C -- 驗證 token + 比對 ALLOWED_EMAILS --> C
+    C -- session JWT --> A
+    A -- API 請求 + JWT --> C
     C -- 使用 GEMINI_API_KEY --> D(Google Gemini API)
-    C -- 使用 YouTube OAuth Token --> E(YouTube Data & Analytics API)
+    C -- 使用 YouTube access_token --> E(YouTube API)
 ```
 
--   **API Key 隔離**：所有敏感的 API Key (如 `GEMINI_API_KEY`) 僅存在於後端服務器，絕不暴露給前端。
--   **OAuth Token**：YouTube OAuth Token 在前端安全處理，並透過後端進行 API 呼叫。
+-   **API Key 隔離**：所有敏感的 API Key（`GEMINI_API_KEY` 等）僅存在於後端，絕不暴露給前端。
+-   **Email 白名單**：只有 `ALLOWED_EMAILS` 中的帳號可取得 session JWT，即使知道 Render 網址也無法呼叫任何 API。
+-   **CORS 收窄**：只接受 `ALLOWED_ORIGINS` 中的來源，防止跨來源濫用。
+-   **filePath 驗證**：所有接受 filePath 的端點都會驗證路徑在允許目錄內，防止路徑穿越攻擊。
 
 ---
 

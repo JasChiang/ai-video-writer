@@ -5,6 +5,7 @@ declare const google: any;
 import { YOUTUBE_CLIENT_ID, YOUTUBE_SCOPES } from '../config';
 import type { YouTubeVideo } from '../types';
 import { recordQuota } from '../utils/quotaTracker';
+import { loginWithGoogleToken, clearSessionToken } from './sessionAuthService';
 
 let tokenClient: any = null;
 let isGapiInitialized = false;
@@ -188,7 +189,7 @@ export function requestToken(): Promise<void> {
             return reject(new Error("Google Identity Service not initialized."));
         }
 
-        const callback = (resp: any) => {
+        const callback = async (resp: any) => {
             if (resp.error) {
                 return reject(resp);
             }
@@ -197,6 +198,18 @@ export function requestToken(): Promise<void> {
                 ? resp.expires_in
                 : parseInt(resp.expires_in, 10);
             persistToken(gapi.client.getToken(), Number.isFinite(expiresIn) ? expiresIn : undefined);
+
+            // 用 Google token 向後端換取 session JWT
+            const accessToken = resp.access_token;
+            if (accessToken) {
+                const ok = await loginWithGoogleToken(accessToken);
+                if (!ok) {
+                    // 後端拒絕（email 不在白名單或 token 無效）
+                    gapi.client.setToken(null);
+                    persistToken(null);
+                    return reject(new Error('LOGIN_REJECTED'));
+                }
+            }
             resolve();
         };
 
@@ -750,6 +763,9 @@ export function logout(): void {
 
     // 清除 localStorage 中的 token
     persistToken(null);
+
+    // 清除後端 session JWT
+    clearSessionToken();
 
     // 重置內部狀態
     storedTokenExpiry = null;

@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { exec } from 'child_process';
+import { requireAuth, signSessionToken } from './middleware/auth.js';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -123,8 +124,76 @@ const getMaxTokensForModel = (modelType = '') => {
 };
 console.log('✅ AI Model Manager initialized');
 
-app.use(cors());
+// ==================== CORS ====================
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean)
+  .concat(['http://localhost:3001', 'http://localhost:5173']);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // 允許無 origin（curl / Postman / 同源請求）
+    if (!origin) return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials: true,
+}));
 app.use(express.json());
+
+// ==================== 驗證登入（無需 JWT）====================
+/**
+ * 用 Google access token 換取 session JWT
+ * POST /api/auth/login
+ * Body: { accessToken: string }
+ */
+app.post('/api/auth/login', async (req, res) => {
+  const { accessToken } = req.body || {};
+  if (!accessToken) {
+    return res.status(400).json({ error: 'MISSING_ACCESS_TOKEN' });
+  }
+
+  const allowedEmails = (process.env.ALLOWED_EMAILS || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (allowedEmails.length === 0) {
+    return res.status(403).json({ error: 'ALLOWED_EMAILS not configured on server' });
+  }
+
+  try {
+    // 向 Google 驗證 token 並取得 email
+    const infoRes = await fetch(
+      `https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${encodeURIComponent(accessToken)}`
+    );
+    if (!infoRes.ok) {
+      return res.status(401).json({ error: 'INVALID_GOOGLE_TOKEN' });
+    }
+    const info = await infoRes.json();
+    const email = (info.email || '').toLowerCase();
+
+    if (!email) {
+      return res.status(401).json({ error: 'CANNOT_VERIFY_EMAIL' });
+    }
+
+    if (!allowedEmails.includes(email)) {
+      console.warn(`[Auth] 拒絕登入：${email} 不在白名單`);
+      return res.status(403).json({ error: 'EMAIL_NOT_ALLOWED' });
+    }
+
+    const sessionToken = signSessionToken(email);
+    console.log(`[Auth] 登入成功：${email}`);
+    res.json({ sessionToken, email });
+  } catch (err) {
+    console.error('[Auth] login error:', err.message);
+    res.status(500).json({ error: 'LOGIN_FAILED' });
+  }
+});
+
+// ==================== 所有 /api/* 路由需要 JWT ====================
+app.use('/api', requireAuth);
 
 // 確保下載目錄存在
 const DOWNLOAD_DIR = path.join(process.cwd(), 'temp_videos');
@@ -142,6 +211,26 @@ if (!fs.existsSync(IMAGES_DIR)) {
 const UPLOAD_DIR = path.join(process.cwd(), 'temp_uploads');
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+/**
+ * 驗證 filePath 只能在允許的目錄內，防止路徑穿越攻擊
+ * 回傳 resolved 絕對路徑，不合法時拋出 Error
+ */
+function validateFilePath(filePath) {
+  if (!filePath) return null;
+  const resolved = path.resolve(filePath);
+  const allowedDirs = [
+    path.resolve(DOWNLOAD_DIR),
+    path.resolve(UPLOAD_DIR),
+  ];
+  const inAllowed = allowedDirs.some(
+    dir => resolved === dir || resolved.startsWith(dir + path.sep)
+  );
+  if (!inAllowed) {
+    throw new Error(`Invalid filePath: outside allowed directories`);
+  }
+  return resolved;
 }
 
 // 設定 multer 用於檔案上傳
@@ -205,7 +294,13 @@ app.get('/api/task/:taskId', (req, res) => {
     return res.status(404).json({ error: 'Task not found' });
   }
 
-  res.json(task);
+  // 回傳前移除 params 中的敏感欄位，避免 token 洩漏
+  const safeTask = { ...task };
+  if (safeTask.params) {
+    const { accessToken: _t, ...safeParams } = safeTask.params;
+    safeTask.params = safeParams;
+  }
+  res.json(safeTask);
 });
 
 /**
@@ -410,7 +505,13 @@ app.get('/api/notion/oauth/callback', async (req, res) => {
 
   const sendOAuthResult = (payload, targetOrigin) => {
     const safePayload = JSON.stringify(payload).replace(/</g, '\\u003c');
-    const safeOrigin = targetOrigin || process.env.FRONTEND_URL || 'http://localhost:3000';
+    // 只允許已知的前端 origin，避免 postMessage 被任意第三方截取
+    const knownOrigins = ALLOWED_ORIGINS.concat(
+      process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []
+    );
+    const safeOrigin = knownOrigins.includes(targetOrigin)
+      ? targetOrigin
+      : (process.env.FRONTEND_URL || 'http://localhost:3000');
     const html = `
 <!DOCTYPE html>
 <html>
@@ -637,6 +738,12 @@ app.post('/api/notion/oauth/callback', async (req, res) => {
       error: 'Missing authorization code'
     });
   }
+
+  // 驗證 state 防止 CSRF（與 GET callback 相同邏輯）
+  if (!state || !notionStateStore.has(state)) {
+    return res.status(400).json({ error: 'Invalid or expired state' });
+  }
+  notionStateStore.delete(state);
 
   const notionClientId = process.env.NOTION_CLIENT_ID;
   const notionClientSecret = process.env.NOTION_CLIENT_SECRET;
@@ -1099,10 +1206,17 @@ app.post('/api/analyze-video-url-async', async (req, res) => {
  * Body: { videoId: string, filePath?: string, prompt: string, videoTitle: string }
  */
 app.post('/api/analyze-video', async (req, res) => {
-  const { videoId, filePath, prompt, videoTitle } = req.body;
+  const { videoId, filePath: rawFilePath, prompt, videoTitle } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
+  }
+
+  let filePath;
+  try {
+    filePath = validateFilePath(rawFilePath);
+  } catch {
+    return res.status(400).json({ error: 'Invalid filePath' });
   }
 
   try {
@@ -2257,10 +2371,17 @@ app.post('/api/generate-article-from-url-async', async (req, res) => {
  * 注意：filePath 是必需的，因為需要本地檔案來截圖
  */
 app.post('/api/generate-article', async (req, res) => {
-  const { videoId, filePath, prompt, videoTitle, templateId = 'default', referenceUrls = [], uploadedFiles = [], referenceVideos = [] } = req.body;
+  const { videoId, filePath: rawFilePath2, prompt, videoTitle, templateId = 'default', referenceUrls = [], uploadedFiles = [], referenceVideos = [] } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
+  }
+
+  let filePath;
+  try {
+    filePath = validateFilePath(rawFilePath2);
+  } catch {
+    return res.status(400).json({ error: 'Invalid filePath' });
   }
 
   try {
@@ -2655,14 +2776,21 @@ app.post('/api/regenerate-article', async (req, res) => {
  * Body: { videoId: string, videoTitle: string, filePath: string, prompt?: string, quality?: number }
  */
 app.post('/api/regenerate-screenshots', async (req, res) => {
-  const { videoId, videoTitle, filePath, prompt, quality = 2 } = req.body;
+  const { videoId, videoTitle, filePath: rawFilePath3, prompt, quality = 2 } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
   }
 
-  if (!videoTitle || !filePath) {
+  if (!videoTitle || !rawFilePath3) {
     return res.status(400).json({ error: 'Missing required parameters: videoTitle, filePath' });
+  }
+
+  let filePath;
+  try {
+    filePath = validateFilePath(rawFilePath3);
+  } catch {
+    return res.status(400).json({ error: 'Invalid filePath' });
   }
 
   try {

@@ -359,6 +359,21 @@ VITE_SERVER_BASE_URL=https://your-app.onrender.com
 
 > `PORT` 不需要設定，Render 會自動注入。
 
+**存取控制（必填）**：
+
+| 環境變數 | 說明 | 範例 |
+|----------|------|------|
+| `JWT_SECRET` | JWT 簽名密鑰，請產生一個隨機字串 | 見下方指令 |
+| `ALLOWED_EMAILS` | 允許登入的 Google 帳號，逗號分隔 | `yourname@gmail.com` |
+| `ALLOWED_ORIGINS` | 允許的前端 origin | `https://your-app.onrender.com` |
+
+產生 `JWT_SECRET`（在終端機執行）：
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+> **重要**：`JWT_SECRET` 請在 Render 上設定一個與本機 `.env.local` 不同的值，且絕對不要公開。`ALLOWED_EMAILS` 只填你自己的 Gmail，這樣即使 Render 網址被人知道，也無法登入或使用任何 API 端點。
+
 同時記得回到 Google Cloud Console，在 OAuth 用戶端設定中加入你的 Render 網域：
 ```
 https://your-app.onrender.com
