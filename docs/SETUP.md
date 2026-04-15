@@ -364,7 +364,7 @@ VITE_SERVER_BASE_URL=https://your-app.onrender.com
 | 環境變數 | 說明 | 範例 |
 |----------|------|------|
 | `JWT_SECRET` | JWT 簽名密鑰，請產生一個隨機字串 | 見下方指令 |
-| `ALLOWED_EMAILS` | 允許登入的 Google 帳號，逗號分隔 | `yourname@gmail.com` |
+| `ALLOWED_CHANNEL_IDS` | 允許登入的 YouTube Channel ID，逗號分隔 | `UCXXXXXXXXXXXXXXXXXXXXXXXXXX` |
 | `ALLOWED_ORIGINS` | 允許的前端 origin | `https://your-app.onrender.com` |
 
 產生 `JWT_SECRET`（在終端機執行）：
@@ -372,12 +372,13 @@ VITE_SERVER_BASE_URL=https://your-app.onrender.com
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-> **重要**：`JWT_SECRET` 請在 Render 上設定一個與本機 `.env.local` 不同的值，且絕對不要公開。`ALLOWED_EMAILS` 只填你自己的 Gmail，這樣即使 Render 網址被人知道，也無法登入或使用任何 API 端點。
+**查詢你的 Channel ID**：YouTube Studio → 左下「設定」→「頻道」→「進階設定」→「頻道 ID」（`UC` 開頭的字串）
+
+> **重要**：`JWT_SECRET` 請在 Render 上設定一個與本機 `.env.local` 不同的值，且絕對不要公開。`ALLOWED_CHANNEL_IDS` 只填你自己的頻道 ID，這樣即使 Render 網址被人知道，也無法登入或使用任何 API 端點。使用 Channel ID 而非 email，可避免 YouTube 品牌帳號的特殊 email 造成的問題。
 
 **注意事項：**
 
-- **多個帳號用逗號分隔，不加空格**：`ALLOWED_EMAILS=a@gmail.com,b@gmail.com`
-- **首次登入會彈出額外 Google 權限視窗**：系統需要讀取 email 來比對白名單，允許即可
+- **多個頻道用逗號分隔**：`ALLOWED_CHANNEL_IDS=UCxxx,UCyyy`
 - **如果登入後功能異常**：清除瀏覽器 localStorage 再重新登入（DevTools → Application → Local Storage → 全選刪除）
 - **JWT 有效期 8 小時**：過期後需重新登入，這是正常行為
 - **換了 `JWT_SECRET` 所有人需重新登入**：Render 上修改此變數後，所有現有 session 立即失效

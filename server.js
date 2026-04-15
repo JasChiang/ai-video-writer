@@ -154,17 +154,41 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(400).json({ error: 'MISSING_ACCESS_TOKEN' });
   }
 
+  // 允許的 YouTube channel ID（優先）或 email（備用）
+  const allowedChannels = (process.env.ALLOWED_CHANNEL_IDS || '')
+    .split(',').map(c => c.trim()).filter(Boolean);
   const allowedEmails = (process.env.ALLOWED_EMAILS || '')
-    .split(',')
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean);
+    .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 
-  if (allowedEmails.length === 0) {
-    return res.status(403).json({ error: 'ALLOWED_EMAILS not configured on server' });
+  if (allowedChannels.length === 0 && allowedEmails.length === 0) {
+    return res.status(403).json({ error: 'ALLOWED_CHANNEL_IDS not configured on server' });
   }
 
   try {
-    // 向 Google 驗證 token 並取得 email
+    // 用 YouTube API 取得頻道 ID（直接驗證 YouTube 身份，不依賴 email）
+    if (allowedChannels.length > 0) {
+      const chRes = await fetch(
+        'https://www.googleapis.com/youtube/v3/channels?part=id&mine=true',
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (!chRes.ok) {
+        return res.status(401).json({ error: 'INVALID_YOUTUBE_TOKEN' });
+      }
+      const chData = await chRes.json();
+      const channelId = chData.items?.[0]?.id;
+      if (!channelId) {
+        return res.status(401).json({ error: 'CANNOT_GET_CHANNEL_ID' });
+      }
+      if (!allowedChannels.includes(channelId)) {
+        console.warn(`[Auth] 拒絕登入：channel ${channelId} 不在白名單`);
+        return res.status(403).json({ error: 'CHANNEL_NOT_ALLOWED' });
+      }
+      const sessionToken = signSessionToken(channelId);
+      console.log(`[Auth] 登入成功：channel ${channelId}`);
+      return res.json({ sessionToken, channelId });
+    }
+
+    // fallback：email 白名單（向下相容）
     const infoRes = await fetch(
       `https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${encodeURIComponent(accessToken)}`
     );
@@ -173,16 +197,13 @@ app.post('/api/auth/login', async (req, res) => {
     }
     const info = await infoRes.json();
     const email = (info.email || '').toLowerCase();
-
     if (!email) {
       return res.status(401).json({ error: 'CANNOT_VERIFY_EMAIL' });
     }
-
     if (!allowedEmails.includes(email)) {
       console.warn(`[Auth] 拒絕登入：${email} 不在白名單`);
       return res.status(403).json({ error: 'EMAIL_NOT_ALLOWED' });
     }
-
     const sessionToken = signSessionToken(email);
     console.log(`[Auth] 登入成功：${email}`);
     res.json({ sessionToken, email });
