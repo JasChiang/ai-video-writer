@@ -67,6 +67,36 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'get_channel_analytics',
+      description:
+        '取得整個頻道在某時間範圍內的總體表現數據，包含觀看數、觀看時長、訂閱增減、按讚、留言、分享、流量來源分布。適合用來比較不同時期的頻道整體成效，不需要指定特定影片。',
+      parameters: {
+        type: 'object',
+        properties: {
+          startDate: {
+            type: 'string',
+            description: '開始日期 YYYY-MM-DD',
+          },
+          endDate: {
+            type: 'string',
+            description: '結束日期 YYYY-MM-DD',
+          },
+          includeTrafficSources: {
+            type: 'boolean',
+            description: '是否包含流量來源分布，預設 true',
+          },
+          includeGeography: {
+            type: 'boolean',
+            description: '是否包含前 10 名地區的觀看分布，預設 false',
+          },
+        },
+        required: ['startDate', 'endDate'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_retention_curve',
       description:
         '取得單支影片的觀眾留存率曲線（每個時間進度點還有多少比例的觀眾在看），用來找出影片哪個時間點觀眾流失最多。',
@@ -112,6 +142,9 @@ export async function executeTool(toolName, args, context) {
     case 'get_video_analytics':
       return getVideoAnalytics(args, { accessToken, channelId });
 
+    case 'get_channel_analytics':
+      return getChannelAnalytics(args, { accessToken, channelId });
+
     case 'get_retention_curve':
       return getRetentionCurve(args, { accessToken, channelId });
 
@@ -145,6 +178,90 @@ async function searchVideosByKeyword({ keywords, maxResults = 50 }, { gistId, gi
 
   console.log(`[Tool] search_videos_by_keyword: 找到 ${results.length} 支影片`);
   return { videos: results, totalFound: results.length };
+}
+
+async function getChannelAnalytics(
+  { startDate, endDate, includeTrafficSources = true, includeGeography = false },
+  { accessToken, channelId }
+) {
+  console.log(`[Tool] get_channel_analytics: ${startDate} ~ ${endDate}`);
+
+  const oauth2Client = new google.auth.OAuth2();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  const youtubeAnalytics = google.youtubeAnalytics({ version: 'v2', auth: oauth2Client });
+
+  // 基本頻道指標
+  const basicRes = await youtubeAnalytics.reports.query({
+    ids: `channel==${channelId}`,
+    startDate,
+    endDate,
+    metrics:
+      'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,comments,shares,subscribersGained,subscribersLost',
+  });
+  recordQuota('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
+    context: 'analyticsTools.getChannelAnalytics.basic',
+  });
+
+  const row = basicRes.data.rows?.[0] || [];
+  const result = {
+    dateRange: { startDate, endDate },
+    summary: {
+      views: row[0] || 0,
+      estimatedMinutesWatched: row[1] || 0,
+      averageViewDuration: Math.round(row[2] || 0),
+      averageViewPercentage: parseFloat((row[3] || 0).toFixed(1)),
+      likes: row[4] || 0,
+      comments: row[5] || 0,
+      shares: row[6] || 0,
+      subscribersGained: row[7] || 0,
+      subscribersLost: row[8] || 0,
+      netSubscribers: (row[7] || 0) - (row[8] || 0),
+    },
+  };
+
+  // 流量來源分布
+  if (includeTrafficSources) {
+    const trafficRes = await youtubeAnalytics.reports.query({
+      ids: `channel==${channelId}`,
+      startDate,
+      endDate,
+      metrics: 'views',
+      dimensions: 'insightTrafficSourceType',
+      sort: '-views',
+    });
+    recordQuota('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
+      context: 'analyticsTools.getChannelAnalytics.traffic',
+    });
+
+    result.trafficSources = (trafficRes.data.rows || []).map(r => ({
+      source: r[0],
+      views: r[1] || 0,
+    }));
+  }
+
+  // 地區分布（前 10）
+  if (includeGeography) {
+    const geoRes = await youtubeAnalytics.reports.query({
+      ids: `channel==${channelId}`,
+      startDate,
+      endDate,
+      metrics: 'views',
+      dimensions: 'country',
+      sort: '-views',
+      maxResults: 10,
+    });
+    recordQuota('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
+      context: 'analyticsTools.getChannelAnalytics.geography',
+    });
+
+    result.geography = (geoRes.data.rows || []).map(r => ({
+      country: r[0],
+      views: r[1] || 0,
+    }));
+  }
+
+  console.log(`[Tool] get_channel_analytics: 完成，views=${result.summary.views}`);
+  return result;
 }
 
 async function getVideoAnalytics({ videoIds, startDate, endDate }, { accessToken, channelId }) {
