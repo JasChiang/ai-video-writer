@@ -4,13 +4,38 @@
 
 ---
 
-## [Unreleased] — feature/ai-analytics
+## [Unreleased]
+
+---
+
+## 2026-04-15 — AI 數據分析（自然語言對話）
 
 ### 新增
-- 多模型 AI 分析：支援 Gemini 2.5 Flash/Pro（直接 API）及 Claude、GPT-5.1、Grok 4（透過 OpenRouter）
-- 頻道分析儀表板多模型選擇介面
-- 關鍵字分析報表新增 AI 智慧分析功能
-- 關鍵字分析報表新增 SSE 串流輸出
+- **AI 分析分頁**：頻道分析下新增「AI 分析」分頁，支援自然語言輸入需求
+- **LLM Tool Calling**：AI 透過 function calling 自動決定查哪些數據，不需手動設定
+- **模型選單**：前端右上角可切換模型（Gemini 2.5 Flash/Pro 或 OpenRouter 上的 Claude、GPT-4o 等）
+- **新增工具 `get_channel_analytics`**：查詢整個頻道在指定時間範圍的總體數據（觀看數、訂閱增減、流量來源、地區分布），不需要 video ID
+- **新增工具 `search_videos_by_keyword`**：從 Gist 快取搜尋影片（零配額消耗）
+- **新增工具 `get_video_analytics`**：取得最多 50 支影片的詳細數據
+- **新增工具 `get_retention_curve`**：取得單支影片的觀眾留存率曲線
+- **SSE 串流**：AI 分析過程狀態即時回傳（「執行工具：get_channel_analytics...」）
+- **圖表渲染**：AI 輸出結構化 JSON，前端用 react-chartjs-2 渲染長條圖與留存率曲線
+- 關鍵字報表 UI 重構：設定合併成單張卡片、日期改為下拉選單（自訂才顯示文字輸入）、指標改為 toggle pills
+- 移除「數據洞察」頂層分頁，頻道分析整合為「儀表板 / AI 分析 / 關鍵字報表」三分頁
+
+### 修正
+- Gemini 幻覺問題：將 system prompt 從 `user` 訊息移到 `systemInstruction` 參數，避免 AI 自行捏造工具呼叫與假數據
+- `analyticsTools.js` import 名稱錯誤（`recordQuotaServer` → `recordQuota`）
+- 後端根據 model ID 前綴（`gemini-*`）決定走 Gemini 或 OpenRouter，而非依 API key 存在判斷
+- Gist 快取頻道 ID 驗證：載入快取時比對當前登入頻道，不符則略過快取改抓最新數據
+
+---
+
+## 2025 — 多模型支援與頻道分析
+
+### 新增
+- 多模型 AI 分析：支援 Gemini 2.5 Flash/Pro（直接 API）及 Claude、GPT（透過 OpenRouter）
+- 關鍵字分析報表 AI 智慧分析功能，SSE 串流輸出
 - 訂閱來源分析：影片展開功能（桌面版前三名）
 - 訂閱數卡片顯示期間結束日總訂閱數
 - 影片卡片展開功能（頻道儀表板）

@@ -1,6 +1,6 @@
 # AI Video Writer
 
-> 利用 Google Gemini AI，將你的 YouTube 頻道影片自動轉換為文章、SEO 優化內容和數據洞察
+> 利用 AI，將你的 YouTube 頻道影片自動轉換為文章、SEO 優化內容，並透過自然語言對話分析頻道數據
 
 **Created by [Jas Chiang](https://www.facebook.com/jaschiang/) | [LinkedIn](https://www.linkedin.com/in/jascty) | [X](https://x.com/jaschiang)**
 
@@ -18,8 +18,8 @@ AI Video Writer 是一個工具，讓 YouTube 內容創作者可以：
 
 - **把影片變成文章**：AI 自動分析影片內容，生成圖文並茂的文章，並截圖關鍵畫面
 - **優化 SEO 中繼資料**：一鍵生成三種風格的標題、結構化說明、關鍵字標籤，直接更新到 YouTube
-- **看懂頻道數據**：整合 YouTube Analytics，透過 AI 分析哪些影片表現好、哪裡可以改進
-- **找出關鍵字機會**：分析搜尋詞表現，產生內容策略建議
+- **用自然語言分析頻道數據**：直接問「分析上半年開箱單元的成效」，AI 自動查詢 YouTube Analytics 數據並生成圖表報告
+- **找出關鍵字機會**：分析特定關鍵字的影片群組在不同時間段的表現，AI 產生策略建議
 - **發佈到 Notion**：生成的文章一鍵發佈到你的 Notion 資料庫
 
 你只需要登入自己的 YouTube 帳號，工具會自動存取你的頻道影片。
@@ -58,17 +58,41 @@ AI Video Writer 是一個工具，讓 YouTube 內容創作者可以：
 - 輸出 Markdown 或 HTML 格式
 - 可一鍵發佈到 Notion
 
-### 3. 影片表現分析
+### 3. AI 數據分析（自然語言對話）
 
-- 整合 YouTube Analytics API，顯示各時間範圍的頻道數據
-- AI 分析強勢影片與弱勢影片的差異，給出具體改善建議
-- 支援 MoM（月比月）、YoY（年比年）比較
-- 多模型 AI 可選：Gemini 2.5 Flash/Pro（Google 直連）或 Claude、GPT、Grok（透過 OpenRouter）
+「頻道分析」頁面下的 **AI 分析** 分頁，讓你用自然語言直接提問：
 
-### 4. 關鍵字分析
+- 「比較去年和今年同期的頻道整體表現」
+- 「分析最近半年開箱單元的觀看成效」
+- 「找出完播率最低的影片，可能原因是什麼？」
+- 「哪些影片的搜尋流量佔比最高？」
 
-- 分析頻道的搜尋詞來源，對齊 YouTube Studio 數據
+AI 會自動決定要查詢哪些數據，透過 tool calling 呼叫 YouTube Analytics API 取得真實數據，再生成包含圖表（長條圖、留存率曲線）和具體建議的報告。
+
+**可用 AI 模型**（右上角選單切換）：
+
+| 模型 | API | 說明 |
+|------|-----|------|
+| Gemini 2.5 Flash | Google | 預設，快速・免費配額 |
+| Gemini 2.5 Pro | Google | 高品質・付費 |
+| Claude Sonnet 4.5 | OpenRouter | 需設 OPENROUTER_API_KEY |
+| Claude Opus 4.5 | OpenRouter | 最強・需設 OPENROUTER_API_KEY |
+| GPT-4o | OpenRouter | 需設 OPENROUTER_API_KEY |
+| GPT-4o mini | OpenRouter | 輕量・需設 OPENROUTER_API_KEY |
+
+**AI 可查詢的數據工具**：
+- `get_channel_analytics`：整個頻道的總觀看數、觀看時長、訂閱增減、流量來源分布
+- `search_videos_by_keyword`：從 Gist 快取用關鍵字找影片（不耗 YouTube 配額）
+- `get_video_analytics`：指定影片的觀看數、完播率、按讚、留言、流量來源
+- `get_retention_curve`：單支影片的觀眾留存率曲線
+
+### 4. 關鍵字報表
+
+「頻道分析」頁面下的 **關鍵字報表** 分頁：
+
+- 設定關鍵字群組（如「開箱」、「評測」）與時間範圍，橫向比較各時期數據
 - AI 自動生成關鍵字策略報告，以 SSE 串流方式即時輸出
+- 模板管理：儲存常用的關鍵字組合與日期設定
 
 ### 5. 影片快取系統
 
@@ -104,12 +128,19 @@ npm run dev:all
 4. 點「生成截圖」讓文章變成圖文並茂格式
 5. 複製 Markdown 或 HTML，或點「發佈到 Notion」
 
-### 查看頻道分析
+### AI 數據分析（自然語言）
 
-1. 切換到「頻道分析」頁面
-2. 設定要分析的時間範圍
-3. 選擇 AI 模型，點「開始分析」
-4. 查看 AI 生成的頻道表現報告和建議
+1. 切換到「頻道分析」→「AI 分析」分頁
+2. 右上角選擇 AI 模型（預設 Gemini 2.5 Flash）
+3. 在輸入框輸入你想分析的問題，例如：「分析今年上半年開箱單元的成效」
+4. AI 自動查詢數據並生成報告、圖表和建議
+
+### 關鍵字報表
+
+1. 切換到「頻道分析」→「關鍵字報表」分頁
+2. 輸入關鍵字（如「開箱」、「評測」），新增日期欄（選相對或自訂時間）
+3. 點「取得數據」，等待後端查詢 YouTube Analytics
+4. 查看表格與 AI 分析建議
 
 ---
 
