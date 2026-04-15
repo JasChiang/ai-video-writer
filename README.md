@@ -274,6 +274,8 @@ kill -9 <PID>
 ## 安全性說明
 
 - **API 金鑰保護**：`GEMINI_API_KEY` 等敏感金鑰只在後端使用，不會出現在前端 JavaScript 中
+- **後端 JWT 驗證**：所有 API 端點都需要 session JWT 才能使用；即使有人知道你的 Render 網址，沒有 JWT 也只會收到 401 錯誤
+- **Channel ID 白名單**：JWT 只發給 `ALLOWED_CHANNEL_IDS` 中的 YouTube 頻道擁有者，其他人無法登入
 - **OAuth 安全**：`YOUTUBE_CLIENT_ID` 是 OAuth 2.0 標準中可以公開的識別碼，不是密碼
 - **本地儲存**：影片檔案暫存於本機，處理完自動清理（預設 7 天）；YouTube token 只存在瀏覽器記憶體
 - **輸入驗證**：所有 API 端點對 `videoId` 格式有嚴格驗證，防止 Command Injection

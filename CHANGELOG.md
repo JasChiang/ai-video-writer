@@ -7,20 +7,16 @@
 ## 2026-04-15 — 後端存取控制與安全強化
 
 ### 新增
-- **JWT session 驗證**：新增 `POST /api/auth/login` — 前端 Google OAuth 完成後，向後端換取 session JWT；所有 `/api/*` 路由統一由 `requireAuth` middleware 驗證，未帶 JWT 的請求一律回傳 401
-- **Email 白名單**：透過環境變數 `ALLOWED_EMAILS` 設定允許登入的 Google 帳號，不在名單的帳號無法取得 session JWT
-- **前端全域 fetch interceptor**：所有 `/api/*` 請求自動帶入 `Authorization: Bearer <jwt>` header，不需逐一修改各元件
-- **CORS 收窄**：從全開改為只允許 `ALLOWED_ORIGINS` 環境變數指定的來源（預設含 localhost）
-- **新增 `services/sessionAuthService.ts`**：管理 session JWT 的取得、儲存、清除
-
-### 修正
-- **Google OAuth scope 補上 email**：加入 `userinfo.email` scope，確保後端 tokeninfo 驗證可取得使用者 email 以比對白名單
+- **JWT session 驗證**：所有 `/api/*` 路由統一需要 session JWT，未帶 JWT 的請求一律回傳 401；即使知道 Render 網址也無法呼叫任何 API
+- **YouTube Channel ID 白名單**：登入時後端向 YouTube API 確認頻道 ID，只有 `ALLOWED_CHANNEL_IDS` 中的頻道才能取得 JWT；避免 YouTube 品牌帳號特殊 email 造成的相容性問題
+- **前端全域 fetch interceptor**：所有 `/api/*` 請求自動帶入 `Authorization: Bearer <jwt>` header
+- **CORS 收窄**：只接受 `ALLOWED_ORIGINS` 環境變數指定的來源
 
 ### 修正（安全）
-- **filePath 路徑穿越漏洞**：`/api/analyze-video`、`/api/generate-article`、`/api/regenerate-screenshots` 加入 `validateFilePath()` 驗證，確保只能存取 `temp_videos/` 和 `temp_uploads/` 目錄
-- **task 回傳洩漏 accessToken**：`GET /api/task/:taskId` 回傳前移除 `params.accessToken`
-- **Notion OAuth POST callback 無 state 驗證**：補上與 GET callback 相同的 state 驗證，防止 CSRF
-- **Notion OAuth postMessage 任意 origin**：`targetOrigin` 改為只接受 `ALLOWED_ORIGINS` 內的已知來源
+- **filePath 路徑穿越漏洞**：上傳相關端點加入 `validateFilePath()` 驗證，防止讀取伺服器任意檔案
+- **task 回傳洩漏 accessToken**：`GET /api/task/:taskId` 回傳前移除敏感參數
+- **Notion OAuth state 驗證**：POST callback 補上 CSRF 防護
+- **Notion OAuth postMessage origin 驗證**：限制只能傳回已知來源
 
 ---
 
