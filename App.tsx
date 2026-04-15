@@ -165,6 +165,31 @@ export default function App() {
           throw new Error(data.error || '快取搜尋失敗');
         }
 
+        // 驗證快取是否屬於當前登入頻道（避免 A 頻道快取被 B 頻道誤用）
+        if (data.channelId) {
+          try {
+            const currentChannelId = await youtubeService.getChannelId({ trigger: actionTrigger, source: 'App-cache-validation' });
+            if (currentChannelId && currentChannelId !== data.channelId) {
+              console.warn(`[App] ⚠️ 快取頻道 (${data.channelId}) 與當前登入頻道 (${currentChannelId}) 不符，略過快取`);
+              // 頻道不符 → 跳過快取，改走 YouTube API 直接載入
+              const ytResult = await youtubeService.listVideos(
+                50,
+                undefined,
+                showPrivateVideos,
+                searchQuery.trim(),
+                showUnlistedVideos,
+                { trigger: actionTrigger, source: 'App-cache-mismatch-fallback' }
+              );
+              setVideos(mergeLocalUpdates(ytResult.videos));
+              setNextPageToken(ytResult.nextPageToken);
+              setHasMore(!!ytResult.nextPageToken);
+              return;
+            }
+          } catch (channelCheckErr) {
+            console.warn('[App] 無法驗證快取頻道 ID，繼續使用快取:', channelCheckErr);
+          }
+        }
+
         console.log(`[App] API 返回 ${data.videos.length} 支影片`);
 
         // 將快取資料格式轉換為 YouTubeVideo 格式

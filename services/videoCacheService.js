@@ -206,20 +206,23 @@ function getGitHubAuthHeader(token) {
  * @param {Array} videos - 影片列表
  * @param {string} gistToken - GitHub Personal Access Token
  * @param {string} gistId - Gist ID（可選，如果提供則更新現有 Gist）
+ * @param {string} channelId - 頻道 ID（用於驗證快取歸屬）
  * @returns {Promise<Object>} Gist 資訊 {id, url}
  */
-export async function uploadToGist(videos, gistToken, gistId = null) {
+export async function uploadToGist(videos, gistToken, gistId = null, channelId = null) {
   try {
     console.log('[VideoCache] ========================================');
     console.log(`[VideoCache] 📤 ${gistId ? '更新' : '建立'} Gist 快取`);
     console.log('[VideoCache] ========================================');
     console.log(`[VideoCache] 影片數量: ${videos.length}`);
     console.log(`[VideoCache] Gist ID: ${gistId || '(首次建立)'}`);
+    if (channelId) console.log(`[VideoCache] 頻道 ID: ${channelId}`);
 
     const gistContent = {
       version: '1.0',
       updatedAt: new Date().toISOString(),
       totalVideos: videos.length,
+      channelId: channelId || null,
       videos: videos,
     };
 

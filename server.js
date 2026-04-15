@@ -13,7 +13,7 @@ import { generateArticlePrompt, generateArticlePromptWithReferences } from './se
 import { AIModelManager } from './services/aiProviders/AIModelManager.js';
 import { PromptTemplates } from './services/analysisPrompts/PromptTemplates.js';
 import { aggregateChannelData, clearAnalyticsCache } from './services/channelAnalyticsService.js';
-import { fetchAllVideoTitles, uploadToGist, searchVideosFromCache } from './services/videoCacheService.js';
+import { fetchAllVideoTitles, uploadToGist, searchVideosFromCache, loadFromGist } from './services/videoCacheService.js';
 import { getChannelVideosAnalytics, calculateUpdatePriority, getVideoSearchTerms, getVideoExternalTrafficDetails } from './services/analyticsService.js';
 import { generateKeywordAnalysisPrompt } from './services/keywordAnalysisPromptService.js';
 import {
@@ -3890,7 +3890,7 @@ app.post('/api/video-cache/generate', async (req, res) => {
     console.log(`\n[API] ✅ 抓取完成，共 ${videos.length} 支影片`);
 
     // 步驟 2: 上傳到 Gist
-    const gistInfo = await uploadToGist(videos, gistToken, gistId || null);
+    const gistInfo = await uploadToGist(videos, gistToken, gistId || null, channelId);
 
     console.log('\n[API] ========================================');
     console.log('[API] ✅ 影片快取生成成功！');
@@ -3944,6 +3944,10 @@ app.get('/api/video-cache/search', async (req, res) => {
       });
     }
 
+    // 先載入完整快取以取得 channelId metadata
+    const cache = await loadFromGist(gistId, gistToken);
+    const cacheChannelId = cache.channelId || null;
+
     const videos = await searchVideosFromCache(
       gistId,
       query || '',
@@ -3952,11 +3956,15 @@ app.get('/api/video-cache/search', async (req, res) => {
     );
 
     console.log(`[API] ✅ 搜尋完成，返回 ${videos.length} 筆結果`);
+    if (cacheChannelId) {
+      console.log(`[API] 📺 快取頻道 ID: ${cacheChannelId}`);
+    }
 
     res.json({
       success: true,
       query: query || '',
       totalResults: videos.length,
+      channelId: cacheChannelId,
       videos: videos,
     });
   } catch (error) {
