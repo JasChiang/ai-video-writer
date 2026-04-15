@@ -16,6 +16,7 @@ import { aggregateChannelData, clearAnalyticsCache } from './services/channelAna
 import { fetchAllVideoTitles, uploadToGist, searchVideosFromCache, loadFromGist } from './services/videoCacheService.js';
 import { getChannelVideosAnalytics, calculateUpdatePriority, getVideoSearchTerms, getVideoExternalTrafficDetails } from './services/analyticsService.js';
 import { generateKeywordAnalysisPrompt } from './services/keywordAnalysisPromptService.js';
+import { TOOL_DEFINITIONS, executeTool } from './services/analyticsTools.js';
 import {
   getQuotaSnapshot as getServerQuotaSnapshot,
   resetQuotaSnapshot as resetServerQuotaSnapshot,
@@ -3917,6 +3918,277 @@ app.post('/api/video-cache/generate', async (req, res) => {
     res.status(500).json({
       error: error.message || '生成影片快取失敗',
     });
+  }
+});
+
+/**
+ * AI 分析對話 API（SSE 串流）
+ * POST /api/analytics/ai-chat
+ * 接收自然語言需求，透過 tool calling 自動拉取數據並生成報告
+ */
+app.post('/api/analytics/ai-chat', async (req, res) => {
+  const { query, model = 'gemini-2.5-flash', messages = [], accessToken, channelId } = req.body;
+
+  if (!query && messages.length === 0) {
+    return res.status(400).json({ error: '缺少分析需求' });
+  }
+  if (!accessToken || !channelId) {
+    return res.status(400).json({ error: '缺少 accessToken 或 channelId' });
+  }
+
+  const gistId = process.env.GITHUB_GIST_ID;
+  const gistToken = process.env.GITHUB_GIST_TOKEN || null;
+  const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+
+  // SSE 設定
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const sendEvent = (type, data) => {
+    res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`);
+  };
+
+  const toolContext = { accessToken, channelId, gistId, gistToken };
+
+  try {
+    // 今天的日期（作為預設 endDate）
+    const today = new Date().toISOString().split('T')[0];
+    const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    const systemPrompt = `你是一位 YouTube 頻道數據分析師，幫助頻道主了解頻道成效、優化內容策略。
+你有以下工具可以使用：
+- search_videos_by_keyword：用關鍵字從快取搜尋影片（從 Gist 快取，不耗配額）
+- get_video_analytics：取得影片的數據（觀看數、完播率、流量來源等）
+- get_retention_curve：取得單支影片的留存率曲線
+
+使用規則：
+1. 先用 search_videos_by_keyword 找到相關影片
+2. 再用 get_video_analytics 取得數據
+3. 如果某支影片完播率異常低，可以用 get_retention_curve 深入分析
+4. 今天是 ${today}，預設分析範圍是最近一年（${oneYearAgo} ~ ${today}）
+5. 如果用戶沒有指定日期，使用預設範圍
+6. 最終輸出時，在文字分析後附上一個 JSON code block，格式如下：
+
+\`\`\`json
+{
+  "charts": [
+    {
+      "type": "bar",
+      "title": "圖表標題",
+      "xKey": "videoId 或 label 欄位名稱",
+      "bars": [
+        { "dataKey": "views", "label": "觀看數", "color": "#FF0000" }
+      ],
+      "data": [{ "label": "影片標題（縮短）", "views": 12345 }]
+    },
+    {
+      "type": "line",
+      "title": "留存率曲線",
+      "xKey": "timeRatio",
+      "lines": [{ "dataKey": "watchRatio", "label": "留存率", "color": "#FF0000" }],
+      "data": [{ "timeRatio": 0.1, "watchRatio": 0.85 }]
+    }
+  ],
+  "summary": "一句話摘要",
+  "recommendations": [
+    { "priority": "高", "action": "具體建議", "metric": "預期改善的指標" }
+  ]
+}
+\`\`\``;
+
+    // 組合 messages
+    const conversationMessages = [
+      ...messages,
+      { role: 'user', content: query || messages[messages.length - 1]?.content },
+    ];
+
+    // ─── 決定用哪個 API 做 tool calling ───
+    // 優先用 Gemini（原生支援，不需 OpenRouter key）
+    // 如果沒有 Gemini key 才用 OpenRouter
+    const useGemini = !!geminiApiKey;
+    const useOpenRouter = !useGemini && !!openRouterApiKey;
+
+    if (!useGemini && !useOpenRouter) {
+      sendEvent('error', { message: '未設定 GEMINI_API_KEY 或 OPENROUTER_API_KEY' });
+      return res.end();
+    }
+
+    sendEvent('status', { message: '開始分析需求...' });
+
+    let finalText = '';
+
+    if (useGemini) {
+      // ─── Gemini tool calling ───
+      const { GoogleGenAI } = await import('@google/genai');
+      const genai = new GoogleGenAI({ apiKey: geminiApiKey });
+
+      const geminiModel = model.startsWith('gemini') ? model : 'gemini-2.5-flash';
+
+      const tools = [{
+        functionDeclarations: TOOL_DEFINITIONS.map(t => ({
+          name: t.function.name,
+          description: t.function.description,
+          parameters: t.function.parameters,
+        })),
+      }];
+
+      const contents = [
+        { role: 'user', parts: [{ text: systemPrompt + '\n\n用戶需求：' + (query || conversationMessages[conversationMessages.length - 1]?.content) }] },
+      ];
+
+      // Tool calling loop（最多 5 輪）
+      for (let round = 0; round < 5; round++) {
+        const response = await genai.models.generateContent({
+          model: geminiModel,
+          contents,
+          tools,
+          generationConfig: { temperature: 0.3 },
+        });
+
+        const candidate = response.candidates?.[0];
+        if (!candidate) break;
+
+        const parts = candidate.content?.parts || [];
+        const toolCalls = parts.filter(p => p.functionCall);
+        const textParts = parts.filter(p => p.text);
+
+        if (toolCalls.length === 0) {
+          // 沒有 tool call → 最終回應
+          finalText = textParts.map(p => p.text).join('');
+          break;
+        }
+
+        // 執行所有 tool calls
+        contents.push({ role: 'model', parts });
+
+        const toolResults = [];
+        for (const part of toolCalls) {
+          const { name, args } = part.functionCall;
+          sendEvent('status', { message: `執行工具：${name}...` });
+          try {
+            const result = await executeTool(name, args, toolContext);
+            toolResults.push({
+              functionResponse: { name, response: result },
+            });
+          } catch (toolErr) {
+            toolResults.push({
+              functionResponse: { name, response: { error: toolErr.message } },
+            });
+          }
+        }
+
+        contents.push({ role: 'user', parts: toolResults });
+      }
+
+    } else {
+      // ─── OpenRouter tool calling ───
+      const orModel = model.includes('/') ? model : 'anthropic/claude-sonnet-4.5';
+
+      const orMessages = [
+        { role: 'system', content: systemPrompt },
+        ...conversationMessages,
+      ];
+
+      // Tool calling loop（最多 5 輪）
+      for (let round = 0; round < 5; round++) {
+        const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${openRouterApiKey}`,
+            'HTTP-Referer': process.env.APP_URL || 'https://ai-video-writer.com',
+            'X-Title': 'AI Video Writer',
+          },
+          body: JSON.stringify({
+            model: orModel,
+            messages: orMessages,
+            tools: TOOL_DEFINITIONS,
+            tool_choice: 'auto',
+            temperature: 0.3,
+            max_tokens: 8192,
+          }),
+        });
+
+        if (!orRes.ok) {
+          const err = await orRes.json();
+          throw new Error(err.error?.message || `OpenRouter 錯誤: ${orRes.status}`);
+        }
+
+        const orData = await orRes.json();
+        const choice = orData.choices?.[0];
+        if (!choice) break;
+
+        const toolCalls = choice.message?.tool_calls || [];
+
+        if (toolCalls.length === 0) {
+          finalText = choice.message?.content || '';
+          break;
+        }
+
+        // 把 assistant 訊息加回 messages
+        orMessages.push(choice.message);
+
+        // 執行 tool calls
+        for (const tc of toolCalls) {
+          const name = tc.function.name;
+          const args = JSON.parse(tc.function.arguments || '{}');
+          sendEvent('status', { message: `執行工具：${name}...` });
+          try {
+            const result = await executeTool(name, args, toolContext);
+            orMessages.push({
+              role: 'tool',
+              tool_call_id: tc.id,
+              content: JSON.stringify(result),
+            });
+          } catch (toolErr) {
+            orMessages.push({
+              role: 'tool',
+              tool_call_id: tc.id,
+              content: JSON.stringify({ error: toolErr.message }),
+            });
+          }
+        }
+      }
+    }
+
+    // ─── 解析最終回應：拆分文字 + JSON charts ───
+    sendEvent('status', { message: '生成報告中...' });
+
+    let analysisText = finalText;
+    let chartsData = null;
+
+    const jsonBlockMatch = finalText.match(/```json\s*([\s\S]*?)\s*```/);
+    if (jsonBlockMatch) {
+      try {
+        chartsData = JSON.parse(jsonBlockMatch[1]);
+        analysisText = finalText.replace(/```json[\s\S]*?```/, '').trim();
+      } catch {
+        // 解析失敗就保持原始文字
+      }
+    }
+
+    // 串流輸出文字（逐段）
+    const chunks = analysisText.split('\n');
+    for (const chunk of chunks) {
+      sendEvent('chunk', { text: chunk + '\n' });
+      await new Promise(r => setTimeout(r, 5));
+    }
+
+    // 送出 charts 數據
+    if (chartsData) {
+      sendEvent('charts', { charts: chartsData.charts || [], recommendations: chartsData.recommendations || [], summary: chartsData.summary || '' });
+    }
+
+    sendEvent('done', { message: '分析完成' });
+
+  } catch (err) {
+    console.error('[AI Chat] 錯誤:', err.message);
+    sendEvent('error', { message: err.message || '分析失敗' });
+  } finally {
+    res.end();
   }
 });
 

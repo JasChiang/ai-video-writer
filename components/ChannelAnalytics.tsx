@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, RefreshCw, Calendar, TrendingUp, BarChart3 } from 'lucide-react';
+import { Plus, Trash2, Save, RefreshCw, Calendar, TrendingUp, BarChart3, Sparkles } from 'lucide-react';
 import * as youtubeService from '../services/youtubeService';
 import {
   getRelativeDateRange,
@@ -10,6 +10,7 @@ import {
 } from '../utils/dateRangeUtils';
 import { ChannelDashboard } from './ChannelDashboard';
 import { KeywordAnalysisPanel } from './KeywordAnalysisPanel';
+import { AIAnalysisPanel } from './AIAnalysisPanel';
 
 interface KeywordGroup {
   id: string;
@@ -85,7 +86,7 @@ const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
   (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
 
-type TabType = 'dashboard' | 'report';
+type TabType = 'dashboard' | 'ai' | 'report';
 
 export function ChannelAnalytics() {
   // 分頁狀態
@@ -107,11 +108,18 @@ export function ChannelAnalytics() {
   const [newTemplateName, setNewTemplateName] = useState('');
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
 
-  // 加載模板列表
+  // 加載模板列表 + 初始化頻道 ID
   useEffect(() => {
     loadTemplates();
-    // 加載預設配置（過去 7 天）
     initializeDefaultConfig();
+    // 提前取得 channelId，讓 AI 分析 tab 可以直接用
+    (async () => {
+      try {
+        const id = await youtubeService.getChannelId({ trigger: 'initial-load', source: 'ChannelAnalytics' });
+        if (id) setChannelId(id);
+      } catch { /* 未登入時忽略 */ }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadTemplates = () => {
@@ -478,6 +486,19 @@ export function ChannelAnalytics() {
           </div>
         </button>
         <button
+          onClick={() => setActiveTab('ai')}
+          className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+            activeTab === 'ai'
+              ? 'bg-[#FF0000] text-white shadow-[0_4px_16px_rgba(255,0,0,0.25)]'
+              : 'text-[#606060] hover:text-[#0F0F0F] hover:bg-[#FFF5F5]'
+          }`}
+        >
+          <div className="flex items-center justify-center gap-2 text-sm sm:text-base">
+            <Sparkles className="w-5 h-5" />
+            AI 分析
+          </div>
+        </button>
+        <button
           onClick={() => setActiveTab('report')}
           className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
             activeTab === 'report'
@@ -494,6 +515,19 @@ export function ChannelAnalytics() {
 
       {/* 儀錶板視圖 */}
       {activeTab === 'dashboard' && <ChannelDashboard />}
+
+      {/* AI 分析視圖 */}
+      {activeTab === 'ai' && (() => {
+        const token = youtubeService.getAccessToken();
+        return token && channelId ? (
+          <AIAnalysisPanel accessToken={token} channelId={channelId} />
+        ) : (
+          <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-sm p-8 text-center text-[#606060]">
+            <Sparkles className="w-8 h-8 mx-auto mb-3 text-[#CCCCCC]" />
+            <p>請先載入頻道資料（點一次「關鍵字報表」讓系統取得頻道 ID）</p>
+          </div>
+        );
+      })()}
 
       {/* 報表分析視圖 */}
       {activeTab === 'report' && (
