@@ -4,7 +4,7 @@
 
 ## 📋 功能說明
 
-- ⏰ **自動執行**：每天台灣時間凌晨 2 點自動更新快取
+- ⏰ **自動執行**：每天台灣時間晚上 22:40 自動更新快取
 - 🔄 **手動觸發**：可隨時手動執行更新
 - 📊 **狀態追蹤**：自動記錄更新結果和影片數量
 - ⚠️ **錯誤通知**：更新失敗時會顯示詳細錯誤訊息
@@ -31,7 +31,7 @@
 
 YouTube OAuth Access Token 會過期，因此我們需要**長期有效的 Refresh Token** 來自動刷新。
 
-請參考 [REFRESH_TOKEN_QUICK_START.md](../REFRESH_TOKEN_QUICK_START.md) 取得您的 `YOUTUBE_REFRESH_TOKEN`、`YOUTUBE_CLIENT_ID` 和 `YOUTUBE_CLIENT_SECRET`。
+請參考 [GET_REFRESH_TOKEN.md](./GET_REFRESH_TOKEN.md) 取得您的 `YOUTUBE_REFRESH_TOKEN`、`YOUTUBE_CLIENT_ID` 和 `YOUTUBE_CLIENT_SECRET`。
 
 ---
 
@@ -166,7 +166,7 @@ curl -X POST http://localhost:3001/api/video-cache/generate \
 
 ## ⏰ 執行時間設定
 
-workflow 預設每天台灣時間凌晨 2 點執行。
+workflow 預設每天台灣時間晚上 22:40 執行（UTC 14:40）。
 
 ### 修改執行時間
 
@@ -175,9 +175,9 @@ workflow 預設每天台灣時間凌晨 2 點執行。
 ```yaml
 on:
   schedule:
-    # UTC 時間，需要減 8 小時
-    # 例如：台灣 10:00 = UTC 02:00
-    - cron: '0 2 * * *'
+    # UTC 時間，需要減 8 小時換算台灣時間
+    # 目前設定：台灣 22:40 = UTC 14:40
+    - cron: '40 14 * * *'
 ```
 
 ### cron 格式說明
@@ -193,8 +193,8 @@ on:
 ```
 
 範例：
+- `40 14 * * *` - 每天 UTC 14:40（台灣 22:40）——目前設定
 - `0 2 * * *` - 每天 UTC 02:00（台灣 10:00）
-- `0 18 * * *` - 每天 UTC 18:00（台灣 02:00）
 - `0 */6 * * *` - 每 6 小時執行一次
 - `0 2 * * 1` - 每週一 UTC 02:00
 
@@ -237,7 +237,7 @@ gh workflow run update-video-cache.yml
 **症狀**：每次執行都失敗，顯示 401 錯誤
 
 **解決方式**：
-1. 重新取得 refresh token（參考 [REFRESH_TOKEN_QUICK_START.md](../REFRESH_TOKEN_QUICK_START.md)）
+1. 重新取得 refresh token（參考 [GET_REFRESH_TOKEN.md](./GET_REFRESH_TOKEN.md)）
 2. 更新 `YOUTUBE_REFRESH_TOKEN` secret
 
 **建議**：
@@ -362,7 +362,7 @@ gh workflow run update-video-cache.yml
 
 ## ⏰ 執行時間設定
 
-workflow 預設每天台灣時間凌晨 2 點執行。
+workflow 預設每天台灣時間晚上 22:40 執行（UTC 14:40）。
 
 ### 修改執行時間
 
@@ -371,9 +371,9 @@ workflow 預設每天台灣時間凌晨 2 點執行。
 ```yaml
 on:
   schedule:
-    # UTC 時間，需要減 8 小時
-    # 例如：台灣 10:00 = UTC 02:00
-    - cron: '0 2 * * *'
+    # UTC 時間，需要減 8 小時換算台灣時間
+    # 目前設定：台灣 22:40 = UTC 14:40
+    - cron: '40 14 * * *'
 ```
 
 ### cron 格式說明
@@ -389,8 +389,8 @@ on:
 ```
 
 範例：
+- `40 14 * * *` - 每天 UTC 14:40（台灣 22:40）——目前設定
 - `0 2 * * *` - 每天 UTC 02:00（台灣 10:00）
-- `0 18 * * *` - 每天 UTC 18:00（台灣 02:00）
 - `0 */6 * * *` - 每 6 小時執行一次
 - `0 2 * * 1` - 每週一 UTC 02:00
 

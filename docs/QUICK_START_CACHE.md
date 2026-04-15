@@ -104,7 +104,7 @@ npm run update-cache
 
 ## 🤖 自動化快取更新 (選填)
 
-若要設定 GitHub Actions 每日自動更新影片快取，請參考 [GitHub Actions 設定指南](../GITHUB_ACTIONS_SETUP.md)。
+若要設定 GitHub Actions 每日自動更新影片快取，請參考 [GitHub Actions 設定指南](./GITHUB_ACTIONS_SETUP.md)。
 
 ## 📊 快取資料結構
 

@@ -102,7 +102,7 @@
     -   前往您的 GitHub repository → `Settings` → `Secrets and variables` → `Actions`。
     -   確認所有必要的 Secrets（`YOUTUBE_REFRESH_TOKEN`, `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_CHANNEL_ID`, `VIDEO_CACHE_GIST_TOKEN`, `VIDEO_CACHE_GIST_ID`）都已正確設定。
 2.  **重新取得 Refresh Token**：
-    -   如果 `YOUTUBE_REFRESH_TOKEN` 過期或無效，請參考 [取得 YouTube Refresh Token 快速指南](./REFRESH_TOKEN_QUICK_START.md) 重新取得新的 Refresh Token，並更新 GitHub Secrets。
+    -   如果 `YOUTUBE_REFRESH_TOKEN` 過期或無效，請參考 [取得 YouTube Refresh Token 快速指南](./GET_REFRESH_TOKEN.md) 重新取得新的 Refresh Token，並更新 GitHub Secrets。
 
 ## 🔍 檢查清單
 
@@ -145,5 +145,5 @@
 
 -   [影片快取功能：快速設定指南](./QUICK_START_CACHE.md)
 -   [GitHub Actions 自動更新影片快取設定指南](./GITHUB_ACTIONS_SETUP.md)
--   [取得 YouTube Refresh Token 快速指南](./REFRESH_TOKEN_QUICK_START.md)
--   [完整影片快取系統說明](./video-cache-setup.md)
+-   [取得 YouTube Refresh Token 快速指南](./GET_REFRESH_TOKEN.md)
+-   [完整影片快取系統說明](./VIDEO_CACHE_SETUP.md)
