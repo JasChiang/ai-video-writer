@@ -3959,17 +3959,14 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
     const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     const systemPrompt = `你是一位 YouTube 頻道數據分析師，幫助頻道主了解頻道成效、優化內容策略。
-你有以下工具可以使用：
-- search_videos_by_keyword：用關鍵字從快取搜尋影片（從 Gist 快取，不耗配額）
-- get_video_analytics：取得影片的數據（觀看數、完播率、流量來源等）
-- get_retention_curve：取得單支影片的留存率曲線
+今天是 ${today}，預設分析範圍是最近一年（${oneYearAgo} ~ ${today}）。
 
-使用規則：
-1. 先用 search_videos_by_keyword 找到相關影片
-2. 再用 get_video_analytics 取得數據
+工具使用規則：
+1. 需要分析整個頻道的整體表現時，直接使用 get_channel_analytics（不需要 video ID）
+2. 需要分析特定單元或關鍵字相關影片時，先用 search_videos_by_keyword 找影片，再用 get_video_analytics 取數據
 3. 如果某支影片完播率異常低，可以用 get_retention_curve 深入分析
-4. 今天是 ${today}，預設分析範圍是最近一年（${oneYearAgo} ~ ${today}）
-5. 如果用戶沒有指定日期，使用預設範圍
+4. 如果用戶沒有指定日期，使用預設範圍
+5. 必須等工具實際回傳真實數據後，才能產出分析報告。絕對不可以自行編造或假設數據。
 6. 最終輸出時，在文字分析後附上一個 JSON code block，格式如下：
 
 \`\`\`json
@@ -4035,8 +4032,9 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
         })),
       }];
 
+      const userQuery = query || conversationMessages[conversationMessages.length - 1]?.content;
       const contents = [
-        { role: 'user', parts: [{ text: systemPrompt + '\n\n用戶需求：' + (query || conversationMessages[conversationMessages.length - 1]?.content) }] },
+        { role: 'user', parts: [{ text: userQuery }] },
       ];
 
       // Tool calling loop（最多 5 輪）
@@ -4045,6 +4043,7 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
           model: geminiModel,
           contents,
           tools,
+          systemInstruction: { parts: [{ text: systemPrompt }] },
           generationConfig: { temperature: 0.3 },
         });
 
