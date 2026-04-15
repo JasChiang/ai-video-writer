@@ -297,11 +297,17 @@ MIT License — 可自由個人使用、修改、商業使用。
 | 文件 | 說明 |
 |------|------|
 | [docs/SETUP.md](docs/SETUP.md) | 完整設定指南（從零開始） |
+| [docs/DEPLOY_TO_RENDER.md](docs/DEPLOY_TO_RENDER.md) | 部署到 Render 雲端平台 |
 | [CHANGELOG.md](CHANGELOG.md) | 功能與版本變更記錄 |
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | 疑難排解 |
 | [docs/VIDEO_CACHE_SETUP.md](docs/VIDEO_CACHE_SETUP.md) | 影片快取系統說明 |
 | [docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md) | GitHub Actions 自動快取更新 |
+| [docs/GET_REFRESH_TOKEN.md](docs/GET_REFRESH_TOKEN.md) | 取得 YouTube Refresh Token |
+| [docs/ENABLE_ANALYTICS_API.md](docs/ENABLE_ANALYTICS_API.md) | 啟用 YouTube Analytics API |
+| [docs/CUSTOM_TEMPLATES.md](docs/CUSTOM_TEMPLATES.md) | 自訂文章模板（遠端 Gist） |
 | [docs/SECURITY.md](docs/SECURITY.md) | 安全性說明 |
+| [docs/SECURITY_REPORT.md](docs/SECURITY_REPORT.md) | 安全審計報告 |
+| [docs/GEMINI_PROMPT_BEST_PRACTICES.md](docs/GEMINI_PROMPT_BEST_PRACTICES.md) | Gemini 提示詞設計最佳實踐 |
 | [docs/gemini_api/](docs/gemini_api/) | Gemini API 參考文件 |
 
 ---

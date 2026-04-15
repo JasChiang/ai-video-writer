@@ -74,6 +74,16 @@
 
 > **重要**：`FRONTEND_URL`, `VITE_SERVER_BASE_URL`, `VITE_API_URL` 必須與 Render 給您的服務 URL 完全一致，否則會導致 CORS 錯誤。
 
+#### 存取控制環境變數（部署必填）
+
+| Key | Value | 說明 |
+| :--- | :--- | :--- |
+| `JWT_SECRET` | 32 字元以上的隨機字串 | JWT 簽名密鑰，可用 `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` 產生。**絕對不要使用預設值。** |
+| `ALLOWED_CHANNEL_IDS` | `UCxxxxxxxxxxxxxxxxxx` | 允許登入的 YouTube 頻道 ID（逗號分隔多個）。只有這些頻道的管理員才能登入並取得 JWT，其他人一律被拒。查詢方式：YouTube Studio → 設定 → 頻道 → 進階設定 → 頻道 ID（UC 開頭）。 |
+| `ALLOWED_ORIGINS` | `https://YOUR_RENDER_URL.onrender.com` | 允許的前端來源，用於 CORS。填入您的 Render 服務 URL，多個來源用逗號分隔。 |
+
+> **安全原則**：`JWT_SECRET` 是整個授權機制的核心，外洩後需立即更換。`ALLOWED_CHANNEL_IDS` 決定誰能登入，請確認只填入您自己管理的頻道 ID。
+
 #### 選填環境變數 (Notion 整合)
 
 **方式 1：使用 Internal Integration Token (適合個人使用)**
