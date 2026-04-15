@@ -7,14 +7,13 @@ import * as youtubeService from './services/youtubeService';
 import type { YouTubeVideo } from './types';
 import { YouTubeLogin } from './components/YouTubeLogin';
 import { VideoSelector } from './components/VideoSelector';
-import { VideoAnalytics } from './components/VideoAnalytics';
 import { VideoDetailPanel } from './components/VideoDetailPanel';
 import { QuotaDebugger } from './components/QuotaDebugger';
 import { ArticleWorkspace } from './components/ArticleWorkspace';
 import { ChannelAnalytics } from './components/ChannelAnalytics';
 import { GITHUB_GIST_ID } from './config';
 
-type ActiveTab = 'videos' | 'analytics' | 'articles' | 'channel-analytics';
+type ActiveTab = 'videos' | 'articles' | 'channel-analytics';
 
 export default function App() {
   const [isInitializing, setIsInitializing] = useState(true);
@@ -618,10 +617,6 @@ export default function App() {
     }
 
     // 根據 activeTab 渲染不同內容
-    if (activeTab === 'analytics') {
-      return <VideoAnalytics />;
-    }
-
     if (activeTab === 'articles') {
       return <ArticleWorkspace />;
     }
