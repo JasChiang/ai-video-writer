@@ -5,7 +5,7 @@
 
 import { google } from 'googleapis';
 import { searchVideosFromCache } from './videoCacheService.js';
-import { recordQuotaServer } from './quotaTracker.js';
+import { recordQuota } from './quotaTracker.js';
 
 const YOUTUBE_QUOTA_COST = { analyticsReportsQuery: 1 };
 
@@ -171,7 +171,7 @@ async function getVideoAnalytics({ videoIds, startDate, endDate }, { accessToken
       filters: `video==${videoFilter}`,
       sort: '-views',
     });
-    recordQuotaServer('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
+    recordQuota('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
       context: 'analyticsTools.getVideoAnalytics.basic',
     });
 
@@ -184,7 +184,7 @@ async function getVideoAnalytics({ videoIds, startDate, endDate }, { accessToken
       dimensions: 'video,insightTrafficSourceType',
       filters: `video==${videoFilter}`,
     });
-    recordQuotaServer('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
+    recordQuota('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
       context: 'analyticsTools.getVideoAnalytics.traffic',
     });
 
@@ -245,7 +245,7 @@ async function getRetentionCurve({ videoId, startDate, endDate }, { accessToken,
     dimensions: 'elapsedVideoTimeRatio',
     filters: `video==${videoId}`,
   });
-  recordQuotaServer('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
+  recordQuota('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
     context: 'analyticsTools.getRetentionCurve',
     videoId,
   });
