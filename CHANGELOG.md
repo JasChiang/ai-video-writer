@@ -13,6 +13,9 @@
 - **CORS 收窄**：從全開改為只允許 `ALLOWED_ORIGINS` 環境變數指定的來源（預設含 localhost）
 - **新增 `services/sessionAuthService.ts`**：管理 session JWT 的取得、儲存、清除
 
+### 修正
+- **Google OAuth scope 補上 email**：加入 `userinfo.email` scope，確保後端 tokeninfo 驗證可取得使用者 email 以比對白名單
+
 ### 修正（安全）
 - **filePath 路徑穿越漏洞**：`/api/analyze-video`、`/api/generate-article`、`/api/regenerate-screenshots` 加入 `validateFilePath()` 驗證，確保只能存取 `temp_videos/` 和 `temp_uploads/` 目錄
 - **task 回傳洩漏 accessToken**：`GET /api/task/:taskId` 回傳前移除 `params.accessToken`

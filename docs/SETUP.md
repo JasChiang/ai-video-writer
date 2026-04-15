@@ -374,6 +374,14 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 > **重要**：`JWT_SECRET` 請在 Render 上設定一個與本機 `.env.local` 不同的值，且絕對不要公開。`ALLOWED_EMAILS` 只填你自己的 Gmail，這樣即使 Render 網址被人知道，也無法登入或使用任何 API 端點。
 
+**注意事項：**
+
+- **多個帳號用逗號分隔，不加空格**：`ALLOWED_EMAILS=a@gmail.com,b@gmail.com`
+- **首次登入會彈出額外 Google 權限視窗**：系統需要讀取 email 來比對白名單，允許即可
+- **如果登入後功能異常**：清除瀏覽器 localStorage 再重新登入（DevTools → Application → Local Storage → 全選刪除）
+- **JWT 有效期 8 小時**：過期後需重新登入，這是正常行為
+- **換了 `JWT_SECRET` 所有人需重新登入**：Render 上修改此變數後，所有現有 session 立即失效
+
 同時記得回到 Google Cloud Console，在 OAuth 用戶端設定中加入你的 Render 網域：
 ```
 https://your-app.onrender.com
