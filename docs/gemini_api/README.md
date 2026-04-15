@@ -1,6 +1,8 @@
 # Gemini API 參考文件
 
-這個資料夾收錄 Google Gemini API 的重點說明，供開發者在修改 AI 相關功能時參考，不需要每次翻閱官方文件。
+這個資料夾收錄 Google Gemini API 的重點說明，供開發者在修改 AI 相關功能時參考。
+
+> 文件內容可能未反映最新的模型版本或 API 規格，建議以 [Gemini API 官方文件](https://ai.google.dev/gemini-api/docs?hl=zh-tw) 為準。
 
 | 文件 | 內容 |
 |------|------|
