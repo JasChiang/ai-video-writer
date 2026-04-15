@@ -20,8 +20,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: 'feature/ai-analytics'
-
+          ref: 'main'
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

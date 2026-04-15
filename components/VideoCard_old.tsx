@@ -145,7 +145,10 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
       console.log(`[VideoCard] Updating ${field}:`, videoDataToUpdate);
       console.log(`[VideoCard] youtubeCurrentValues:`, youtubeCurrentValues);
       console.log(`[VideoCard] editableContent:`, editableContent);
-      await youtubeService.updateVideo(videoDataToUpdate);
+      await youtubeService.updateVideo(videoDataToUpdate, {
+        source: 'VideoCard_old',
+        trigger: `metadata-update-${field}`,
+      });
 
       // 更新成功後，更新 YouTube 當前值
       if (field === 'title') {

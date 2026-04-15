@@ -1,0 +1,8 @@
+dist
+node_modules
+temp_videos
+public/images
+*.mp4
+*.webm
+package-lock.json
+.env.local
