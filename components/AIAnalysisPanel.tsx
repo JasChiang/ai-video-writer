@@ -57,10 +57,25 @@ interface Message {
   result?: AnalysisResult;
 }
 
+interface ModelOption {
+  id: string;
+  label: string;
+  provider: 'gemini' | 'openrouter';
+  description: string;
+}
+
+const MODEL_OPTIONS: ModelOption[] = [
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'gemini', description: '快速・免費配額' },
+  { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'gemini', description: '高品質・付費' },
+  { id: 'anthropic/claude-sonnet-4-5', label: 'Claude Sonnet 4.5', provider: 'openrouter', description: 'OpenRouter' },
+  { id: 'anthropic/claude-opus-4-5', label: 'Claude Opus 4.5', provider: 'openrouter', description: 'OpenRouter・最強' },
+  { id: 'openai/gpt-4o', label: 'GPT-4o', provider: 'openrouter', description: 'OpenRouter' },
+  { id: 'openai/gpt-4o-mini', label: 'GPT-4o mini', provider: 'openrouter', description: 'OpenRouter・輕量' },
+];
+
 interface Props {
   accessToken: string;
   channelId: string;
-  model?: string;
 }
 
 // ─── Color palette ────────────────────────────────
@@ -177,11 +192,12 @@ const EXAMPLES = [
   '哪些影片的搜尋流量佔比最高？',
 ];
 
-export function AIAnalysisPanel({ accessToken, channelId, model = 'gemini-2.5-flash' }: Props) {
+export function AIAnalysisPanel({ accessToken, channelId }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [statusText, setStatusText] = useState('');
+  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -211,7 +227,7 @@ export function AIAnalysisPanel({ accessToken, channelId, model = 'gemini-2.5-fl
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query,
-          model,
+          model: selectedModel,
           accessToken,
           channelId,
           messages: messages
@@ -308,16 +324,33 @@ export function AIAnalysisPanel({ accessToken, channelId, model = 'gemini-2.5-fl
       <div className="relative overflow-hidden rounded-3xl border border-[#E5E5E5] bg-white shadow-sm p-6">
         <div className="absolute -right-16 -top-16 w-48 h-48 bg-[#FF0000]/10 rounded-full blur-3xl" />
         <div className="absolute -left-20 bottom-0 w-40 h-40 bg-[#FF5858]/10 rounded-full blur-2xl" />
-        <div className="relative">
-          <h2 className="text-2xl font-extrabold flex items-center gap-2 text-[#111111]">
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[#FF0000] text-white shadow-lg">
-              <Sparkles className="w-5 h-5" />
-            </span>
-            AI 數據分析
-          </h2>
-          <p className="text-[#5F5F5F] mt-1">
-            用自然語言描述你想分析的內容，AI 會自動查詢數據並生成報告
-          </p>
+        <div className="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-extrabold flex items-center gap-2 text-[#111111]">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[#FF0000] text-white shadow-lg">
+                <Sparkles className="w-5 h-5" />
+              </span>
+              AI 數據分析
+            </h2>
+            <p className="text-[#5F5F5F] mt-1">
+              用自然語言描述你想分析的內容，AI 會自動查詢數據並生成報告
+            </p>
+          </div>
+          <div className="shrink-0">
+            <label className="block text-xs text-[#909090] mb-1">模型</label>
+            <select
+              value={selectedModel}
+              onChange={e => setSelectedModel(e.target.value)}
+              disabled={isLoading}
+              className="rounded-xl border border-[#E5E5E5] bg-white px-3 py-2 text-sm text-[#333] focus:outline-none focus:border-[#FF0000] focus:ring-1 focus:ring-[#FF0000]/20 disabled:opacity-50"
+            >
+              {MODEL_OPTIONS.map(opt => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}（{opt.description}）
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

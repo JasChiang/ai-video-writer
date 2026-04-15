@@ -4003,13 +4003,15 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
     ];
 
     // ─── 決定用哪個 API 做 tool calling ───
-    // 優先用 Gemini（原生支援，不需 OpenRouter key）
-    // 如果沒有 Gemini key 才用 OpenRouter
-    const useGemini = !!geminiApiKey;
-    const useOpenRouter = !useGemini && !!openRouterApiKey;
+    // 根據前端選擇的 model 決定走哪個 API
+    // gemini-* → Gemini API；其他（含 anthropic/、openai/ 等）→ OpenRouter
+    const isGeminiModel = model.startsWith('gemini');
+    const useGemini = isGeminiModel && !!geminiApiKey;
+    const useOpenRouter = !isGeminiModel && !!openRouterApiKey;
 
     if (!useGemini && !useOpenRouter) {
-      sendEvent('error', { message: '未設定 GEMINI_API_KEY 或 OPENROUTER_API_KEY' });
+      const missing = isGeminiModel ? 'GEMINI_API_KEY' : 'OPENROUTER_API_KEY';
+      sendEvent('error', { message: `未設定 ${missing}，無法使用此模型` });
       return res.end();
     }
 
@@ -4022,7 +4024,7 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
       const { GoogleGenAI } = await import('@google/genai');
       const genai = new GoogleGenAI({ apiKey: geminiApiKey });
 
-      const geminiModel = model.startsWith('gemini') ? model : 'gemini-2.5-flash';
+      const geminiModel = model;
 
       const tools = [{
         functionDeclarations: TOOL_DEFINITIONS.map(t => ({
