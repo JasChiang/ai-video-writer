@@ -7,7 +7,8 @@ import type { YouTubeVideo } from '../types';
 import { recordQuota } from '../utils/quotaTracker';
 import { loginWithGoogleToken, clearSessionToken } from './sessionAuthService';
 
-let tokenClient: any = null;
+let tokenClient: any = null;       // YouTube scope（頻道存取）
+let emailTokenClient: any = null;  // email scope 專用（身份驗證，不會出現頻道選擇畫面）
 let isGapiInitialized = false;
 let isGisInitialized = false;
 let gapiInitializationPromise: Promise<void> | null = null;
@@ -145,10 +146,17 @@ function initializeGisClient(): Promise<void> {
         script.defer = true;
         script.onload = () => {
              try {
+                // YouTube 頻道存取用（可能顯示品牌帳號選擇）
                 tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: YOUTUBE_CLIENT_ID,
                     scope: YOUTUBE_SCOPES,
-                    callback: '', // The callback is handled by the promise in requestToken
+                    callback: '',
+                });
+                // 身份驗證專用：只要 email scope，不會出現頻道選擇畫面
+                emailTokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: YOUTUBE_CLIENT_ID,
+                    scope: 'https://www.googleapis.com/auth/userinfo.email',
+                    callback: '',
                 });
                 isGisInitialized = true;
                 resolve();
@@ -183,38 +191,48 @@ export function isTokenValid(): boolean {
     return true;
 }
 
+/**
+ * 步驟一：用 email-only OAuth 取得個人 Gmail，向後端換 session JWT
+ * 不含 YouTube scope，不會出現頻道選擇畫面
+ */
+function requestEmailTokenForAuth(): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const callback = async (resp: any) => {
+            if (resp.error) return reject(resp);
+            const accessToken = resp.access_token;
+            if (!accessToken) return reject(new Error('No access token in email response'));
+            const ok = await loginWithGoogleToken(accessToken);
+            if (!ok) return reject(new Error('LOGIN_REJECTED'));
+            resolve();
+        };
+        emailTokenClient.callback = callback;
+        emailTokenClient.requestAccessToken({ prompt: 'select_account' });
+    });
+}
+
 export function requestToken(): Promise<void> {
     return new Promise((resolve, reject) => {
         if (!isGisInitialized) {
             return reject(new Error("Google Identity Service not initialized."));
         }
 
-        const callback = async (resp: any) => {
-            if (resp.error) {
-                return reject(resp);
-            }
-            gapi.client.setToken(resp);
-            const expiresIn = typeof resp.expires_in === 'number'
-                ? resp.expires_in
-                : parseInt(resp.expires_in, 10);
-            persistToken(gapi.client.getToken(), Number.isFinite(expiresIn) ? expiresIn : undefined);
-
-            // 用 Google token 向後端換取 session JWT
-            const accessToken = resp.access_token;
-            if (accessToken) {
-                const ok = await loginWithGoogleToken(accessToken);
-                if (!ok) {
-                    // 後端拒絕（email 不在白名單或 token 無效）
-                    gapi.client.setToken(null);
-                    persistToken(null);
-                    return reject(new Error('LOGIN_REJECTED'));
+        // 步驟一：email OAuth → JWT（personal Gmail，無頻道選擇）
+        requestEmailTokenForAuth().then(() => {
+            // 步驟二：YouTube OAuth → 頻道存取（可選品牌帳號）
+            const callback = async (resp: any) => {
+                if (resp.error) {
+                    return reject(resp);
                 }
-            }
-            resolve();
-        };
-
-        tokenClient.callback = callback;
-        tokenClient.requestAccessToken({ prompt: '' });
+                gapi.client.setToken(resp);
+                const expiresIn = typeof resp.expires_in === 'number'
+                    ? resp.expires_in
+                    : parseInt(resp.expires_in, 10);
+                persistToken(gapi.client.getToken(), Number.isFinite(expiresIn) ? expiresIn : undefined);
+                resolve();
+            };
+            tokenClient.callback = callback;
+            tokenClient.requestAccessToken({ prompt: '' });
+        }).catch(reject);
     });
 }
 
