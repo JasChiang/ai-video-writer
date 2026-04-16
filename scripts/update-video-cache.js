@@ -7,6 +7,7 @@
 import dotenv from 'dotenv';
 import fs from 'fs';
 import { refreshAccessToken, parseTokenInput } from '../services/youtubeTokenService.js';
+import { signSessionToken } from '../middleware/auth.js';
 
 // 載入環境變數
 dotenv.config({ path: '.env.local' });
@@ -91,10 +92,12 @@ async function updateCache() {
   try {
     // 呼叫 API 更新快取
     console.log('📡 正在連接到 API...');
+    const sessionToken = signSessionToken('github-actions');
     const response = await fetch(`${API_URL}/api/video-cache/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sessionToken}`,
       },
       body: JSON.stringify({
         accessToken: accessToken,
