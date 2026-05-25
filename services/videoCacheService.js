@@ -63,18 +63,42 @@ export async function fetchAllVideoTitles(accessToken, channelId) {
     let pageToken = null;
     let pageCount = 0;
 
+    const SEARCH_PAGE_DELAY_MS = 2000;
+    const SEARCH_QUOTA_BACKOFF_MS = 60_000;
+    const SEARCH_QUOTA_MAX_RETRIES = 3;
+
     do {
       pageCount++;
       console.log(`[VideoCache] 📄 正在獲取第 ${pageCount} 頁... (配額成本: 100)`);
 
-      const response = await youtube.search.list({
-        part: 'snippet',
-        forMine: true,
-        type: 'video',
-        order: 'date', // 按日期排序
-        maxResults: 50,
-        pageToken: pageToken,
-      });
+      let response;
+      let attempt = 0;
+      while (true) {
+        try {
+          response = await youtube.search.list({
+            part: 'snippet',
+            forMine: true,
+            type: 'video',
+            order: 'date', // 按日期排序
+            maxResults: 50,
+            pageToken: pageToken,
+          });
+          break;
+        } catch (err) {
+          const reason = err?.errors?.[0]?.reason || err?.response?.data?.error?.errors?.[0]?.reason || '';
+          const message = err?.message || '';
+          const isQuotaError = /quota/i.test(message) || /rateLimit/i.test(reason) || /quotaExceeded/i.test(reason);
+          if (isQuotaError && attempt < SEARCH_QUOTA_MAX_RETRIES) {
+            attempt++;
+            const waitMs = SEARCH_QUOTA_BACKOFF_MS * attempt;
+            console.log(`[VideoCache] ⏸️  撞到 Search Queries per minute 限制，等 ${waitMs / 1000}s 後重試 (${attempt}/${SEARCH_QUOTA_MAX_RETRIES})`);
+            await new Promise(r => setTimeout(r, waitMs));
+            continue;
+          }
+          throw err;
+        }
+      }
+
       recordQuotaServer('youtube.search.list', 100, {
         part: 'snippet',
         page: pageCount,
@@ -101,6 +125,9 @@ export async function fetchAllVideoTitles(accessToken, channelId) {
 
       console.log(`[VideoCache] 📊 目前已獲取: ${videoBasicInfo.length} 支影片`);
       pageToken = response.data.nextPageToken;
+      if (pageToken) {
+        await new Promise(r => setTimeout(r, SEARCH_PAGE_DELAY_MS));
+      }
     } while (pageToken);
 
     console.log(`[VideoCache] ✅ 步驟 1 完成！總共 ${videoBasicInfo.length} 支影片`);
