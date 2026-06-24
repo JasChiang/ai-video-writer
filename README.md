@@ -70,10 +70,11 @@ AI 透過 **tool calling** 自動決定要查哪些數據，呼叫 YouTube Analy
 
 | 模型 | 供應商 | 說明 |
 |---|---|---|
-| Gemini 2.5 Flash | Google | 預設，快速・免費配額 |
-| Gemini 2.5 Pro | Google | 高品質・付費 |
-| Claude Sonnet 4.5 / Opus 4.5 | OpenRouter | 需設 `OPENROUTER_API_KEY` |
-| GPT-4o / GPT-4o mini | OpenRouter | 需設 `OPENROUTER_API_KEY` |
+| Gemini Flash（`gemini-flash-latest`） | Google | 預設，快速・經濟，原生 API・滾動最新版 |
+| Gemini Pro（`gemini-pro-latest`） | Google | 深度分析，原生 API・滾動最新版 |
+| Claude Sonnet 4.5 | Anthropic（OpenRouter） | 策略規劃、結構化輸出，需設 `OPENROUTER_API_KEY` |
+| GPT-5.1 | OpenAI（OpenRouter） | 全方位分析，需設 `OPENROUTER_API_KEY` |
+| Grok 4 | xAI（OpenRouter） | 快速即時分析，需設 `OPENROUTER_API_KEY` |
 
 ### 🔍 4. 關鍵字報表
 
@@ -102,7 +103,7 @@ AI 透過 **tool calling** 自動決定要查哪些數據，呼叫 YouTube Analy
 | 影片處理 | yt-dlp（下載）· FFmpeg（截圖） |
 | 資料快取 | GitHub Gist |
 | 整合 | Notion API |
-| 部署 | Render · Docker · GitHub Actions |
+| 部署 | Render · GitHub Actions |
 
 ---
 
@@ -190,10 +191,9 @@ npm run dev:all   # 同時啟動前後端（推薦）
 
 ## 部署
 
-支援 Render 一鍵部署與 Docker。部署後即可隨時使用，不限於本機開機時。
+支援 Render 一鍵部署。部署後即可隨時使用，不限於本機開機時。
 
 - **Render**：[docs/DEPLOY_TO_RENDER.md](docs/DEPLOY_TO_RENDER.md)
-- **Docker**：專案根目錄含 `docker-compose.yml` 與 `docker-start.sh`
 - **自動更新快取**：[docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md)
 
 ---
@@ -215,7 +215,6 @@ ai-video-writer/
 ├── middleware/auth.js       # JWT 驗證中介層
 ├── scripts/                 # 快取更新等 CLI 腳本
 ├── server.js                # Express 後端（單檔）
-├── docker/                  # Docker 相關設定
 └── docs/                    # 完整文件
 ```
 

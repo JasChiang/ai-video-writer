@@ -173,8 +173,8 @@ runSecurityTests().catch(console.error);
 
 ### 2. 速率限制 (Rate Limiting)
 
--   **限制**：目前專案**沒有**實施 API 請求頻率限制。
--   **建議**：導入 `express-rate-limit` 等中介軟體，對所有 API 端點實施速率限制，以防止 API 濫用和 DDoS 攻擊。
+-   **現狀**：下載與文章生成相關端點已實施自訂的記憶體速率限制（`server.js` 的 `checkRateLimit`：每帳號每小時 10 次、每 IP 每小時 20 次），超過上限時該任務會以錯誤結束。
+-   **建議**：可進一步導入 `express-rate-limit` 等中介軟體，將速率限制涵蓋到所有 API 端點，以防止更廣泛的 API 濫用和 DDoS 攻擊。
 -   **參考**：請參考 [AI Video Writer 專案安全政策與最佳實踐](./SECURITY.md) 中的相關建議。
 
 ### 3. OAuth Token 後端驗證

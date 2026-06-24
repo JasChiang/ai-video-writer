@@ -44,8 +44,8 @@
 - **功能描述**:
   使用者可以透過自己的 Google 帳號安全地登入，並授權應用程式存取其 YouTube 頻道的相關數據。這是使用所有功能的基礎。
 - **實現方式**:
-    - **前端**: `YouTubeLogin.tsx` 元件提供一個登入按鈕，點擊後將使用者導向後端設定的 Google OAuth 2.0 授權頁面。
-    - **後端**: `server.js` 中設定了 `/auth/google` 和 `/auth/google/callback` 路由，使用 `googleapis` 函式庫處理 OAuth 2.0 流程。`services/youtubeTokenService.js` 負責安全地儲存與管理 `refresh_token`，以便在背景執行影片快取更新等任務。
+    - **前端**: `YouTubeLogin.tsx` 元件以 Google OAuth 2.0 取得 `accessToken` 後，呼叫後端 `POST /api/auth/login`。
+    - **後端**: `server.js` 的 `POST /api/auth/login` 收到前端傳來的 `accessToken`，向 YouTube API（`channels?mine=true`）驗證並比對 `ALLOWED_CHANNEL_IDS` 白名單，通過後簽發 8 小時有效的 session JWT。`services/youtubeTokenService.js` 負責在背景任務（影片快取更新）中以 `refresh_token` 換取 access token。
 
 ### 3.2 頻道與影片數據分析 (Channel & Video Data Analytics)
 
@@ -66,7 +66,7 @@
   專案的殺手級功能。使用者可以選擇影片或輸入主題，利用 AI 自動生成影片腳本、標題、描述等。AI 的行為由一套使用者可完全自訂的私有提示詞模板系統指導。
 - **實現方式**:
     - **前端**: `ArticleGenerator.tsx` 和 `MetadataGenerator.tsx` 提供操作介面。
-    - **後端**: `server.js` 提供 `/api/gemini/generate-article` 等路由。`services/geminiService.ts` 負責與 Google Gemini API 互動，而 `services/promptService.js` 則負責根據使用者的私有模板組合提示詞。
+    - **後端**: `server.js` 提供 `/api/generate-article`、`/api/generate-article-url` 等路由。`services/geminiService.ts` 負責與 Google Gemini API 互動，而 `services/promptService.js` 則負責根據使用者的私有模板組合提示詞。
 - **邏輯流程**:
     1.  使用者在前端發起生成請求。
     2.  後端 `promptService.js` 根據使用者身份，載入其設定的私有 Gist 模板。

@@ -1104,7 +1104,7 @@ app.post('/api/analyze-video-url', async (req, res) => {
     // 直接使用 YouTube URL 呼叫 Gemini API
     // 根據最佳實踐：影片應該放在 prompt 之前
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-flash-latest',
       contents: [
         {
           role: 'user',
@@ -1182,7 +1182,7 @@ app.post('/api/analyze-video-url-async', async (req, res) => {
 
       taskQueue.updateTaskProgress(taskId, 50, '正在使用 YouTube URL 分析影片...');
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-flash-latest',
         contents: [
           {
             role: 'user',
@@ -1347,7 +1347,7 @@ app.post('/api/analyze-video', async (req, res) => {
     // 呼叫 Gemini API
     // 根據最佳實踐：影片應該放在 prompt 之前
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-flash-latest',
       contents: [
         {
           role: 'user',
@@ -1442,7 +1442,7 @@ app.post('/api/reanalyze-with-existing-file', async (req, res) => {
     // 呼叫 Gemini API
     // 根據最佳實踐：影片應該放在 prompt 之前
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-flash-latest',
       contents: [
         {
           role: 'user',
@@ -1643,7 +1643,7 @@ app.post('/api/generate-article-url', async (req, res) => {
 
     // 根據最佳實踐：影片應該放在 prompt 之前
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-flash-latest',
       contents: [
         {
           role: 'user',
@@ -1879,7 +1879,7 @@ app.post('/api/generate-article-url-async', async (req, res) => {
       while (attempts < maxAttempts) {
         try {
           response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-flash-latest',
             contents: [
               {
                 role: 'user',
@@ -2248,7 +2248,7 @@ app.post('/api/generate-article-from-url-async', async (req, res) => {
       while (attempts < maxAttempts) {
         try {
           response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-flash-latest',
             contents: [
               {
                 role: 'user',
@@ -2582,7 +2582,7 @@ app.post('/api/generate-article', async (req, res) => {
     // 呼叫 Gemini API 生成文章與截圖時間點
     // 根據最佳實踐：影片應該放在 prompt 之前
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-flash-latest',
       contents: [
         {
           role: 'user',
@@ -2729,7 +2729,7 @@ app.post('/api/regenerate-article', async (req, res) => {
     // 呼叫 Gemini API
     // 根據最佳實踐：影片應該放在 prompt 之前
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-flash-latest',
       contents: [
         {
           role: 'user',
@@ -2845,7 +2845,7 @@ app.post('/api/regenerate-screenshots', async (req, res) => {
 
     // 根據最佳實踐：影片應該放在 prompt 之前
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-flash-latest',
       contents: [
         {
           role: 'user',
@@ -3129,7 +3129,7 @@ app.post('/api/analyze-channel', async (req, res) => {
     videos,
     channelStats,
     analytics,
-    modelType = 'gemini-2.5-flash', // 默認使用 Gemini Flash
+    modelType = 'gemini-flash-latest', // 默認使用 Gemini Flash
     analysisType = 'comprehensive', // 默認使用綜合分析
   } = req.body;
 
@@ -3212,7 +3212,7 @@ app.post('/api/analyze-channel/stream', async (req, res) => {
     videos,
     channelStats,
     analytics,
-    modelType = 'gemini-2.5-flash',
+    modelType = 'gemini-flash-latest',
     analysisType = 'comprehensive',
   } = req.body;
 
@@ -3430,7 +3430,7 @@ app.post('/api/analyze-keywords', async (req, res) => {
     dateColumns,        // 日期列列表
     analyticsData,      // 分析數據（{ groupId: { columnId: { views, likes, ... } } }）
     selectedMetrics,    // 選中的指標
-    modelType = 'gemini-2.5-flash', // 使用的模型
+    modelType = 'gemini-flash-latest', // 使用的模型
   } = req.body;
 
   try {
@@ -3522,7 +3522,7 @@ app.post('/api/analyze-keywords/stream', async (req, res) => {
     dateColumns,
     analyticsData,
     selectedMetrics,
-    modelType = 'gemini-2.5-flash',
+    modelType = 'gemini-flash-latest',
   } = req.body;
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -3807,7 +3807,7 @@ app.post('/api/analytics/keyword-analysis', async (req, res) => {
     const prompt = generateKeywordAnalysisPrompt(videoData);
 
     // 步驟 2: 使用 AI 模型進行分析（使用 Gemini Flash 以節省成本）
-    const modelType = 'gemini-2.5-flash';
+    const modelType = 'gemini-flash-latest';
     console.log(`[Keyword Analysis] 使用模型: ${modelType}`);
 
     const response = await aiManager.analyze(modelType, {
@@ -4076,7 +4076,7 @@ app.post('/api/video-cache/generate', async (req, res) => {
  * 接收自然語言需求，透過 tool calling 自動拉取數據並生成報告
  */
 app.post('/api/analytics/ai-chat', async (req, res) => {
-  const { query, model = 'gemini-2.5-flash', messages = [], accessToken, channelId } = req.body;
+  const { query, model = 'gemini-flash-latest', messages = [], accessToken, channelId } = req.body;
 
   if (!query && messages.length === 0) {
     return res.status(400).json({ error: '缺少分析需求' });

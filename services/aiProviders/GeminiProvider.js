@@ -107,14 +107,14 @@ export class GeminiProvider extends BaseAIProvider {
 
   getModelInfo() {
     const modelInfo = {
-      'gemini-2.5-flash': {
-        name: 'Gemini 2.5 Flash',
+      'gemini-flash-latest': {
+        name: 'Gemini Flash',
         provider: 'Google',
         cost: 'Low',
         description: '快速、經濟，適合即時分析',
       },
-      'gemini-2.5-pro': {
-        name: 'Gemini 2.5 Pro',
+      'gemini-pro-latest': {
+        name: 'Gemini Pro',
         provider: 'Google',
         cost: 'High',
         description: '深度推理，適合複雜分析',

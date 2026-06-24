@@ -65,7 +65,7 @@
 ### 3. 提取重複的 Gemini API 調用邏輯
 
 -   **目標**：減少程式碼重複，提高可重用性和可維護性。
--   **實施**：建立一個專用的 `services/geminiService.js` 模組，封裝所有對 Gemini API 的調用邏輯。
+-   **實施**：建立一個專用的 `services/geminiService.ts` 模組，封裝所有對 Gemini API 的調用邏輯。
 -   **預期效益**：簡化 Gemini API 的使用，使程式碼更清晰，並便於未來模型或參數的調整。
 
 ## 📊 改進成效評估 (總結)

@@ -65,12 +65,11 @@ interface ModelOption {
 }
 
 const MODEL_OPTIONS: ModelOption[] = [
-  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'gemini', description: '快速・免費配額' },
-  { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'gemini', description: '高品質・付費' },
-  { id: 'anthropic/claude-sonnet-4-5', label: 'Claude Sonnet 4.5', provider: 'openrouter', description: 'OpenRouter' },
-  { id: 'anthropic/claude-opus-4-5', label: 'Claude Opus 4.5', provider: 'openrouter', description: 'OpenRouter・最強' },
-  { id: 'openai/gpt-4o', label: 'GPT-4o', provider: 'openrouter', description: 'OpenRouter' },
-  { id: 'openai/gpt-4o-mini', label: 'GPT-4o mini', provider: 'openrouter', description: 'OpenRouter・輕量' },
+  { id: 'gemini-flash-latest', label: 'Gemini Flash', provider: 'gemini', description: '快速・經濟' },
+  { id: 'gemini-pro-latest', label: 'Gemini Pro', provider: 'gemini', description: '深度分析' },
+  { id: 'anthropic/claude-sonnet-4.5', label: 'Claude Sonnet 4.5', provider: 'openrouter', description: 'OpenRouter・策略規劃' },
+  { id: 'openai/gpt-5.1', label: 'GPT-5.1', provider: 'openrouter', description: 'OpenRouter・全方位' },
+  { id: 'x-ai/grok-4', label: 'Grok 4', provider: 'openrouter', description: 'OpenRouter・即時' },
 ];
 
 interface Props {
@@ -197,7 +196,7 @@ export function AIAnalysisPanel({ accessToken, channelId }: Props) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [statusText, setStatusText] = useState('');
-  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
+  const [selectedModel, setSelectedModel] = useState('gemini-flash-latest');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 

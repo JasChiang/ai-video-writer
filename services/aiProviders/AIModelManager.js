@@ -18,19 +18,19 @@ export class AIModelManager {
     // 初始化 Gemini Models (使用原生 API)
     if (this.geminiApiKey) {
       this.providers.set(
-        'gemini-2.5-flash',
+        'gemini-flash-latest',
         new GeminiProvider({
           apiKey: this.geminiApiKey,
-          model: 'gemini-2.5-flash',
+          model: 'gemini-flash-latest',
           temperature: 0.7,
         })
       );
 
       this.providers.set(
-        'gemini-2.5-pro',
+        'gemini-pro-latest',
         new GeminiProvider({
           apiKey: this.geminiApiKey,
-          model: 'gemini-2.5-pro',
+          model: 'gemini-pro-latest',
           temperature: 0.7,
         })
       );
@@ -146,8 +146,8 @@ export class AIModelManager {
     const allModels = [
       // Gemini Models (原生 API)
       {
-        id: 'gemini-2.5-flash',
-        name: 'Gemini 2.5 Flash',
+        id: 'gemini-flash-latest',
+        name: 'Gemini Flash',
         provider: 'Google',
         description: '快速、經濟的分析，適合日常監控和即時反饋',
         cost: 'low',
@@ -157,8 +157,8 @@ export class AIModelManager {
         useOpenRouter: false,
       },
       {
-        id: 'gemini-2.5-pro',
-        name: 'Gemini 2.5 Pro',
+        id: 'gemini-pro-latest',
+        name: 'Gemini Pro',
         provider: 'Google',
         description: '深度分析，強大的推理能力，適合複雜問題',
         cost: 'high',
@@ -248,10 +248,10 @@ export class AIModelManager {
   getRecommendedModel(analysisType) {
     const recommendations = {
       'subscriber-growth': 'anthropic/claude-sonnet-4.5', // 策略分析
-      'view-optimization': 'gemini-2.5-flash', // 快速優化建議
+      'view-optimization': 'gemini-flash-latest', // 快速優化建議
       'content-strategy': 'openai/gpt-5.1', // 創意策略
       'audience-insights': 'anthropic/claude-sonnet-4.5', // 數據洞察
-      comprehensive: 'gemini-2.5-pro', // 綜合分析
+      comprehensive: 'gemini-pro-latest', // 綜合分析
     };
 
     const recommended = recommendations[analysisType];
