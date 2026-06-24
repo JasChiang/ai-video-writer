@@ -3457,6 +3457,11 @@ app.post('/api/analyze-keywords', async (req, res) => {
     modelType = 'gemini-flash-latest', // 使用的模型
   } = req.body;
 
+  const kwRate = checkRateLimit(req.user?.email || req.ip, aiRateLimiter, MAX_AI_REQUESTS_PER_HOUR);
+  if (!kwRate.allowed) {
+    return res.status(429).json({ success: false, error: `請求過於頻繁，請於 ${kwRate.waitMinutes} 分鐘後再試` });
+  }
+
   try {
     console.log(`\n========== 🔍 開始關鍵字報表分析 ==========`);
     console.log(`[Keyword Analysis] 模型: ${modelType}`);
@@ -3548,6 +3553,11 @@ app.post('/api/analyze-keywords/stream', async (req, res) => {
     selectedMetrics,
     modelType = 'gemini-flash-latest',
   } = req.body;
+
+  const kwStreamRate = checkRateLimit(req.user?.email || req.ip, aiRateLimiter, MAX_AI_REQUESTS_PER_HOUR);
+  if (!kwStreamRate.allowed) {
+    return res.status(429).json({ success: false, error: `請求過於頻繁，請於 ${kwStreamRate.waitMinutes} 分鐘後再試` });
+  }
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');

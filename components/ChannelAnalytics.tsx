@@ -102,6 +102,7 @@ export function ChannelAnalytics() {
   const [channelId, setChannelId] = useState<string>('');
   const [selectedMetrics, setSelectedMetrics] = useState<Array<keyof AnalyticsData>>(['views', 'likes']);
   const aiAnalysisRef = useRef<HTMLDivElement>(null);
+  const hasScrolledToAI = useRef(false);
   const [channelCountry, setChannelCountry] = useState<string>('');
 
   // 模板管理
@@ -250,6 +251,14 @@ export function ChannelAnalytics() {
       }
     }
 
+    // 檢查重複關鍵字
+    const names = keywordGroups.map(g => g.name.trim().toLowerCase());
+    const duplicates = names.filter((n, i) => names.indexOf(n) !== i);
+    if (duplicates.length > 0) {
+      setError(`關鍵字重複：「${[...new Set(duplicates)].join('、')}」，請移除其中一個`);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -331,10 +340,13 @@ export function ChannelAnalytics() {
         setChannelCountry(result.summary.channelCountry);
       }
 
-      // 數據載入完成後捲到 AI 分析區
-      setTimeout(() => {
-        aiAnalysisRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 300);
+      // 只有第一次取得數據才自動捲到 AI 分析區
+      if (!hasScrolledToAI.current) {
+        hasScrolledToAI.current = true;
+        setTimeout(() => {
+          aiAnalysisRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 300);
+      }
     } catch (err: any) {
       console.error('獲取數據失敗:', err);
       setError(err.message || '獲取數據失敗');
@@ -726,8 +738,19 @@ export function ChannelAnalytics() {
             </div>
           )}
 
+          {/* ── Loading overlay ── */}
+          {isLoading && (
+            <div className="flex items-center justify-center gap-3 py-8 text-[#707070]">
+              <svg className="animate-spin w-5 h-5 text-[#FF0000]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              <span className="text-sm">取得數據中...</span>
+            </div>
+          )}
+
           {/* ── 結果區 ── */}
-          {tableData.length > 0 && (
+          {!isLoading && tableData.length > 0 && (
             <>
               {/* AI 關鍵字分析（放在表格上方，數據載入完自動捲到這） */}
               <div ref={aiAnalysisRef} className="bg-white rounded-2xl border-2 border-[#FFC5C5] p-6 shadow-sm">
