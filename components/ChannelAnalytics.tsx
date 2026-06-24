@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Save, RefreshCw, Calendar, TrendingUp, BarChart3, Sparkles } from 'lucide-react';
+import { Plus, Trash2, Save, RefreshCw, Calendar, TrendingUp, BarChart3, Sparkles, ListVideo } from 'lucide-react';
 import * as youtubeService from '../services/youtubeService';
 import {
   getRelativeDateRange,
@@ -11,6 +11,7 @@ import {
 import { ChannelDashboard } from './ChannelDashboard';
 import { KeywordAnalysisPanel } from './KeywordAnalysisPanel';
 import { AIAnalysisPanel } from './AIAnalysisPanel';
+import { AllVideosTable } from './AllVideosTable';
 
 interface KeywordGroup {
   id: string;
@@ -86,7 +87,7 @@ const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
   (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
 
-type TabType = 'dashboard' | 'ai' | 'report';
+type TabType = 'dashboard' | 'videos' | 'ai' | 'report';
 
 export function ChannelAnalytics() {
   // 分頁狀態
@@ -492,6 +493,19 @@ export function ChannelAnalytics() {
           </div>
         </button>
         <button
+          onClick={() => setActiveTab('videos')}
+          className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+            activeTab === 'videos'
+              ? 'bg-[#FF0000] text-white shadow-[0_4px_16px_rgba(255,0,0,0.25)]'
+              : 'text-[#606060] hover:text-[#0F0F0F] hover:bg-[#FFF5F5]'
+          }`}
+        >
+          <div className="flex items-center justify-center gap-2 text-sm sm:text-base">
+            <ListVideo className="w-5 h-5" />
+            全部影片
+          </div>
+        </button>
+        <button
           onClick={() => setActiveTab('ai')}
           className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
             activeTab === 'ai'
@@ -521,6 +535,19 @@ export function ChannelAnalytics() {
 
       {/* 儀錶板視圖 */}
       {activeTab === 'dashboard' && <ChannelDashboard />}
+
+      {/* 全部影片視圖 */}
+      {activeTab === 'videos' && (() => {
+        const token = youtubeService.getAccessToken();
+        return token ? (
+          <AllVideosTable accessToken={token} channelId={channelId} />
+        ) : (
+          <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-sm p-10 text-center text-[#909090]">
+            <ListVideo className="w-8 h-8 mx-auto mb-3 text-[#CCCCCC]" />
+            請先登入 YouTube 帳號以檢視全部影片。
+          </div>
+        );
+      })()}
 
       {/* AI 分析視圖 */}
       {activeTab === 'ai' && (() => {

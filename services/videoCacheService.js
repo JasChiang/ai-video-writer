@@ -146,15 +146,15 @@ export async function fetchAllVideoTitles(accessToken, channelId) {
       console.log(`[VideoCache] 📦 正在處理批次 ${currentBatch}/${totalBatches} (${batch.length} 支影片)...`);
 
       const statsResponse = await youtube.videos.list({
-        part: 'statistics,status,snippet', // 同時獲取 status 和 snippet (包含 tags, categoryId)
+        part: 'statistics,status,snippet,contentDetails', // status / snippet(tags, categoryId) / contentDetails(duration)
         id: videoIds,
         maxResults: 50,
       });
 
-      // snippet: 2, statistics: 2, status: 2
-      const quotaCost = 2 + 2 + 2;
+      // snippet: 2, statistics: 2, status: 2, contentDetails: 2
+      const quotaCost = 2 + 2 + 2 + 2;
       recordQuotaServer('youtube.videos.list', quotaCost, {
-        part: 'statistics,status,snippet',
+        part: 'statistics,status,snippet,contentDetails',
         batch: currentBatch,
         videoCount: batch.length,
         context: 'videoCache:fetchAllVideoTitles',
@@ -177,6 +177,8 @@ export async function fetchAllVideoTitles(accessToken, channelId) {
             // 從 videos.list 的 snippet 獲取 tags 和 categoryId
             tags: (statsItem.snippet?.tags || []).map(tag => sanitizeText(tag)),
             categoryId: statsItem.snippet?.categoryId || '',
+            // contentDetails.duration：ISO 8601（如 PT1M32S），前端再轉 M:SS
+            duration: statsItem.contentDetails?.duration || '',
           });
         } else {
           // 如果找不到統計資訊，使用基本資訊並給予預設值
@@ -189,6 +191,7 @@ export async function fetchAllVideoTitles(accessToken, channelId) {
             privacyStatus: 'unknown',
             tags: [],
             categoryId: '',
+            duration: '',
           });
         }
       }
