@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, ArrowDown, RefreshCw, Loader2 } from 'lucide-react';
+import { ArrowUp, ArrowDown, RefreshCw, Loader2, SlidersHorizontal } from 'lucide-react';
 import { youtubeService } from '../services/youtubeService';
 
 declare const gapi: any;
@@ -8,9 +8,11 @@ const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
   (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
 
-// 與 ChannelDashboard 一致：Analytics API 數據比 YT Studio 晚 1~3 天，
-// 實際最晚僅能查到「今天往前 3 天」。
+// Analytics API 數據比 YT Studio 晚 1~3 天，最晚僅能查到「今天往前 3 天」。
 const ANALYTICS_DATA_DELAY_DAYS = 3;
+const LIFETIME_START = '2005-01-01'; // 累計模式用很早的起始日，等同「發佈至今」
+const BATCH_SIZE = 200; // 每批用 filters 指定的影片 ID 數
+const COLS_STORAGE_KEY = 'allVideos.visibleCols';
 
 const getAnalyticsAvailableEndDate = () => {
   const date = new Date();
@@ -19,7 +21,6 @@ const getAnalyticsAvailableEndDate = () => {
   return date;
 };
 
-// 本地時區格式化，避免 UTC 偏移把日期算錯一天
 const formatDateString = (date: Date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -34,7 +35,6 @@ const getQuickRange = (range: QuickRange): { start: string; end: string } => {
   const analyticsEnd = getAnalyticsAvailableEndDate();
   let end = new Date(analyticsEnd);
   let start = new Date(end);
-
   switch (range) {
     case '7d':
       start.setDate(end.getDate() - 6);
@@ -62,18 +62,13 @@ const getQuickRange = (range: QuickRange): { start: string; end: string } => {
   return { start: formatDateString(start), end: formatDateString(end) };
 };
 
-// ISO 8601（PT1H2M3S）→ 秒
 const parseISO8601Duration = (iso: string): number => {
   if (!iso) return 0;
   const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   if (!m) return 0;
-  const h = parseInt(m[1] || '0', 10);
-  const min = parseInt(m[2] || '0', 10);
-  const s = parseInt(m[3] || '0', 10);
-  return h * 3600 + min * 60 + s;
+  return parseInt(m[1] || '0', 10) * 3600 + parseInt(m[2] || '0', 10) * 60 + parseInt(m[3] || '0', 10);
 };
 
-// 秒 → M:SS 或 H:MM:SS
 const formatDuration = (totalSeconds: number): string => {
   if (!totalSeconds || totalSeconds < 0) return '—';
   const h = Math.floor(totalSeconds / 3600);
@@ -109,6 +104,20 @@ const formatCacheTime = (iso: string | null): string => {
 };
 
 type Mode = 'period' | 'lifetime';
+type ColKey =
+  | 'views'
+  | 'watchHours'
+  | 'avgViewSeconds'
+  | 'avgViewPercentage'
+  | 'likes'
+  | 'dislikes'
+  | 'comments'
+  | 'shares'
+  | 'subsGained'
+  | 'subsLost'
+  | 'subsNet';
+type SortKey = 'publishedAt' | ColKey;
+type ColKind = 'num' | 'duration' | 'percent' | 'hours' | 'net';
 
 interface VideoRow {
   videoId: string;
@@ -119,20 +128,94 @@ interface VideoRow {
   views: number;
   likes: number;
   comments: number;
-  avgViewSeconds: number | null; // 期間限定
-  avgViewPercentage: number | null; // 期間限定
+  watchMinutes: number | null;
+  avgViewSeconds: number | null;
+  avgViewPercentage: number | null;
+  dislikes: number | null;
+  shares: number | null;
+  subsGained: number | null;
+  subsLost: number | null;
 }
 
-type SortKey = 'publishedAt' | 'views' | 'avgViewSeconds' | 'avgViewPercentage' | 'likes' | 'comments';
+const COLUMNS: { key: ColKey; label: string; kind: ColKind; default: boolean }[] = [
+  { key: 'views', label: '觀看次數', kind: 'num', default: true },
+  { key: 'watchHours', label: '觀看時間(小時)', kind: 'hours', default: false },
+  { key: 'avgViewSeconds', label: '平均觀看時間', kind: 'duration', default: true },
+  { key: 'avgViewPercentage', label: '平均觀看比例', kind: 'percent', default: true },
+  { key: 'likes', label: '讚', kind: 'num', default: true },
+  { key: 'dislikes', label: '不喜歡', kind: 'num', default: false },
+  { key: 'comments', label: '留言', kind: 'num', default: true },
+  { key: 'shares', label: '分享', kind: 'num', default: false },
+  { key: 'subsGained', label: '訂閱增加', kind: 'num', default: false },
+  { key: 'subsLost', label: '訂閱減少', kind: 'num', default: false },
+  { key: 'subsNet', label: '淨訂閱', kind: 'net', default: false },
+];
+
+// 取某欄的數值（供排序與加總）
+const colValue = (r: VideoRow, key: ColKey): number | null => {
+  switch (key) {
+    case 'views':
+      return r.views;
+    case 'watchHours':
+      return r.watchMinutes; // 以分鐘排序
+    case 'avgViewSeconds':
+      return r.avgViewSeconds;
+    case 'avgViewPercentage':
+      return r.avgViewPercentage;
+    case 'likes':
+      return r.likes;
+    case 'dislikes':
+      return r.dislikes;
+    case 'comments':
+      return r.comments;
+    case 'shares':
+      return r.shares;
+    case 'subsGained':
+      return r.subsGained;
+    case 'subsLost':
+      return r.subsLost;
+    case 'subsNet':
+      return r.subsGained != null && r.subsLost != null ? r.subsGained - r.subsLost : null;
+  }
+};
+
+const formatColValue = (kind: ColKind, v: number | null): string => {
+  if (v == null) return '—';
+  switch (kind) {
+    case 'duration':
+      return formatDuration(v);
+    case 'percent':
+      return `${v.toFixed(1)}%`;
+    case 'hours':
+      return formatNumber(Math.round(v / 60)); // 分鐘 → 小時
+    case 'net':
+      return (v > 0 ? '+' : '') + formatNumber(v);
+    default:
+      return formatNumber(v);
+  }
+};
 
 interface Props {
   accessToken: string;
   channelId: string;
 }
 
-const BATCH_SIZE = 200; // 每批用 filters 指定的影片 ID 數（Analytics filter 支援多 ID）
+const loadVisibleCols = (): Set<ColKey> => {
+  try {
+    const raw = localStorage.getItem(COLS_STORAGE_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw) as ColKey[];
+      const valid = COLUMNS.map((c) => c.key);
+      const filtered = arr.filter((k) => valid.includes(k));
+      if (filtered.length) return new Set(filtered);
+    }
+  } catch {
+    /* ignore */
+  }
+  return new Set(COLUMNS.filter((c) => c.default).map((c) => c.key));
+};
 
-export function AllVideosTable({ accessToken, channelId }: Props) {
+export function AllVideosTable({ accessToken }: Props) {
   const [mode, setMode] = useState<Mode>('period');
   const [quickRange, setQuickRange] = useState<QuickRange>('30d');
   const initial = getQuickRange('30d');
@@ -143,6 +226,7 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadedOnce, setLoadedOnce] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
 
   const [sortKey, setSortKey] = useState<SortKey>('views');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -150,10 +234,11 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
   const [search, setSearch] = useState('');
   const [pageSize, setPageSize] = useState(50);
   const [cacheUpdatedAt, setCacheUpdatedAt] = useState<string | null>(null);
+  const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(loadVisibleCols);
+  const [showColPicker, setShowColPicker] = useState(false);
 
   const cacheRef = useRef<Record<string, any> | null>(null);
 
-  // gapi Analytics 查詢（與 ChannelDashboard 相同呼叫方式，token 由 youtubeService 全域設定）
   const queryAnalytics = async (params: Record<string, string>) => {
     const response = await gapi.client.request({
       path: 'https://youtubeanalytics.googleapis.com/v2/reports',
@@ -163,7 +248,6 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
     return response.result;
   };
 
-  // 載入全部影片快取（含發布日期、長度）
   const loadCache = async (): Promise<Record<string, any>> => {
     if (cacheRef.current) return cacheRef.current;
     const res = await fetch(`${API_BASE_URL}/video-cache/search?query=&maxResults=10000`, {
@@ -182,30 +266,49 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
     return map;
   };
 
-  // 期間模式：用 filters=video==<ids> 分批查全部影片（每批 200 支）。
-  // 此「指定影片」報表不像「top videos 排序報表」有 200 上限/不支援分頁，
-  // 且支援 averageViewDuration，可一次拿到全部影片的真實平均觀看時間。
+  // 用 filters=video==<ids> 分批查 Analytics（平行 + 進度回報）。
+  // 此「指定影片」報表支援所有指標、不受 200 上限。
   const fetchAnalyticsAll = async (
     start: string,
     end: string,
-    videoIds: string[]
+    videoIds: string[],
+    onProgress: (done: number, total: number) => void
   ): Promise<Record<string, any[]>> => {
+    const batches: string[][] = [];
+    for (let i = 0; i < videoIds.length; i += BATCH_SIZE) batches.push(videoIds.slice(i, i + BATCH_SIZE));
     const byId: Record<string, any[]> = {};
-    for (let i = 0; i < videoIds.length; i += BATCH_SIZE) {
-      const batch = videoIds.slice(i, i + BATCH_SIZE);
-      const result = await queryAnalytics({
-        ids: 'channel==MINE',
-        startDate: start,
-        endDate: end,
-        // 欄位順序：[video, views, averageViewDuration, averageViewPercentage, likes, comments]
-        metrics: 'views,averageViewDuration,averageViewPercentage,likes,comments',
-        dimensions: 'video',
-        filters: `video==${batch.join(',')}`,
-        maxResults: String(BATCH_SIZE),
-      });
-      (result?.rows || []).forEach((r: any[]) => {
-        byId[r[0]] = r;
-      });
+    let done = 0;
+    onProgress(0, batches.length);
+    const CONCURRENCY = 5; // 每波最多 5 批，避免一次打太多撞速率限制
+    for (let i = 0; i < batches.length; i += CONCURRENCY) {
+      const wave = batches.slice(i, i + CONCURRENCY);
+      await Promise.all(
+        wave.map(async (batch) => {
+          try {
+            const result = await queryAnalytics({
+              ids: 'channel==MINE',
+              startDate: start,
+              endDate: end,
+              // 欄位順序：[video, views, estimatedMinutesWatched, averageViewDuration,
+              //   averageViewPercentage, likes, dislikes, comments, shares,
+              //   subscribersGained, subscribersLost]
+              metrics:
+                'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,dislikes,comments,shares,subscribersGained,subscribersLost',
+              dimensions: 'video',
+              filters: `video==${batch.join(',')}`,
+              maxResults: String(BATCH_SIZE),
+            });
+            (result?.rows || []).forEach((r: any[]) => {
+              byId[r[0]] = r;
+            });
+          } catch (e) {
+            // 單批失敗不影響其他批（該批影片以 0/— 顯示）
+            console.warn('[AllVideos] 批次查詢失敗:', e);
+          }
+          done++;
+          onProgress(done, batches.length);
+        })
+      );
     }
     return byId;
   };
@@ -213,50 +316,42 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
   const buildRows = async () => {
     setLoading(true);
     setError(null);
+    setProgress({ done: 0, total: 0 });
     try {
-      cacheRef.current = null; // 每次「取得數據」重抓快取，避免後端快取更新後顯示舊資料
+      cacheRef.current = null; // 每次「取得數據」重抓快取，避免顯示舊資料
       const cache = await loadCache();
       const allVideos = Object.values(cache);
+      const ids = allVideos.map((v: any) => v.videoId || v.id).filter(Boolean);
 
-      if (mode === 'lifetime') {
-        // 發佈至今累計：直接用快取的總計（0 配額）
-        const result: VideoRow[] = allVideos.map((v: any) => ({
-          videoId: v.videoId || v.id,
-          title: v.title || v.videoId,
+      // 累計模式：用很早的起始日（發佈至今）；期間模式：用選的日期範圍
+      const [start, end] =
+        mode === 'lifetime' ? [LIFETIME_START, maxSelectableDate] : [startDate, endDate];
+
+      const analyticsById = await fetchAnalyticsAll(start, end, ids, (d, t) => setProgress({ done: d, total: t }));
+
+      const fromCacheCounts = mode === 'lifetime'; // 累計模式觀看/讚/留言用快取的權威總數
+      const result: VideoRow[] = allVideos.map((v: any) => {
+        const id = v.videoId || v.id;
+        const a = analyticsById[id];
+        return {
+          videoId: id,
+          title: v.title || id,
           thumbnail: v.thumbnail || v.thumbnailUrl || '',
           publishedAt: v.publishedAt || '',
           durationSeconds: parseISO8601Duration(v.duration || ''),
-          views: v.viewCount || 0,
-          likes: v.likeCount || 0,
-          comments: v.commentCount || 0,
-          avgViewSeconds: null,
-          avgViewPercentage: null,
-        }));
-        setRows(result);
-      } else {
-        // 期間模式：全部影片為底，疊上 Analytics 期間數據（無數據者顯示 0）
-        const ids = allVideos.map((v: any) => v.videoId || v.id).filter(Boolean);
-        const analyticsById = await fetchAnalyticsAll(startDate, endDate, ids);
-        const result: VideoRow[] = allVideos.map((v: any) => {
-          const id = v.videoId || v.id;
-          const a = analyticsById[id];
-          const durationSeconds = parseISO8601Duration(v.duration || '');
-          // 欄位順序：[video, views, averageViewDuration, averageViewPercentage, likes, comments]
-          return {
-            videoId: id,
-            title: v.title || id,
-            thumbnail: v.thumbnail || v.thumbnailUrl || '',
-            publishedAt: v.publishedAt || '',
-            durationSeconds,
-            views: a ? parseInt(a[1]) || 0 : 0,
-            avgViewSeconds: a ? Math.round(parseFloat(a[2]) || 0) : null,
-            avgViewPercentage: a ? parseFloat(a[3]) || 0 : null,
-            likes: a ? parseInt(a[4]) || 0 : 0,
-            comments: a ? parseInt(a[5]) || 0 : 0,
-          };
-        });
-        setRows(result);
-      }
+          views: fromCacheCounts ? v.viewCount || 0 : a ? parseInt(a[1]) || 0 : 0,
+          likes: fromCacheCounts ? v.likeCount || 0 : a ? parseInt(a[5]) || 0 : 0,
+          comments: fromCacheCounts ? v.commentCount || 0 : a ? parseInt(a[7]) || 0 : 0,
+          watchMinutes: a ? parseInt(a[2]) || 0 : null,
+          avgViewSeconds: a ? Math.round(parseFloat(a[3]) || 0) : null,
+          avgViewPercentage: a ? parseFloat(a[4]) || 0 : null,
+          dislikes: a ? parseInt(a[6]) || 0 : null,
+          shares: a ? parseInt(a[8]) || 0 : null,
+          subsGained: a ? parseInt(a[9]) || 0 : null,
+          subsLost: a ? parseInt(a[10]) || 0 : null,
+        };
+      });
+      setRows(result);
       setLoadedOnce(true);
     } catch (err: any) {
       console.error('[AllVideos] 載入失敗:', err);
@@ -271,7 +366,6 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
     }
   };
 
-  // 切換快速範圍
   const applyQuickRange = (range: QuickRange) => {
     setQuickRange(range);
     if (range !== 'custom') {
@@ -281,9 +375,25 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
     }
   };
 
-  // 不自動載入：僅在使用者按「取得數據」時才查詢（避免大頻道一切分頁就跑重查詢）
+  // 不自動載入：僅在使用者按「取得數據」時才查詢
 
-  // 排序後的列
+  const toggleCol = (key: ColKey) => {
+    setVisibleCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem(COLS_STORAGE_KEY, JSON.stringify([...next]));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
+  const cols = useMemo(() => COLUMNS.filter((c) => visibleCols.has(c.key)), [visibleCols]);
+
+  // 排序
   const sortedRows = useMemo(() => {
     const arr = [...rows];
     arr.sort((a, b) => {
@@ -293,15 +403,14 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
         av = new Date(a.publishedAt).getTime() || 0;
         bv = new Date(b.publishedAt).getTime() || 0;
       } else {
-        av = (a[sortKey] as number | null) ?? -1;
-        bv = (b[sortKey] as number | null) ?? -1;
+        av = colValue(a, sortKey) ?? -1;
+        bv = colValue(b, sortKey) ?? -1;
       }
       return sortDir === 'asc' ? av - bv : bv - av;
     });
     return arr;
   }, [rows, sortKey, sortDir]);
 
-  // 標題搜尋過濾
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return q ? sortedRows.filter((r) => r.title.toLowerCase().includes(q)) : sortedRows;
@@ -314,38 +423,42 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
     if (page > totalPages) setPage(1);
   }, [totalPages, page]);
 
-  // 搜尋 / 每頁筆數 / 模式變動時回到第 1 頁
   useEffect(() => {
     setPage(1);
   }, [search, pageSize, mode]);
 
-  // 總計（avg 欄位以觀看數加權平均，近似 YT Studio 總計列；隨搜尋結果變動）
+  // 總計：一般欄位加總；平均觀看時間/比例以觀看數加權
   const totals = useMemo(() => {
-    let views = 0;
-    let likes = 0;
-    let comments = 0;
+    const sums: Partial<Record<ColKey, number>> = {};
+    let wViews = 0;
     let wDur = 0;
     let wPct = 0;
-    let wViews = 0;
     filteredRows.forEach((r) => {
-      views += r.views;
-      likes += r.likes;
-      comments += r.comments;
+      COLUMNS.forEach((c) => {
+        if (c.kind === 'duration' || c.kind === 'percent') return;
+        const v = colValue(r, c.key);
+        if (v == null) return;
+        sums[c.key] = (sums[c.key] || 0) + v;
+      });
       if (r.avgViewSeconds != null && r.avgViewPercentage != null && r.views > 0) {
+        wViews += r.views;
         wDur += r.avgViewSeconds * r.views;
         wPct += r.avgViewPercentage * r.views;
-        wViews += r.views;
       }
     });
     return {
       count: filteredRows.length,
-      views,
-      likes,
-      comments,
+      sums,
       avgViewSeconds: wViews > 0 ? Math.round(wDur / wViews) : null,
       avgViewPercentage: wViews > 0 ? wPct / wViews : null,
     };
   }, [filteredRows]);
+
+  const colTotal = (c: { key: ColKey; kind: ColKind }): string => {
+    if (c.kind === 'duration') return totals.avgViewSeconds != null ? formatDuration(totals.avgViewSeconds) : '—';
+    if (c.kind === 'percent') return totals.avgViewPercentage != null ? `${totals.avgViewPercentage.toFixed(1)}%` : '—';
+    return formatColValue(c.kind, totals.sums[c.key] ?? 0);
+  };
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -357,10 +470,10 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
     setPage(1);
   };
 
-  const SortHeader = ({ k, label, className = '' }: { k: SortKey; label: string; className?: string }) => (
+  const SortHeader = ({ k, label }: { k: SortKey; label: string }) => (
     <th
       onClick={() => toggleSort(k)}
-      className={`px-3 py-3 font-semibold text-[#606060] cursor-pointer select-none hover:text-[#0F0F0F] whitespace-nowrap ${className}`}
+      className="px-3 py-3 font-semibold text-[#606060] cursor-pointer select-none hover:text-[#0F0F0F] whitespace-nowrap text-right"
     >
       <span className="inline-flex items-center gap-1">
         {label}
@@ -371,8 +484,9 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
   );
 
   const isPeriod = mode === 'period';
+  const colCount = 2 + cols.length; // 內容 + 發布日期 + 指標欄
 
-  // 日期鎖定：不可選超過「可查詢日」（今天 −3 天），與原儀表板一致
+  // 日期鎖定：不可選超過「可查詢日」（今天 −3 天）
   const analyticsAvailableDate = getAnalyticsAvailableEndDate();
   const maxSelectableDate = formatDateString(analyticsAvailableDate);
   const _today = new Date();
@@ -392,7 +506,8 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
         {cacheUpdatedAt && `（更新於 ${formatCacheTime(cacheUpdatedAt)}，台灣時間）`}
         ，當天剛上傳的影片可能尚未出現。
       </div>
-      {/* 控制列：模式 + 日期 */}
+
+      {/* 控制列 */}
       <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-sm p-4 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-semibold text-[#0F0F0F] mr-1">數據模式</span>
@@ -413,7 +528,7 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
             發佈至今累計
           </button>
           <span className="text-xs text-[#909090] ml-1">
-            {isPeriod ? '觀看/觀看時間/比例為所選期間內產生（對齊 YouTube Studio）' : '觀看/按讚/留言為影片累計總數，0 配額'}
+            {isPeriod ? '所選期間內產生的數據（對齊 YouTube Studio）' : '影片發佈至今的累計數據'}
           </span>
         </div>
 
@@ -481,16 +596,30 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
           </button>
           {isPeriod && (
             <span className="text-xs text-[#909090]">
-              資料延遲：Analytics 比 YouTube Studio 晚 1~3 天，最晚可查到 {formatDateString(getAnalyticsAvailableEndDate())}
+              資料延遲：Analytics 比 YouTube Studio 晚 1~3 天，最晚可查到 {maxSelectableDate}
             </span>
           )}
         </div>
+
+        {/* 抓取進度條 */}
+        {loading && progress.total > 0 && (
+          <div className="space-y-1">
+            <div className="h-1.5 bg-[#F0F0F0] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#FF0000] transition-all duration-200"
+                style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }}
+              />
+            </div>
+            <div className="text-xs text-[#909090]">
+              查詢 Analytics 中… {progress.done}/{progress.total} 批
+            </div>
+          </div>
+        )}
       </div>
 
       {error && (
         <div className="bg-[#FFF5F5] border border-[#FFD5D5] text-[#CC0000] rounded-xl px-4 py-3 text-sm">{error}</div>
       )}
-
 
       {/* 表格 */}
       <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-sm overflow-hidden">
@@ -520,7 +649,36 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
               <option value={100}>每頁 100</option>
               <option value={200}>每頁 200</option>
             </select>
-            <span className="text-xs text-[#909090] hidden sm:inline">點欄位標題可排序</span>
+            {/* 欄位勾選器 */}
+            <div className="relative">
+              <button
+                onClick={() => setShowColPicker((s) => !s)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E5E5E5] text-sm text-[#606060] hover:bg-[#F5F5F5]"
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+                欄位
+              </button>
+              {showColPicker && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowColPicker(false)} />
+                  <div className="absolute right-0 mt-1 z-20 w-44 bg-white border border-[#E5E5E5] rounded-xl shadow-lg p-2">
+                    {COLUMNS.map((c) => (
+                      <label
+                        key={c.key}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#F5F5F5] cursor-pointer text-sm text-[#0F0F0F]"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={visibleCols.has(c.key)}
+                          onChange={() => toggleCol(c.key)}
+                        />
+                        {c.label}
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -530,32 +688,21 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
               <tr className="bg-[#FAFAFA] border-b border-[#F0F0F0] text-left">
                 <th className="px-3 py-3 font-semibold text-[#606060]">內容</th>
                 <SortHeader k="publishedAt" label="發布日期" />
-                <SortHeader k="views" label="觀看次數" className="text-right" />
-                {isPeriod && <SortHeader k="avgViewSeconds" label="平均觀看時間" className="text-right" />}
-                {isPeriod && <SortHeader k="avgViewPercentage" label="平均觀看比例" className="text-right" />}
-                <SortHeader k="likes" label="按讚" className="text-right" />
-                <SortHeader k="comments" label="留言" className="text-right" />
+                {cols.map((c) => (
+                  <SortHeader key={c.key} k={c.key} label={c.label} />
+                ))}
               </tr>
             </thead>
             <tbody>
-              {/* 總計列 */}
               {loadedOnce && rows.length > 0 && (
                 <tr className="border-b border-[#F0F0F0] bg-[#FBFBFB] font-semibold">
                   <td className="px-3 py-3 text-[#0F0F0F]">總計</td>
                   <td className="px-3 py-3 text-[#909090]">—</td>
-                  <td className="px-3 py-3 text-right text-[#0F0F0F]">{formatNumber(totals.views)}</td>
-                  {isPeriod && (
-                    <td className="px-3 py-3 text-right text-[#0F0F0F]">
-                      {totals.avgViewSeconds != null ? formatDuration(totals.avgViewSeconds) : '—'}
+                  {cols.map((c) => (
+                    <td key={c.key} className="px-3 py-3 text-right text-[#0F0F0F]">
+                      {colTotal(c)}
                     </td>
-                  )}
-                  {isPeriod && (
-                    <td className="px-3 py-3 text-right text-[#0F0F0F]">
-                      {totals.avgViewPercentage != null ? `${totals.avgViewPercentage.toFixed(1)}%` : '—'}
-                    </td>
-                  )}
-                  <td className="px-3 py-3 text-right text-[#0F0F0F]">{formatNumber(totals.likes)}</td>
-                  <td className="px-3 py-3 text-right text-[#0F0F0F]">{formatNumber(totals.comments)}</td>
+                  ))}
                 </tr>
               )}
 
@@ -570,7 +717,12 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
                     >
                       <div className="relative flex-shrink-0">
                         {r.thumbnail ? (
-                          <img src={r.thumbnail} alt="" loading="lazy" className="w-24 h-[54px] object-cover rounded-md bg-[#F0F0F0]" />
+                          <img
+                            src={r.thumbnail}
+                            alt=""
+                            loading="lazy"
+                            className="w-24 h-[54px] object-cover rounded-md bg-[#F0F0F0]"
+                          />
                         ) : (
                           <div className="w-24 h-[54px] rounded-md bg-[#F0F0F0]" />
                         )}
@@ -586,33 +738,36 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
                     </a>
                   </td>
                   <td className="px-3 py-2 text-[#606060] whitespace-nowrap">{formatPublishDate(r.publishedAt)}</td>
-                  <td className="px-3 py-2 text-right text-[#0F0F0F]">{formatNumber(r.views)}</td>
-                  {isPeriod && (
-                    <td className="px-3 py-2 text-right text-[#606060]">
-                      {r.avgViewSeconds != null ? formatDuration(r.avgViewSeconds) : '—'}
+                  {cols.map((c) => (
+                    <td key={c.key} className="px-3 py-2 text-right text-[#606060]">
+                      {formatColValue(c.kind, colValue(r, c.key))}
                     </td>
-                  )}
-                  {isPeriod && (
-                    <td className="px-3 py-2 text-right text-[#606060]">
-                      {r.avgViewPercentage != null ? `${r.avgViewPercentage.toFixed(1)}%` : '—'}
-                    </td>
-                  )}
-                  <td className="px-3 py-2 text-right text-[#606060]">{formatNumber(r.likes)}</td>
-                  <td className="px-3 py-2 text-right text-[#606060]">{formatNumber(r.comments)}</td>
+                  ))}
                 </tr>
               ))}
 
               {!loadedOnce && !loading && (
                 <tr>
-                  <td colSpan={isPeriod ? 7 : 5} className="px-3 py-10 text-center text-[#909090]">
+                  <td colSpan={colCount} className="px-3 py-10 text-center text-[#909090]">
                     按上方「取得數據」開始載入影片清單。
+                  </td>
+                </tr>
+              )}
+
+              {loading && (
+                <tr>
+                  <td colSpan={colCount} className="px-3 py-10 text-center text-[#909090]">
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {progress.total > 0 ? `查詢 Analytics 中… ${progress.done}/${progress.total} 批` : '載入快取中…'}
+                    </span>
                   </td>
                 </tr>
               )}
 
               {loadedOnce && rows.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={isPeriod ? 7 : 5} className="px-3 py-10 text-center text-[#909090]">
+                  <td colSpan={colCount} className="px-3 py-10 text-center text-[#909090]">
                     沒有影片資料。請確認已執行影片快取更新（`npm run update-cache`）。
                   </td>
                 </tr>
@@ -620,7 +775,7 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
 
               {loadedOnce && rows.length > 0 && filteredRows.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={isPeriod ? 7 : 5} className="px-3 py-10 text-center text-[#909090]">
+                  <td colSpan={colCount} className="px-3 py-10 text-center text-[#909090]">
                     沒有符合「{search}」的影片。
                   </td>
                 </tr>
@@ -629,7 +784,6 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
           </table>
         </div>
 
-        {/* 分頁 */}
         {filteredRows.length > pageSize && (
           <div className="px-4 py-3 border-t border-[#F0F0F0] flex items-center justify-center gap-2 text-sm">
             <button
