@@ -22,11 +22,16 @@ function getDaysInMonth(year: number, month: number): number {
  * 獲取 GMT+8 時區的當前日期
  */
 function getTodayGMT8(): Date {
-  // 獲取 GMT+8 時區的當前時間
-  const now = new Date();
-  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-  const gmt8Time = new Date(utc + (3600000 * 8));
-  return gmt8Time;
+  // 用 Intl 取台北時區的「今天」年月日，避免在非 GMT+8 環境重複套用本地偏移
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const get = (t: string) => parts.find((p) => p.type === t)?.value || '0';
+  // 回傳本地 Date，其年/月/日對應台北當天（設中午避免午夜/DST 邊界）
+  return new Date(Number(get('year')), Number(get('month')) - 1, Number(get('day')), 12, 0, 0);
 }
 
 export type RelativeDateType =

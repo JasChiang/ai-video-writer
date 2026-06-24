@@ -1,7 +1,9 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { exec } from 'child_process';
 import { requireAuth, signSessionToken } from './middleware/auth.js';
+import { errorHandler } from './middleware/errorHandler.js';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -61,6 +63,8 @@ const ipRateLimiter = new Map(); // key: IP address, value: { count, resetTime }
 const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 小時
 const MAX_DOWNLOADS_PER_HOUR = 10; // 每小時最多 10 次下載（每個帳號）
 const MAX_DOWNLOADS_PER_HOUR_PER_IP = 20; // 每小時最多 20 次下載（每個 IP，防止濫用多帳號）
+const aiRateLimiter = new Map(); // 貴的 AI / 配額端點限流（每帳號）
+const MAX_AI_REQUESTS_PER_HOUR = 60; // ai-chat / keyword-analysis / video-cache generate
 
 function checkRateLimit(identifier, limiterMap, maxDownloads) {
   const now = Date.now();
@@ -140,7 +144,24 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json());
+// 安全標頭（不啟用 CSP / COEP / CORP，以免擋掉 gapi、YouTube 縮圖等跨來源資源）
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: false,
+}));
+app.use(express.json({ limit: '5mb' }));
+
+// 健康檢查（免驗證，供 CI / 監控使用）
+app.get('/healthz', (_req, res) => res.json({ status: 'ok' }));
+
+// 開機檢查 JWT_SECRET 強度（弱密鑰僅警告，不擋啟動）
+{
+  const s = process.env.JWT_SECRET || '';
+  if (!s || s.length < 32 || /dev-secret|change-me/i.test(s)) {
+    console.warn('[Security] ⚠️ JWT_SECRET 太弱或未設定，建議改成 ≥32 字元的隨機字串');
+  }
+}
 
 // ==================== 驗證登入（無需 JWT）====================
 /**
@@ -3790,6 +3811,11 @@ app.post('/api/analytics/channel', async (req, res) => {
  */
 app.post('/api/analytics/keyword-analysis', async (req, res) => {
   try {
+    const kwRate = checkRateLimit(req.user?.email || req.ip, aiRateLimiter, MAX_AI_REQUESTS_PER_HOUR);
+    if (!kwRate.allowed) {
+      return res.status(429).json({ success: false, message: `請求過於頻繁，請於 ${kwRate.waitMinutes} 分鐘後再試` });
+    }
+
     const { videoData } = req.body;
 
     // 驗證必要參數
@@ -4009,6 +4035,11 @@ app.post('/api/analytics/external-traffic', async (req, res) => {
  */
 app.post('/api/video-cache/generate', async (req, res) => {
   try {
+    const genRate = checkRateLimit(req.user?.email || req.ip, aiRateLimiter, MAX_AI_REQUESTS_PER_HOUR);
+    if (!genRate.allowed) {
+      return res.status(429).json({ error: `請求過於頻繁，請於 ${genRate.waitMinutes} 分鐘後再試` });
+    }
+
     const { accessToken, channelId, gistToken, gistId } = req.body;
 
     console.log('[API] ========================================');
@@ -4083,6 +4114,11 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
   }
   if (!accessToken || !channelId) {
     return res.status(400).json({ error: '缺少 accessToken 或 channelId' });
+  }
+
+  const aiRate = checkRateLimit(req.user?.email || req.ip, aiRateLimiter, MAX_AI_REQUESTS_PER_HOUR);
+  if (!aiRate.allowed) {
+    return res.status(429).json({ error: `請求過於頻繁，請於 ${aiRate.waitMinutes} 分鐘後再試` });
   }
 
   const gistId = process.env.GITHUB_GIST_ID;
@@ -4493,6 +4529,19 @@ async function startupCleanup() {
   }
   console.log('========== 清理檢查完成 ==========\n');
 }
+
+// 全域錯誤處理（必須在所有路由之後）：正式環境只回通用訊息，不外洩 stack trace
+app.use(errorHandler);
+
+// 程序層級防護：未捕捉的 rejection/exception 記錄下來，避免無聲崩潰
+process.on('unhandledRejection', (reason) => {
+  console.error('[Process] Unhandled Rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[Process] Uncaught Exception:', err);
+  // 嚴重錯誤：記錄後讓平台重啟（Render 會自動拉起）
+  process.exit(1);
+});
 
 // 啟動伺服器前先執行清理
 startupCleanup().then(() => {

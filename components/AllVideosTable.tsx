@@ -193,6 +193,7 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
     setLoading(true);
     setError(null);
     try {
+      cacheRef.current = null; // 每次「取得數據」重抓快取，避免後端快取更新後顯示舊資料
       const cache = await loadCache();
       const allVideos = Object.values(cache);
 
@@ -260,6 +261,12 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
     if (accessToken) buildRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 切換「期間 / 累計」模式時自動重抓（首次載入後才觸發）
+  useEffect(() => {
+    if (loadedOnce && accessToken) buildRows();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   // 排序後的列
   const sortedRows = useMemo(() => {
@@ -508,7 +515,7 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
                     >
                       <div className="relative flex-shrink-0">
                         {r.thumbnail ? (
-                          <img src={r.thumbnail} alt="" className="w-24 h-[54px] object-cover rounded-md bg-[#F0F0F0]" />
+                          <img src={r.thumbnail} alt="" loading="lazy" className="w-24 h-[54px] object-cover rounded-md bg-[#F0F0F0]" />
                         ) : (
                           <div className="w-24 h-[54px] rounded-md bg-[#F0F0F0]" />
                         )}
@@ -542,7 +549,7 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
 
               {loadedOnce && rows.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={isPeriod ? 6 : 4} className="px-3 py-10 text-center text-[#909090]">
+                  <td colSpan={isPeriod ? 7 : 5} className="px-3 py-10 text-center text-[#909090]">
                     沒有影片資料。請確認已執行影片快取更新（`npm run update-cache`）。
                   </td>
                 </tr>
