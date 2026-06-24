@@ -45,7 +45,7 @@ npm run dev
 
 **預期後端日誌輸出範例**：
 ```
-[Analytics API] 開始分析頻道: UCUR0yPZFOmf7maQWGlA6q2w
+[Analytics API] 開始分析頻道: UCxxxxxxxxxxxxxxxxxxxxxx
 [Analytics] 開始獲取頻道影片列表（近 365 天）...
 [Analytics]   截止日期: 2025/11/4
 [Analytics]   → 步驟 1: 獲取頻道資訊...
