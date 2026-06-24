@@ -144,11 +144,14 @@ app.use(cors({
   },
   credentials: true,
 }));
-// 安全標頭（不啟用 CSP / COEP / CORP，以免擋掉 gapi、YouTube 縮圖等跨來源資源）
+// 安全標頭。停用會干擾跨來源資源/視窗的策略：
+// - CSP / COEP / CORP：以免擋掉 gapi、YouTube 縮圖
+// - COOP：Google 登入用 popup 回傳 token，same-origin COOP 會切斷 popup↔opener 導致登入卡住
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: false,
+  crossOriginOpenerPolicy: false,
 }));
 app.use(express.json({ limit: '5mb' }));
 
