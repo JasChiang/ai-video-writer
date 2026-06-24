@@ -85,9 +85,48 @@ const COLORS = ['#FF0000', '#4285F4', '#34A853', '#FBBC05', '#EA4335', '#9B59B6'
 
 // ─── Chart 渲染 ───────────────────────────────────
 
-function ChartRenderer({ chart }: { chart: ChartConfig }) {
-  const labels = chart.data.map(d => String(d[chart.xKey] ?? '').slice(0, 20));
+// 圖表畫不出來時的退路：直接把資料列成表格，而不是顯示空白
+function ChartFallbackTable({ chart }: { chart: ChartConfig }) {
+  const rows = Array.isArray(chart.data) ? chart.data : [];
+  const keys = rows.length ? Object.keys(rows[0]) : [];
+  if (!rows.length || !keys.length) {
+    return (
+      <div className="bg-white rounded-2xl border border-[#E5E5E5] p-4 shadow-sm text-sm text-[#909090]">
+        {chart.title || '圖表'}：資料不足，無法顯示。
+      </div>
+    );
+  }
+  return (
+    <div className="bg-white rounded-2xl border border-[#E5E5E5] p-4 shadow-sm overflow-x-auto">
+      <div className="text-sm font-semibold mb-2 text-[#0F0F0F]">{chart.title}</div>
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr className="text-[#909090]">
+            {keys.map(k => (
+              <th key={k} className="px-2 py-1 text-left">{k}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.slice(0, 50).map((r, i) => (
+            <tr key={i} className="border-t border-[#F5F5F5]">
+              {keys.map(k => (
+                <td key={k} className="px-2 py-1">{String(r[k] ?? '')}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
+function ChartRenderer({ chart }: { chart: ChartConfig }) {
+  const data = Array.isArray(chart.data) ? chart.data : [];
+  if (data.length === 0) return <ChartFallbackTable chart={chart} />;
+  const firstRow = data[0] as Record<string, unknown>;
+
+  const labels = data.map(d => String(d[chart.xKey] ?? '').slice(0, 20));
   const chartOptions = {
     responsive: true,
     plugins: {
@@ -99,10 +138,12 @@ function ChartRenderer({ chart }: { chart: ChartConfig }) {
     },
   };
 
-  if (chart.type === 'bar' && chart.bars) {
-    const datasets = chart.bars.map((bar, i) => ({
+  if (chart.type === 'bar' && chart.bars?.length) {
+    const validBars = chart.bars.filter(b => b.dataKey in firstRow);
+    if (!validBars.length) return <ChartFallbackTable chart={chart} />;
+    const datasets = validBars.map((bar, i) => ({
       label: bar.label,
-      data: chart.data.map(d => Number(d[bar.dataKey] ?? 0)),
+      data: data.map(d => Number(d[bar.dataKey] ?? 0)),
       backgroundColor: (bar.color || COLORS[i % COLORS.length]) + 'CC',
       borderColor: bar.color || COLORS[i % COLORS.length],
       borderWidth: 1,
@@ -114,24 +155,26 @@ function ChartRenderer({ chart }: { chart: ChartConfig }) {
     );
   }
 
-  if (chart.type === 'line' && chart.lines) {
-    // 留存率曲線：x 軸改成百分比
-    const lineLabels = chart.data.map(d => {
-      const ratio = Number(d[chart.xKey] ?? 0);
-      return `${(ratio * 100).toFixed(0)}%`;
+  if (chart.type === 'line' && chart.lines?.length) {
+    const validLines = chart.lines.filter(l => l.dataKey in firstRow);
+    if (!validLines.length) return <ChartFallbackTable chart={chart} />;
+    // x 軸：若值已是百分比（>1.5）就不再 ×100
+    const xVals = data.map(d => Number(d[chart.xKey] ?? 0));
+    const xIsPercent = Math.max(...xVals, 0) > 1.5;
+    const lineLabels = xVals.map(v => `${(xIsPercent ? v : v * 100).toFixed(0)}%`);
+    const datasets = validLines.map((line, i) => {
+      const yVals = data.map(d => Number(d[line.dataKey] ?? 0));
+      const yIsPercent = Math.max(...yVals, 0) > 1.5;
+      return {
+        label: line.label,
+        data: yVals.map(v => parseFloat((yIsPercent ? v : v * 100).toFixed(1))),
+        borderColor: line.color || COLORS[i % COLORS.length],
+        backgroundColor: (line.color || COLORS[i % COLORS.length]) + '22',
+        tension: 0.3,
+        fill: true,
+        pointRadius: 0,
+      };
     });
-    const datasets = chart.lines.map((line, i) => ({
-      label: line.label,
-      data: chart.data.map(d => {
-        const v = Number(d[line.dataKey] ?? 0);
-        return parseFloat((v * 100).toFixed(1));
-      }),
-      borderColor: line.color || COLORS[i % COLORS.length],
-      backgroundColor: (line.color || COLORS[i % COLORS.length]) + '22',
-      tension: 0.3,
-      fill: true,
-      pointRadius: 0,
-    }));
     const lineOptions = {
       ...chartOptions,
       scales: {
@@ -146,7 +189,7 @@ function ChartRenderer({ chart }: { chart: ChartConfig }) {
     );
   }
 
-  return null;
+  return <ChartFallbackTable chart={chart} />;
 }
 
 // ─── 建議清單 ─────────────────────────────────────
@@ -231,9 +274,13 @@ export function AIAnalysisPanel({ accessToken, channelId }: Props) {
           model: selectedModel,
           accessToken,
           channelId,
+          // 帶入先前的 user 與 assistant 對話，讓追問能延續上下文
           messages: messages
-            .filter(m => m.role === 'user')
-            .map(m => ({ role: m.role, content: m.content })),
+            .map(m => ({
+              role: m.role,
+              content: m.role === 'assistant' ? m.result?.text || '' : m.content || '',
+            }))
+            .filter(m => m.content && m.content.trim()),
         }),
       });
 

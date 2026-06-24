@@ -4146,16 +4146,29 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    const systemPrompt = `你是一位 YouTube 頻道數據分析師，幫助頻道主了解頻道成效、優化內容策略。
+    const systemPrompt = `你是一位資深 YouTube 頻道數據分析師，幫頻道主從數據中找出「可行動的洞察」，而不只是複述數字。
 今天是 ${today}，預設分析範圍是最近一年（${oneYearAgo} ~ ${today}）。
 
 工具使用規則：
-1. 需要分析整個頻道的整體表現時，直接使用 get_channel_analytics（不需要 video ID）
-2. 需要分析特定單元或關鍵字相關影片時，先用 search_videos_by_keyword 找影片，再用 get_video_analytics 取數據
-3. 如果某支影片完播率異常低，可以用 get_retention_curve 深入分析
-4. 如果用戶沒有指定日期，使用預設範圍
-5. 必須等工具實際回傳真實數據後，才能產出分析報告。絕對不可以自行編造或假設數據。
-6. 最終輸出時，在文字分析後附上一個 JSON code block，格式如下：
+1. 分析整個頻道整體表現 → 用 get_channel_analytics（不需 video ID）
+2. 分析特定單元/關鍵字相關影片 → 先 search_videos_by_keyword 找影片，再 get_video_analytics 取數據
+3. 完播率異常低的影片 → 用 get_retention_curve 深入分析
+4. 用戶未指定日期時，預設抓「最近一年」，並盡量同時抓「前一年同期」做對照（沒有對照期就無法判斷好壞）
+5. 必須等工具回傳真實數據後才能分析，絕對不可編造或假設數據。
+
+分析品質契約（每次都要做到）：
+- **對照**：關鍵指標一律和前一個對等期間比較，算出絕對變化與百分比變化（例：觀看 12,345 → 18,900，+53.1%），禁止只報單一期間絕對值。
+- **衍生指標**：自行推導互動率（(讚+留言+分享)/觀看×100%）、平均每支影片觀看數、搜尋流量佔比、淨訂閱等，並與頻道平均比較。
+- **點名 outlier**：列出表現最好的前 2 名與最差的後 2 名（影片/單元/流量來源），說明偏離平均多少、可能原因。
+- **數字佐證**：每個結論都要附具體數字，禁止只給形容詞（「表現不錯」要寫成「互動率 4.2%，高於頻道平均 2.8%」）。
+- **報告結構**（文字部分用以下 Markdown 結構依序輸出）：
+  ## TL;DR（3 條以內，每條一句話帶關鍵數字）
+  ## 關鍵發現（每點：數據＋對照＋解讀；比較類數據用 Markdown 表格，含「變化」欄）
+  ## 異常與風險
+  ## 行動建議（依優先級，每項對應上面的發現）
+- **建議要可執行且量化**：每個建議綁定一項具體發現、給出動作、標明預期改善的指標與量化目標（例：「把開箱影片前 15 秒改為直接展示成品，目標把開場留存從 68% 提升到 80%」），禁止空泛建議。
+
+最終輸出格式：在上述 Markdown 文字報告之後，附上一個 JSON code block（格式如下）。文字報告本身不要包含任何 JSON 或程式碼。
 
 \`\`\`json
 {
@@ -4222,10 +4235,27 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
         })),
       }];
 
-      const userQuery = query || conversationMessages[conversationMessages.length - 1]?.content;
-      const contents = [
-        { role: 'user', parts: [{ text: userQuery }] },
-      ];
+      // 帶入對話歷史（user/model 交替；合併連續同 role 並確保以 user 結尾）
+      let contents;
+      try {
+        const mapped = conversationMessages
+          .filter((m) => m && typeof m.content === 'string' && m.content.trim())
+          .map((m) => ({
+            role: m.role === 'assistant' || m.role === 'model' ? 'model' : 'user',
+            parts: [{ text: m.content }],
+          }));
+        contents = [];
+        for (const c of mapped) {
+          const last = contents[contents.length - 1];
+          if (last && last.role === c.role) last.parts.push(...c.parts);
+          else contents.push(c);
+        }
+        if (contents.length === 0 || contents[contents.length - 1].role !== 'user') {
+          contents.push({ role: 'user', parts: [{ text: query || '' }] });
+        }
+      } catch {
+        contents = [{ role: 'user', parts: [{ text: query || '' }] }];
+      }
 
       // Tool calling loop（最多 5 輪）
       for (let round = 0; round < 5; round++) {
@@ -4270,6 +4300,39 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
         }
 
         contents.push({ role: 'user', parts: toolResults });
+      }
+
+      // ─── code execution 精算（讓 Gemini 跑 Python 做精確計算，產出更有洞察的報告）───
+      // 僅在有實際抓到數據時執行；失敗（模型/SDK 不支援等）就沿用原報告，不影響功能。
+      const hasFetchedData = contents.some((c) => c.parts?.some((p) => p.functionResponse));
+      if (hasFetchedData) {
+        try {
+          sendEvent('status', { message: '進行精確計算中...' });
+          const refineResp = await genai.models.generateContent({
+            model: geminiModel,
+            contents: [
+              ...contents,
+              {
+                role: 'user',
+                parts: [
+                  {
+                    text: '請用 Python（code execution）對上面工具回傳的數據做精確計算：期間對照的絕對與百分比變化、互動率、排名與 outlier、留存掉點等；然後嚴格依系統指示的「分析品質契約」與報告結構，輸出最終 Markdown 報告，並在最後附上指定格式的 JSON code block。',
+                  },
+                ],
+              },
+            ],
+            tools: [{ codeExecution: {} }],
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            generationConfig: { temperature: 0.3 },
+          });
+          const refineText = (refineResp.candidates?.[0]?.content?.parts || [])
+            .filter((p) => p.text)
+            .map((p) => p.text)
+            .join('');
+          if (refineText.trim()) finalText = refineText;
+        } catch (refineErr) {
+          console.warn('[AI Chat] code execution 精算失敗，沿用原報告:', refineErr.message);
+        }
       }
 
     } else {
@@ -4349,27 +4412,46 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
     let analysisText = finalText;
     let chartsData = null;
 
-    const jsonBlockMatch = finalText.match(/```json\s*([\s\S]*?)\s*```/);
-    if (jsonBlockMatch) {
-      try {
-        chartsData = JSON.parse(jsonBlockMatch[1]);
-        analysisText = finalText.replace(/```json[\s\S]*?```/, '').trim();
-      } catch {
-        // 解析失敗就保持原始文字
+    // 容錯抽取 JSON code block（大小寫、有無 json 標記皆可）
+    const fenceMatch =
+      finalText.match(/```json\s*([\s\S]*?)```/i) || finalText.match(/```\s*(\{[\s\S]*?\})\s*```/);
+    if (fenceMatch) {
+      const raw = fenceMatch[1].trim();
+      const tryParse = (s) => {
+        try {
+          return JSON.parse(s);
+        } catch {
+          return null;
+        }
+      };
+      // 先直接 parse，失敗再修正常見問題（尾逗號、智慧引號）
+      chartsData =
+        tryParse(raw) ||
+        tryParse(raw.replace(/,\s*([}\]])/g, '$1').replace(/[“”]/g, '"').replace(/[‘’]/g, "'"));
+      if (!chartsData) {
+        console.warn('[AI Chat] charts JSON 解析失敗，已從文字移除原始區塊');
       }
     }
+    // 無論成功與否，移除任何 ```json/``` 區塊，避免原始 JSON 噴到畫面
+    analysisText = finalText
+      .replace(/```json[\s\S]*?```/gi, '')
+      .replace(/```\s*\{[\s\S]*?\}\s*```/g, '')
+      .trim();
 
-    // 串流輸出文字（逐段）
-    const chunks = analysisText.split('\n');
-    for (const chunk of chunks) {
-      sendEvent('chunk', { text: chunk + '\n' });
-      await new Promise(r => setTimeout(r, 5));
+    // 串流輸出文字（以段落為單位，避免半截 markdown 破版/閃爍）
+    const blocks = analysisText.split(/\n{2,}/);
+    for (const block of blocks) {
+      if (!block.trim()) continue;
+      sendEvent('chunk', { text: block + '\n\n' });
+      await new Promise((r) => setTimeout(r, 20));
     }
 
-    // 送出 charts 數據
-    if (chartsData) {
-      sendEvent('charts', { charts: chartsData.charts || [], recommendations: chartsData.recommendations || [], summary: chartsData.summary || '' });
-    }
+    // 圖表 + 摘要 + 建議照送（即使部分缺失也送，避免一壞全沒）
+    sendEvent('charts', {
+      charts: Array.isArray(chartsData?.charts) ? chartsData.charts : [],
+      recommendations: Array.isArray(chartsData?.recommendations) ? chartsData.recommendations : [],
+      summary: typeof chartsData?.summary === 'string' ? chartsData.summary : '',
+    });
 
     sendEvent('done', { message: '分析完成' });
 
