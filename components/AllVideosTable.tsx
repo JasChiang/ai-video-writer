@@ -114,7 +114,6 @@ interface Props {
   channelId: string;
 }
 
-const PAGE_SIZE = 50;
 const BATCH_SIZE = 200; // 每批用 filters 指定的影片 ID 數（Analytics filter 支援多 ID）
 
 export function AllVideosTable({ accessToken, channelId }: Props) {
@@ -132,6 +131,8 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('views');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [pageSize, setPageSize] = useState(50);
 
   const cacheRef = useRef<Record<string, any> | null>(null);
 
@@ -282,14 +283,25 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
     return arr;
   }, [rows, sortKey, sortDir]);
 
-  const totalPages = Math.max(1, Math.ceil(sortedRows.length / PAGE_SIZE));
-  const pageRows = sortedRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // 標題搜尋過濾
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return q ? sortedRows.filter((r) => r.title.toLowerCase().includes(q)) : sortedRows;
+  }, [sortedRows, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const pageRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
 
   useEffect(() => {
     if (page > totalPages) setPage(1);
   }, [totalPages, page]);
 
-  // 總計（avg 欄位以觀看數加權平均，近似 YT Studio 總計列）
+  // 搜尋 / 每頁筆數 / 模式變動時回到第 1 頁
+  useEffect(() => {
+    setPage(1);
+  }, [search, pageSize, mode]);
+
+  // 總計（avg 欄位以觀看數加權平均，近似 YT Studio 總計列；隨搜尋結果變動）
   const totals = useMemo(() => {
     let views = 0;
     let likes = 0;
@@ -297,7 +309,7 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
     let wDur = 0;
     let wPct = 0;
     let wViews = 0;
-    rows.forEach((r) => {
+    filteredRows.forEach((r) => {
       views += r.views;
       likes += r.likes;
       comments += r.comments;
@@ -308,14 +320,14 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
       }
     });
     return {
-      count: rows.length,
+      count: filteredRows.length,
       views,
       likes,
       comments,
       avgViewSeconds: wViews > 0 ? Math.round(wDur / wViews) : null,
       avgViewPercentage: wViews > 0 ? wPct / wViews : null,
     };
-  }, [rows]);
+  }, [filteredRows]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -458,12 +470,32 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
 
       {/* 表格 */}
       <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-[#F0F0F0] flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-[#F0F0F0] flex flex-wrap items-center justify-between gap-3">
           <span className="text-sm text-[#606060]">
             共 <strong className="text-[#0F0F0F]">{formatNumber(totals.count)}</strong> 支影片
-            {isPeriod && '（含期間 0 觀看者）'}
+            {search.trim() && '（符合搜尋）'}
+            {isPeriod && !search.trim() && '（含期間 0 觀看者）'}
           </span>
-          <span className="text-xs text-[#909090]">點欄位標題可排序</span>
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="搜尋標題…"
+              className="px-3 py-1.5 rounded-lg border border-[#E5E5E5] text-sm w-48"
+            />
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="px-2 py-1.5 rounded-lg border border-[#E5E5E5] text-sm bg-white"
+              title="每頁筆數"
+            >
+              <option value={50}>每頁 50</option>
+              <option value={100}>每頁 100</option>
+              <option value={200}>每頁 200</option>
+            </select>
+            <span className="text-xs text-[#909090] hidden sm:inline">點欄位標題可排序</span>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -559,12 +591,20 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
                   </td>
                 </tr>
               )}
+
+              {loadedOnce && rows.length > 0 && filteredRows.length === 0 && !loading && (
+                <tr>
+                  <td colSpan={isPeriod ? 7 : 5} className="px-3 py-10 text-center text-[#909090]">
+                    沒有符合「{search}」的影片。
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
         {/* 分頁 */}
-        {sortedRows.length > PAGE_SIZE && (
+        {filteredRows.length > pageSize && (
           <div className="px-4 py-3 border-t border-[#F0F0F0] flex items-center justify-center gap-2 text-sm">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
