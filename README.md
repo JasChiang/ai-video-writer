@@ -28,6 +28,20 @@
 
 ---
 
+## ✨ 技術特色
+
+不只是「丟給 AI 寫一寫」——這個專案在幾個地方下了功夫：
+
+- **🎥 Gemini 影片理解（不只字幕）**：把影片整支交給 Gemini 的多模態能力，分析「畫面 + 語音 + 內容」，而不是只讀標題或字幕。
+- **🔗 直接餵 YouTube 網址、免下載**：透過 Gemini 的 `fileData.fileUri` 把 YouTube 連結**直接**送進去分析（`server.js` 的 analyze/generate 流程），多數情境不必先把影片載下來，省頻寬與時間；只有要「截關鍵畫面」時才用 yt-dlp 下載 + FFmpeg 截圖。
+- **🌐 URL Context 整合參考資料**：生成文章時可同時餵**上傳檔案 + 參考影片 + 參考網址**，網址用 Gemini 的 `urlContext` 工具直接讀取內容一起整合。
+- **⚡ Gist 配額快取，省 ~97% YouTube 配額**：YouTube Data API 的 `search.list` 一次就吃 100 配額（每天上限 10,000）；本專案把整個頻道影片清單快取進 GitHub Gist，**搜尋與分析時 0 配額**，並用 GitHub Actions 每天自動更新快取。
+- **📋 突破 YouTube Studio 500 筆上限**：「全部影片」分頁用 Analytics API 的 `filters=video==<ids>` 分批查，一張可排序表格看到**全部**影片的期間 / 累計數據（YouTube Studio 匯出最多 500 筆）。
+- **🧠 AI 用「工具呼叫」拉真實數據 + Python 精算**：自然語言分析不是用猜的——AI 透過 function calling 自動呼叫 YouTube Analytics 工具取**真實數據**，再用 Gemini 的 **code execution（跑 Python）**做精確統計（成長率、相關性、留存掉點）後才下結論。
+- **🔒 後端把關**：JWT + `ALLOWED_CHANNEL_IDS` 頻道白名單，Gemini 等敏感金鑰只在後端、不進前端 bundle。
+
+---
+
 ## 六大用途詳解
 
 ### 📝 1. 文章與截圖生成
