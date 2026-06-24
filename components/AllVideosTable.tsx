@@ -239,7 +239,8 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
       if (err?.result?.error?.code === 401) {
         setError('YouTube 驗證過期，請重新登入後再試。');
       } else {
-        setError(err?.message || '載入失敗，請稍後再試。');
+        const apiMsg = err?.result?.error?.message || err?.message;
+        setError(apiMsg ? `載入失敗：${apiMsg}` : '載入失敗，請稍後再試。');
       }
     } finally {
       setLoading(false);
@@ -256,17 +257,7 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
     }
   };
 
-  // 首次掛載自動載入一次（期間 / 預設 30 天）
-  useEffect(() => {
-    if (accessToken) buildRows();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // 切換「期間 / 累計」模式時自動重抓（首次載入後才觸發）
-  useEffect(() => {
-    if (loadedOnce && accessToken) buildRows();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
+  // 不自動載入：僅在使用者按「取得數據」時才查詢（避免大頻道一切分頁就跑重查詢）
 
   // 排序後的列
   const sortedRows = useMemo(() => {
@@ -546,6 +537,14 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
                   <td className="px-3 py-2 text-right text-[#606060]">{formatNumber(r.comments)}</td>
                 </tr>
               ))}
+
+              {!loadedOnce && !loading && (
+                <tr>
+                  <td colSpan={isPeriod ? 7 : 5} className="px-3 py-10 text-center text-[#909090]">
+                    按上方「取得數據」開始載入影片清單。
+                  </td>
+                </tr>
+              )}
 
               {loadedOnce && rows.length === 0 && !loading && (
                 <tr>
