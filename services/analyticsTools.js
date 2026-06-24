@@ -4,7 +4,7 @@
  */
 
 import { google } from 'googleapis';
-import { searchVideosFromCache } from './videoCacheService.js';
+import { searchVideosFromCache, loadFromGist } from './videoCacheService.js';
 import { recordQuota } from './quotaTracker.js';
 
 const YOUTUBE_QUOTA_COST = { analyticsReportsQuery: 1 };
@@ -120,6 +120,42 @@ export const TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'get_top_videos',
+      description:
+        '取得某時間範圍內表現最好或最差的影片排名（含標題）。不需要事先知道關鍵字，直接用 Analytics 排名取出。適合回答「最近半年觀看數最高的 10 支影片是哪些？」「完播率最低的影片有哪些？」等問題。',
+      parameters: {
+        type: 'object',
+        properties: {
+          startDate: {
+            type: 'string',
+            description: '開始日期 YYYY-MM-DD',
+          },
+          endDate: {
+            type: 'string',
+            description: '結束日期 YYYY-MM-DD',
+          },
+          metric: {
+            type: 'string',
+            enum: ['views', 'watchTime', 'retention', 'likes', 'comments'],
+            description: '排序依據：views（觀看數）、watchTime（觀看時長）、retention（平均完播率）、likes（按讚）、comments（留言）。預設 views。',
+          },
+          maxResults: {
+            type: 'number',
+            description: '返回幾支，預設 10，最多 50。',
+          },
+          order: {
+            type: 'string',
+            enum: ['desc', 'asc'],
+            description: '排序方向：desc（最高到最低，預設）、asc（最低到最高，用來找表現最差的影片）。',
+          },
+        },
+        required: ['startDate', 'endDate'],
+      },
+    },
+  },
 ];
 
 // ─────────────────────────────────────────────
@@ -140,13 +176,16 @@ export async function executeTool(toolName, args, context) {
       return searchVideosByKeyword(args, { gistId, gistToken });
 
     case 'get_video_analytics':
-      return getVideoAnalytics(args, { accessToken, channelId });
+      return getVideoAnalytics(args, { accessToken, channelId, gistId, gistToken });
 
     case 'get_channel_analytics':
       return getChannelAnalytics(args, { accessToken, channelId });
 
     case 'get_retention_curve':
       return getRetentionCurve(args, { accessToken, channelId });
+
+    case 'get_top_videos':
+      return getTopVideos(args, { accessToken, channelId, gistId, gistToken });
 
     default:
       throw new Error(`未知的 tool: ${toolName}`);
@@ -264,7 +303,25 @@ async function getChannelAnalytics(
   return result;
 }
 
-async function getVideoAnalytics({ videoIds, startDate, endDate }, { accessToken, channelId }) {
+// 從 Gist 快取建立 videoId → {title, publishedAt} 的 lookup map
+async function buildTitleMap(videoIds, gistId, gistToken) {
+  if (!gistId || videoIds.length === 0) return {};
+  try {
+    const cache = await loadFromGist(gistId, gistToken);
+    const idSet = new Set(videoIds);
+    const map = {};
+    for (const v of cache.videos) {
+      if (idSet.has(v.videoId)) {
+        map[v.videoId] = { title: v.title || '', publishedAt: v.publishedAt || null };
+      }
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+async function getVideoAnalytics({ videoIds, startDate, endDate }, { accessToken, channelId, gistId, gistToken }) {
   console.log(`[Tool] get_video_analytics: ${videoIds.length} 支影片, ${startDate} ~ ${endDate}`);
 
   const oauth2Client = new google.auth.OAuth2();
@@ -343,6 +400,14 @@ async function getVideoAnalytics({ videoIds, startDate, endDate }, { accessToken
     }
   }
 
+  // 從 Gist 快取補 title / publishedAt
+  const titleMap = await buildTitleMap(allResults.map(r => r.videoId), gistId, gistToken);
+  for (const r of allResults) {
+    const meta = titleMap[r.videoId];
+    r.title = meta?.title || '';
+    r.publishedAt = meta?.publishedAt || null;
+  }
+
   console.log(`[Tool] get_video_analytics: 返回 ${allResults.length} 筆數據`);
   return { analytics: allResults, dateRange: { startDate, endDate } };
 }
@@ -397,4 +462,63 @@ async function getRetentionCurve({ videoId, startDate, endDate }, { accessToken,
       endingRetention: curve[curve.length - 1]?.watchRatio ?? null,
     },
   };
+}
+
+async function getTopVideos(
+  { startDate, endDate, metric = 'views', maxResults = 10, order = 'desc' },
+  { accessToken, channelId, gistId, gistToken }
+) {
+  console.log(`[Tool] get_top_videos: ${startDate} ~ ${endDate}, metric=${metric}, order=${order}, max=${maxResults}`);
+
+  const oauth2Client = new google.auth.OAuth2();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  const youtubeAnalytics = google.youtubeAnalytics({ version: 'v2', auth: oauth2Client });
+
+  const metricKeyMap = {
+    views: 'views',
+    watchTime: 'estimatedMinutesWatched',
+    retention: 'averageViewPercentage',
+    likes: 'likes',
+    comments: 'comments',
+  };
+  const sortMetric = metricKeyMap[metric] || 'views';
+  const sortDir = order === 'asc' ? '' : '-';
+
+  const res = await youtubeAnalytics.reports.query({
+    ids: `channel==${channelId}`,
+    startDate,
+    endDate,
+    metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,comments,subscribersGained',
+    dimensions: 'video',
+    sort: `${sortDir}${sortMetric}`,
+    maxResults: Math.min(maxResults, 50),
+  });
+  recordQuota('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
+    context: 'analyticsTools.getTopVideos',
+  });
+
+  const rows = res.data.rows || [];
+  const videoIds = rows.map(r => r[0]);
+  const titleMap = await buildTitleMap(videoIds, gistId, gistToken);
+
+  const videos = rows.map((row, i) => {
+    const vid = row[0];
+    const meta = titleMap[vid] || {};
+    return {
+      rank: i + 1,
+      videoId: vid,
+      title: meta.title || '',
+      publishedAt: meta.publishedAt || null,
+      views: row[1] || 0,
+      estimatedMinutesWatched: row[2] || 0,
+      averageViewDuration: Math.round(row[3] || 0),
+      averageViewPercentage: parseFloat((row[4] || 0).toFixed(1)),
+      likes: row[5] || 0,
+      comments: row[6] || 0,
+      subscribersGained: row[7] || 0,
+    };
+  });
+
+  console.log(`[Tool] get_top_videos: 返回 ${videos.length} 支影片`);
+  return { videos, dateRange: { startDate, endDate }, sortedBy: metric, order };
 }
