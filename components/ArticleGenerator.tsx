@@ -67,12 +67,16 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
   const [isCapturingScreenshots, setIsCapturingScreenshots] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ArticleGenerationResult | null>(cachedContent || null);
+  const [ckeditorLoaded, setCkeditorLoaded] = useState(false);
+  const [htmlCopied, setHtmlCopied] = useState(false);
+  const ckeditorEditorRef = useRef<any>(null);
+  const CKEDITOR_TEXTAREA_ID = 'article-html-ckeditor';
   const [customPrompt, setCustomPrompt] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(() => {
     if (typeof window === 'undefined') {
       return 'default';
     }
-    return window.localStorage.getItem('articleTemplateId') || 'default';
+    return window.localStorage.getItem('articleTemplateId') || 'aeo-html-v5';
   });
   const [screenshotQuality, setScreenshotQuality] = useState<number>(2); // 預設高畫質
   const [loadingStep, setLoadingStep] = useState<ProgressMessage | null>(null);
@@ -148,6 +152,76 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
   }, [templatesStatus.lastLoadedAt]);
 
   const [manualDatabaseIdInput, setManualDatabaseIdInput] = useState('');
+
+  const isHtmlArticle = useMemo(() => {
+    const template = templateOptions.find(t => t.id === selectedTemplateId);
+    if ((template as any)?.outputFormat === 'html') return true;
+    return !!(result?.article?.trimStart().startsWith('<'));
+  }, [templateOptions, selectedTemplateId, result?.article]);
+
+  // Load CKEditor from CDN when an HTML article is present
+  useEffect(() => {
+    if (!isHtmlArticle) return;
+    if ((window as any).CKEDITOR) {
+      setCkeditorLoaded(true);
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = 'https://cdn.ckeditor.com/4.22.1/full-all/ckeditor.js';
+    s.onload = () => setCkeditorLoaded(true);
+    document.head.appendChild(s);
+  }, [isHtmlArticle]);
+
+  // Init CKEditor when loaded and HTML article is available
+  useEffect(() => {
+    if (!ckeditorLoaded || !isHtmlArticle || !result?.article) return;
+    const CKEDITOR = (window as any).CKEDITOR;
+    if (!CKEDITOR) return;
+    const el = document.getElementById(CKEDITOR_TEXTAREA_ID);
+    if (!el) return;
+
+    if (CKEDITOR.instances[CKEDITOR_TEXTAREA_ID]) {
+      CKEDITOR.instances[CKEDITOR_TEXTAREA_ID].setData(result.article);
+      return;
+    }
+
+    const articleContent = result.article;
+    const editor = CKEDITOR.replace(CKEDITOR_TEXTAREA_ID, {
+      allowedContent: true,
+      extraAllowedContent: '*[*]{*}(*)',
+      height: 500,
+      removePlugins: 'elementspath',
+      toolbar: [
+        { name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', '-', 'RemoveFormat'] },
+        { name: 'paragraph', items: ['NumberedList', 'BulletedList'] },
+        { name: 'links', items: ['Link', 'Unlink'] },
+        { name: 'insert', items: ['Table'] },
+        { name: 'tools', items: ['Source'] },
+      ],
+    });
+    editor.on('instanceReady', () => {
+      editor.setData(articleContent);
+      ckeditorEditorRef.current = editor;
+    });
+
+    return () => {
+      if (ckeditorEditorRef.current) {
+        try { ckeditorEditorRef.current.destroy(true); } catch {}
+        ckeditorEditorRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ckeditorLoaded, isHtmlArticle]);
+
+  // Update CKEditor content when article regenerates
+  useEffect(() => {
+    if (!ckeditorEditorRef.current || !result?.article) return;
+    try {
+      if (ckeditorEditorRef.current.getData() !== result.article) {
+        ckeditorEditorRef.current.setData(result.article);
+      }
+    } catch {}
+  }, [result?.article]);
 
   // 載入快取內容
   useEffect(() => {
@@ -814,6 +888,20 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
       setLoadingStep(null);
     }
   };
+
+  const handleCopyHtml = useCallback(async () => {
+    let html = '';
+    if (ckeditorEditorRef.current) {
+      try { html = ckeditorEditorRef.current.getData(); } catch {}
+    }
+    if (!html) html = result?.article || '';
+    // Strip <html>/<head>/<body> wrappers if present; AEO V5 outputs <section> directly
+    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    const content = bodyMatch ? bodyMatch[1].trim() : html;
+    await navigator.clipboard.writeText(content);
+    setHtmlCopied(true);
+    setTimeout(() => setHtmlCopied(false), 2000);
+  }, [result?.article]);
 
   const handleCaptureScreenshots = async () => {
     if (!result?.videoId || !result?.screenshots) {
@@ -2275,19 +2363,65 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
               <div>
                 <div className="mb-2">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-semibold text-neutral-900">文章內容（Markdown）</h3>
-                    <CopyButton textToCopy={result.article} />
+                    <h3 className="text-lg font-semibold text-neutral-900">
+                      {isHtmlArticle ? '文章內容（HTML）' : '文章內容（Markdown）'}
+                    </h3>
+                    {isHtmlArticle ? (
+                      <button
+                        onClick={handleCopyHtml}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-100"
+                      >
+                        {htmlCopied ? (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span className="text-green-600">已複製</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            <span>複製 HTML 內容</span>
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      <CopyButton textToCopy={result.article} />
+                    )}
                   </div>
                   <p className="text-xs mt-1 text-neutral-500 flex items-start gap-1">
                     <AppIcon name="idea" size={14} className="text-amber-500" />
-                    <span>Gemini AI 根據影片內容撰寫的完整文章，使用 Markdown 格式，可直接複製到部落格或內容管理系統</span>
+                    {isHtmlArticle ? (
+                      <span>HTML 格式文章，可直接貼入 CKEditor、TinyMCE、WordPress 等 CMS 的 HTML 模式</span>
+                    ) : (
+                      <span>Gemini AI 根據影片內容撰寫的完整文章，使用 Markdown 格式，可直接複製到部落格或內容管理系統</span>
+                    )}
                   </p>
                 </div>
-                <div className="rounded-lg p-4 max-h-96 overflow-y-auto bg-neutral-50 border border-neutral-200">
-                  <pre className="whitespace-pre-wrap text-sm font-mono text-neutral-900">
-                    {result.article}
-                  </pre>
-                </div>
+                {isHtmlArticle ? (
+                  <div className="rounded-lg border border-neutral-200 overflow-hidden">
+                    {!ckeditorLoaded && (
+                      <div className="flex items-center justify-center gap-2 py-8 text-neutral-500 bg-neutral-50">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600" />
+                        <span className="text-sm">載入編輯器中...</span>
+                      </div>
+                    )}
+                    <textarea
+                      id={CKEDITOR_TEXTAREA_ID}
+                      defaultValue={result.article}
+                      style={{ visibility: ckeditorLoaded ? 'visible' : 'hidden', height: ckeditorLoaded ? undefined : 0 }}
+                      readOnly
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-lg p-4 max-h-96 overflow-y-auto bg-neutral-50 border border-neutral-200">
+                    <pre className="whitespace-pre-wrap text-sm font-mono text-neutral-900">
+                      {result.article}
+                    </pre>
+                  </div>
+                )}
               </div>
               {/* 截圖區塊（僅 YouTube 影片模式顯示）*/}
               {!video.isUrlOnly && result.screenshots && result.screenshots.length > 0 && (

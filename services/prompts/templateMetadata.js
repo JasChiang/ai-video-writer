@@ -1,4 +1,15 @@
 export const TEMPLATE_METADATA = {
+  'aeo-html-v5': {
+    id: 'aeo-html-v5',
+    name: 'HTML 文章',
+    description: 'SEO/AEO/GEO 三合一 HTML 文章，snippet-first 結構，可直接貼入 CMS',
+    icon: '🌐',
+    category: 'seo',
+    targetAudience: '內容行銷、SEO 寫手、自媒體創作者',
+    platforms: ['部落格', 'CMS', 'WordPress', 'Notion'],
+    outputFormat: 'html',
+  },
+
   default: {
     id: 'default',
     name: '預設模板',

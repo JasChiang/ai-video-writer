@@ -1,6 +1,7 @@
 import { TEMPLATE_METADATA, getAllTemplateMetadata, getTemplateMetadata } from './templateMetadata.js';
 
 // 公開版本模板（開源）
+import { generateAeoHtmlV5Prompt } from './templates/aeo-html-v5.js';
 import { generateDefaultPrompt } from './templates/default.js';
 import { generateEcosystemLoyalistPrompt } from './templates/ecosystem-loyalist.js';
 import { generatePragmaticPerformerPrompt } from './templates/pragmatic-performer.js';
@@ -9,6 +10,7 @@ import { generateReliabilitySeekerPrompt } from './templates/reliability-seeker.
 
 // 公開版本模板映射
 const PUBLIC_TEMPLATE_GENERATORS = {
+  'aeo-html-v5': generateAeoHtmlV5Prompt,
   default: generateDefaultPrompt,
   'ecosystem-loyalist': generateEcosystemLoyalistPrompt,
   'pragmatic-performer': generatePragmaticPerformerPrompt,
