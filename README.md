@@ -1,6 +1,6 @@
-# AI Video Writer
+# CreatorCockpit
 
-> 把 YouTube 影片變成文章、SEO 中繼資料與頻道洞察 —— 用 AI 自動化創作者最花時間的後製工作。
+YouTube 頻道後製工具：影片轉文章、SEO 中繼資料補全、頻道數據分析。
 
 **Created by [Jas Chiang](https://www.facebook.com/jaschiang/) · [LinkedIn](https://www.linkedin.com/in/jascty) · [X](https://x.com/jaschiang)**
 
@@ -13,108 +13,103 @@
 
 ---
 
-## 為什麼用它
+## 功能概覽
 
-經營 YouTube 頻道，真正花時間的不是拍片，而是後製：寫標題、想說明、補標籤、整理成部落格文章、回頭看數據檢討。AI Video Writer 把這五件事自動化，**你只要登入自己的 YouTube 帳號，剩下交給 AI**。
+登入自己的 YouTube 帳號後，共有三個主要分頁：
 
-| 你想做的事 | 這個工具怎麼幫你 |
+| 分頁 | 主要用途 |
 |---|---|
-| **把影片變成文章** | AI 分析影片語意撰文，自動截關鍵畫面，輸出圖文並茂的 Markdown／HTML，一鍵發佈到 Notion |
-| **優化 SEO 中繼資料** | 一鍵生成三種風格標題、結構化說明、後台標籤，直接回寫到 YouTube |
-| **用講話的方式分析數據** | 直接問「分析上半年開箱單元的成效」，AI 自動查 YouTube Analytics 並產出圖表報告 |
-| **找關鍵字機會** | 比較不同關鍵字群組在各時段的表現，AI 給出內容策略建議 |
-| **看全部影片數據** | 一張可排序表格列出**全部**影片（突破 YouTube Studio 匯出 500 筆的限制），含期間/累計數據 |
-| **省下 API 配額** | 頻道影片快取進 GitHub Gist，搜尋不耗 YouTube 配額（約省 97%） |
+| **影片內容** | 瀏覽所有影片、生成或更新 SEO 中繼資料 |
+| **文章生成** | 從影片或網址生成圖文文章，可發佈到 Notion |
+| **頻道分析** | 儀表板、全部影片數據、AI 對話分析、關鍵字報表 |
 
 ---
 
-## 技術特色
+## 各分頁功能
 
-不只是「丟給 AI 寫一寫」，幾個關鍵設計：
+### 影片內容
 
-- **Gemini 影片理解**：整支影片交給多模態分析（畫面＋語音＋內容），不只讀標題或字幕。
-- **直接餵 YouTube 網址、免下載**：用 `fileData.fileUri` 把 YouTube 連結直接送進 Gemini 分析，不需下載影片；截圖功能在本機環境需另外安裝 yt-dlp + FFmpeg（Render 等 managed 主機不支援）。
-- **URL Context 整合參考資料**：生成文章可同時餵上傳檔、參考影片、參考網址（`urlContext` 工具直接讀網址內容）。
-- **Gist 配額快取，省約 97%**：`search.list` 一次吃 100 配額（每日上限 10,000）；把整個影片清單快取進 GitHub Gist，搜尋與分析 0 配額，GitHub Actions 每天自動更新。
-- **突破 YouTube Studio 500 筆**：「全部影片」用 Analytics 的 `filters=video==<ids>` 分批查，一張表看全部影片的期間／累計數據。
-- **工具呼叫拉真實數據＋Python 精算**：AI 透過 function calling 取真實 Analytics 數據，再用 Gemini code execution 跑 Python 算統計後才下結論，不是用猜的。
-- **後端把關**：JWT＋頻道白名單，敏感金鑰只在後端、不進前端 bundle。
+從 Gist 快取載入頻道全部影片（不耗 YouTube API 配額）。點選任一影片開啟側欄：
+
+- 查看影片基本資訊（觀看數、按讚、留言）
+- **SEO 中繼資料生成**：Gemini 分析影片語意，產出三種風格標題（關鍵字導向 / 懸念導向 / 效益導向）、結構化說明（黃金前三行、章節、行動呼籲）、5–10 個後台標籤
+- **一鍵回寫 YouTube**：點選標題或說明即可直接更新到 YouTube，不用手動複製貼上
 
 ---
 
-## 六大用途詳解
+### 文章生成
 
-### 1. 文章與截圖生成
+把一支影片（或網址）轉成可發佈的圖文文章。
 
-把一支影片變成一篇可發佈的圖文文章。
+- 輸入 YouTube 影片網址，Gemini 讀取影片語意（畫面 + 語音）後撰文
+- 可上傳參考檔（圖片、PDF、Markdown）或附加參考網址（`urlContext` 工具直接讀取網頁內容）
+- 選擇文章模板（預設、自訂），調整語氣與結構
+- 輸出 Markdown 或 HTML
+- **一鍵發佈到 Notion 資料庫**（需設定 `NOTION_CLIENT_ID`）
 
-- AI 分析影片語意，撰寫完整結構化文章
-- 自動識別關鍵畫面、用 FFmpeg 截圖，整合成圖文格式
-- 可上傳參考檔案（圖片、PDF、Markdown）作為額外上下文
-- 輸出 Markdown 或 HTML，或**一鍵發佈到 Notion 資料庫**
+> **關於截圖**：Gemini 透過 `fileData.fileUri` 直接讀 YouTube URL，不需下載影片。自動截取關鍵畫面功能需要本機安裝 yt-dlp + FFmpeg；Render 等 managed 環境不支援此功能。
 
-### 2. SEO 中繼資料生成
+---
 
-針對每支影片，一次補齊上架所需的所有文字：
+### 頻道分析
 
-- **三種風格標題**（關鍵字導向 / 懸念導向 / 效益導向），點選即套用
-- **結構化影片說明**（黃金前三行、章節導覽、行動呼籲）
-- **5–10 個後台標籤**（核心關鍵字 + 長尾關鍵字）
-- **一鍵更新回 YouTube**，免手動複製貼上
+四個子分頁：
 
-### 3. AI 數據分析（自然語言對話）
+#### 頻道儀表板
 
-「頻道分析 → AI 分析」分頁，用講話的方式問數據：
+時間範圍可選（7 天 / 30 天 / 90 天 / 本月 / 上月 / 自訂），數據來源：
 
-> 「比較去年和今年同期的頻道整體表現」
-> 「分析最近半年開箱單元的觀看成效」
-> 「找出完播率最低的影片，可能原因是什麼？」
+- **KPI 指標**（觀看次數、觀看時長、訂閱淨增）：YouTube Analytics API，取該時段內實際產生的數據
+- **熱門影片排行**：Analytics API 影片維度查詢，可按觀看數 / 完播率 / 分享 / 留言切換排序
+- **流量來源、環比對照、地區分布、裝置類型、人口統計**：各自獨立的 Analytics 查詢
 
-AI 透過 **tool calling** 自動決定要查哪些數據，呼叫 YouTube Analytics API 取真實數字，再生成含圖表（長條圖、留存率曲線）與具體建議的報告。
+Analytics 數據約有 1–3 天延遲（以 `ANALYTICS_DATA_DELAY_DAYS = 3` 計算可用最晚日期）。
 
-**AI 可用的數據工具**
+#### 全部影片
+
+YouTube Studio 影片匯出上限 500 筆；本分頁突破這個限制，列出頻道**全部**影片：
+
+- 影片清單來自 Gist 快取，含縮圖、標題、發布日期、影片長度
+- **期間數據模式**：選擇日期範圍後，以 `filters=video==<ids>` 分批查詢 Analytics（每批 200 筆），取得各影片的觀看次數、平均觀看時間、平均完播率、讚、留言
+- **發佈至今累計模式**：直接用快取數字，不呼叫 Analytics API
+- 欄位可點擊排序（預設觀看次數）、標題即時搜尋（先載入才可搜）、每頁 50 / 100 / 200 筆、保留合計列
+- 欄位可自行勾選顯示（11 個指標，儲存於 localStorage）
+
+#### AI 分析
+
+用自然語言問頻道數據，不用自己下 API 查詢：
+
+> 「比較去年和今年同期的整體表現」  
+> 「最近半年完播率最低的 10 支影片是哪些？」  
+> 「開箱單元和評測單元哪個帶來更多訂閱？」
+
+**運作方式（Gemini Function Calling）**
+
+使用者提問後，後端呼叫 Gemini 並附上 5 個工具定義。Gemini 自行決定要呼叫哪些工具、帶什麼日期範圍，後端在同一個 Node.js process 內執行工具、把結果回傳給 Gemini，最多循環 5 輪。取得數據後，再跑一次 code execution（Gemini 在沙盒裡執行 Python）做精確計算，最後輸出 Markdown 報告 + JSON 圖表。
+
+**可用工具**
 
 | 工具 | 作用 |
 |---|---|
-| `get_channel_analytics` | 整頻道的觀看數、觀看時長、訂閱增減、流量來源分布 |
-| `search_videos_by_keyword` | 從 Gist 快取用關鍵字找影片（**不耗 YouTube 配額**） |
-| `get_video_analytics` | 指定影片的觀看數、完播率、按讚、留言、流量來源 |
-| `get_retention_curve` | 單支影片的觀眾留存率曲線 |
+| `get_channel_analytics` | 整頻道觀看數、觀看時長、訂閱增減、流量來源分布 |
+| `get_top_videos` | 依指標（觀看數 / 觀看時長 / 完播率 / 按讚 / 留言）排名，直接取前 N / 後 N 支，結果含影片標題 |
+| `search_videos_by_keyword` | 從 Gist 快取用關鍵字過濾影片（**不耗 YouTube 配額**） |
+| `get_video_analytics` | 指定影片的觀看數、完播率、按讚、留言、流量來源，結果含影片標題 |
+| `get_retention_curve` | 單支影片的留存率曲線，標出最大流失點 |
 
-**可切換的 AI 模型**（右上角選單）
+這不是 MCP（Model Context Protocol）；工具定義走 Gemini 原生 Function Calling，執行在後端 Express process 內。單次查詢的 API 費用約 $0.001–0.002 USD（Gemini Flash，~5,000–8,000 tokens/次）。
 
-| 模型 | 供應商 | 說明 |
-|---|---|---|
-| Gemini Flash（`gemini-flash-latest`） | Google | 預設，快速・經濟，原生 API・滾動最新版 |
-| Gemini Pro（`gemini-pro-latest`） | Google | 深度分析，原生 API・滾動最新版 |
+支援多輪對話；可切換 Gemini Flash（預設）或 Gemini Pro。
 
-> 目前僅啟用原生 Google Gemini。透過 OpenRouter 接 Claude / GPT / Grok 的多供應商支援已內建但**預設停用**，要恢復請見下方「[多供應商（OpenRouter）](#多供應商openrouter選用停用中)」。
+#### 關鍵字報表
 
-### 4. 關鍵字報表
+橫向比較不同關鍵字群組在各時段的表現：
 
-「頻道分析 → 關鍵字報表」分頁：
-
-- 設定關鍵字群組（如「開箱」、「評測」）與時間範圍，橫向比較各時期數據
-- AI 以 SSE 串流即時輸出關鍵字策略報告
-- 模板管理：儲存常用的關鍵字組合與日期設定
-
-### 5. 全部影片總表
-
-「頻道分析 → 全部影片」分頁，把整個頻道的影片列成一張可排序的表格 —— **突破 YouTube Studio 只能匯出 500 筆的限制，一次看到全部影片**。
-
-- **顯示全部影片**：清單來自 Gist 快取（不受 500 筆限制），含縮圖、標題、發布日期、影片長度
-- **兩種數據模式**：
-  - **期間數據**：依日期範圍呼叫 YouTube Analytics API，取得每支影片在該期間的觀看次數、平均觀看時間、平均觀看比例、讚、留言（對齊 YouTube Studio；用 `filters=video==<ids>` 分批查，不受 200 筆上限）
-  - **發佈至今累計**：直接用快取的累計總數，零 API 配額
-- 欄位**可點擊排序**、**標題即時搜尋**、每頁筆數可調（50 / 100 / 200）、保留總計列
-- 受 YouTube Analytics 資料延遲限制，日期最晚可查到「今天往前 3 天」（與儀表板一致）
-
-### 6. 影片快取系統
-
-- 頻道影片資料存進 GitHub Gist，搜尋與分析時不消耗 YouTube API 配額（約省 97%）
-- 快取含影片長度（`contentDetails.duration`），供「全部影片」顯示時長
-- 支援每天自動更新（GitHub Actions、Render Cron，或外部排程服務）
-- 詳見 [docs/VIDEO_CACHE_SETUP.md](docs/VIDEO_CACHE_SETUP.md)
+- 設定關鍵字（如「開箱」、「評測」）及多個時間區間
+- 系統從 Gist 快取過濾符合標題的影片，查詢各時段的 Analytics 數據
+- 產出比較表格（觀看數、完播率等）
+- AI 以 SSE 串流輸出關鍵字策略報告
+- 可儲存常用設定為模板
 
 ---
 
@@ -122,7 +117,7 @@ AI 透過 **tool calling** 自動決定要查哪些數據，呼叫 YouTube Analy
 
 | 層 | 技術 |
 |---|---|
-| 前端 | React 19 · Vite 6 · TypeScript · Chart.js · Mermaid · react-markdown |
+| 前端 | React 19 · Vite 6 · TypeScript · Chart.js · react-markdown |
 | 後端 | Node.js · Express 4 · JWT 驗證 · Multer（上傳） |
 | AI | Google Gemini（`@google/genai`，`gemini-flash-latest` / `gemini-pro-latest`）· OpenRouter 多供應商抽象（內建，預設停用） |
 | YouTube | `googleapis`（Data API + Analytics API）· OAuth 2.0 |
@@ -143,7 +138,7 @@ AI 透過 **tool calling** 自動決定要查哪些數據，呼叫 YouTube Analy
    │ Google OAuth                        │
    ▼                                     ├─▶ Google Gemini        (AI 生成・分析)
  YouTube 登入                            ├─▶ YouTube Data/Analytics (影片・數據)
- (token 留在瀏覽器)                       ├─▶ yt-dlp + FFmpeg        (下載・截圖)
+ (token 留在瀏覽器)                       ├─▶ yt-dlp + FFmpeg        (下載・截圖，本機限定)
                                          ├─▶ GitHub Gist           (影片快取)
                                          └─▶ Notion API            (發佈文章)
 ```
@@ -161,15 +156,15 @@ AI 透過 **tool calling** 自動決定要查哪些數據，呼叫 YouTube Analy
 ### 1. 前置需求
 
 - Node.js ≥ 18
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) 與 [FFmpeg](https://ffmpeg.org/)（選用；本機截圖功能才需要；Render 等 managed 環境不支援）
 - Google Cloud 專案（YouTube Data/Analytics API + OAuth 憑證）
 - [Gemini API 金鑰](https://aistudio.google.com/app/apikey)
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) 與 [FFmpeg](https://ffmpeg.org/)（選用；本機截圖功能才需要）
 
 ### 2. 安裝與設定
 
 ```bash
-git clone https://github.com/JasChiang/ai-video-writer.git
-cd ai-video-writer
+git clone https://github.com/JasChiang/CreatorCockpit.git
+cd CreatorCockpit
 npm install
 cp .env.local.example .env.local   # 填入你的金鑰
 ```
@@ -195,7 +190,7 @@ npm run dev:all   # 同時啟動前後端（推薦）
 | `ALLOWED_CHANNEL_IDS` | 是 | 允許登入的 YouTube 頻道 ID（逗號分隔） |
 | `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` | 是 | OAuth 2.0 憑證 |
 | `GITHUB_GIST_ID` / `GITHUB_GIST_TOKEN` | 選用 | 影片快取（強烈建議，省配額） |
-| `OPENROUTER_API_KEY` | 停用中 | 多供應商（Claude / GPT / Grok）預設關閉，目前用不到；要恢復見下方說明 |
+| `OPENROUTER_API_KEY` | 停用中 | 多供應商（Claude / GPT / Grok）預設關閉 |
 | `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET` | 選用 | 發佈到 Notion 時 |
 
 完整清單見 [.env.local.example](.env.local.example)。
@@ -218,7 +213,7 @@ npm run dev:all   # 同時啟動前後端（推薦）
 
 | 指令 | 說明 |
 |---|---|
-| `npm run dev:all` | **同時啟動前後端（推薦）** |
+| `npm run dev:all` | 同時啟動前後端（推薦） |
 | `npm run dev` | 僅啟動前端（:3000） |
 | `npm run server` | 僅啟動後端（:3001） |
 | `npm run build` | 建置生產版本 |
@@ -229,25 +224,24 @@ npm run dev:all   # 同時啟動前後端（推薦）
 
 ## 部署
 
-支援 Render 部署，部署後可持續在線使用。
-
 - **Render**：[docs/DEPLOY_TO_RENDER.md](docs/DEPLOY_TO_RENDER.md)
 - **自動更新快取**：[docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md)
 
-> **注意**：yt-dlp 與 FFmpeg 為本機獨有功能（影片下載、關鍵畫面截圖）。Render 為 managed 環境，無法安裝任意系統工具，這兩項功能在 Render 上**不可用**。頻道分析、AI 分析、文章生成（Gemini 直接讀 YouTube URL）、Gist 快取等核心功能不受影響。
+> **注意**：yt-dlp 與 FFmpeg 在 Render managed 環境不可用（無法安裝任意系統工具）。頻道分析、AI 分析、文章生成、Gist 快取等核心功能不受影響。
 
 ---
 
 ## 專案結構
 
 ```
-ai-video-writer/
+CreatorCockpit/
 ├── App.tsx, index.tsx       # 前端進入點
 ├── components/              # React UI 元件（儀表板、分析、文章生成…）
 ├── hooks/                   # 自訂 React hooks
 ├── services/                # 前後端服務層
 │   ├── aiProviders/         #   AI 供應商抽象（Gemini 啟用 · OpenRouter 保留停用）
 │   ├── prompts/             #   提示詞模板
+│   ├── analyticsTools.js    #   Gemini Function Calling 工具定義與執行
 │   ├── geminiService.ts     #   Gemini 呼叫
 │   ├── youtubeService.ts    #   YouTube API
 │   ├── videoCacheService.*  #   Gist 快取
@@ -262,12 +256,11 @@ ai-video-writer/
 
 ## 安全性
 
-- **金鑰保護**：敏感金鑰只在後端使用，不出現在前端 JavaScript
-- **JWT 驗證**：所有 `/api` 端點需 session JWT，沒有 JWT 一律 401
-- **頻道白名單**：JWT 只發給 `ALLOWED_CHANNEL_IDS` 內的頻道擁有者
-- **OAuth 安全**：`YOUTUBE_CLIENT_ID` 是 OAuth 2.0 可公開的識別碼，非密碼
-- **輸入驗證**：`videoId` 等輸入嚴格驗證，防止 Command Injection
-- **本地儲存**：影片暫存本機，處理後自動清理（預設 7 天）；YouTube token 僅存瀏覽器記憶體
+- 敏感金鑰只在後端使用，不出現在前端 JavaScript
+- 所有 `/api` 端點需 session JWT，沒有 JWT 一律 401
+- JWT 只發給 `ALLOWED_CHANNEL_IDS` 內的頻道擁有者
+- `videoId` 等輸入嚴格驗證，防止 Command Injection
+- YouTube token 僅存瀏覽器記憶體，不落地
 
 詳見 [docs/SECURITY.md](docs/SECURITY.md) 與 [docs/SECURITY_REPORT.md](docs/SECURITY_REPORT.md)。
 
@@ -300,8 +293,6 @@ ai-video-writer/
 ---
 
 <div align="center">
-
-如果這個專案對你有幫助，請給個 Star！
 
 Created by [@jaschiang](https://www.linkedin.com/in/jascty/)
 
