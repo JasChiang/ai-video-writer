@@ -4262,9 +4262,11 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
         const response = await genai.models.generateContent({
           model: geminiModel,
           contents,
-          tools,
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          generationConfig: { temperature: 0.3 },
+          config: {
+            tools,
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            temperature: 0.3,
+          },
         });
 
         const candidate = response.candidates?.[0];
@@ -4321,9 +4323,11 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
                 ],
               },
             ],
-            tools: [{ codeExecution: {} }],
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            generationConfig: { temperature: 0.3 },
+            config: {
+              tools: [{ codeExecution: {} }],
+              systemInstruction: { parts: [{ text: systemPrompt }] },
+              temperature: 0.3,
+            },
           });
           const refineText = (refineResp.candidates?.[0]?.content?.parts || [])
             .filter((p) => p.text)

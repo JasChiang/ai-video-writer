@@ -33,7 +33,7 @@
 不只是「丟給 AI 寫一寫」，幾個關鍵設計：
 
 - **Gemini 影片理解**：整支影片交給多模態分析（畫面＋語音＋內容），不只讀標題或字幕。
-- **直接餵 YouTube 網址、免下載**：用 `fileData.fileUri` 把 YouTube 連結直接送進 Gemini 分析，多數情境不必先下載影片；只有要截關鍵畫面時才用 yt-dlp + FFmpeg。
+- **直接餵 YouTube 網址、免下載**：用 `fileData.fileUri` 把 YouTube 連結直接送進 Gemini 分析，不需下載影片；截圖功能在本機環境需另外安裝 yt-dlp + FFmpeg（Render 等 managed 主機不支援）。
 - **URL Context 整合參考資料**：生成文章可同時餵上傳檔、參考影片、參考網址（`urlContext` 工具直接讀網址內容）。
 - **Gist 配額快取，省約 97%**：`search.list` 一次吃 100 配額（每日上限 10,000）；把整個影片清單快取進 GitHub Gist，搜尋與分析 0 配額，GitHub Actions 每天自動更新。
 - **突破 YouTube Studio 500 筆**：「全部影片」用 Analytics 的 `filters=video==<ids>` 分批查，一張表看全部影片的期間／累計數據。
@@ -126,7 +126,7 @@ AI 透過 **tool calling** 自動決定要查哪些數據，呼叫 YouTube Analy
 | 後端 | Node.js · Express 4 · JWT 驗證 · Multer（上傳） |
 | AI | Google Gemini（`@google/genai`，`gemini-flash-latest` / `gemini-pro-latest`）· OpenRouter 多供應商抽象（內建，預設停用） |
 | YouTube | `googleapis`（Data API + Analytics API）· OAuth 2.0 |
-| 影片處理 | yt-dlp（下載）· FFmpeg（截圖） |
+| 影片處理 | yt-dlp（下載）· FFmpeg（截圖）—— 本機功能，Render 不支援 |
 | 資料快取 | GitHub Gist |
 | 整合 | Notion API |
 | 部署 | Render · GitHub Actions |
@@ -161,7 +161,7 @@ AI 透過 **tool calling** 自動決定要查哪些數據，呼叫 YouTube Analy
 ### 1. 前置需求
 
 - Node.js ≥ 18
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) 與 [FFmpeg](https://ffmpeg.org/)（影片下載與截圖）
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) 與 [FFmpeg](https://ffmpeg.org/)（選用；本機截圖功能才需要；Render 等 managed 環境不支援）
 - Google Cloud 專案（YouTube Data/Analytics API + OAuth 憑證）
 - [Gemini API 金鑰](https://aistudio.google.com/app/apikey)
 
@@ -229,10 +229,12 @@ npm run dev:all   # 同時啟動前後端（推薦）
 
 ## 部署
 
-支援 Render 一鍵部署。部署後即可隨時使用，不限於本機開機時。
+支援 Render 部署，部署後可持續在線使用。
 
 - **Render**：[docs/DEPLOY_TO_RENDER.md](docs/DEPLOY_TO_RENDER.md)
 - **自動更新快取**：[docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md)
+
+> **注意**：yt-dlp 與 FFmpeg 為本機獨有功能（影片下載、關鍵畫面截圖）。Render 為 managed 環境，無法安裝任意系統工具，這兩項功能在 Render 上**不可用**。頻道分析、AI 分析、文章生成（Gemini 直接讀 YouTube URL）、Gist 快取等核心功能不受影響。
 
 ---
 
