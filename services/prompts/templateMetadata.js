@@ -17,7 +17,8 @@ export const TEMPLATE_METADATA = {
     icon: '📝',
     category: 'general',
     targetAudience: '一般網路使用者',
-    platforms: ['部落格']
+    platforms: ['部落格'],
+    hidden: true,
   },
 
   'ecosystem-loyalist': {
@@ -28,7 +29,8 @@ export const TEMPLATE_METADATA = {
     category: 'premium',
     targetAudience: '蘋果、三星等品牌忠誠用戶',
     platforms: ['YouTube (視覺展示整合)', '生活誌 (深度體驗文)'],
-    keywords: ['整合', '生態系', '無縫體驗', '尊榮']
+    keywords: ['整合', '生態系', '無縫體驗', '尊榮'],
+    hidden: true,
   },
 
   'pragmatic-performer': {
@@ -39,7 +41,8 @@ export const TEMPLATE_METADATA = {
     category: 'professional',
     targetAudience: '規格控、分析型消費者、專家型受眾',
     platforms: ['生活誌 (深度規格分析)', 'YouTube (效能實測)'],
-    keywords: ['CP值', '規格', '效能', '性價比']
+    keywords: ['CP值', '規格', '效能', '性價比'],
+    hidden: true,
   },
 
   'lifestyle-integrator': {
@@ -51,7 +54,8 @@ export const TEMPLATE_METADATA = {
     targetAudience: '家長、健康專業人士、風格玩家/創作者',
     platforms: ['生活誌 (情境指南)', 'YouTube (一日生活)'],
     keywords: ['情境', '便利', '生活品質', '美學'],
-    subPersonas: ['互聯家長', '健康專業人士', '風格玩家/創作者']
+    subPersonas: ['互聯家長', '健康專業人士', '風格玩家/創作者'],
+    hidden: true,
   },
 
   'reliability-seeker': {
@@ -63,7 +67,8 @@ export const TEMPLATE_METADATA = {
     targetAudience: '銀髮族及照護者、科技初學者、小型企業主',
     platforms: ['生活誌 (圖文教學)', 'YouTube (簡易操作示範)'],
     keywords: ['簡單', '耐用', '安心', '服務'],
-    subPersonas: ['銀髮族及其照護者', '能用就好的使用者']
+    subPersonas: ['銀髮族及其照護者', '能用就好的使用者'],
+    hidden: true,
   }
 };
 

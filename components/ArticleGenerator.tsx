@@ -39,17 +39,20 @@ interface TemplateOption {
 }
 
 const getDefaultTemplateOptions = (): TemplateOption[] => {
-  return Object.values(TEMPLATE_METADATA as Record<string, any>).map((template) => ({
-    id: template.id,
-    name: template.name,
-    description: template.description,
-    icon: template.icon,
-    category: template.category,
-    targetAudience: template.targetAudience,
-    platforms: template.platforms,
-    keywords: template.keywords,
-    source: 'built-in',
-  }));
+  return Object.values(TEMPLATE_METADATA as Record<string, any>)
+    .filter((template) => !template.hidden)
+    .map((template) => ({
+      id: template.id,
+      name: template.name,
+      description: template.description,
+      icon: template.icon,
+      category: template.category,
+      targetAudience: template.targetAudience,
+      platforms: template.platforms,
+      keywords: template.keywords,
+      outputFormat: template.outputFormat,
+      source: 'built-in',
+    }));
 };
 
 // 取得伺服器基礎 URL
@@ -1859,7 +1862,7 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
               </div>
               {templateOptions.length > 0 ? (
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  {templateOptions.map((template) => {
+                  {templateOptions.filter((t) => !(t as any).hidden).map((template) => {
                     const isSelected = template.id === selectedTemplateId;
                     return (
                       <label
