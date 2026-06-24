@@ -1,161 +1,95 @@
-# 參考資料整合問題分析與改善方案
+# 參考資料整合機制說明
 
-> ℹ️ **狀態提醒（2026-06-24）**：本文件以「當前實作 vs 改善方案」的形式撰寫，但文中提出的改善方案**已經實作完成**（URL-Only 模式的參考資料整合提示已內建於 `server.js` 的文章生成流程）。內文標示的程式碼行號為舊版、已不準確，本文件現作為當時的設計記錄保留。
+本文件說明當使用者同時提供多種參考資料（上傳檔案、參考影片、參考網址）時，系統如何將它們整合進文章生成的提示詞（prompt），確保 Gemini 全面吸收所有來源的內容，而非只使用其中一部分。
 
-## 問題描述
+## 背景（歷史）
 
-使用者反饋：「為什麼有時候感覺像是只用了一部分的內容？」
+早期實作中，參考影片只是被加進 `parts` 陣列（透過 `fileData` 傳給 Gemini 的 Video Understanding），參考網址也只用「請參考以下網址」這類過於簡單的字句帶過。由於 prompt 中缺乏明確的「如何使用」與「全面整合」指示，使用者反映「有時候感覺像是只用了一部分的內容」——Gemini 會自行判斷相關性、把參考資料當成可選的補充，導致部分來源被忽略。
 
-當同時提供多個參考資料（參考影片 + 參考網址）給 Gemini 時，有時會感覺 AI 只使用了部分參考資料，而非全面整合所有來源的內容。
+現行版本已將參考資料的整合指示集中到一個共用函數中產生，下文描述的即為目前實際運作的方式。
 
-## 當前實作方式
+## 整合的核心：`generateArticlePromptWithReferences`
 
-### 參考影片的處理
-在 `server.js` 第 1692-1699 行：
-```javascript
-// 加入參考影片
-if (referenceVideos && referenceVideos.length > 0) {
-  console.log(`[Article URL-Only] 📎 參考影片: ${referenceVideos.length} 個`);
-  for (const videoUrl of referenceVideos) {
-    console.log(`[Article URL-Only] 加入參考影片: ${videoUrl}`);
-    parts.push({ fileData: { fileUri: videoUrl } });
-  }
-}
-```
-
-- 使用 `fileData` 格式傳遞 YouTube 網址
-- 利用 Gemini 的 **Video Understanding** 功能（最多 10 部影片）
-- **問題**：參考影片只是加到 `parts` 陣列，但 prompt 中完全沒有提到要如何使用這些影片
-
-### 參考網址的處理
-在 `server.js` 第 1701-1709 行：
-```javascript
-// 將所有 URL 加入到 prompt（主要 URL + 參考 URLs）
-let finalPrompt = fullPrompt;
-console.log(`[Article URL-Only] 📎 參考網址總數: ${referenceUrls.length} 個`);
-referenceUrls.forEach((url, index) => {
-  console.log(`[Article URL-Only]   ${index + 1}. ${url}`);
-});
-
-const urlList = referenceUrls.map((url, index) => `${index + 1}. ${url}`).join('\n');
-finalPrompt = `${fullPrompt}\n\n請參考以下網址的內容：\n${urlList}\n\n**重要：請確保你的回應是有效的 JSON 格式，不要包含任何額外的說明文字。**`;
-```
-
-- 將網址列表加到 prompt 中
-- 啟用 **URL Context Tool**（最多 20 個網址）
-- **問題**：指示過於簡單，只說「請參考」，沒有強調要「深入分析」和「全面整合」
-
-## 問題根源分析
-
-### 1. Prompt 指示不夠明確
-- 沒有明確告訴 Gemini 要「全面整合所有參考資料」
-- 沒有說明參考影片和參考網址的重要性
-- 缺少「如何使用」這些參考資料的指示
-
-### 2. 參考影片的指示完全缺失
-參考影片雖然透過 `fileData` 傳遞，但在 prompt 中沒有任何說明：
-- Gemini 可能不知道這些影片的用途
-- 可能被當作「可選」的附加資料
-- 沒有強調要與主要來源整合
-
-### 3. 缺少多來源整合的指示
-當同時有多種參考資料時，沒有告訴 Gemini：
-- 這些資料之間的關係
-- 如何綜合使用主要來源 + 參考影片 + 參考網址
-- 整合的優先級和重要性
-
-## 可能導致只用部分內容的原因
-
-1. **AI 自行判斷相關性**
-   - 沒有明確指示時，AI 會自己決定哪些內容相關
-   - 可能選擇性地使用某些來源而忽略其他
-
-2. **優先級問題**
-   - 可能優先使用主要來源（第一個影片或網址）
-   - 參考資料被當作「補充」而非「必要」內容
-
-3. **Token 限制**
-   - 如果參考資料內容太多，可能會被截斷
-   - Gemini 可能只讀取部分內容就開始生成
-
-4. **URL Context Tool 的行為**
-   - Tool 可能只提取網頁摘要而非完整內容
-   - 需要明確指示要「深入閱讀」
-
-## 改善方案
-
-### 方案 A：明確的參考資料指示（推薦）
-
-在加入參考資料時，提供清楚的使用指示：
+所有參考資料的整合邏輯都集中在 `services/articlePromptService.js` 的 `generateArticlePromptWithReferences()` 函數。它接收一個 `references` 物件：
 
 ```javascript
-let referenceInstructions = '';
+const references = {
+  uploadedFiles: uploadedFiles || [],   // 使用者上傳的參考檔案（圖片 / PDF / md / txt）
+  referenceVideos: referenceVideos || [], // 參考影片（YouTube 網址）
+  referenceUrls: referenceUrls || []      // 參考網址
+};
 
-// 如果有參考影片
-if (referenceVideos && referenceVideos.length > 0) {
-  referenceInstructions += `\n\n## 參考影片（${referenceVideos.length} 部）\n`;
-  referenceInstructions += `系統已提供 ${referenceVideos.length} 部參考影片。請深入分析這些影片的內容，將其中的資訊、觀點、技術細節整合到你的文章中。這些參考影片與主題密切相關，請確保充分利用。\n`;
-}
-
-// 如果有參考網址
-if (referenceUrls && referenceUrls.length > 0) {
-  referenceInstructions += `\n\n## 參考網址（${referenceUrls.length} 個）\n`;
-  referenceInstructions += `請深入閱讀並分析以下網址的內容：\n${urlList}\n\n`;
-  referenceInstructions += `這些網址提供了額外的脈絡、數據或觀點。請確保將這些參考資料的重要資訊整合到文章中，讓內容更加全面和深入。\n`;
-}
-
-// 如果有任何參考資料，加上整合指示
-if (referenceVideos.length > 0 || referenceUrls.length > 0) {
-  referenceInstructions += `\n**重要**：請綜合分析主要來源與所有參考資料，將它們的內容有機地整合到文章中，而不是只使用其中一部分。\n`;
-}
-
-finalPrompt = `${fullPrompt}${referenceInstructions}\n\n**重要：請確保你的回應是有效的 JSON 格式，不要包含任何額外的說明文字。**`;
+const fullPrompt = await generateArticlePromptWithReferences(
+  videoTitle,   // 主資料：影片標題或主要網址
+  prompt,       // 使用者額外提示
+  references,
+  templateId,
+  contentType   // 'video' 或 'url'，標示主資料的類型
+);
 ```
 
-### 方案 B：在模板中加入參考資料整合指示
+函數會先用模板（`templateId`）產生基礎提示詞，再依序在後面附加各類參考資料的說明區塊與整合指示。
 
-修改 `services/prompts/templates/default.js`，在寫作要求中加入：
+### 1. 上傳檔案（uploadedFiles）
 
-```javascript
-# 寫作要求
+加上 `## 參考檔案` 區塊，逐一列出檔名與檔案類型（圖片 / PDF / Markdown / 文字檔），並附上指示：
 
-1. **顧問視角**：以科技生活顧問身份，解釋技術如何解決問題
-2. **價值優先**：用詞精準直接，提供實用價值
-3. **深度分析**：提煉關鍵亮點或核心步驟，闡述原理與應用
-4. **多來源整合**：如果提供了參考資料（影片或網址），請深入分析並整合所有來源的內容
-5. **台灣用語**：使用台灣繁體中文、全形標點符號
-6. **中英數空格**：在中文、英文、數字之間插入半形空格（例：iPhone 15 Pro）
-7. **敘述性文字**：使用流暢段落，不使用條列、bullet points、數字列表、表格
-```
+> 請深入分析這些參考檔案，將檔案中的資訊與主要內容結合，產出更豐富、更專業的文章。
 
-### 方案 C：兩者結合（最佳方案）
+### 2. 參考影片（referenceVideos）
 
-同時使用方案 A 和 B：
-- 在模板中建立「多來源整合」的基本原則
-- 在執行時根據實際提供的參考資料，動態加入具體指示
+加上 `## 參考影片` 區塊，說明系統已提供幾部參考影片，並明確要求：
 
-## 實作位置
+> 請深入分析這些參考影片的內容，將其中的資訊、觀點、技術細節與主要內容整合……這些參考影片與主題密切相關，請確保充分利用其中的內容。
 
-需要修改的檔案：
-1. `server.js` - 第 1701-1711 行（參考資料處理邏輯）
-2. `services/prompts/templates/default.js` - 第 14-21 行（寫作要求）
-3. 其他模板檔案（如果需要統一行為）
+（影片本身透過 `parts` 陣列以 `fileData: { fileUri: videoUrl }` 傳遞，利用 Gemini 的 Video Understanding 功能，最多 10 部。）
 
-## 預期效果
+### 3. 參考網址（referenceUrls）
 
-改善後應該能：
-1. ✅ Gemini 更全面地使用所有參考資料
-2. ✅ 減少「只用部分內容」的情況
-3. ✅ 提升文章的深度和完整性
-4. ✅ 更好地整合多個來源的觀點和資訊
+加上 `## 參考網址` 區塊，逐一列出網址，並要求 Gemini 深入閱讀分析：
+
+> 這些網址提供了額外的脈絡、數據或觀點。請確保將這些參考資料的重要資訊整合到文章中，讓內容更加全面和深入。
+
+（搭配在 `server.js` 啟用的 URL Context Tool，`tools: [{ urlContext: {} }]`，最多 20 個網址。）
+
+### 4. 總體整合原則
+
+只要存在任何一種參考資料，函數最後都會附上一段強調全面整合的指示，直接針對「只用部分內容」的問題：
+
+> **重要整合原則**：請綜合分析主要來源與上述所有參考資料，將它們的內容有機地整合到文章中。不要只使用部分參考資料，而應該全面吸收各個來源的精華，產出一篇完整、專業、具有深度的文章。
+
+### 5. 動態截圖規劃
+
+函數還會依「主資料類型（`contentType`）」與「是否有參考影片」動態決定截圖時間點的規劃指示，分為四種情境：
+
+1. 主資料是影片 + 有參考影片：主影片規劃 3-5 個截圖，每部參考影片規劃 2-3 個，並在 `reason_for_screenshot` 標示來源。
+2. 主資料不是影片（URL）+ 有參考影片：只為參考影片規劃截圖。
+3. 主資料是影片 + 無參考影片：沿用模板預設行為（為主影片截圖），不額外加說明。
+4. 主資料不是影片 + 無參考影片：要求把 `screenshots` 設為空陣列 `[]`。
+
+## 在 server.js 的呼叫位置
+
+`generateArticlePromptWithReferences` 由各個文章生成 handler 呼叫（搜尋 `generateArticlePromptWithReferences` 即可定位），主要包含：
+
+- 影片為主資料的非同步 handler（`/api/generate-article-url-async`），以 `contentType = 'video'` 呼叫。
+- 純網址（URL-Only）為主資料的非同步 handler（`/api/generate-article-from-url-async`），以 `contentType = 'url'` 呼叫，並啟用 URL Context 工具。
+- 影片為主資料的同步 handler，同樣以 `contentType = 'video'` 呼叫。
+
+各 handler 在組裝最終 prompt 時，`fullPrompt` 已經包含上述所有參考資料的整合指示（程式碼註解標示為「已包含所有參考資料的整合指示」）；handler 只需再串接最後的 JSON 格式要求，並把上傳檔案、參考影片放進 `parts` 陣列。
+
+## 設計取捨
+
+整合指示是放在執行時動態組裝（`articlePromptService.js`），而不是寫死在模板（`services/prompts/templates/default.js`）裡，原因是：
+
+- 只有「實際提供了參考資料」時才需要這些指示，動態產生可避免污染無參考資料的一般情境。
+- 指示需要依參考資料的種類與數量（檔案 / 影片 / 網址）客製化內容與截圖規劃，模板的靜態文字難以涵蓋。
+- 模板（如 AEO 優化的 `default.js`）專注於文章結構、排版與寫作風格規範（顧問視角等寫作要求在模板的「寫作風格」段落），與參考資料整合邏輯各司其職。
 
 ## 驗證方法
 
-實作後可以透過以下方式驗證：
-1. 同時提供多個參考影片和網址
-2. 檢查生成的文章是否包含各個來源的特定資訊
-3. 比較改善前後的文章品質和完整度
-4. 查看 backend log 確認所有參考資料都有傳送
+1. 同時提供多個參考影片與網址，檢查生成的文章是否包含各個來源的特定資訊。
+2. 查看 backend log（`[Article URL]` / `[Article URL-Only]` 前綴）確認所有參考檔案、影片、網址都有被加入 `parts` 與 prompt。
+3. 觀察 URL Context Metadata 日誌，確認各參考網址的抓取狀態（`urlRetrievalStatus`）。
 
 ## 相關文件
 

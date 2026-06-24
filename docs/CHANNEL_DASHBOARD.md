@@ -1,88 +1,137 @@
 # 頻道儀錶板 - 時間範圍動態分析
 
-> ⚠️ **過時提醒（2026-06-24）**：本文件描述的是儀錶板「僅用 Gist 快取 + YouTube Data API、不使用 Analytics API」的早期設計。現行程式碼（`components/ChannelDashboard.tsx`）**已整合 YouTube Analytics API 作為觀看數據的主要來源**，Gist 快取退為 fallback，且時間範圍新增「本月／上月」選項。內文的「零配額」「需要額外申請 Analytics 權限」等敘述與程式碼行號已不準確，待完整重寫。
-
 ## 概述
 
-頻道儀錶板採用**混合數據獲取策略**，並支援**時間範圍動態過濾**，讓你可以查看不同時間段內發布影片的表現。
+頻道儀錶板採用**分層數據獲取策略**，並支援**時間範圍動態過濾**，讓你查看不同時間段內的頻道與影片表現。
+
+觀看相關數據（觀看次數、觀看時間、熱門影片）**以 YouTube Analytics API 為主要來源**，可取得「該時間段內實際產生」的真實數據；當 Analytics API 無法使用時，會自動退回 Gist 快取方案（顯示時間範圍內發布影片的累計數據）。頻道總體統計（訂閱數、總觀看數）則由 YouTube Data API 提供。
 
 ## 核心功能
 
 ### ⏰ 時間範圍選擇
-- **過去 7 天**：查看最近一週發布的影片表現
-- **過去 30 天**：查看最近一個月發布的影片表現
-- **過去 90 天**：查看最近三個月發布的影片表現
+
+快速範圍（`QUICK_DATE_PRESETS`，定義於 `components/ChannelDashboard.tsx`）：
+
+- **過去 7 天**（`7d`）
+- **過去 30 天**（`30d`，預設值）
+- **過去 90 天**（`90d`）
+- **本月**（`this_month`）：當月 1 號到可用的最近一天
+- **上月**（`last_month`）：上個月 1 號到月底
+
+也可自訂起訖日期。
+
+> **資料延遲說明：** YouTube Analytics API 的數據比 YouTube Studio 約晚 1 天，實務上最晚僅能查到「今天往前 3 天」。程式以常數 `ANALYTICS_DATA_DELAY_DAYS = 3` 計算各範圍的可用結束日（`getAnalyticsAvailableEndDate`），因此快速範圍的結束日通常不是「今天」。
 
 ### 📊 動態 KPI 指標
+
 所有指標會根據選擇的時間範圍自動更新：
-1. **觀看次數**：時間範圍內發布影片的總觀看數
-2. **觀看時間**：基於觀看次數估算的觀看時長（小時）
-3. **訂閱人數**：頻道總訂閱數（不受時間範圍影響）
+
+1. **觀看次數**（`viewsInRange`）：時間範圍內產生的觀看數（Analytics API）
+2. **觀看時間**（`watchTimeHours`）：時間範圍內的觀看時長，來自 Analytics 的 `estimatedMinutesWatched` 換算為小時
+3. **時間範圍內影片數**（`videosInRange`）：由 Gist 快取計算（範圍內發布、且 `privacyStatus = public` 的影片數）
+4. **總訂閱數 / 總觀看數**：頻道整體統計（YouTube Data API），其中總訂閱數會調整為「期間結束日」的值
+5. **淨訂閱增長 / 平均觀看時長 / 平均觀看百分比**：來自 Analytics API
 
 ### 🏆 熱門影片列表
-- 顯示時間範圍內發布的影片
-- 按總觀看數排序（Top 10）
-- 自動隨時間範圍變動
+
+- 來自 Analytics API 的影片級別查詢（`dimensions=video`，依觀看數排序，取前 50）
+- 影片標題／描述由 YouTube Data API 與 Gist 快取補齊
+- 排序指標可切換：觀看次數、平均觀看百分比、分享次數、留言次數
+
+## 觀看數據來源標記（viewingHoursSource）
+
+儀錶板以狀態 `viewingHoursSource: 'analytics' | 'cache' | 'none'` 標記目前觀看數據的來源，並影響 UI 文案：
+
+| 來源值 | 意義 | 副標題文案 |
+| --- | --- | --- |
+| `analytics` | 來自 YouTube Analytics API（真實時間段數據） | 「依據 YouTube Analytics（日粒度）」 |
+| `cache` | 退回 Gist 快取估算 | 「依據歷來影片表現（估算）」 |
+| `none` | 無數據 | 「依據觀眾實際上線時間」 |
 
 ## 重要說明
 
 ⚠️ **數據解讀提示：**
-- 「觀看次數」和「觀看時間」是指**時間範圍內發布影片**的累計數據
-- **不是**該時間段內產生的觀看數
-- 例如：選擇「過去 30 天」，顯示的是最近 30 天發布的影片，從發布至今的所有觀看數
 
-💡 **為什麼這樣設計：**
-- 真實的「時間段內觀看數」需要 YouTube Analytics API（需要額外申請權限）
-- 目前方案零配額成本，適合快速查看新發布影片的初期表現
-- 可以評估新內容的吸引力和初期表現
+- 當來源為 **`analytics`** 時，「觀看次數」「觀看時間」是該時間段內**實際產生**的數據。
+- 當退回 **`cache`** 時，顯示的是「時間範圍內**發布**影片」的累計數據（從發布至今的所有觀看數），而非該時間段內產生的觀看；此時介面會提示需在 Google Cloud Console 啟用 YouTube Analytics API。
+- 「時間範圍內影片數」一律由 Gist 快取依發布日計算，與觀看數據來源無關。
 
 ## 數據獲取策略
 
-### 策略 1: 頻道等級資料（使用 OAuth + YouTube Data API）
+### 策略 1：頻道總體資料（OAuth + YouTube Data API）
 
 **適用範圍：**
-- 頻道訂閱數 (subscriberCount)
-- 頻道總觀看次數 (viewCount)
+
+- 頻道訂閱數（`subscriberCount`）
+- 頻道總觀看次數（`viewCount`）
+- 頻道總影片數（`videoCount`）
 
 **實現方式：**
+
 ```typescript
-// 使用 YouTube Data API channels.list
-GET https://www.googleapis.com/youtube/v3/channels
-  ?part=statistics
-  &mine=true
+// YouTube Data API channels.list
+GET https://www.googleapis.com/youtube/v3/channels?part=statistics&mine=true
 ```
 
-**配額成本：** 1 單位
+**程式碼位置：** `fetchChannelStats`（`components/ChannelDashboard.tsx`）
 
-**優點：**
-- 即時數據
-- 官方 API，數據準確
-- 僅需 1 單位配額（非常低）
-
-**程式碼位置：** `components/ChannelDashboard.tsx:83`
-
-**注意：** 雖然 API 也會返回 `videoCount`，但我們不使用它，而是從快取計算，確保數據一致性。
+**備註：** 總訂閱數會調整為「期間結束日」的值，而非當前即時值——優先用 Analytics 取得截至該日的累積訂閱數（`fetchTotalSubscribersAtDate`），失敗時再以「期間結束日後的訂閱變化」回推（`fetchSubscribersAfterEndDate`）。
 
 ---
 
-### 策略 2: 影片等級資料（使用 Gist 快取）
+### 策略 2：觀看數據（主要來源：YouTube Analytics API）
 
-**適用範圍：**
-- 影片總數（從快取計算）
-- 熱門影片列表（Top 10）
-- 影片標題、觀看數、讚數、評論數
-- 影片縮圖（使用快取中的 `thumbnail` 字段）
-- 發布日期
+所有 Analytics 查詢都透過 `queryYoutubeAnalytics` 經 `gapi.client.request` 呼叫，自動帶上 OAuth 認證；401 時會登出並提示重新登入。
 
-**實現方式：**
+**2A. 頻道級別數據** — `fetchChannelAnalytics`
+
 ```typescript
-// 從 Gist 快取讀取
-GET /api/video-cache/search
-  ?query=
-  &maxResults=10000
+GET https://youtubeanalytics.googleapis.com/v2/reports
+  ?ids=channel==MINE
+  &startDate=YYYY-MM-DD
+  &endDate=YYYY-MM-DD
+  &metrics=views,estimatedMinutesWatched,subscribersGained,subscribersLost,averageViewDuration,averageViewPercentage
 ```
 
+回傳單行數據，依序解析為觀看次數、觀看分鐘數（÷60 換算小時）、新增/取消訂閱（取淨值）、平均觀看時長（秒）、平均觀看百分比。
+
+**2B. 影片級別數據（熱門影片）** — `fetchVideoAnalytics`
+
+```typescript
+GET https://youtubeanalytics.googleapis.com/v2/reports
+  ?ids=channel==MINE
+  &startDate=YYYY-MM-DD
+  &endDate=YYYY-MM-DD
+  &metrics=views,averageViewPercentage,comments,likes,shares
+  &dimensions=video
+  &sort=-views
+  &maxResults=50
+```
+
+取得排序後的影片 ID 與指標後，由 `fetchTopVideosFromAnalytics` 補上標題、描述與縮圖（YouTube Data API + Gist 快取）。
+
+**其他衍生查詢** 也走相同的 Analytics API，例如：流量來源（`fetchTrafficSourcesData`）、環比/同比對比（`fetchComparisonData`）、人口統計（`fetchDemographicsData`）、裝置類型（`fetchDeviceData`）、訂閱來源（`fetchSubscriberSourcesData`）、Shorts vs 一般影片（`fetchContentTypeMetrics`，使用 `dimensions=creatorContentType`）、熱門 Shorts / 一般影片排行、日趨勢（`fetchTrendData`）等。
+
+---
+
+### 策略 3：影片等級資料（Gist 快取，作為 fallback 與補充）
+
+Gist 快取扮演兩個角色：
+
+1. **補充**：提供影片標題、縮圖、發布日期等 metadata，用來補齊 Analytics 回傳的影片清單，並計算「時間範圍內影片數」。
+2. **Fallback**：當 `fetchChannelAnalytics` 回傳空 rows（Analytics API 不可用）時，`fetchVideosInRange` 改用快取顯示「時間範圍內發布影片」的累計數據，此時 `viewingHoursSource` 為 `cache` 或 `none`。
+
+**實現方式：**
+
+```typescript
+// 從 Gist 快取讀取（前端呼叫後端 API）
+GET /api/video-cache/search?query=&maxResults=10000
+```
+
+前端以 `ensureVideoCache` 載入一次並快取於記憶體（`videoCacheRef`），供整個刷新流程共用。
+
 **Gist 快取數據結構：**
+
 ```javascript
 {
   videoId: string,          // 影片 ID（注意不是 id）
@@ -98,23 +147,10 @@ GET /api/video-cache/search
 }
 ```
 
-**配額成本：** 0 單位（零配額！）
-
-**優點：**
-- 零配額成本
-- 可獲取大量影片數據（支持 10000+）
-- 支援快速排序和篩選
-- 包含評論數（commentCount）
-- 縮圖 URL 直接可用（format: `https://i.ytimg.com/vi/{VIDEO_ID}/hqdefault.jpg`）
-
-**限制：**
-- 需要定期更新快取（執行 `npm run update-cache`）
-- 數據更新頻率取決於快取更新頻率
-- 字段名與 YouTube API 不完全一致（需要映射）
-
-**程式碼位置：** `components/ChannelDashboard.tsx:149`
+**Fallback 觀看時間估算（僅 `cache` 來源）：** 真實觀看時長需 Analytics API；fallback 時 `fetchVideosInRange` 以「平均影片長度 10 分鐘、平均觀看百分比 40%」粗估，僅供參考。
 
 **字段映射說明：**
+
 ```typescript
 // Gist 快取 → 儀錶板顯示
 videoId      → id
@@ -123,6 +159,11 @@ viewCount    → viewCount
 likeCount    → likeCount
 commentCount → commentCount
 ```
+
+**限制：**
+
+- 快取需定期更新（執行 `npm run update-cache`），數據新鮮度取決於更新頻率。
+- 字段名與 YouTube API 不完全一致，需要映射。
 
 ---
 
@@ -143,46 +184,38 @@ npm run update-cache
 npm run dev:all
 ```
 
+> **權限提醒：** 觀看數據以 YouTube Analytics API 為主，需在 Google Cloud Console 啟用 **YouTube Analytics API**，且 OAuth 授權範圍需包含 Analytics 唯讀權限。若未啟用或未授權，儀錶板會自動退回 Gist 快取方案並提示。
+
 ### 2. 使用儀錶板
 
-1. 訪問「頻道分析」頁面
+1. 進入「頻道分析」頁面
 2. 點擊「頻道儀錶板」分頁
 3. 登入 YouTube 帳號（如果尚未登入）
-4. 點擊「刷新數據」按鈕
-5. 查看頻道統計和熱門影片
-
-### 3. 配額使用情況
-
-每次刷新儀錶板：
-- **頻道統計**：1 單位（YouTube API）
-- **熱門影片**：0 單位（Gist 快取）
-- **總計**：1 單位
-
-對比傳統方式（獲取 100 支影片詳情）：
-- 傳統方式：~10 單位
-- 優化方式：1 單位
-- **節省 90% 配額！**
+4. 選擇時間範圍並刷新數據
+5. 查看頻道統計與熱門影片
 
 ---
 
-## 配額優化對比
-
-### 傳統方式（未優化）
+## 數據流程
 
 ```
-1. 獲取頻道統計: 1 單位
-2. 獲取影片列表: 2 單位 (playlistItems.list)
-3. 獲取影片詳情: 8 單位 (videos.list, 100 影片)
-總計: 11 單位
-```
-
-### 優化方式（當前實現）
-
-```
-1. 獲取頻道統計: 1 單位 (YouTube API)
-2. 獲取影片列表: 0 單位 (Gist 快取)
-總計: 1 單位
-節省: 90.9%
+用戶點擊「刷新數據」
+    ↓
+1. 檢查 OAuth Token（youtubeService.getAccessToken）
+    ↓
+2. [時間範圍內影片數] → Gist 快取 → countPublicUploadsInRange
+    ↓
+3. [頻道總體統計] → YouTube Data API → fetchChannelStats
+    ↓
+4. [觀看數據] → YouTube Analytics API
+      ├─ fetchChannelAnalytics（頻道級別）
+      └─ fetchVideoAnalytics（影片級別 / 熱門影片）
+    ↓
+5a. 若 Analytics 有資料 → viewingHoursSource = 'analytics'
+      → 顯示真實時間段數據，並抓取流量來源/對比/人口/裝置等衍生數據
+    ↓
+5b. 若 Analytics 無資料 → fetchVideosInRange（Gist 快取 fallback）
+      → viewingHoursSource = 'cache' / 'none'，顯示「發布影片累計數據」並提示
 ```
 
 ---
@@ -192,23 +225,21 @@ npm run dev:all
 ### 主要文件
 
 1. **components/ChannelDashboard.tsx**
-   - 儀錶板主組件
-   - 實現數據獲取邏輯
-   - UI 渲染
+   - 儀錶板主組件、數據獲取邏輯與 UI 渲染
+   - Analytics 查詢：`queryYoutubeAnalytics`、`fetchChannelAnalytics`、`fetchVideoAnalytics` 等
+   - Fallback：`fetchVideosInRange`、`ensureVideoCache`
+   - 頻道統計：`fetchChannelStats`
+   - 時間範圍：`QUICK_DATE_PRESETS`、`getQuickDateRange`、`getAnalyticsAvailableEndDate`
 
 2. **components/ChannelAnalytics.tsx**
-   - 頻道分析頁面
-   - 整合儀錶板和報表功能
-   - 分頁切換
+   - 頻道分析頁面，整合儀錶板與報表功能、分頁切換
 
 3. **server.js**
    - API 路由定義
-   - `/api/video-cache/search` 端點
-   - 支援 Gist 快取讀取
+   - `GET /api/video-cache/search` 端點（呼叫 `loadFromGist` + `searchVideosFromCache` 讀取 Gist 快取）
 
 4. **services/videoCacheService.js**
-   - Gist 快取服務
-   - 影片搜尋和過濾
+   - Gist 快取服務、影片搜尋與過濾
 
 ---
 
@@ -216,7 +247,7 @@ npm run dev:all
 
 ### 1. 定期更新快取
 
-建議每天更新一次影片快取：
+快取主要供影片 metadata 補齊與 fallback 使用，建議每天更新一次：
 
 ```bash
 # 手動更新
@@ -228,11 +259,20 @@ npm run update-cache
 
 ### 2. 監控配額使用
 
-訪問 [Google Cloud Console](https://console.cloud.google.com/apis/api/youtube.googleapis.com/quotas) 監控配額使用情況。
+- YouTube Data API 配額：[Google Cloud Console](https://console.cloud.google.com/apis/api/youtube.googleapis.com/quotas)
+- 觀看數據刷新會額外使用 YouTube Analytics API 的查詢配額，刷新一次會發出多個 Analytics 查詢（頻道級別、影片級別、流量來源、對比、人口、裝置等），請留意總用量。
 
 ### 3. 錯誤處理
 
-如果看到錯誤訊息「未設定 Gist 快取」：
+如果看到「YouTube Analytics API 不可用」或退回快取的提示：
+
+```bash
+# 1. 確認 Google Cloud Console 已啟用 YouTube Analytics API
+# 2. 確認 OAuth 授權範圍包含 Analytics 唯讀權限，必要時重新登入
+# 3. 重新整理頁面
+```
+
+如果看到「缺少 GITHUB_GIST_ID 環境變數」：
 
 ```bash
 # 1. 檢查環境變數
@@ -246,103 +286,37 @@ npm run update-cache
 
 ---
 
-## 進階功能（未來擴展）
-
-### YouTube Analytics API 整合
-
-如果需要更詳細的數據分析（如趨勢圖表），可以整合 YouTube Analytics API：
-
-```typescript
-// 獲取觀看次數趨勢
-GET https://youtubeanalytics.googleapis.com/v2/reports
-  ?ids=channel==MINE
-  &startDate=2024-01-01
-  &endDate=2024-01-31
-  &metrics=views,subscribersGained
-  &dimensions=day
-```
-
-**配額成本：** 每次查詢約 1-2 單位
-
----
-
 ## 常見問題
 
-### Q: 為什麼熱門影片數據不是即時的？
+### Q：觀看次數是「該時間段產生」還是「期間發布影片的累計」？
 
-**A:** 熱門影片使用 Gist 快取，數據更新頻率取決於 `npm run update-cache` 的執行頻率。建議每天更新一次。
+**A：** 視來源而定。`viewingHoursSource = 'analytics'` 時是該時間段內實際產生的數據；退回 `cache` 時則是「時間範圍內發布影片」的累計觀看數。介面會以副標題與提示文案標示。
 
-### Q: 可以手動刷新熱門影片數據嗎？
+### Q：為什麼結束日不是「今天」？
 
-**A:** 可以。執行 `npm run update-cache` 後，重新整理儀錶板即可看到最新數據。
+**A：** YouTube Analytics 數據有延遲，程式以 `ANALYTICS_DATA_DELAY_DAYS = 3` 計算可用的最近結束日，因此快速範圍的結束日通常是今天往前 3 天。
 
-### Q: 頻道統計數據會快取嗎？
+### Q：頻道統計（訂閱數、總觀看數）會快取嗎？
 
-**A:** 不會。頻道統計（訂閱數、總觀看數）每次都從 YouTube API 即時獲取，確保數據最新。
+**A：** 不會，每次都從 YouTube Data API 即時獲取；其中總訂閱數會調整為「期間結束日」的值。
 
-### Q: 配額用完了怎麼辦？
+### Q：熱門影片數據從哪裡來？
 
-**A:** YouTube Data API 每天有 10,000 單位配額。使用優化策略後，每次刷新僅需 1 單位，可以刷新 10,000 次。如果仍然不夠，可以：
-1. 申請配額增加
-2. 使用服務帳號分散配額
-3. 延長快取更新週期
-
----
-
-## 技術細節
-
-### 數據流程圖
-
-```
-用戶點擊「刷新數據」
-    ↓
-1. 檢查 OAuth Token
-    ↓
-2a. [頻道統計] → YouTube API → 1 單位
-    ↓
-2b. [熱門影片] → Gist 快取 → 0 單位
-    ↓
-3. 合併數據並顯示
-```
-
-### API 調用順序
-
-```javascript
-// 1. 獲取頻道統計（1 單位）
-fetchChannelStats(token)
-  → YouTube Data API: channels.list
-
-// 2. 獲取熱門影片（0 單位）
-fetchTopVideos()
-  → Backend API: /api/video-cache/search
-  → Gist Cache: loadFromGist()
-  → 排序並取前 10 名
-```
-
----
-
-## 貢獻
-
-如果您有任何改進建議或發現問題，請：
-
-1. 提交 Issue
-2. 發起 Pull Request
-3. 聯繫開發團隊
-
----
-
-## 授權
-
-MIT License
+**A：** 主要來自 Analytics API（影片級別查詢），標題/縮圖/描述由 YouTube Data API 與 Gist 快取補齊；Analytics 不可用時改由快取依觀看數排序。
 
 ---
 
 ## 更新日誌
 
+### 2026-06-24
+
+- 文件重寫，使其與現行實作一致。
+- 觀看數據改以 **YouTube Analytics API 為主要來源**，Gist 快取退為 fallback／metadata 補充。
+- 時間範圍新增「本月／上月」，並說明 Analytics 3 天資料延遲。
+- 新增 `viewingHoursSource`（`analytics` / `cache` / `none`）來源標記說明。
+- 移除已不適用的「零配額」「不需 Analytics 權限」等敘述。
+
 ### 2025-11-12
-- ✅ 實現混合數據獲取策略
-- ✅ 頻道統計使用 YouTube API（1 單位）
-- ✅ 熱門影片使用 Gist 快取（0 單位）
-- ✅ 節省 90% 配額使用
-- ✅ 添加數據來源說明
-- ✅ 完整錯誤處理和日誌記錄
+
+- 實現分層數據獲取策略（頻道統計用 YouTube Data API、影片用 Gist 快取）。
+- 添加數據來源說明與完整錯誤處理。
