@@ -22,9 +22,7 @@ export function Header({ isLoggedIn, onLogout, activeTab, onTabChange }: HeaderP
             <YouTubeIcon />
             <div className="min-w-0">
               <h1 className="truncate text-xl font-semibold tracking-tight text-neutral-900 sm:text-2xl">
-                <span className="text-red-600">YouTube</span>{' '}
-                <span className="hidden sm:inline">Content Assistant</span>
-                <span className="sm:hidden">內容助理</span>
+                <span className="text-red-600">Creator</span>Cockpit
               </h1>
               <p className="text-xs text-neutral-500 sm:text-sm">
                 連結頻道、管理影片、快速生成 SEO 與行銷素材
