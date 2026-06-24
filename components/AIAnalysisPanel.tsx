@@ -67,9 +67,11 @@ interface ModelOption {
 const MODEL_OPTIONS: ModelOption[] = [
   { id: 'gemini-flash-latest', label: 'Gemini Flash', provider: 'gemini', description: '快速・經濟' },
   { id: 'gemini-pro-latest', label: 'Gemini Pro', provider: 'gemini', description: '深度分析' },
-  { id: 'anthropic/claude-sonnet-4.5', label: 'Claude Sonnet 4.5', provider: 'openrouter', description: 'OpenRouter・策略規劃' },
-  { id: 'openai/gpt-5.1', label: 'GPT-5.1', provider: 'openrouter', description: 'OpenRouter・全方位' },
-  { id: 'x-ai/grok-4', label: 'Grok 4', provider: 'openrouter', description: 'OpenRouter・即時' },
+  // ⚙️ OpenRouter 模型暫時停用（後端 AIModelManager 的 ENABLE_OPENROUTER 也需一併開啟）。
+  // 要恢復多供應商選單，取消下面三行的註解即可：
+  // { id: 'anthropic/claude-sonnet-4.5', label: 'Claude Sonnet 4.5', provider: 'openrouter', description: 'OpenRouter・策略規劃' },
+  // { id: 'openai/gpt-5.1', label: 'GPT-5.1', provider: 'openrouter', description: 'OpenRouter・全方位' },
+  // { id: 'x-ai/grok-4', label: 'Grok 4', provider: 'openrouter', description: 'OpenRouter・即時' },
 ];
 
 interface Props {

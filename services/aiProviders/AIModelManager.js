@@ -6,6 +6,11 @@
 import { GeminiProvider } from './GeminiProvider.js';
 import { OpenRouterProvider } from './OpenRouterProvider.js';
 
+// ⚙️ OpenRouter（Claude / GPT / Grok）暫時停用 —— 目前只跑原生 Google Gemini。
+// 要恢復多供應商：把下面改成 true，並在環境變數設定 OPENROUTER_API_KEY 即可，
+// 不需要改其他程式碼（registry / 推薦對照表都會自動帶回來）。
+const ENABLE_OPENROUTER = false;
+
 export class AIModelManager {
   constructor() {
     this.providers = new Map();
@@ -15,7 +20,7 @@ export class AIModelManager {
   }
 
   initializeProviders() {
-    // 初始化 Gemini Models (使用原生 API)
+    // 初始化 Gemini Models (使用原生 Google API)
     if (this.geminiApiKey) {
       this.providers.set(
         'gemini-flash-latest',
@@ -36,8 +41,8 @@ export class AIModelManager {
       );
     }
 
-    // 初始化 OpenRouter Models
-    if (this.openRouterApiKey) {
+    // 初始化 OpenRouter Models（暫時停用，受 ENABLE_OPENROUTER 控制）
+    if (ENABLE_OPENROUTER && this.openRouterApiKey) {
       // Claude Models
       this.providers.set(
         'anthropic/claude-sonnet-4.5',
@@ -68,25 +73,6 @@ export class AIModelManager {
           temperature: 0.7,
         })
       );
-
-      // 可選：其他模型
-      // this.providers.set(
-      //   'google/gemini-2.0-flash-exp',
-      //   new OpenRouterProvider({
-      //     apiKey: this.openRouterApiKey,
-      //     model: 'google/gemini-2.0-flash-exp',
-      //     temperature: 0.7,
-      //   })
-      // );
-
-      // this.providers.set(
-      //   'meta-llama/llama-3.1-70b-instruct',
-      //   new OpenRouterProvider({
-      //     apiKey: this.openRouterApiKey,
-      //     model: 'meta-llama/llama-3.1-70b-instruct',
-      //     temperature: 0.7,
-      //   })
-      // );
     }
   }
 
