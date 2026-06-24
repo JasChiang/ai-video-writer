@@ -603,6 +603,11 @@ export async function fetchVideoDetails(videoId: string): Promise<YouTubeVideo> 
         return mapVideoItem(item);
     } catch (error: any) {
         console.error('Error fetching video details:', error);
+        const status = error?.status || error?.result?.error?.code;
+        if (status === 401 || status === 403) {
+            persistToken(null);
+            throw new Error('Authentication required.');
+        }
         throw new Error(error.result?.error?.message || '無法取得影片資訊');
     }
 }

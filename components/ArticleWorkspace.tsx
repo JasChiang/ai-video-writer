@@ -61,7 +61,18 @@ export function ArticleWorkspace() {
     try {
       if (videoId) {
         // 是 YouTube 影片，正常獲取影片詳情
-        const video = await youtubeService.fetchVideoDetails(videoId);
+        let video;
+        try {
+          video = await youtubeService.fetchVideoDetails(videoId);
+        } catch (authErr: any) {
+          if (authErr?.message === 'Authentication required.') {
+            // Token expired — try silent refresh then retry once
+            await youtubeService.requestToken();
+            video = await youtubeService.fetchVideoDetails(videoId);
+          } else {
+            throw authErr;
+          }
+        }
         setSelectedVideo(video);
         setCachedArticle(null);
       } else {
