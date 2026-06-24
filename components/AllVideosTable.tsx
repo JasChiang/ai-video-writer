@@ -115,6 +115,7 @@ interface Props {
 }
 
 const PAGE_SIZE = 50;
+const BATCH_SIZE = 200; // 每批用 filters 指定的影片 ID 數（Analytics filter 支援多 ID）
 
 export function AllVideosTable({ accessToken, channelId }: Props) {
   const [mode, setMode] = useState<Mode>('period');
@@ -162,30 +163,30 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
     return map;
   };
 
-  // 期間模式：分頁抓全部影片的 Analytics 數據
-  const fetchAnalyticsAll = async (start: string, end: string): Promise<Record<string, any[]>> => {
+  // 期間模式：用 filters=video==<ids> 分批查全部影片（每批 200 支）。
+  // 此「指定影片」報表不像「top videos 排序報表」有 200 上限/不支援分頁，
+  // 且支援 averageViewDuration，可一次拿到全部影片的真實平均觀看時間。
+  const fetchAnalyticsAll = async (
+    start: string,
+    end: string,
+    videoIds: string[]
+  ): Promise<Record<string, any[]>> => {
     const byId: Record<string, any[]> = {};
-    const pageSize = 200;
-    let startIndex = 1;
-    for (let p = 0; p < 50; p++) {
+    for (let i = 0; i < videoIds.length; i += BATCH_SIZE) {
+      const batch = videoIds.slice(i, i + BATCH_SIZE);
       const result = await queryAnalytics({
         ids: 'channel==MINE',
         startDate: start,
         endDate: end,
-        // 已知可用的 video 報表組合（多加 averageViewDuration 會被 API 判為不支援的查詢）
-        // 欄位順序：[video, views, averageViewPercentage, comments, likes, shares]
-        metrics: 'views,averageViewPercentage,comments,likes,shares',
+        // 欄位順序：[video, views, averageViewDuration, averageViewPercentage, likes, comments]
+        metrics: 'views,averageViewDuration,averageViewPercentage,likes,comments',
         dimensions: 'video',
-        sort: '-views',
-        maxResults: String(pageSize),
-        startIndex: String(startIndex),
+        filters: `video==${batch.join(',')}`,
+        maxResults: String(BATCH_SIZE),
       });
-      const rows: any[][] = result?.rows || [];
-      rows.forEach((r) => {
+      (result?.rows || []).forEach((r: any[]) => {
         byId[r[0]] = r;
       });
-      if (rows.length < pageSize) break;
-      startIndex += pageSize;
     }
     return byId;
   };
@@ -215,18 +216,13 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
         setRows(result);
       } else {
         // 期間模式：全部影片為底，疊上 Analytics 期間數據（無數據者顯示 0）
-        const analyticsById = await fetchAnalyticsAll(startDate, endDate);
+        const ids = allVideos.map((v: any) => v.videoId || v.id).filter(Boolean);
+        const analyticsById = await fetchAnalyticsAll(startDate, endDate, ids);
         const result: VideoRow[] = allVideos.map((v: any) => {
           const id = v.videoId || v.id;
           const a = analyticsById[id];
           const durationSeconds = parseISO8601Duration(v.duration || '');
-          // 欄位順序：[video, views, averageViewPercentage, comments, likes, shares]
-          const avgViewPercentage = a ? parseFloat(a[2]) || 0 : null;
-          // 平均觀看時間 = 平均觀看比例 × 影片長度（API 不直接給此組合，改用快取長度推算）
-          const avgViewSeconds =
-            avgViewPercentage != null && durationSeconds > 0
-              ? Math.round((avgViewPercentage / 100) * durationSeconds)
-              : null;
+          // 欄位順序：[video, views, averageViewDuration, averageViewPercentage, likes, comments]
           return {
             videoId: id,
             title: v.title || id,
@@ -234,10 +230,10 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
             publishedAt: v.publishedAt || '',
             durationSeconds,
             views: a ? parseInt(a[1]) || 0 : 0,
-            avgViewSeconds,
-            avgViewPercentage,
+            avgViewSeconds: a ? Math.round(parseFloat(a[2]) || 0) : null,
+            avgViewPercentage: a ? parseFloat(a[3]) || 0 : null,
             likes: a ? parseInt(a[4]) || 0 : 0,
-            comments: a ? parseInt(a[3]) || 0 : 0,
+            comments: a ? parseInt(a[5]) || 0 : 0,
           };
         });
         setRows(result);
@@ -458,6 +454,7 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
       {error && (
         <div className="bg-[#FFF5F5] border border-[#FFD5D5] text-[#CC0000] rounded-xl px-4 py-3 text-sm">{error}</div>
       )}
+
 
       {/* 表格 */}
       <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-sm overflow-hidden">
