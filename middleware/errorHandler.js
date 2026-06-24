@@ -44,13 +44,15 @@ export function errorHandler(err, req, res, next) {
     });
   }
 
-  // 返回錯誤回應
+  // 返回錯誤回應（預設就安全：只有明確 development 才外洩細節，不依賴 NODE_ENV=production）
+  const isDev = process.env.NODE_ENV === 'development';
+  const hideInternals = statusCode >= 500 && !isDev;
   res.status(statusCode).json({
     success: false,
-    error: message,
-    ...(details && { details }),
-    // 開發環境下包含 stack trace
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+    // 5xx 在非開發環境一律回通用訊息，避免外洩內部錯誤內容
+    error: hideInternals ? '伺服器發生錯誤' : message,
+    ...(details && !hideInternals && { details }),
+    ...(isDev && { stack: err.stack }),
   });
 }
 
