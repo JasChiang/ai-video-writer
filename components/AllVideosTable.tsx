@@ -92,6 +92,22 @@ const formatPublishDate = (iso: string): string => {
 
 const formatNumber = (n: number) => (n ?? 0).toLocaleString('en-US');
 
+// 快取更新時間：ISO(UTC) → 台北時間（UTC+8）字串
+const formatCacheTime = (iso: string | null): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(d);
+};
+
 type Mode = 'period' | 'lifetime';
 
 interface VideoRow {
@@ -133,6 +149,7 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [pageSize, setPageSize] = useState(50);
+  const [cacheUpdatedAt, setCacheUpdatedAt] = useState<string | null>(null);
 
   const cacheRef = useRef<Record<string, any> | null>(null);
 
@@ -155,6 +172,7 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
     });
     if (!res.ok) throw new Error('無法載入影片快取（請先執行快取更新）');
     const data = await res.json();
+    setCacheUpdatedAt(data.cacheUpdatedAt || null);
     const map: Record<string, any> = {};
     (data.videos || []).forEach((v: any) => {
       const id = v.videoId || v.id;
@@ -368,6 +386,12 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* 快取說明 */}
+      <div className="bg-[#EFF6FF] border border-[#BFDBFE] text-[#1E40AF] rounded-xl px-4 py-2.5 text-sm">
+        ℹ️ 影片清單來自<strong>每日更新的快取</strong>
+        {cacheUpdatedAt && `（更新於 ${formatCacheTime(cacheUpdatedAt)}，台灣時間）`}
+        ，當天剛上傳的影片可能尚未出現。
+      </div>
       {/* 控制列：模式 + 日期 */}
       <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-sm p-4 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -481,8 +505,10 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="搜尋標題…"
-              className="px-3 py-1.5 rounded-lg border border-[#E5E5E5] text-sm w-48"
+              disabled={!loadedOnce}
+              placeholder={loadedOnce ? '搜尋標題…' : '先按「取得數據」載入'}
+              title={loadedOnce ? '' : '請先按「取得數據」載入影片清單，再進行搜尋'}
+              className="px-3 py-1.5 rounded-lg border border-[#E5E5E5] text-sm w-48 disabled:bg-[#F5F5F5] disabled:cursor-not-allowed disabled:text-[#B0B0B0]"
             />
             <select
               value={pageSize}

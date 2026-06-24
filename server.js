@@ -4426,6 +4426,7 @@ app.get('/api/video-cache/search', async (req, res) => {
       query: query || '',
       totalResults: videos.length,
       channelId: cacheChannelId,
+      cacheUpdatedAt: cache.updatedAt || null, // ISO（UTC），前端轉 UTC+8 顯示
       videos: videos,
     });
   } catch (error) {
