@@ -19,12 +19,12 @@
 
 | 你想做的事 | 這個工具怎麼幫你 |
 |---|---|
-| 📝 **把影片變成文章** | AI 分析影片語意撰文，自動截關鍵畫面，輸出圖文並茂的 Markdown／HTML，一鍵發佈到 Notion |
-| 🎯 **優化 SEO 中繼資料** | 一鍵生成三種風格標題、結構化說明、後台標籤，直接回寫到 YouTube |
-| 📊 **用講話的方式分析數據** | 直接問「分析上半年開箱單元的成效」，AI 自動查 YouTube Analytics 並產出圖表報告 |
-| 🔍 **找關鍵字機會** | 比較不同關鍵字群組在各時段的表現，AI 給出內容策略建議 |
-| 🎬 **看全部影片數據** | 一張可排序表格列出**全部**影片（突破 YouTube Studio 匯出 500 筆的限制），含期間/累計數據 |
-| ⚡ **省下 API 配額** | 頻道影片快取進 GitHub Gist，搜尋不耗 YouTube 配額（約省 97%） |
+| **把影片變成文章** | AI 分析影片語意撰文，自動截關鍵畫面，輸出圖文並茂的 Markdown／HTML，一鍵發佈到 Notion |
+| **優化 SEO 中繼資料** | 一鍵生成三種風格標題、結構化說明、後台標籤，直接回寫到 YouTube |
+| **用講話的方式分析數據** | 直接問「分析上半年開箱單元的成效」，AI 自動查 YouTube Analytics 並產出圖表報告 |
+| **找關鍵字機會** | 比較不同關鍵字群組在各時段的表現，AI 給出內容策略建議 |
+| **看全部影片數據** | 一張可排序表格列出**全部**影片（突破 YouTube Studio 匯出 500 筆的限制），含期間/累計數據 |
+| **省下 API 配額** | 頻道影片快取進 GitHub Gist，搜尋不耗 YouTube 配額（約省 97%） |
 
 ---
 
@@ -44,7 +44,7 @@
 
 ## 六大用途詳解
 
-### 📝 1. 文章與截圖生成
+### 1. 文章與截圖生成
 
 把一支影片變成一篇可發佈的圖文文章。
 
@@ -53,7 +53,7 @@
 - 可上傳參考檔案（圖片、PDF、Markdown）作為額外上下文
 - 輸出 Markdown 或 HTML，或**一鍵發佈到 Notion 資料庫**
 
-### 🎯 2. SEO 中繼資料生成
+### 2. SEO 中繼資料生成
 
 針對每支影片，一次補齊上架所需的所有文字：
 
@@ -62,7 +62,7 @@
 - **5–10 個後台標籤**（核心關鍵字 + 長尾關鍵字）
 - **一鍵更新回 YouTube**，免手動複製貼上
 
-### 📊 3. AI 數據分析（自然語言對話）
+### 3. AI 數據分析（自然語言對話）
 
 「頻道分析 → AI 分析」分頁，用講話的方式問數據：
 
@@ -90,7 +90,7 @@ AI 透過 **tool calling** 自動決定要查哪些數據，呼叫 YouTube Analy
 
 > 目前僅啟用原生 Google Gemini。透過 OpenRouter 接 Claude / GPT / Grok 的多供應商支援已內建但**預設停用**，要恢復請見下方「[多供應商（OpenRouter）](#多供應商openrouter選用停用中)」。
 
-### 🔍 4. 關鍵字報表
+### 4. 關鍵字報表
 
 「頻道分析 → 關鍵字報表」分頁：
 
@@ -98,7 +98,7 @@ AI 透過 **tool calling** 自動決定要查哪些數據，呼叫 YouTube Analy
 - AI 以 SSE 串流即時輸出關鍵字策略報告
 - 模板管理：儲存常用的關鍵字組合與日期設定
 
-### 🎬 5. 全部影片總表
+### 5. 全部影片總表
 
 「頻道分析 → 全部影片」分頁，把整個頻道的影片列成一張可排序的表格 —— **突破 YouTube Studio 只能匯出 500 筆的限制，一次看到全部影片**。
 
@@ -109,7 +109,7 @@ AI 透過 **tool calling** 自動決定要查哪些數據，呼叫 YouTube Analy
 - 欄位**可點擊排序**、**標題即時搜尋**、每頁筆數可調（50 / 100 / 200）、保留總計列
 - 受 YouTube Analytics 資料延遲限制，日期最晚可查到「今天往前 3 天」（與儀表板一致）
 
-### ⚡ 6. 影片快取系統
+### 6. 影片快取系統
 
 - 頻道影片資料存進 GitHub Gist，搜尋與分析時不消耗 YouTube API 配額（約省 97%）
 - 快取含影片長度（`contentDetails.duration`），供「全部影片」顯示時長
@@ -182,7 +182,7 @@ npm run dev:all   # 同時啟動前後端（推薦）
 
 開瀏覽器前往 `http://localhost:3000`，點「Sign in with Google」登入你的 YouTube 帳號。
 
-> 📘 **完整設定步驟**（申請 API 金鑰、OAuth 設定、快取、部署）請見 **[docs/SETUP.md](docs/SETUP.md)**
+> **完整設定步驟**（申請 API 金鑰、OAuth 設定、快取、部署）請見 **[docs/SETUP.md](docs/SETUP.md)**
 
 ---
 
@@ -190,10 +190,10 @@ npm run dev:all   # 同時啟動前後端（推薦）
 
 | 變數 | 必填 | 說明 |
 |---|---|---|
-| `GEMINI_API_KEY` | ✅ | Gemini API 金鑰 |
-| `JWT_SECRET` | ✅ | 後端簽發 session JWT 用的密鑰 |
-| `ALLOWED_CHANNEL_IDS` | ✅ | 允許登入的 YouTube 頻道 ID（逗號分隔） |
-| `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` | ✅ | OAuth 2.0 憑證 |
+| `GEMINI_API_KEY` | 是 | Gemini API 金鑰 |
+| `JWT_SECRET` | 是 | 後端簽發 session JWT 用的密鑰 |
+| `ALLOWED_CHANNEL_IDS` | 是 | 允許登入的 YouTube 頻道 ID（逗號分隔） |
+| `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` | 是 | OAuth 2.0 憑證 |
 | `GITHUB_GIST_ID` / `GITHUB_GIST_TOKEN` | 選用 | 影片快取（強烈建議，省配額） |
 | `OPENROUTER_API_KEY` | 停用中 | 多供應商（Claude / GPT / Grok）預設關閉，目前用不到；要恢復見下方說明 |
 | `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET` | 選用 | 發佈到 Notion 時 |
@@ -299,7 +299,7 @@ ai-video-writer/
 
 <div align="center">
 
-如果這個專案對你有幫助，請給個 ⭐ Star！
+如果這個專案對你有幫助，請給個 Star！
 
 Created by [@jaschiang](https://www.linkedin.com/in/jascty/)
 
