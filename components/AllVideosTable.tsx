@@ -339,6 +339,18 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
 
   const isPeriod = mode === 'period';
 
+  // 日期鎖定：不可選超過「可查詢日」（今天 −3 天），與原儀表板一致
+  const analyticsAvailableDate = getAnalyticsAvailableEndDate();
+  const maxSelectableDate = formatDateString(analyticsAvailableDate);
+  const _today = new Date();
+  const startOfCurrentMonth = new Date(_today.getFullYear(), _today.getMonth(), 1);
+  const endOfLastMonth = new Date(_today.getFullYear(), _today.getMonth(), 0);
+  const isQuickDisabled = (r: QuickRange) => {
+    if (r === 'this_month') return analyticsAvailableDate < startOfCurrentMonth;
+    if (r === 'last_month') return analyticsAvailableDate < endOfLastMonth;
+    return false;
+  };
+
   return (
     <div className="space-y-4">
       {/* 控制列：模式 + 日期 */}
@@ -375,20 +387,30 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
               ['90d', '過去 90 天'],
               ['this_month', '本月'],
               ['last_month', '上月'],
-            ] as [QuickRange, string][]).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => applyQuickRange(key)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                  quickRange === key ? 'bg-[#0F0F0F] text-white' : 'bg-[#F5F5F5] text-[#606060] hover:bg-[#E5E5E5]'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+            ] as [QuickRange, string][]).map(([key, label]) => {
+              const disabled = isQuickDisabled(key);
+              return (
+                <button
+                  key={key}
+                  onClick={() => !disabled && applyQuickRange(key)}
+                  disabled={disabled}
+                  title={disabled ? '此區間尚無可查詢的數據（受 API 資料延遲限制）' : ''}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                    disabled
+                      ? 'bg-[#F5F5F5] text-[#C5C5C5] cursor-not-allowed'
+                      : quickRange === key
+                        ? 'bg-[#0F0F0F] text-white'
+                        : 'bg-[#F5F5F5] text-[#606060] hover:bg-[#E5E5E5]'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
             <input
               type="date"
               value={startDate}
+              max={maxSelectableDate}
               onChange={(e) => {
                 setQuickRange('custom');
                 setStartDate(e.target.value);
@@ -399,7 +421,7 @@ export function AllVideosTable({ accessToken, channelId }: Props) {
             <input
               type="date"
               value={endDate}
-              max={formatDateString(getAnalyticsAvailableEndDate())}
+              max={maxSelectableDate}
               onChange={(e) => {
                 setQuickRange('custom');
                 setEndDate(e.target.value);
