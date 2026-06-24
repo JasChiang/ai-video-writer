@@ -899,6 +899,57 @@ app.post('/api/notion/database-info', async (req, res) => {
   }
 });
 
+// ==================== JSON 修復工具 ====================
+
+/**
+ * 修復 Gemini 回應中 JSON 字串裡的控制字元。
+ * Gemini 有時在 HTML 內容裡直接嵌入換行符（0x00-0x1F），不合 JSON spec。
+ * 此函數以字元為單位掃描，只在字串內部替換控制字元，不影響 JSON 結構符號。
+ */
+function repairJsonControlChars(text) {
+  let result = '';
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    const code = text.charCodeAt(i);
+
+    if (escaped) {
+      result += c;
+      escaped = false;
+      continue;
+    }
+    if (c === '\\') {
+      escaped = true;
+      result += c;
+      continue;
+    }
+    if (c === '"') {
+      inString = !inString;
+      result += c;
+      continue;
+    }
+    if (inString && code < 0x20) {
+      if (c === '\n') result += '\\n';
+      else if (c === '\r') result += '\\r';
+      else if (c === '\t') result += '\\t';
+      else result += '\\u' + ('0000' + code.toString(16)).slice(-4);
+      continue;
+    }
+    result += c;
+  }
+  return result;
+}
+
+function parseGeminiJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return JSON.parse(repairJsonControlChars(text));
+  }
+}
+
 // ==================== 安全性驗證函數 ====================
 
 /**
@@ -1145,7 +1196,7 @@ app.post('/api/analyze-video-url', async (req, res) => {
     });
 
     console.log('[Analyze URL] ✅ Gemini 分析完成!');
-    const result = JSON.parse(response.text);
+    const result = parseGeminiJson(response.text);
     console.log(`[Analyze URL] Generated: ${result.titleA}`);
     console.log(`========== 分析完成 ==========\n`);
 
@@ -1223,7 +1274,7 @@ app.post('/api/analyze-video-url-async', async (req, res) => {
       });
 
       taskQueue.updateTaskProgress(taskId, 90, '正在解析 Gemini 回應...');
-      const result = JSON.parse(response.text);
+      const result = parseGeminiJson(response.text);
 
       console.log(`[Analyze URL Async] ✅ 分析完成: ${result.titleA}`);
 
@@ -1388,7 +1439,7 @@ app.post('/api/analyze-video', async (req, res) => {
     });
 
     console.log('[Analyze] ✅ Gemini 分析完成!');
-    const result = JSON.parse(response.text);
+    const result = parseGeminiJson(response.text);
     console.log(`[Analyze] Generated: ${result.titleA}`);
 
     // 清理暫存檔案（如果還存在的話）
@@ -1482,7 +1533,7 @@ app.post('/api/reanalyze-with-existing-file', async (req, res) => {
       },
     });
 
-    const result = JSON.parse(response.text);
+    const result = parseGeminiJson(response.text);
 
     res.json({
       success: true,
@@ -1686,7 +1737,7 @@ app.post('/api/generate-article-url', async (req, res) => {
     try {
       const responseText = response.text;
       console.log(`[Article URL] ✅ Gemini 回應長度: ${responseText.length} 字元`);
-      result = JSON.parse(responseText);
+      result = parseGeminiJson(responseText);
 
       if (!result.titleA || !result.titleB || !result.titleC || !result.article_text || !result.screenshots) {
         throw new Error('Missing required fields in response');
@@ -1963,7 +2014,7 @@ app.post('/api/generate-article-url-async', async (req, res) => {
           }
         }
 
-        result = JSON.parse(responseText);
+        result = parseGeminiJson(responseText);
 
         if (!result.titleA || !result.titleB || !result.titleC || !result.article_text || !result.screenshots) {
           throw new Error('Missing required fields in response');
@@ -2652,7 +2703,7 @@ app.post('/api/generate-article', async (req, res) => {
         }
       }
 
-      result = JSON.parse(responseText);
+      result = parseGeminiJson(responseText);
       // 驗證必要欄位
       if (!result.titleA || !result.titleB || !result.titleC || !result.article_text || !result.screenshots) {
         throw new Error('Missing required fields in response');
@@ -2775,7 +2826,7 @@ app.post('/api/regenerate-article', async (req, res) => {
       console.log('Response length:', responseText.length);
       console.log('Response preview:', responseText.substring(0, 200));
 
-      result = JSON.parse(responseText);
+      result = parseGeminiJson(responseText);
 
       // 驗證必要欄位
       if (!result.titleA || !result.titleB || !result.titleC || !result.article_text || !result.screenshots) {
@@ -2887,7 +2938,7 @@ app.post('/api/regenerate-screenshots', async (req, res) => {
     let result;
     try {
       const responseText = response.text;
-      result = JSON.parse(responseText);
+      result = parseGeminiJson(responseText);
     } catch (parseError) {
       console.error('[Regenerate Screenshots] ❌ JSON parsing error:', parseError.message);
       throw new Error(`無法解析 Gemini 回應為 JSON 格式。錯誤：${parseError.message}`);
