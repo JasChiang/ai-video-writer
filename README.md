@@ -72,9 +72,8 @@ AI 透過 **tool calling** 自動決定要查哪些數據，呼叫 YouTube Analy
 |---|---|---|
 | Gemini Flash（`gemini-flash-latest`） | Google | 預設，快速・經濟，原生 API・滾動最新版 |
 | Gemini Pro（`gemini-pro-latest`） | Google | 深度分析，原生 API・滾動最新版 |
-| Claude Sonnet 4.5 | Anthropic（OpenRouter） | 策略規劃、結構化輸出，需設 `OPENROUTER_API_KEY` |
-| GPT-5.1 | OpenAI（OpenRouter） | 全方位分析，需設 `OPENROUTER_API_KEY` |
-| Grok 4 | xAI（OpenRouter） | 快速即時分析，需設 `OPENROUTER_API_KEY` |
+
+> 目前僅啟用原生 Google Gemini。透過 OpenRouter 接 Claude / GPT / Grok 的多供應商支援已內建但**預設停用**，要恢復請見下方「[多供應商（OpenRouter）](#多供應商openrouter選用停用中)」。
 
 ### 🔍 4. 關鍵字報表
 
@@ -98,7 +97,7 @@ AI 透過 **tool calling** 自動決定要查哪些數據，呼叫 YouTube Analy
 |---|---|
 | 前端 | React 19 · Vite 6 · TypeScript · Chart.js · Mermaid · react-markdown |
 | 後端 | Node.js · Express 4 · JWT 驗證 · Multer（上傳） |
-| AI | Google Gemini 2.5（`@google/genai`）· OpenRouter（Claude / GPT 選用） |
+| AI | Google Gemini（`@google/genai`，`gemini-flash-latest` / `gemini-pro-latest`）· OpenRouter 多供應商抽象（內建，預設停用） |
 | YouTube | `googleapis`（Data API + Analytics API）· OAuth 2.0 |
 | 影片處理 | yt-dlp（下載）· FFmpeg（截圖） |
 | 資料快取 | GitHub Gist |
@@ -115,7 +114,7 @@ AI 透過 **tool calling** 自動決定要查哪些數據，呼叫 YouTube Analy
 │  (Vite, :3000)  │◀────▶│  (:3001, JWT 保護所有 /api)   │
 └─────────────────┘ HTTP └──────────────┬───────────────┘
    │ Google OAuth                        │
-   ▼                                     ├─▶ Gemini / OpenRouter   (AI 生成・分析)
+   ▼                                     ├─▶ Google Gemini        (AI 生成・分析)
  YouTube 登入                            ├─▶ YouTube Data/Analytics (影片・數據)
  (token 留在瀏覽器)                       ├─▶ yt-dlp + FFmpeg        (下載・截圖)
                                          ├─▶ GitHub Gist           (影片快取)
@@ -169,10 +168,22 @@ npm run dev:all   # 同時啟動前後端（推薦）
 | `ALLOWED_CHANNEL_IDS` | ✅ | 允許登入的 YouTube 頻道 ID（逗號分隔） |
 | `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` | ✅ | OAuth 2.0 憑證 |
 | `GITHUB_GIST_ID` / `GITHUB_GIST_TOKEN` | 選用 | 影片快取（強烈建議，省配額） |
-| `OPENROUTER_API_KEY` | 選用 | 使用 Claude / GPT 模型時 |
+| `OPENROUTER_API_KEY` | 停用中 | 多供應商（Claude / GPT / Grok）預設關閉，目前用不到；要恢復見下方說明 |
 | `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET` | 選用 | 發佈到 Notion 時 |
 
 完整清單見 [.env.local.example](.env.local.example)。
+
+---
+
+## 多供應商（OpenRouter）（選用，停用中）
+
+預設只啟用原生 Google Gemini。透過 [OpenRouter](https://openrouter.ai/) 接 Claude / GPT / Grok 的多供應商分析支援**程式碼仍保留，但預設停用**。要恢復：
+
+1. `services/aiProviders/AIModelManager.js` 把 `ENABLE_OPENROUTER` 改成 `true`
+2. `components/AIAnalysisPanel.tsx` 取消 `MODEL_OPTIONS` 裡 OpenRouter 三行的註解
+3. 設定環境變數 `OPENROUTER_API_KEY`
+
+> 影片分析、文章與 SEO 中繼資料生成一律只走原生 Gemini，不受此設定影響；OpenRouter 僅作用於「頻道分析 / 關鍵字報表 / AI 分析對話」。
 
 ---
 
@@ -206,7 +217,7 @@ ai-video-writer/
 ├── components/              # React UI 元件（儀表板、分析、文章生成…）
 ├── hooks/                   # 自訂 React hooks
 ├── services/                # 前後端服務層
-│   ├── aiProviders/         #   Gemini / OpenRouter 抽象
+│   ├── aiProviders/         #   AI 供應商抽象（Gemini 啟用 · OpenRouter 保留停用）
 │   ├── prompts/             #   提示詞模板
 │   ├── geminiService.ts     #   Gemini 呼叫
 │   ├── youtubeService.ts    #   YouTube API

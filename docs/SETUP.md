@@ -459,7 +459,7 @@ https://your-app.onrender.com
 | `GITHUB_GIST_TOKEN` | 建議 | GitHub → Settings → Developer settings → PAT |
 | `GITHUB_GIST_ID` | 建議 | 執行 `npm run update-cache` 後取得 |
 | `GITHUB_GIST_FILENAME` | 建議 | 固定填 `youtube-videos-cache.json` |
-| `OPENROUTER_API_KEY` | 選填 | [openrouter.ai](https://openrouter.ai/)，用於多模型 AI 分析 |
+| `OPENROUTER_API_KEY` | 停用中 | 多供應商（Claude / GPT / Grok）AI 分析預設關閉，目前用不到（恢復方式見 README「多供應商（OpenRouter）」） |
 | `NOTION_API_TOKEN` | 選填 | Notion → Settings → Integrations |
 | `NOTION_DATABASE_ID` | 選填 | Notion 資料庫頁面的 URL |
 | `NOTION_TITLE_PROPERTY` | 選填 | 固定填 `Name`（Notion 預設標題欄位名稱） |
