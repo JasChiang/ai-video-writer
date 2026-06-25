@@ -4208,19 +4208,25 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
   const toolContext = { accessToken, channelId, gistId, gistToken };
 
   try {
-    // 今天的日期（作為預設 endDate）
-    const today = new Date().toISOString().split('T')[0];
+    // YouTube Analytics 資料遞延 1–3 天，用 3 天前作為可靠的 endDate
+    const todayRaw = new Date();
+    const today = todayRaw.toISOString().split('T')[0];
+    const analyticsEnd = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     const systemPrompt = `你是一位資深 YouTube 頻道數據分析師，幫頻道主從數據中找出「可行動的洞察」，而不只是複述數字。
-今天是 ${today}，預設分析範圍是最近一年（${oneYearAgo} ~ ${today}）。
+今天是 ${today}。YouTube Analytics 資料有 1–3 天遞延，請以 ${analyticsEnd} 作為 endDate 上限，預設分析範圍是最近一年（${oneYearAgo} ~ ${analyticsEnd}）。
 
 工具使用規則：
 1. 分析整個頻道整體表現 → 用 get_channel_analytics（不需 video ID）
-2. 分析特定單元/關鍵字相關影片 → 先 search_videos_by_keyword 找影片，再 get_video_analytics 取數據
-3. 完播率異常低的影片 → 用 get_retention_curve 深入分析
-4. 用戶未指定日期時，預設抓「最近一年」，並盡量同時抓「前一年同期」做對照（沒有對照期就無法判斷好壞）
-5. 必須等工具回傳真實數據後才能分析，絕對不可編造或假設數據。
+2. 問「哪些影片表現最好/最差」→ 直接用 get_top_videos，不要繞道 search_videos_by_keyword
+3. 分析特定單元/關鍵字相關影片 → 先 search_videos_by_keyword 找影片，再 get_video_analytics 取數據
+4. 完播率異常低的影片 → 用 get_retention_curve 深入分析
+5. 問觀眾年齡/性別組成 → 用 get_audience_demographics；若回傳 available=false 表示人數不足門檻，如實告知
+6. 工具回傳錯誤或空資料時，明確告知用戶該數據無法取得，不可用假設值填補
+7. 用戶未指定日期時，預設抓「最近一年」，並盡量同時抓「前一年同期」做對照（沒有對照期就無法判斷好壞）
+8. 必須等工具回傳真實數據後才能分析，絕對不可編造或假設數據。
+9. 提及影片時，用 [影片標題](https://www.youtube.com/watch?v=VIDEO_ID) 格式，禁止在報告中裸露影片 ID 或用 backtick 包住 ID。
 
 分析品質契約（每次都要做到）：
 - **對照**：關鍵指標一律和前一個對等期間比較，算出絕對變化與百分比變化（例：觀看 12,345 → 18,900，+53.1%），禁止只報單一期間絕對值。

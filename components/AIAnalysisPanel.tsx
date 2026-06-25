@@ -360,6 +360,7 @@ export function AIAnalysisPanel({ accessToken, channelId }: Props) {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.isComposing) return; // 中文輸入法選字時不觸發送出
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(input);

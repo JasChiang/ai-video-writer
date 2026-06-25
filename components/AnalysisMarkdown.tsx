@@ -715,10 +715,12 @@ export function AnalysisMarkdown({ children, videos }: AnalysisMarkdownProps) {
   const processVideoIds = (text: string): string => {
     if (!videos || videos.length === 0) return text;
 
-    return text.replace(VIDEO_ID_REGEX, (match, videoId) => {
+    // 先剝掉 backtick 包住的 11 碼 ID，避免被 ReactMarkdown 渲染成 code 元素
+    const stripped = text.replace(/`([a-zA-Z0-9_-]{11})`/g, '$1');
+
+    return stripped.replace(VIDEO_ID_REGEX, (match, videoId) => {
       const video = findVideoById(videoId, videos);
       if (video) {
-        // 使用特殊标记，稍后在渲染时替换
         return `§VIDEO_CARD:${videoId}§`;
       }
       return match;

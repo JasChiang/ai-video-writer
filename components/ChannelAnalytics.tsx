@@ -561,18 +561,20 @@ export function ChannelAnalytics() {
         );
       })()}
 
-      {/* AI 分析視圖 */}
-      {activeTab === 'ai' && (() => {
-        const token = youtubeService.getAccessToken();
-        return token && channelId ? (
-          <AIAnalysisPanel accessToken={token} channelId={channelId} />
-        ) : (
-          <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-sm p-8 text-center text-[#606060]">
-            <Sparkles className="w-8 h-8 mx-auto mb-3 text-[#CCCCCC]" />
-            <p>請先載入頻道資料（點一次「關鍵字報表」讓系統取得頻道 ID）</p>
-          </div>
-        );
-      })()}
+      {/* AI 分析視圖 - 保持 mounted 避免切換分頁時對話紀錄消失 */}
+      <div style={{ display: activeTab === 'ai' ? 'block' : 'none' }}>
+        {(() => {
+          const token = youtubeService.getAccessToken();
+          return token && channelId ? (
+            <AIAnalysisPanel accessToken={token} channelId={channelId} />
+          ) : (
+            <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-sm p-8 text-center text-[#606060]">
+              <Sparkles className="w-8 h-8 mx-auto mb-3 text-[#CCCCCC]" />
+              <p>請先載入頻道資料（點一次「關鍵字報表」讓系統取得頻道 ID）</p>
+            </div>
+          );
+        })()}
+      </div>
 
       {/* 報表分析視圖 */}
       {activeTab === 'report' && (

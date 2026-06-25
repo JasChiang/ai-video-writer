@@ -123,6 +123,28 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'get_audience_demographics',
+      description:
+        '取得頻道觀眾的年齡層與性別分布（各群組的觀看百分比）。回傳資料為百分比，不是絕對人數。注意：若該時間段觀看人數不足門檻，API 會回傳空陣列。',
+      parameters: {
+        type: 'object',
+        properties: {
+          startDate: {
+            type: 'string',
+            description: '開始日期 YYYY-MM-DD',
+          },
+          endDate: {
+            type: 'string',
+            description: '結束日期 YYYY-MM-DD',
+          },
+        },
+        required: ['startDate', 'endDate'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_top_videos',
       description:
         '取得某時間範圍內表現最好或最差的影片排名（含標題）。不需要事先知道關鍵字，直接用 Analytics 排名取出。適合回答「最近半年觀看數最高的 10 支影片是哪些？」「完播率最低的影片有哪些？」等問題。',
@@ -186,6 +208,9 @@ export async function executeTool(toolName, args, context) {
 
     case 'get_top_videos':
       return getTopVideos(args, { accessToken, channelId, gistId, gistToken });
+
+    case 'get_audience_demographics':
+      return getAudienceDemographics(args, { accessToken, channelId });
 
     default:
       throw new Error(`未知的 tool: ${toolName}`);
@@ -461,6 +486,60 @@ async function getRetentionCurve({ videoId, startDate, endDate }, { accessToken,
       midpointRetention: curve[Math.floor(curve.length / 2)]?.watchRatio ?? null,
       endingRetention: curve[curve.length - 1]?.watchRatio ?? null,
     },
+  };
+}
+
+async function getAudienceDemographics({ startDate, endDate }, { accessToken, channelId }) {
+  console.log(`[Tool] get_audience_demographics: ${startDate} ~ ${endDate}`);
+
+  const oauth2Client = new google.auth.OAuth2();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  const youtubeAnalytics = google.youtubeAnalytics({ version: 'v2', auth: oauth2Client });
+
+  const res = await youtubeAnalytics.reports.query({
+    ids: `channel==${channelId}`,
+    startDate,
+    endDate,
+    metrics: 'viewerPercentage',
+    dimensions: 'ageGroup,gender',
+    sort: '-viewerPercentage',
+  });
+  recordQuota('youtubeAnalytics.reports.query', YOUTUBE_QUOTA_COST.analyticsReportsQuery, {
+    context: 'analyticsTools.getAudienceDemographics',
+  });
+
+  const rows = res.data.rows || [];
+
+  if (rows.length === 0) {
+    return { available: false, reason: '觀看人數不足門檻，API 未回傳人口資料', dateRange: { startDate, endDate } };
+  }
+
+  // 整理成 { ageGroup, gender, viewerPercentage } 陣列
+  const breakdown = rows.map(row => ({
+    ageGroup: row[0],   // e.g. 'age18-24'
+    gender: row[1],     // 'male' | 'female' | 'user_specified'
+    viewerPercentage: parseFloat(row[2].toFixed(1)),
+  }));
+
+  // 彙整各年齡層合計（不分性別）
+  const byAge = {};
+  for (const item of breakdown) {
+    byAge[item.ageGroup] = (byAge[item.ageGroup] || 0) + item.viewerPercentage;
+  }
+
+  // 彙整各性別合計（不分年齡）
+  const byGender = {};
+  for (const item of breakdown) {
+    byGender[item.gender] = (byGender[item.gender] || 0) + item.viewerPercentage;
+  }
+
+  console.log(`[Tool] get_audience_demographics: ${breakdown.length} 個群組`);
+  return {
+    available: true,
+    breakdown,
+    byAge: Object.entries(byAge).map(([age, pct]) => ({ ageGroup: age, viewerPercentage: parseFloat(pct.toFixed(1)) })).sort((a, b) => b.viewerPercentage - a.viewerPercentage),
+    byGender: Object.entries(byGender).map(([g, pct]) => ({ gender: g, viewerPercentage: parseFloat(pct.toFixed(1)) })),
+    dateRange: { startDate, endDate },
   };
 }
 

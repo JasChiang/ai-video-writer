@@ -189,6 +189,8 @@ export function requestToken(): Promise<void> {
             return reject(new Error("Google Identity Service not initialized."));
         }
 
+        let usedSelectAccount = false;
+
         const callback = async (resp: any) => {
             if (resp.error) {
                 return reject(resp);
@@ -207,6 +209,12 @@ export function requestToken(): Promise<void> {
                 if (!ok) {
                     gapi.client.setToken(null);
                     persistToken(null);
+                    // 第一次被拒絕時，重新以 select_account 讓使用者換帳號
+                    if (!usedSelectAccount) {
+                        usedSelectAccount = true;
+                        tokenClient.requestAccessToken({ prompt: 'select_account' });
+                        return;
+                    }
                     return reject(new Error('LOGIN_REJECTED'));
                 }
             }
