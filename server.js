@@ -33,6 +33,8 @@ import {
   listAvailableArticleTemplates,
 } from './services/articlePromptService.js';
 import { publishArticleToNotion, listNotionDatabases, getNotionDatabase } from './services/notionService.js';
+import { jsonrepair } from 'jsonrepair';
+import { postprocessArticleHtml } from './services/articleHtmlPostprocess.js';
 
 // 載入 .env.local 檔案
 dotenv.config({ path: '.env.local' });
@@ -946,7 +948,8 @@ function parseGeminiJson(text) {
   try {
     return JSON.parse(text);
   } catch {
-    return JSON.parse(repairJsonControlChars(text));
+    // jsonrepair handles unescaped quotes, control chars, trailing commas, etc.
+    return JSON.parse(jsonrepair(text));
   }
 }
 
@@ -1758,7 +1761,7 @@ app.post('/api/generate-article-url', async (req, res) => {
       titleA: result.titleA,
       titleB: result.titleB,
       titleC: result.titleC,
-      article: result.article_text,
+      article: postprocessArticleHtml(result.article_text),
       seo_description: result.seo_description,
       image_urls: [],  // 空陣列，等待使用者手動截圖
       screenshots: result.screenshots,  // 返回截圖規劃
@@ -2037,7 +2040,7 @@ app.post('/api/generate-article-url-async', async (req, res) => {
         titleA: result.titleA,
         titleB: result.titleB,
         titleC: result.titleC,
-        article: result.article_text,
+        article: postprocessArticleHtml(result.article_text),
         seo_description: result.seo_description,
         image_urls: [],
         screenshots: result.screenshots,
@@ -2442,7 +2445,7 @@ app.post('/api/generate-article-from-url-async', async (req, res) => {
         titleA: result.titleA,
         titleB: result.titleB,
         titleC: result.titleC,
-        article: result.article_text,
+        article: postprocessArticleHtml(result.article_text),
         seo_description: result.seo_description,
         image_urls: [],
         screenshots: result.screenshots || [],
@@ -2733,7 +2736,7 @@ app.post('/api/generate-article', async (req, res) => {
       titleA: result.titleA,
       titleB: result.titleB,
       titleC: result.titleC,
-      article: result.article_text,
+      article: postprocessArticleHtml(result.article_text),
       seo_description: result.seo_description,
       image_urls: [], // 尚未截圖
       screenshots: result.screenshots,
@@ -2848,7 +2851,7 @@ app.post('/api/regenerate-article', async (req, res) => {
       titleA: result.titleA,
       titleB: result.titleB,
       titleC: result.titleC,
-      article: result.article_text,
+      article: postprocessArticleHtml(result.article_text),
       seo_description: result.seo_description,
       screenshots: result.screenshots,
       geminiFileName: fileInfo.name,
@@ -2993,7 +2996,7 @@ app.post('/api/regenerate-screenshots', async (req, res) => {
       titleA: result.titleA,
       titleB: result.titleB,
       titleC: result.titleC,
-      article: result.article_text,
+      article: postprocessArticleHtml(result.article_text),
       seo_description: result.seo_description,
       image_urls: imageUrls,
       screenshots: result.screenshots,
