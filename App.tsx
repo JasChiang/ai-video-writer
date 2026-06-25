@@ -616,17 +616,16 @@ export default function App() {
       return <YouTubeLogin onLogin={handleLogin} />;
     }
 
-    // 根據 activeTab 渲染不同內容
-    if (activeTab === 'articles') {
-      return <ArticleWorkspace />;
-    }
-
-    if (activeTab === 'channel-analytics') {
-      return <ChannelAnalytics />;
-    }
-
+    // 三個 tab 全部保持 mounted，以 CSS 控制顯示，避免切換時清空狀態
     return (
-      <div className="space-x-0 space-y-5 font-['Roboto',sans-serif]">
+      <>
+        <div style={{ display: activeTab === 'articles' ? 'block' : 'none' }}>
+          <ArticleWorkspace />
+        </div>
+        <div style={{ display: activeTab === 'channel-analytics' ? 'block' : 'none' }}>
+          <ChannelAnalytics onWriteArticle={() => setActiveTab('articles')} />
+        </div>
+        <div style={{ display: activeTab === 'videos' ? 'block' : 'none' }} className="space-x-0 space-y-5 font-['Roboto',sans-serif]">
         <div className="lg:hidden">
           <button
             type="button"
@@ -712,6 +711,7 @@ export default function App() {
         {/* Detail Panel - 使用 Portal 動態渲染到目標位置 */}
         {renderDetailPanel()}
       </div>
+      </>
     );
   };
   

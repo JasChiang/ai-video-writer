@@ -89,7 +89,7 @@ const API_BASE_URL =
 
 type TabType = 'dashboard' | 'videos' | 'ai' | 'report';
 
-export function ChannelAnalytics() {
+export function ChannelAnalytics({ onWriteArticle }: { onWriteArticle?: () => void } = {}) {
   // 分頁狀態
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
 
@@ -100,6 +100,7 @@ export function ChannelAnalytics() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [channelId, setChannelId] = useState<string>('');
+  const [channelIdLoading, setChannelIdLoading] = useState(true);
   const [selectedMetrics, setSelectedMetrics] = useState<Array<keyof AnalyticsData>>(['views', 'likes']);
   const aiAnalysisRef = useRef<HTMLDivElement>(null);
   const hasScrolledToAI = useRef(false);
@@ -120,7 +121,9 @@ export function ChannelAnalytics() {
       try {
         const id = await youtubeService.getChannelId({ trigger: 'initial-load', source: 'ChannelAnalytics' });
         if (id) setChannelId(id);
-      } catch { /* 未登入時忽略 */ }
+      } catch { /* 未登入時忽略 */ } finally {
+        setChannelIdLoading(false);
+      }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -565,12 +568,20 @@ export function ChannelAnalytics() {
       <div style={{ display: activeTab === 'ai' ? 'block' : 'none' }}>
         {(() => {
           const token = youtubeService.getAccessToken();
+          if (channelIdLoading) {
+            return (
+              <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-sm p-8 text-center text-[#606060]">
+                <Sparkles className="w-8 h-8 mx-auto mb-3 text-[#CCCCCC] animate-pulse" />
+                <p>取得頻道資料中…</p>
+              </div>
+            );
+          }
           return token && channelId ? (
-            <AIAnalysisPanel accessToken={token} channelId={channelId} />
+            <AIAnalysisPanel accessToken={token} channelId={channelId} onWriteArticle={onWriteArticle} />
           ) : (
             <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-sm p-8 text-center text-[#606060]">
               <Sparkles className="w-8 h-8 mx-auto mb-3 text-[#CCCCCC]" />
-              <p>請先載入頻道資料（點一次「關鍵字報表」讓系統取得頻道 ID）</p>
+              <p>請先登入 YouTube 帳號</p>
             </div>
           );
         })()}

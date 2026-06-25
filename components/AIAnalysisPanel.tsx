@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, BarChart3, TrendingUp, RefreshCw } from 'lucide-react';
+import { Send, Sparkles, BarChart3, TrendingUp, RefreshCw, PenLine } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -55,6 +55,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   result?: AnalysisResult;
+  failedQuery?: string;
 }
 
 interface ModelOption {
@@ -77,6 +78,7 @@ const MODEL_OPTIONS: ModelOption[] = [
 interface Props {
   accessToken: string;
   channelId: string;
+  onWriteArticle?: () => void;
 }
 
 // ─── Color palette ────────────────────────────────
@@ -241,7 +243,7 @@ const EXAMPLES = [
   '哪些影片的搜尋流量佔比最高？',
 ];
 
-export function AIAnalysisPanel({ accessToken, channelId }: Props) {
+export function AIAnalysisPanel({ accessToken, channelId, onWriteArticle }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -339,6 +341,7 @@ export function AIAnalysisPanel({ accessToken, channelId }: Props) {
                 const last = updated[updated.length - 1];
                 if (last && last.role === 'assistant' && last.result) {
                   last.result.text = `分析失敗：${event.message}`;
+                  last.failedQuery = query;
                 }
                 return updated;
               });
@@ -356,6 +359,7 @@ export function AIAnalysisPanel({ accessToken, channelId }: Props) {
         const last = updated[updated.length - 1];
         if (last && last.role === 'assistant' && last.result) {
           last.result.text = `錯誤：${err.message}`;
+          last.failedQuery = query;
         }
         return updated;
       });
@@ -465,6 +469,30 @@ export function AIAnalysisPanel({ accessToken, channelId }: Props) {
                   {/* 建議 */}
                   {msg.result?.recommendations && msg.result.recommendations.length > 0 && (
                     <RecommendationList items={msg.result.recommendations} />
+                  )}
+
+                  {/* 完成後操作列：重試（失敗時）或去寫文章 */}
+                  {!isLoading && msg.result?.text && (
+                    <div className="flex gap-2 flex-wrap">
+                      {msg.failedQuery && (
+                        <button
+                          onClick={() => handleSubmit(msg.failedQuery!)}
+                          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#E5E5E5] bg-white text-[#606060] hover:border-[#FF0000] hover:text-[#FF0000] transition-colors"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          重新分析
+                        </button>
+                      )}
+                      {onWriteArticle && !msg.failedQuery && (
+                        <button
+                          onClick={onWriteArticle}
+                          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#E5E5E5] bg-white text-[#606060] hover:border-[#065FD4] hover:text-[#065FD4] transition-colors"
+                        >
+                          <PenLine className="w-3 h-3" />
+                          基於此分析寫文章
+                        </button>
+                      )}
+                    </div>
                   )}
 
                   {/* 載入中 */}
