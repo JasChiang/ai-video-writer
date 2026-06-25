@@ -244,6 +244,7 @@ export function AIAnalysisPanel({ accessToken, channelId }: Props) {
   const [selectedModel, setSelectedModel] = useState('gemini-flash-latest');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isComposingRef = useRef(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -360,7 +361,7 @@ export function AIAnalysisPanel({ accessToken, channelId }: Props) {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.isComposing) return; // 中文輸入法選字時不觸發送出
+    if (isComposingRef.current) return; // 中文輸入法選字時不觸發送出
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(input);
@@ -491,6 +492,8 @@ export function AIAnalysisPanel({ accessToken, channelId }: Props) {
           ref={textareaRef}
           value={input}
           onChange={e => setInput(e.target.value)}
+          onCompositionStart={() => { isComposingRef.current = true; }}
+          onCompositionEnd={() => { isComposingRef.current = false; }}
           onKeyDown={handleKeyDown}
           placeholder="描述你想分析的內容，例如：分析最近 3 個月開箱單元的成效..."
           rows={2}
