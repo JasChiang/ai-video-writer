@@ -158,9 +158,14 @@ function ChartRenderer({ chart }: { chart: ChartConfig }) {
   if (chart.type === 'line' && chart.lines?.length) {
     const validLines = chart.lines.filter(l => l.dataKey in firstRow);
     if (!validLines.length) return <ChartFallbackTable chart={chart} />;
-    // x 軸：若值已是百分比（>1.5）就不再 ×100
-    const xVals = data.map(d => Number(d[chart.xKey] ?? 0));
-    const xIsPercent = Math.max(...xVals, 0) > 1.5;
+    // x 軸：若值已是百分比（>1.5）就不再 ×100；NaN 時 fallback 到 index
+    const xVals = data.map((d, i) => {
+      const raw = d[chart.xKey];
+      const n = typeof raw === 'string' ? parseFloat(raw.replace('%', '')) : Number(raw ?? i);
+      return Number.isNaN(n) ? i / (data.length - 1) : n;
+    });
+    const xMax = xVals.reduce((a, b) => Math.max(a, b), 0);
+    const xIsPercent = xMax > 1.5;
     const lineLabels = xVals.map(v => `${(xIsPercent ? v : v * 100).toFixed(0)}%`);
     const datasets = validLines.map((line, i) => {
       const yVals = data.map(d => Number(d[line.dataKey] ?? 0));

@@ -4257,9 +4257,9 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
     {
       "type": "line",
       "title": "留存率曲線",
-      "xKey": "timeRatio",
+      "xKey": "elapsedVideoRatio",
       "lines": [{ "dataKey": "watchRatio", "label": "留存率", "color": "#FF0000" }],
-      "data": [{ "timeRatio": 0.1, "watchRatio": 0.85 }]
+      "data": [{ "elapsedVideoRatio": 0.1, "watchRatio": 0.85 }]
     }
   ],
   "summary": "一句話摘要",
