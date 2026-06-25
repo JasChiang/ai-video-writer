@@ -70,10 +70,8 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
   const [isCapturingScreenshots, setIsCapturingScreenshots] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ArticleGenerationResult | null>(cachedContent || null);
-  const [ckeditorLoaded, setCkeditorLoaded] = useState(false);
   const [htmlCopied, setHtmlCopied] = useState(false);
-  const ckeditorEditorRef = useRef<any>(null);
-  const CKEDITOR_TEXTAREA_ID = 'article-html-ckeditor';
+  const [htmlViewTab, setHtmlViewTab] = useState<'preview' | 'source'>('preview');
   const [customPrompt, setCustomPrompt] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(() => {
     if (typeof window === 'undefined') {
@@ -161,70 +159,6 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
     if ((template as any)?.outputFormat === 'html') return true;
     return !!(result?.article?.trimStart().startsWith('<'));
   }, [templateOptions, selectedTemplateId, result?.article]);
-
-  // Load CKEditor from CDN when an HTML article is present
-  useEffect(() => {
-    if (!isHtmlArticle) return;
-    if ((window as any).CKEDITOR) {
-      setCkeditorLoaded(true);
-      return;
-    }
-    const s = document.createElement('script');
-    s.src = 'https://cdn.ckeditor.com/4.22.1/full-all/ckeditor.js';
-    s.onload = () => setCkeditorLoaded(true);
-    document.head.appendChild(s);
-  }, [isHtmlArticle]);
-
-  // Init CKEditor when loaded and HTML article is available
-  useEffect(() => {
-    if (!ckeditorLoaded || !isHtmlArticle || !result?.article) return;
-    const CKEDITOR = (window as any).CKEDITOR;
-    if (!CKEDITOR) return;
-    const el = document.getElementById(CKEDITOR_TEXTAREA_ID);
-    if (!el) return;
-
-    if (CKEDITOR.instances[CKEDITOR_TEXTAREA_ID]) {
-      CKEDITOR.instances[CKEDITOR_TEXTAREA_ID].setData(result.article);
-      return;
-    }
-
-    const articleContent = result.article;
-    const editor = CKEDITOR.replace(CKEDITOR_TEXTAREA_ID, {
-      allowedContent: true,
-      extraAllowedContent: '*[*]{*}(*)',
-      height: 500,
-      removePlugins: 'elementspath',
-      toolbar: [
-        { name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', '-', 'RemoveFormat'] },
-        { name: 'paragraph', items: ['NumberedList', 'BulletedList'] },
-        { name: 'links', items: ['Link', 'Unlink'] },
-        { name: 'insert', items: ['Table'] },
-        { name: 'tools', items: ['Source'] },
-      ],
-    });
-    editor.on('instanceReady', () => {
-      editor.setData(articleContent);
-      ckeditorEditorRef.current = editor;
-    });
-
-    return () => {
-      if (ckeditorEditorRef.current) {
-        try { ckeditorEditorRef.current.destroy(true); } catch {}
-        ckeditorEditorRef.current = null;
-      }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ckeditorLoaded, isHtmlArticle]);
-
-  // Update CKEditor content when article regenerates
-  useEffect(() => {
-    if (!ckeditorEditorRef.current || !result?.article) return;
-    try {
-      if (ckeditorEditorRef.current.getData() !== result.article) {
-        ckeditorEditorRef.current.setData(result.article);
-      }
-    } catch {}
-  }, [result?.article]);
 
   // 載入快取內容
   useEffect(() => {
@@ -893,11 +827,7 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
   };
 
   const handleCopyHtml = useCallback(async () => {
-    let html = '';
-    if (ckeditorEditorRef.current) {
-      try { html = ckeditorEditorRef.current.getData(); } catch {}
-    }
-    if (!html) html = result?.article || '';
+    const html = result?.article || '';
     // Strip <html>/<head>/<body> wrappers if present; AEO V5 outputs <section> directly
     const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
     const content = bodyMatch ? bodyMatch[1].trim() : html;
@@ -2397,7 +2327,7 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                   <p className="text-xs mt-1 text-neutral-500 flex items-start gap-1">
                     <AppIcon name="idea" size={14} className="text-amber-500" />
                     {isHtmlArticle ? (
-                      <span>HTML 格式文章，可直接貼入 CKEditor、TinyMCE、WordPress 等 CMS 的 HTML 模式</span>
+                      <span>HTML 格式文章，切換「HTML 原始碼」可複製，或直接點「複製 HTML 內容」貼入 CMS 的 HTML 模式</span>
                     ) : (
                       <span>Gemini AI 根據影片內容撰寫的完整文章，使用 Markdown 格式，可直接複製到部落格或內容管理系統</span>
                     )}
@@ -2405,18 +2335,35 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                 </div>
                 {isHtmlArticle ? (
                   <div className="rounded-lg border border-neutral-200 overflow-hidden">
-                    {!ckeditorLoaded && (
-                      <div className="flex items-center justify-center gap-2 py-8 text-neutral-500 bg-neutral-50">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600" />
-                        <span className="text-sm">載入編輯器中...</span>
-                      </div>
+                    <div className="flex border-b border-neutral-200 bg-neutral-50">
+                      <button
+                        type="button"
+                        onClick={() => setHtmlViewTab('preview')}
+                        className={`px-4 py-2 text-sm font-medium transition-colors ${htmlViewTab === 'preview' ? 'border-b-2 border-red-600 text-red-600 bg-white' : 'text-neutral-500 hover:text-neutral-700'}`}
+                      >
+                        預覽
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHtmlViewTab('source')}
+                        className={`px-4 py-2 text-sm font-medium transition-colors ${htmlViewTab === 'source' ? 'border-b-2 border-red-600 text-red-600 bg-white' : 'text-neutral-500 hover:text-neutral-700'}`}
+                      >
+                        HTML 原始碼
+                      </button>
+                    </div>
+                    {htmlViewTab === 'preview' ? (
+                      <div
+                        className="max-h-[600px] overflow-y-auto p-4 bg-white"
+                        // eslint-disable-next-line react/no-danger
+                        dangerouslySetInnerHTML={{ __html: result.article }}
+                      />
+                    ) : (
+                      <textarea
+                        readOnly
+                        value={result.article}
+                        className="w-full h-[500px] p-4 font-mono text-xs text-neutral-800 bg-neutral-50 resize-none focus:outline-none"
+                      />
                     )}
-                    <textarea
-                      id={CKEDITOR_TEXTAREA_ID}
-                      defaultValue={result.article}
-                      style={{ visibility: ckeditorLoaded ? 'visible' : 'hidden', height: ckeditorLoaded ? undefined : 0 }}
-                      readOnly
-                    />
                   </div>
                 ) : (
                   <div className="rounded-lg p-4 max-h-96 overflow-y-auto bg-neutral-50 border border-neutral-200">
