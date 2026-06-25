@@ -1795,6 +1795,7 @@ app.post('/api/generate-article-url-async', async (req, res) => {
     uploadedFiles = [],
     accessToken,
     templateId = 'default',
+    colorTheme = 'neutral',
     referenceUrls = [],
     referenceVideos = []
   } = req.body;
@@ -1885,7 +1886,7 @@ app.post('/api/generate-article-url-async', async (req, res) => {
       };
 
       // 生成包含所有參考資料指示的完整 prompt
-      const fullPrompt = await generateArticlePromptWithReferences(videoTitle, prompt, references, templateId, 'video');
+      const fullPrompt = await generateArticlePromptWithReferences(videoTitle, prompt, references, templateId, 'video', colorTheme);
 
       // 建立 parts 陣列
       const parts = [
@@ -2196,6 +2197,7 @@ app.post('/api/generate-article-from-url-async', async (req, res) => {
     prompt,
     uploadedFiles = [],
     templateId = 'default',
+    colorTheme = 'neutral',
     referenceUrls = [],
     referenceVideos = []
   } = req.body;
@@ -2261,7 +2263,7 @@ app.post('/api/generate-article-from-url-async', async (req, res) => {
       };
 
       // 生成包含所有參考資料指示的完整 prompt
-      const fullPrompt = await generateArticlePromptWithReferences(url, prompt, references, templateId, 'url');
+      const fullPrompt = await generateArticlePromptWithReferences(url, prompt, references, templateId, 'url', colorTheme);
 
       // 建立 parts 陣列
       const parts = [];
@@ -2470,7 +2472,7 @@ app.post('/api/generate-article-from-url-async', async (req, res) => {
  * 注意：filePath 是必需的，因為需要本地檔案來截圖
  */
 app.post('/api/generate-article', async (req, res) => {
-  const { videoId, filePath: rawFilePath2, prompt, videoTitle, templateId = 'default', referenceUrls = [], uploadedFiles = [], referenceVideos = [] } = req.body;
+  const { videoId, filePath: rawFilePath2, prompt, videoTitle, templateId = 'default', colorTheme = 'neutral', referenceUrls = [], uploadedFiles = [], referenceVideos = [] } = req.body;
 
   if (!videoId || !isValidVideoId(videoId)) {
     return res.status(400).json({ error: 'Missing or invalid videoId format' });
@@ -2592,7 +2594,7 @@ app.post('/api/generate-article', async (req, res) => {
     };
 
     // 生成包含所有參考資料指示的完整 prompt
-    const fullPrompt = await generateArticlePromptWithReferences(videoTitle, prompt, references, templateId, 'video');
+    const fullPrompt = await generateArticlePromptWithReferences(videoTitle, prompt, references, templateId, 'video', colorTheme);
 
     // 準備 config
     const geminiConfig = {};

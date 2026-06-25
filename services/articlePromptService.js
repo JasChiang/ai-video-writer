@@ -20,9 +20,8 @@ import {
  * @param {string} [templateId] 模板 ID（預設為 'default'）
  * @returns {Promise<string>} 完整的提示詞
  */
-export async function generateArticlePrompt(videoTitle, userPrompt = '', templateId = 'default') {
-  // 使用新的模板系統（支援遠端模板）
-  return await generatePromptFromTemplate(templateId, videoTitle, userPrompt);
+export async function generateArticlePrompt(videoTitle, userPrompt = '', templateId = 'default', colorTheme = 'neutral') {
+  return await generatePromptFromTemplate(templateId, videoTitle, userPrompt, colorTheme);
 }
 
 /**
@@ -123,9 +122,9 @@ export async function generateArticlePromptWithFiles(videoTitle, userPrompt, upl
  * @param {string} [contentType] 主資料類型：'video' 或 'url'（預設為 'video'）
  * @returns {Promise<string>} 完整的提示詞
  */
-export async function generateArticlePromptWithReferences(videoTitle, userPrompt = '', references = {}, templateId = 'default', contentType = 'video') {
+export async function generateArticlePromptWithReferences(videoTitle, userPrompt = '', references = {}, templateId = 'default', contentType = 'video', colorTheme = 'neutral') {
   // 使用模板生成基本提示詞
-  let prompt = await generatePromptFromTemplate(templateId, videoTitle, userPrompt);
+  let prompt = await generatePromptFromTemplate(templateId, videoTitle, userPrompt, colorTheme);
 
   // 建立參考資料區塊
   let referencesContext = '';

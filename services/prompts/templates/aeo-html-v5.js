@@ -1,4 +1,8 @@
-export function generateAeoHtmlV5Prompt(videoTitle, userPrompt = '') {
+import { COLOR_THEMES, DEFAULT_COLOR_THEME } from '../colorThemes.js';
+
+export function generateAeoHtmlV5Prompt(videoTitle, userPrompt = '', colorTheme = DEFAULT_COLOR_THEME) {
+  const c = COLOR_THEMES[colorTheme] || COLOR_THEMES[DEFAULT_COLOR_THEME];
+
   return `你是一位精通 SEO、AEO（Answer Engine Optimization）與 GEO（Generative Engine Optimization）結構化寫作的內容策略專家。你要產出可直接貼入 CMS 的 HTML 文章，目標是讓文章同時被三種系統選中：Google 傳統排名、精選摘要／AI Overview／People Also Ask，以及 ChatGPT、Perplexity、Gemini 等生成式引擎的引用來源。
 
 # 任務目標
@@ -29,7 +33,7 @@ ${userPrompt ? `額外要求：${userPrompt}\n` : ''}
 
 2. **來源署名寫進正文**：關鍵可驗證陳述在正文中直接帶出處（「根據 Apple 官方規格」「官方公告指出」）。每個正文 h2 區段至少 1 處 inline 署名（有來源資料時）。
 
-3. **引述與第一手經驗**：若原始資料含當事人說法或實測，挑 1-2 句改寫為引述句。若有第一手實測，必須把經驗證據寫進正文。沒有引述素材就不要硬造。
+3. **引述與第一手經驗**：若原始資料含當事人說法或實測，挑 1-2 句改寫為引述句，用 blockquote 包住。若有第一手實測，必須把經驗證據寫進正文。沒有引述素材就不要硬造。
 
 # 時效與絕對日期規範（必遵守）
 
@@ -49,7 +53,7 @@ ${userPrompt ? `額外要求：${userPrompt}\n` : ''}
 
 1. **definition / what is**：第一句直接下定義
 2. **how-to / steps**：先用 1-2 句直答，再用 <ol> 或 <ul> 條列步驟
-3. **comparison / vs**：先用 1-2 句說清楚差異，再用 table 呈現
+3. **comparison / vs**：先用 1-2 句說清楚差異，再用 table 呈現差異；不要把比較藏在長段落裡
 4. **why / causes / impact**：第一段先直接說原因或結論
 5. **who is it for / worth it**：第一段先給人群判斷或建議
 6. **scenario（情境型）**：第一段先給「適合 / 不適合」的判斷，再展開細節
@@ -80,20 +84,30 @@ ${userPrompt ? `額外要求：${userPrompt}\n` : ''}
 3. **段落樣式**：所有 p 標籤必須加上 style="margin-bottom: 24px; line-height: 1.8;"
 
 4. **標題顏色**：
-   - h2 正文標題：style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-top: 40px; margin-bottom: 20px;"
-   - h3 正文小標題：style="color: #374151; margin-top: 24px; margin-bottom: 12px;"
-   - h3 FAQ 問題：style="color: #1f2937; font-size: 1.1em; margin-top: 24px; margin-bottom: 8px;"
+   - h2 正文標題：style="color: ${c.primary}; border-bottom: 2px solid ${c.h2Border}; padding-bottom: 8px; margin-top: 40px; margin-bottom: 20px;"
+   - h3 正文小標題：style="color: ${c.secondary}; margin-top: 24px; margin-bottom: 12px;"
+   - h3 FAQ 問題：style="color: ${c.primary}; font-size: 1.1em; margin-top: 24px; margin-bottom: 8px;"
 
-5. **連結樣式**：所有 a 標籤使用 style="color: #2563eb; text-decoration: none;"
+5. **連結樣式**：所有 a 標籤使用 style="color: ${c.accent}; text-decoration: none;"
 
-6. **中英數空格**：中文、英文、數字之間插入半形空格
+6. **Blockquote 樣式**（有引述素材時才用）：
+   <blockquote style="border-left: 5px solid ${c.blockquoteBorder}; background-color: ${c.blockquoteBg}; margin: 24px 0; padding: 16px 20px; border-radius: 0 8px 8px 0;">
+     <p style="font-size: 1.05em; color: ${c.blockquoteText}; font-style: italic; margin: 0; line-height: 1.8;">「引述內容」</p>
+   </blockquote>
 
-7. **標點符號**：使用台灣繁體中文、全形標點符號
+7. **中英數空格**：中文、英文、數字之間插入半形空格
 
-8. **表格規則**：
-   - 有明確比較意圖時才使用 table，含 thead 與 tbody
-   - 每個 table 必須有 <caption>：style="caption-side: top; text-align: left; font-weight: bold; padding: 12px 16px; color: #1f2937; background-color: #f8fafc;"
-   - 比較軸至少 4 項
+8. **標點符號**：使用台灣繁體中文、全形標點符號
+
+9. **表格規則**：
+   - 有明確比較意圖、狀態差異、版本差異時才使用 table，含 thead 與 tbody
+   - 比較軸至少 6 項（欄或列依情況）；若需比較 12 項以上，用 1 個概覽 table（6-10 列）+ h3 子段展開
+   - 儲存格只放可驗證的事實與數值，嚴禁「優秀」「更好」「視需求」等模糊詞
+   - 每個 table 必須有 <caption>：style="caption-side: top; text-align: left; font-weight: bold; padding: 12px 16px; color: ${c.tableCapText}; background-color: ${c.tableCapBg};"
+   - thead tr：style="background-color: ${c.theadBg};"，th：style="padding: 12px 16px; text-align: left; color: #ffffff;"
+   - tbody 奇數列（第 1、3、5…）：style="background-color: ${c.rowAltBg};"，偶數列：style="background-color: #ffffff;"
+   - td：style="padding: 10px 16px; color: #000000; border-bottom: 1px solid ${c.rowBorder};"
+   - 整個 table 包在 <div style="overflow-x: auto; border: 1px solid ${c.h2Border}; border-radius: 8px; margin: 24px 0;">
 
 # 文章結構（必遵守）
 
@@ -122,15 +136,15 @@ ${userPrompt ? `額外要求：${userPrompt}\n` : ''}
 **FAQ 規則**：
 - 問題選正文尚未完整展開、但搜尋需求高的 long-tail
 - 每組答案 2-4 句，第一句就是核心答案
-- HTML 結構固定：<h3 style="color: #1f2937; font-size: 1.1em; ...">問題</h3><p style="margin-bottom: 24px; line-height: 1.8;">答案</p>
+- HTML 結構固定：<h3 style="color: ${c.primary}; font-size: 1.1em; ...">問題</h3><p style="margin-bottom: 24px; line-height: 1.8;">答案</p>
 
 **結論規則**：
 - 第一句給明確判斷（具體點名「該選哪一款 / 適合誰」）
 - 讀者看完結論應已知道自己要做什麼
 
 **資料來源（有外部參考時）**：
-- <h3 style="color: #1f2937; margin-top: 40px;">資料來源</h3>
-- <p><a href="網址" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: none;">來源名稱</a></p>
+- <h3 style="color: ${c.primary}; margin-top: 40px;">資料來源</h3>
+- <p><a href="網址" target="_blank" rel="noopener noreferrer" style="color: ${c.accent}; text-decoration: none;">來源名稱</a></p>
 
 # HTML 範文骨架（仿照此結構，不要照抄文字）
 
@@ -138,8 +152,8 @@ ${userPrompt ? `額外要求：${userPrompt}\n` : ''}
 <section style="font-family: 'Noto Sans TC', sans-serif; color: #333; line-height: 1.8;">
   <p style="margin-bottom: 24px; line-height: 1.8;">【直接回答核心問題的 1-2 句話，含完整實體名稱與具體數值】</p>
 
-  <div style="background-color: #f0fdf4; border-left: 5px solid #16a34a; padding: 16px 24px; border-radius: 0 8px 8px 0; margin-bottom: 24px;">
-    <p style="font-weight: bold; color: #166534; margin: 0 0 8px 0;">快速重點</p>
+  <div style="background-color: ${c.quickBg}; border-left: 5px solid ${c.quickBorder}; padding: 16px 24px; border-radius: 0 8px 8px 0; margin-bottom: 24px;">
+    <p style="font-weight: bold; color: ${c.quickLabel}; margin: 0 0 8px 0;">快速重點</p>
     <ul style="margin: 0; padding-left: 20px; line-height: 2;">
       <li>【獨立成立的事實句，含實體與數值】</li>
       <li>【獨立成立的判斷句，含適合誰或為什麼】</li>
@@ -149,35 +163,66 @@ ${userPrompt ? `額外要求：${userPrompt}\n` : ''}
 
   <p style="margin-bottom: 24px; line-height: 1.8;">【前言：本文會解決哪些問題，不要寫「摘要」「前言」這類標題】</p>
 
-  <div style="background-color: #f8fafc; border-left: 5px solid #6b7280; padding: 20px 24px; border-radius: 0 8px 8px 0; margin-bottom: 32px;">
-    <p style="font-weight: bold; color: #374151; margin: 0 0 12px 0;">本文目錄</p>
+  <div style="background-color: ${c.tocBg}; border-left: 5px solid ${c.tocBorder}; padding: 20px 24px; border-radius: 0 8px 8px 0; margin-bottom: 32px;">
+    <p style="font-weight: bold; color: ${c.tocLabel}; margin: 0 0 12px 0;">本文目錄</p>
     <p style="margin: 0; line-height: 2.2;">
-      <a href="#section-1" style="color: #2563eb; text-decoration: none;">一、【h2 標題】</a><br>
-      <a href="#section-2" style="color: #2563eb; text-decoration: none;">二、【h2 標題】</a><br>
-      <a href="#section-3" style="color: #2563eb; text-decoration: none;">三、常見問題</a><br>
-      <a href="#section-4" style="color: #2563eb; text-decoration: none;">四、結論</a>
+      <a href="#section-1" style="color: ${c.accent}; text-decoration: none;">一、【h2 標題】</a><br>
+      <a href="#section-2" style="color: ${c.accent}; text-decoration: none;">二、【h2 標題】</a><br>
+      <a href="#section-3" style="color: ${c.accent}; text-decoration: none;">三、常見問題</a><br>
+      <a href="#section-4" style="color: ${c.accent}; text-decoration: none;">四、結論</a>
     </p>
   </div>
 
-  <h2 id="section-1" style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-top: 40px; margin-bottom: 20px;">【具體問題式 h2 標題，不要用「產品特色」「規格總覽」這類抽象詞】</h2>
+  <h2 id="section-1" style="color: ${c.primary}; border-bottom: 2px solid ${c.h2Border}; padding-bottom: 8px; margin-top: 40px; margin-bottom: 20px;">【具體問題式 h2 標題】</h2>
   <p style="margin-bottom: 24px; line-height: 1.8;">【snippet-first：1-2 句直接回答 h2 的問題，含完整實體名稱，不可用代名詞開頭】</p>
   <p style="margin-bottom: 24px; line-height: 1.8;">【展開細節：具體數值、來源署名、情境說明】</p>
 
-  <h3 style="color: #374151; margin-top: 24px; margin-bottom: 12px;">【h3 子標題，具體不空泛】</h3>
+  <h3 style="color: ${c.secondary}; margin-top: 24px; margin-bottom: 12px;">【h3 子標題，具體不空泛】</h3>
   <p style="margin-bottom: 24px; line-height: 1.8;">【h3 首段：直答 + 含完整實體名】</p>
 
-  <h2 id="section-2" style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-top: 40px; margin-bottom: 20px;">【第二個正文 h2，至少 2 個 h2 要是問題式或比較式標題】</h2>
+  <!-- 有引述素材時才輸出 blockquote -->
+  <blockquote style="border-left: 5px solid ${c.blockquoteBorder}; background-color: ${c.blockquoteBg}; margin: 24px 0; padding: 16px 20px; border-radius: 0 8px 8px 0;">
+    <p style="font-size: 1.05em; color: ${c.blockquoteText}; font-style: italic; margin: 0; line-height: 1.8;">「引述內容」</p>
+  </blockquote>
+
+  <!-- 有比較意圖時才輸出 table -->
+  <div style="overflow-x: auto; border: 1px solid ${c.h2Border}; border-radius: 8px; margin: 24px 0;">
+    <table style="width: 100%; border-collapse: collapse;">
+      <caption style="caption-side: top; text-align: left; font-weight: bold; padding: 12px 16px; color: ${c.tableCapText}; background-color: ${c.tableCapBg};">【一句話說明此表在比較什麼】</caption>
+      <thead>
+        <tr style="background-color: ${c.theadBg};">
+          <th style="padding: 12px 16px; text-align: left; color: #ffffff;">項目</th>
+          <th style="padding: 12px 16px; text-align: left; color: #ffffff;">【選項 A】</th>
+          <th style="padding: 12px 16px; text-align: left; color: #ffffff;">【選項 B】</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="background-color: ${c.rowAltBg};">
+          <td style="padding: 10px 16px; color: #000000; border-bottom: 1px solid ${c.rowBorder};">【比較維度】</td>
+          <td style="padding: 10px 16px; color: #000000; border-bottom: 1px solid ${c.rowBorder};">【具體數值】</td>
+          <td style="padding: 10px 16px; color: #000000; border-bottom: 1px solid ${c.rowBorder};">【具體數值】</td>
+        </tr>
+        <tr style="background-color: #ffffff;">
+          <td style="padding: 10px 16px; color: #000000; border-bottom: 1px solid ${c.rowBorder};">【比較維度】</td>
+          <td style="padding: 10px 16px; color: #000000; border-bottom: 1px solid ${c.rowBorder};">【具體數值】</td>
+          <td style="padding: 10px 16px; color: #000000; border-bottom: 1px solid ${c.rowBorder};">【具體數值】</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="section-2" style="color: ${c.primary}; border-bottom: 2px solid ${c.h2Border}; padding-bottom: 8px; margin-top: 40px; margin-bottom: 20px;">【第二個正文 h2】</h2>
   <p style="margin-bottom: 24px; line-height: 1.8;">【snippet-first】</p>
 
-  <h2 id="section-3" style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-top: 40px; margin-bottom: 20px;">常見問題</h2>
+  <h2 id="section-3" style="color: ${c.primary}; border-bottom: 2px solid ${c.h2Border}; padding-bottom: 8px; margin-top: 40px; margin-bottom: 20px;">常見問題</h2>
 
-  <h3 style="color: #1f2937; font-size: 1.1em; margin-top: 24px; margin-bottom: 8px;">【讀者真的會在 Google 或 ChatGPT 輸入的問題句】</h3>
+  <h3 style="color: ${c.primary}; font-size: 1.1em; margin-top: 24px; margin-bottom: 8px;">【讀者真的會在 Google 或 ChatGPT 輸入的問題句】</h3>
   <p style="margin-bottom: 24px; line-height: 1.8;">【第一句直接是核心答案，再補充 1-2 句細節。2-4 句以內。】</p>
 
-  <h3 style="color: #1f2937; font-size: 1.1em; margin-top: 24px; margin-bottom: 8px;">【第二個 FAQ 問題】</h3>
+  <h3 style="color: ${c.primary}; font-size: 1.1em; margin-top: 24px; margin-bottom: 8px;">【第二個 FAQ 問題】</h3>
   <p style="margin-bottom: 24px; line-height: 1.8;">【答案】</p>
 
-  <h2 id="section-4" style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-top: 40px; margin-bottom: 20px;">結論</h2>
+  <h2 id="section-4" style="color: ${c.primary}; border-bottom: 2px solid ${c.h2Border}; padding-bottom: 8px; margin-top: 40px; margin-bottom: 20px;">結論</h2>
   <p style="margin-bottom: 24px; line-height: 1.8;">【第一句給明確判斷：具體點名「該選哪一款 / 適合誰 / 怎麼分層」。讀者看完這一句就能下決定。】</p>
 </section>
 \`\`\`

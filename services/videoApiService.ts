@@ -305,7 +305,8 @@ export async function generateArticleWithYouTubeUrlAsync(
   uploadedFiles: any[] = [],
   templateId: string = 'default',
   referenceUrls: string[] = [],
-  referenceVideos: string[] = []
+  referenceVideos: string[] = [],
+  colorTheme: string = 'neutral'
 ): Promise<any> {
   try {
     console.log(`[API Async] Generating article via YouTube URL (async mode): ${videoId}`);
@@ -339,6 +340,7 @@ export async function generateArticleWithYouTubeUrlAsync(
             uploadedFiles,
             accessToken,
             templateId,
+            colorTheme,
             referenceUrls,
             referenceVideos,
           }),
@@ -446,7 +448,8 @@ export async function generateArticleWithDownload(
   uploadedFiles: any[] = [],
   templateId: string = 'default',
   referenceUrls: string[] = [],
-  referenceVideos: string[] = []
+  referenceVideos: string[] = [],
+  colorTheme: string = 'neutral'
 ): Promise<any> {
   try {
     console.log(`[API] Generating article with video download: ${videoId}`);
@@ -488,6 +491,7 @@ export async function generateArticleWithDownload(
             quality: screenshotQuality,
             uploadedFiles,
             templateId,
+            colorTheme,
             referenceUrls,
             referenceVideos,
           }),
@@ -551,6 +555,7 @@ export async function generateArticleWithDownload(
         quality: screenshotQuality,
         uploadedFiles,
         templateId,
+        colorTheme,
         referenceUrls,
         referenceVideos,
       }),
@@ -696,7 +701,8 @@ export async function generateArticleFromUrlOnly(
   uploadedFiles: any[] = [],
   templateId: string = 'default',
   referenceUrls: string[] = [],
-  referenceVideos: string[] = []
+  referenceVideos: string[] = [],
+  colorTheme: string = 'neutral'
 ): Promise<any> {
   try {
     console.log(`[API URL-Only] Generating article from URL: ${url}`);
@@ -724,6 +730,7 @@ export async function generateArticleFromUrlOnly(
             prompt: userPrompt,
             uploadedFiles,
             templateId,
+            colorTheme,
             referenceUrls,
             referenceVideos,
           }),

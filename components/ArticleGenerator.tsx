@@ -5,6 +5,7 @@ import * as notionClient from '../services/notionClient';
 import { Loader } from './Loader';
 import { CopyButton } from './CopyButton';
 import { TEMPLATE_METADATA } from '../services/prompts/templateMetadata.js';
+import { THEME_LIST, DEFAULT_COLOR_THEME } from '../services/prompts/colorThemes.js';
 import { AppIcon, resolveIconName } from './AppIcon';
 
 interface ArticleGeneratorProps {
@@ -72,6 +73,9 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
   const [result, setResult] = useState<ArticleGenerationResult | null>(cachedContent || null);
   const [htmlCopied, setHtmlCopied] = useState(false);
   const [htmlViewTab, setHtmlViewTab] = useState<'preview' | 'source'>('preview');
+  const [colorTheme, setColorTheme] = useState<string>(() =>
+    window.localStorage.getItem('articleColorTheme') || DEFAULT_COLOR_THEME
+  );
   const [customPrompt, setCustomPrompt] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(() => {
     if (typeof window === 'undefined') {
@@ -697,7 +701,8 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
           uploadedFiles,
           selectedTemplateId,
           allUrls,
-          referenceVideos
+          referenceVideos,
+          colorTheme
         );
       } else {
         // YouTube 影片模式
@@ -722,7 +727,8 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
             uploadedFiles,
             selectedTemplateId,
             referenceUrls,
-            referenceVideos
+            referenceVideos,
+            colorTheme
           );
         } else {
           // 非公開影片：先下載再分析
@@ -742,7 +748,8 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
             uploadedFiles,
             selectedTemplateId,
             referenceUrls,
-            referenceVideos
+            referenceVideos,
+            colorTheme
           );
         }
       }
@@ -1857,6 +1864,42 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                 </p>
               )}
             </div>
+
+            {/* 顏色主題（僅 HTML 模板顯示）*/}
+            {isHtmlArticle && (
+              <div>
+                <label className="block text-sm font-medium mb-2 text-neutral-700">
+                  文章顏色主題
+                </label>
+                <div className="flex items-center gap-3">
+                  {THEME_LIST.map((theme) => (
+                    <button
+                      key={theme.id}
+                      type="button"
+                      title={theme.name}
+                      onClick={() => {
+                        setColorTheme(theme.id);
+                        window.localStorage.setItem('articleColorTheme', theme.id);
+                      }}
+                      className={`flex flex-col items-center gap-1 group`}
+                    >
+                      <span
+                        className={`block w-7 h-7 rounded-full border-2 transition-all ${
+                          colorTheme === theme.id
+                            ? 'border-neutral-800 scale-110 shadow-md'
+                            : 'border-transparent hover:border-neutral-400 hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: theme.primary }}
+                      />
+                      <span className={`text-[10px] font-medium ${colorTheme === theme.id ? 'text-neutral-800' : 'text-neutral-400'}`}>
+                        {theme.name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-neutral-400">顏色在生成時注入 HTML inline style，換色需重新生成</p>
+              </div>
+            )}
 
             {/* 截圖品質設定（僅 YouTube 影片模式顯示）*/}
             {!video.isUrlOnly && (

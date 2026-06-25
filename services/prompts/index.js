@@ -228,7 +228,7 @@ if (process.env.CUSTOM_TEMPLATE_URL) {
  * @param {string} userPrompt - 使用者自訂提示
  * @returns {Promise<string>} 完整的提示詞
  */
-export async function generatePromptFromTemplate(templateId, videoTitle, userPrompt = '') {
+export async function generatePromptFromTemplate(templateId, videoTitle, userPrompt = '', colorTheme = 'neutral') {
   // 嘗試載入專屬模板
   const customTemplates = await loadCustomTemplates();
 
@@ -243,7 +243,7 @@ export async function generatePromptFromTemplate(templateId, videoTitle, userPro
     throw new Error(`找不到可用的模板：${templateId}`);
   }
 
-  return generator(videoTitle, userPrompt);
+  return generator(videoTitle, userPrompt, colorTheme);
 }
 
 export function getAllTemplates() {
