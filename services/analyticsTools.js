@@ -267,19 +267,25 @@ async function getChannelAnalytics(
   });
 
   const row = basicRes.data.rows?.[0] || [];
+  const views = row[0] || 0;
+  const likes = row[4] || 0;
+  const comments = row[5] || 0;
+  const shares = row[6] || 0;
   const result = {
     dateRange: { startDate, endDate },
     summary: {
-      views: row[0] || 0,
+      views,
       estimatedMinutesWatched: row[1] || 0,
       averageViewDuration: Math.round(row[2] || 0),
       averageViewPercentage: parseFloat((row[3] || 0).toFixed(1)),
-      likes: row[4] || 0,
-      comments: row[5] || 0,
-      shares: row[6] || 0,
+      likes,
+      comments,
+      shares,
       subscribersGained: row[7] || 0,
       subscribersLost: row[8] || 0,
       netSubscribers: (row[7] || 0) - (row[8] || 0),
+      // 預算衍生指標，Gemini 可直接引用，不需自行計算
+      interactionRate: views > 0 ? parseFloat(((likes + comments + shares) / views * 100).toFixed(2)) : 0,
     },
   };
 
@@ -403,16 +409,21 @@ async function getVideoAnalytics({ videoIds, startDate, endDate }, { accessToken
       for (const row of basicRes.data.rows) {
         const vid = row[0];
         const traffic = trafficMap.get(vid) || {};
+        const vViews = row[1] || 0;
+        const vLikes = row[5] || 0;
+        const vComments = row[6] || 0;
+        const vShares = row[7] || 0;
         allResults.push({
           videoId: vid,
-          views: row[1] || 0,
+          views: vViews,
           estimatedMinutesWatched: row[2] || 0,
           averageViewDuration: Math.round(row[3] || 0),
           averageViewPercentage: parseFloat((row[4] || 0).toFixed(1)),
-          likes: row[5] || 0,
-          comments: row[6] || 0,
-          shares: row[7] || 0,
+          likes: vLikes,
+          comments: vComments,
+          shares: vShares,
           subscribersGained: row[8] || 0,
+          interactionRate: vViews > 0 ? parseFloat(((vLikes + vComments + vShares) / vViews * 100).toFixed(2)) : 0,
           trafficSources: {
             youtubeSearch: traffic['YT_SEARCH'] || 0,
             suggested: traffic['SUGGESTED'] || 0,
@@ -567,7 +578,7 @@ async function getTopVideos(
     ids: `channel==${channelId}`,
     startDate,
     endDate,
-    metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,comments,subscribersGained',
+    metrics: 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,comments,shares,subscribersGained',
     dimensions: 'video',
     sort: `${sortDir}${sortMetric}`,
     maxResults: Math.min(maxResults, 50),
@@ -583,18 +594,24 @@ async function getTopVideos(
   const videos = rows.map((row, i) => {
     const vid = row[0];
     const meta = titleMap[vid] || {};
+    const tvViews = row[1] || 0;
+    const tvLikes = row[5] || 0;
+    const tvComments = row[6] || 0;
+    const tvShares = row[7] || 0;
     return {
       rank: i + 1,
       videoId: vid,
       title: meta.title || '',
       publishedAt: meta.publishedAt || null,
-      views: row[1] || 0,
+      views: tvViews,
       estimatedMinutesWatched: row[2] || 0,
       averageViewDuration: Math.round(row[3] || 0),
       averageViewPercentage: parseFloat((row[4] || 0).toFixed(1)),
-      likes: row[5] || 0,
-      comments: row[6] || 0,
-      subscribersGained: row[7] || 0,
+      likes: tvLikes,
+      comments: tvComments,
+      shares: tvShares,
+      subscribersGained: row[8] || 0,
+      interactionRate: tvViews > 0 ? parseFloat(((tvLikes + tvComments + tvShares) / tvViews * 100).toFixed(2)) : 0,
     };
   });
 

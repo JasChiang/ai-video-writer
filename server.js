@@ -4357,58 +4357,36 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
         // 執行所有 tool calls
         contents.push({ role: 'model', parts });
 
+        const TOOL_LABELS = {
+          get_channel_analytics: '頻道整體數據',
+          get_top_videos: '影片排名',
+          get_video_analytics: '指定影片數據',
+          get_retention_curve: '留存曲線',
+          search_videos_by_keyword: '關鍵字搜尋',
+          get_audience_demographics: '觀眾人口',
+        };
+
         const toolResults = [];
+        const collectedLabels = [];
         for (const part of toolCalls) {
           const { name, args } = part.functionCall;
-          sendEvent('status', { message: `執行工具：${name}...` });
+          const label = TOOL_LABELS[name] || name;
+          sendEvent('status', { message: `查詢${label}...` });
           try {
             const result = await executeTool(name, args, toolContext);
-            toolResults.push({
-              functionResponse: { name, response: result },
-            });
+            toolResults.push({ functionResponse: { name, response: result } });
+            collectedLabels.push(label);
           } catch (toolErr) {
-            toolResults.push({
-              functionResponse: { name, response: { error: toolErr.message } },
-            });
+            toolResults.push({ functionResponse: { name, response: { error: toolErr.message } } });
           }
         }
 
-        contents.push({ role: 'user', parts: toolResults });
-      }
-
-      // ─── code execution 精算（讓 Gemini 跑 Python 做精確計算，產出更有洞察的報告）───
-      // 僅在有實際抓到數據時執行；失敗（模型/SDK 不支援等）就沿用原報告，不影響功能。
-      const hasFetchedData = contents.some((c) => c.parts?.some((p) => p.functionResponse));
-      if (hasFetchedData) {
-        try {
-          sendEvent('status', { message: '進行精確計算中...' });
-          const refineResp = await genai.models.generateContent({
-            model: geminiModel,
-            contents: [
-              ...contents,
-              {
-                role: 'user',
-                parts: [
-                  {
-                    text: '請用 Python（code execution）對上面工具回傳的數據做精確計算：期間對照的絕對與百分比變化、互動率、排名與 outlier、留存掉點等；然後嚴格依系統指示的「分析品質契約」與報告結構，輸出最終 Markdown 報告，並在最後附上指定格式的 JSON code block。',
-                  },
-                ],
-              },
-            ],
-            config: {
-              tools: [{ codeExecution: {} }],
-              systemInstruction: { parts: [{ text: systemPrompt }] },
-              temperature: 0.3,
-            },
-          });
-          const refineText = (refineResp.candidates?.[0]?.content?.parts || [])
-            .filter((p) => p.text)
-            .map((p) => p.text)
-            .join('');
-          if (refineText.trim()) finalText = refineText;
-        } catch (refineErr) {
-          console.warn('[AI Chat] code execution 精算失敗，沿用原報告:', refineErr.message);
+        // 告知使用者已收集哪些資料，避免等待生成報告時感覺沒有進展
+        if (collectedLabels.length > 0) {
+          sendEvent('status', { message: `已取得：${collectedLabels.join('、')}，生成報告中...` });
         }
+
+        contents.push({ role: 'user', parts: toolResults });
       }
 
     } else {
