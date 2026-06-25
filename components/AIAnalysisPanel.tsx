@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, BarChart3, TrendingUp, RefreshCw, PenLine } from 'lucide-react';
+import { Send, Sparkles, BarChart3, TrendingUp, RefreshCw } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -78,7 +78,6 @@ const MODEL_OPTIONS: ModelOption[] = [
 interface Props {
   accessToken: string;
   channelId: string;
-  onWriteArticle?: () => void;
 }
 
 // ─── Color palette ────────────────────────────────
@@ -243,7 +242,7 @@ const EXAMPLES = [
   '哪些影片的搜尋流量佔比最高？',
 ];
 
-export function AIAnalysisPanel({ accessToken, channelId, onWriteArticle }: Props) {
+export function AIAnalysisPanel({ accessToken, channelId }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -471,27 +470,16 @@ export function AIAnalysisPanel({ accessToken, channelId, onWriteArticle }: Prop
                     <RecommendationList items={msg.result.recommendations} />
                   )}
 
-                  {/* 完成後操作列：重試（失敗時）或去寫文章 */}
-                  {!isLoading && msg.result?.text && (
-                    <div className="flex gap-2 flex-wrap">
-                      {msg.failedQuery && (
-                        <button
-                          onClick={() => handleSubmit(msg.failedQuery!)}
-                          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#E5E5E5] bg-white text-[#606060] hover:border-[#FF0000] hover:text-[#FF0000] transition-colors"
-                        >
-                          <RefreshCw className="w-3 h-3" />
-                          重新分析
-                        </button>
-                      )}
-                      {onWriteArticle && !msg.failedQuery && (
-                        <button
-                          onClick={onWriteArticle}
-                          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#E5E5E5] bg-white text-[#606060] hover:border-[#065FD4] hover:text-[#065FD4] transition-colors"
-                        >
-                          <PenLine className="w-3 h-3" />
-                          基於此分析寫文章
-                        </button>
-                      )}
+                  {/* 失敗時顯示重試按鈕 */}
+                  {!isLoading && msg.failedQuery && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleSubmit(msg.failedQuery!)}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#E5E5E5] bg-white text-[#606060] hover:border-[#FF0000] hover:text-[#FF0000] transition-colors"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        重新分析
+                      </button>
                     </div>
                   )}
 

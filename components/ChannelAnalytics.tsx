@@ -577,7 +577,7 @@ export function ChannelAnalytics({ onWriteArticle }: { onWriteArticle?: () => vo
             );
           }
           return token && channelId ? (
-            <AIAnalysisPanel accessToken={token} channelId={channelId} onWriteArticle={onWriteArticle} />
+            <AIAnalysisPanel accessToken={token} channelId={channelId} />
           ) : (
             <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-sm p-8 text-center text-[#606060]">
               <Sparkles className="w-8 h-8 mx-auto mb-3 text-[#CCCCCC]" />
