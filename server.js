@@ -4366,20 +4366,22 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
           get_audience_demographics: '觀眾人口',
         };
 
-        const toolResults = [];
         const collectedLabels = [];
-        for (const part of toolCalls) {
-          const { name, args } = part.functionCall;
-          const label = TOOL_LABELS[name] || name;
-          sendEvent('status', { message: `查詢${label}...` });
-          try {
-            const result = await executeTool(name, args, toolContext);
-            toolResults.push({ functionResponse: { name, response: result } });
-            collectedLabels.push(label);
-          } catch (toolErr) {
-            toolResults.push({ functionResponse: { name, response: { error: toolErr.message } } });
-          }
-        }
+        // 所有 tool 並行執行，縮短等待時間
+        const toolResults = await Promise.all(
+          toolCalls.map(async part => {
+            const { name, args } = part.functionCall;
+            const label = TOOL_LABELS[name] || name;
+            sendEvent('status', { message: `查詢${label}...` });
+            try {
+              const result = await executeTool(name, args, toolContext);
+              collectedLabels.push(label);
+              return { functionResponse: { name, response: result } };
+            } catch (toolErr) {
+              return { functionResponse: { name, response: { error: toolErr.message } } };
+            }
+          })
+        );
 
         // 告知使用者已收集哪些資料，避免等待生成報告時感覺沒有進展
         if (collectedLabels.length > 0) {
@@ -4438,26 +4440,22 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
         // 把 assistant 訊息加回 messages
         orMessages.push(choice.message);
 
-        // 執行 tool calls
-        for (const tc of toolCalls) {
-          const name = tc.function.name;
-          const args = JSON.parse(tc.function.arguments || '{}');
-          sendEvent('status', { message: `執行工具：${name}...` });
-          try {
-            const result = await executeTool(name, args, toolContext);
-            orMessages.push({
-              role: 'tool',
-              tool_call_id: tc.id,
-              content: JSON.stringify(result),
-            });
-          } catch (toolErr) {
-            orMessages.push({
-              role: 'tool',
-              tool_call_id: tc.id,
-              content: JSON.stringify({ error: toolErr.message }),
-            });
-          }
-        }
+        // 執行 tool calls（並行）
+        const orToolMessages = await Promise.all(
+          toolCalls.map(async tc => {
+            const name = tc.function.name;
+            const args = JSON.parse(tc.function.arguments || '{}');
+            const label = TOOL_LABELS[name] || name;
+            sendEvent('status', { message: `查詢${label}...` });
+            try {
+              const result = await executeTool(name, args, toolContext);
+              return { role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) };
+            } catch (toolErr) {
+              return { role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ error: toolErr.message }) };
+            }
+          })
+        );
+        orMessages.push(...orToolMessages);
       }
     }
 

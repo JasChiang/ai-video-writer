@@ -413,6 +413,7 @@ async function getAggregatedAnalytics(youtubeAnalytics, channelId, videoIds, sta
       comments: 0,
       shares: 0,
       subscribersGained: 0,
+      interactionRate: 0,
       videoCount: 0,
     };
     analyticsCache.set(cacheKey, { data: emptyData, timestamp: Date.now() });
@@ -502,6 +503,7 @@ async function getAggregatedAnalytics(youtubeAnalytics, channelId, videoIds, sta
       comments: totalComments,
       shares: totalShares,
       subscribersGained: totalSubscribersGained,
+      interactionRate: totalViews > 0 ? parseFloat(((totalLikes + totalComments + totalShares) / totalViews * 100).toFixed(2)) : 0,
       videoCount: videoIds.length,
     };
 

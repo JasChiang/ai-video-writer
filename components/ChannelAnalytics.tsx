@@ -33,6 +33,7 @@ interface AnalyticsData {
   comments: number;
   shares: number;
   subscribersGained: number;
+  interactionRate: number;
   videoCount: number;
   error?: string;
 }
@@ -52,6 +53,7 @@ const AVAILABLE_METRICS: MetricConfig[] = [
   { key: 'comments', label: '評論數', format: 'number' },
   { key: 'shares', label: '分享數', format: 'number' },
   { key: 'subscribersGained', label: '新增訂閱者', format: 'number' },
+  { key: 'interactionRate', label: '互動率 (%)', format: 'percentage' },
 ];
 
 interface TableData {
