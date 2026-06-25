@@ -4383,7 +4383,8 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
 
         // 告知使用者已收集哪些資料，避免等待生成報告時感覺沒有進展
         if (collectedLabels.length > 0) {
-          sendEvent('status', { message: `已取得：${collectedLabels.join('、')}，生成報告中...` });
+          const uniqueLabels = [...new Set(collectedLabels)];
+          sendEvent('status', { message: `已取得：${uniqueLabels.join('、')}，生成報告中...` });
         }
 
         contents.push({ role: 'user', parts: toolResults });
