@@ -6,6 +6,7 @@ import { Loader } from './Loader';
 import { CopyButton } from './CopyButton';
 import { TEMPLATE_METADATA } from '../services/prompts/templateMetadata.js';
 import { THEME_LIST, DEFAULT_COLOR_THEME } from '../services/prompts/colorThemes.js';
+import * as draftService from '../services/draftService';
 import { AppIcon, resolveIconName } from './AppIcon';
 
 interface ArticleGeneratorProps {
@@ -769,6 +770,15 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
       };
 
       setResult(newResult);
+
+      // 自動存草稿
+      draftService.saveDraft(
+        { id: video.id, title: video.title, isUrlOnly: video.isUrlOnly },
+        newResult,
+        selectedTemplateId,
+        colorTheme,
+        customPrompt
+      );
 
       // 更新快取
       if (onContentUpdate) {

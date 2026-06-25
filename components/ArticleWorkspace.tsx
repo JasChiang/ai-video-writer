@@ -1,6 +1,8 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ArticleGenerationResult, YouTubeVideo } from '../types';
 import * as youtubeService from '../services/youtubeService';
+import * as draftService from '../services/draftService';
+import type { ArticleDraft } from '../services/draftService';
 import { GITHUB_GIST_ID } from '../config';
 import { ArticleGenerator } from './ArticleGenerator';
 import { Loader } from './Loader';
@@ -39,10 +41,39 @@ export function ArticleWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [selectedVideo, setSelectedVideo] = useState<YouTubeVideo | null>(null);
   const [cachedArticle, setCachedArticle] = useState<ArticleGenerationResult | null>(null);
+  const [drafts, setDrafts] = useState<ArticleDraft[]>([]);
+
+  // Init Google sub for draft namespacing, load draft list
+  useEffect(() => {
+    draftService.initUserSub(youtubeService.getAccessToken()).then(() => {
+      setDrafts(draftService.loadDrafts());
+    });
+  }, []);
 
   const clearSelection = useCallback(() => {
     setSelectedVideo(null);
     setCachedArticle(null);
+    setDrafts(draftService.loadDrafts());
+  }, []);
+
+  const handleRestoreDraft = useCallback((draft: ArticleDraft) => {
+    const video: YouTubeVideo = {
+      id: draft.video.id,
+      title: draft.video.title,
+      description: '',
+      thumbnailUrl: '',
+      tags: [],
+      categoryId: '',
+      isUrlOnly: draft.video.isUrlOnly,
+    };
+    setSelectedVideo(video);
+    setCachedArticle(draft.result);
+  }, []);
+
+  const handleDeleteDraft = useCallback((id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    draftService.deleteDraft(id);
+    setDrafts(draftService.loadDrafts());
   }, []);
 
   const handleLoadFromUrl = async () => {
@@ -250,6 +281,38 @@ export function ArticleWorkspace() {
 
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+      )}
+
+      {/* 草稿列表（未選擇影片時顯示）*/}
+      {!hasSelection && drafts.length > 0 && (
+        <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <h2 className="text-base font-semibold text-neutral-900 mb-3">最近草稿</h2>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {drafts.map((draft) => (
+              <button
+                key={draft.id}
+                type="button"
+                onClick={() => handleRestoreDraft(draft)}
+                className="relative group flex flex-col items-start rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm transition hover:border-red-400 hover:bg-red-50"
+              >
+                <span className="font-medium text-neutral-900 line-clamp-2 pr-6">{draft.video.title}</span>
+                <span className="mt-1 text-xs text-neutral-400">
+                  {new Date(draft.savedAt).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => handleDeleteDraft(draft.id, e)}
+                  className="absolute right-2 top-2 p-1 rounded-full text-neutral-300 hover:text-red-500 hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="刪除草稿"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       <div className="rounded-2xl border border-dashed border-neutral-300 bg-white/70 p-4 shadow-sm">
