@@ -7,6 +7,8 @@ export interface ArticleDraft {
   templateId: string;
   colorTheme: string;
   customPrompt: string;
+  referenceUrls: string[];
+  referenceVideos: string[];
   result: ArticleGenerationResult;
 }
 
@@ -51,7 +53,9 @@ export function saveDraft(
   result: ArticleGenerationResult,
   templateId: string,
   colorTheme: string,
-  customPrompt: string
+  customPrompt: string,
+  referenceUrls: string[] = [],
+  referenceVideos: string[] = []
 ): ArticleDraft {
   const drafts = loadDrafts();
   const id = `${video.id}_${Date.now()}`;
@@ -62,6 +66,8 @@ export function saveDraft(
     templateId,
     colorTheme,
     customPrompt,
+    referenceUrls,
+    referenceVideos,
     result,
   };
 

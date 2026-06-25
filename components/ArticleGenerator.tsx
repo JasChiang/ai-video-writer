@@ -22,6 +22,19 @@ interface UploadedFile {
   mimeType: string;
   displayName: string;
   sizeBytes: number;
+  uploadedAt?: string; // ISO timestamp — Gemini 檔案 48 小時後過期
+}
+
+const GEMINI_FILE_EXPIRY_MS = 48 * 60 * 60 * 1000;
+
+function getFileExpiry(uploadedAt?: string): { label: string; className: string } | null {
+  if (!uploadedAt) return null;
+  const remaining = GEMINI_FILE_EXPIRY_MS - (Date.now() - new Date(uploadedAt).getTime());
+  if (remaining <= 0) return { label: '已過期', className: 'text-red-500 font-medium' };
+  const hours = Math.floor(remaining / (60 * 60 * 1000));
+  if (hours > 0) return { label: `剩 ${hours} 小時`, className: hours < 6 ? 'text-amber-500' : 'text-neutral-400' };
+  const mins = Math.floor(remaining / (60 * 1000));
+  return { label: `剩 ${mins} 分`, className: 'text-amber-500 font-medium' };
 }
 
 type NotionStatus =
@@ -520,7 +533,7 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
         const data: UploadedFile = await response.json();
         console.log(`[Upload] ✅ 檔案上傳成功:`, data);
 
-        setUploadedFiles(prev => [...prev, data]);
+        setUploadedFiles(prev => [...prev, { ...data, uploadedAt: new Date().toISOString() }]);
       }
     } catch (err: any) {
       console.error('[Upload] 檔案上傳錯誤:', err);
@@ -777,7 +790,9 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
         newResult,
         selectedTemplateId,
         colorTheme,
-        customPrompt
+        customPrompt,
+        referenceUrls,
+        referenceVideos
       );
 
       // 更新快取
@@ -2022,6 +2037,12 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
                         <span className="text-xs text-neutral-500">
                           ({(file.sizeBytes / 1024).toFixed(1)} KB)
                         </span>
+                        {(() => {
+                          const expiry = getFileExpiry(file.uploadedAt);
+                          return expiry ? (
+                            <span className={`text-xs ${expiry.className}`}>{expiry.label}</span>
+                          ) : null;
+                        })()}
                       </div>
                       <button
                         onClick={() => handleRemoveFile(index)}
@@ -2040,7 +2061,7 @@ export function ArticleGenerator({ video, onClose, cachedContent, onContentUpdat
 
               <p className="text-xs mt-2 text-neutral-400 flex items-center gap-1">
                 <AppIcon name="idea" size={14} className="text-amber-500" />
-                上傳相關文件、圖片或 Markdown 檔案，AI 會參考這些資料來生成更精準的文章內容
+                上傳相關文件、圖片或 Markdown 檔案，AI 會參考這些資料來生成更精準的文章內容。Gemini 上傳檔案保留 48 小時，到期後自動刪除。
               </p>
             </div>
 
