@@ -14,6 +14,7 @@ import multer from 'multer';
 import { generateFullPrompt } from './services/promptService.js';
 import { generateArticlePrompt, generateArticlePromptWithReferences } from './services/articlePromptService.js';
 import { AIModelManager } from './services/aiProviders/AIModelManager.js';
+import { generateContentWithFallback } from './services/aiProviders/geminiFallback.js';
 import { PromptTemplates } from './services/analysisPrompts/PromptTemplates.js';
 import { aggregateChannelData, clearAnalyticsCache } from './services/channelAnalyticsService.js';
 import { fetchAllVideoTitles, uploadToGist, searchVideosFromCache, loadFromGist } from './services/videoCacheService.js';
@@ -1181,8 +1182,7 @@ app.post('/api/analyze-video-url', async (req, res) => {
 
     // 直接使用 YouTube URL 呼叫 Gemini API
     // 根據最佳實踐：影片應該放在 prompt 之前
-    const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
+    const response = await generateContentWithFallback(ai, {
       contents: [
         {
           role: 'user',
@@ -1259,8 +1259,7 @@ app.post('/api/analyze-video-url-async', async (req, res) => {
       const fullPrompt = generateFullPrompt(videoTitle, prompt);
 
       taskQueue.updateTaskProgress(taskId, 50, '正在使用 YouTube URL 分析影片...');
-      const response = await ai.models.generateContent({
-        model: 'gemini-flash-latest',
+      const response = await generateContentWithFallback(ai, {
         contents: [
           {
             role: 'user',
@@ -1424,8 +1423,7 @@ app.post('/api/analyze-video', async (req, res) => {
 
     // 呼叫 Gemini API
     // 根據最佳實踐：影片應該放在 prompt 之前
-    const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
+    const response = await generateContentWithFallback(ai, {
       contents: [
         {
           role: 'user',
@@ -1519,8 +1517,7 @@ app.post('/api/reanalyze-with-existing-file', async (req, res) => {
 
     // 呼叫 Gemini API
     // 根據最佳實踐：影片應該放在 prompt 之前
-    const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
+    const response = await generateContentWithFallback(ai, {
       contents: [
         {
           role: 'user',
@@ -1720,8 +1717,7 @@ app.post('/api/generate-article-url', async (req, res) => {
     const fullPrompt = generateArticlePrompt(videoTitle, prompt);
 
     // 根據最佳實踐：影片應該放在 prompt 之前
-    const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
+    const response = await generateContentWithFallback(ai, {
       contents: [
         {
           role: 'user',
@@ -1957,8 +1953,7 @@ app.post('/api/generate-article-url-async', async (req, res) => {
 
       while (attempts < maxAttempts) {
         try {
-          response = await ai.models.generateContent({
-            model: 'gemini-flash-latest',
+          response = await generateContentWithFallback(ai, {
             contents: [
               {
                 role: 'user',
@@ -2327,8 +2322,7 @@ app.post('/api/generate-article-from-url-async', async (req, res) => {
 
       while (attempts < maxAttempts) {
         try {
-          response = await ai.models.generateContent({
-            model: 'gemini-flash-latest',
+          response = await generateContentWithFallback(ai, {
             contents: [
               {
                 role: 'user',
@@ -2661,8 +2655,7 @@ app.post('/api/generate-article', async (req, res) => {
 
     // 呼叫 Gemini API 生成文章與截圖時間點
     // 根據最佳實踐：影片應該放在 prompt 之前
-    const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
+    const response = await generateContentWithFallback(ai, {
       contents: [
         {
           role: 'user',
@@ -2808,8 +2801,7 @@ app.post('/api/regenerate-article', async (req, res) => {
 
     // 呼叫 Gemini API
     // 根據最佳實踐：影片應該放在 prompt 之前
-    const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
+    const response = await generateContentWithFallback(ai, {
       contents: [
         {
           role: 'user',
@@ -2924,8 +2916,7 @@ app.post('/api/regenerate-screenshots', async (req, res) => {
     const fullPrompt = generateArticlePrompt(videoTitle, prompt || '');
 
     // 根據最佳實踐：影片應該放在 prompt 之前
-    const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
+    const response = await generateContentWithFallback(ai, {
       contents: [
         {
           role: 'user',
@@ -4331,15 +4322,14 @@ app.post('/api/analytics/ai-chat', async (req, res) => {
 
       // Tool calling loop（最多 5 輪）
       for (let round = 0; round < 5; round++) {
-        const response = await genai.models.generateContent({
-          model: geminiModel,
+        const response = await generateContentWithFallback(genai, {
           contents,
           config: {
             tools,
             systemInstruction: { parts: [{ text: systemPrompt }] },
             temperature: 0.3,
           },
-        });
+        }, { preferredModel: geminiModel, logPrefix: '[Chat]' });
 
         const candidate = response.candidates?.[0];
         if (!candidate) break;

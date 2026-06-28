@@ -4,6 +4,10 @@
 
 import { GoogleGenAI } from '@google/genai';
 import { BaseAIProvider } from './BaseAIProvider.js';
+import {
+  generateContentWithFallback,
+  generateContentStreamWithFallback,
+} from './geminiFallback.js';
 
 export class GeminiProvider extends BaseAIProvider {
   constructor(config) {
@@ -13,19 +17,22 @@ export class GeminiProvider extends BaseAIProvider {
 
   async analyze(request) {
     try {
-      const response = await this.ai.models.generateContent({
-        model: this.config.model,
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: request.prompt }],
+      const response = await generateContentWithFallback(
+        this.ai,
+        {
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: request.prompt }],
+            },
+          ],
+          generationConfig: {
+            temperature: request.temperature ?? this.config.temperature ?? 0.7,
+            maxOutputTokens: request.maxTokens ?? this.config.maxTokens ?? 8192,
           },
-        ],
-        generationConfig: {
-          temperature: request.temperature ?? this.config.temperature ?? 0.7,
-          maxOutputTokens: request.maxTokens ?? this.config.maxTokens ?? 8192,
         },
-      });
+        { preferredModel: this.config.model, logPrefix: '[GeminiProvider]' }
+      );
 
       return {
         text: response.text,
@@ -49,34 +56,24 @@ export class GeminiProvider extends BaseAIProvider {
 
   async streamAnalyze(request, handlers = {}) {
     try {
-      const stream = await this.ai.models.generateContentStream({
-        model: this.config.model,
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: request.prompt }],
+      const { text: aggregatedText, lastChunk } = await generateContentStreamWithFallback(
+        this.ai,
+        {
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: request.prompt }],
+            },
+          ],
+          config: {
+            temperature: request.temperature ?? this.config.temperature ?? 0.7,
+            maxOutputTokens: request.maxTokens ?? this.config.maxTokens ?? 8192,
+            abortSignal: request.abortSignal,
           },
-        ],
-        config: {
-          temperature: request.temperature ?? this.config.temperature ?? 0.7,
-          maxOutputTokens: request.maxTokens ?? this.config.maxTokens ?? 8192,
-          abortSignal: request.abortSignal,
         },
-      });
-
-      let aggregatedText = '';
-      let lastChunk = null;
-
-      for await (const chunk of stream) {
-        lastChunk = chunk;
-        const chunkText = chunk.text;
-        if (chunkText) {
-          aggregatedText += chunkText;
-          if (typeof handlers.onChunk === 'function') {
-            handlers.onChunk(chunkText);
-          }
-        }
-      }
+        { onChunk: handlers.onChunk },
+        { preferredModel: this.config.model, logPrefix: '[GeminiProvider]' }
+      );
 
       const usageMetadata = lastChunk?.usageMetadata;
       const result = {
