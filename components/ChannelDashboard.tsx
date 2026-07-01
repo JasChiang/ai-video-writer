@@ -2147,24 +2147,51 @@ const showVideoRankingsDoubleColumn =
         const cache = await ensureVideoCache();
         for (const date of trendMap.keys()) {
           try {
-            const topVideoResponse = await fetch(
-              `https://youtubeanalytics.googleapis.com/v2/reports?` +
-              `ids=channel==MINE` +
-              `&startDate=${date}` +
-              `&endDate=${date}` +
-              `&dimensions=video` +
-              `&metrics=views` +
-              `&sort=-views` +
-              `&maxResults=1`,
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              }
-            );
+            let topVideoResponse: Response | null = null;
+            let retryCount = 0;
+            const MAX_RETRIES = 3;
 
-            if (!topVideoResponse.ok) {
-              console.warn('[Dashboard] ⚠️ 單日熱門影片 API 失敗:', date);
+            while (retryCount < MAX_RETRIES) {
+              try {
+                // 增加短暫延遲，避免瞬間發送大量請求。如果是重試，則延長等待時間
+                const delayMs = retryCount === 0 ? 200 : 1000 * Math.pow(2, retryCount - 1);
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+
+                topVideoResponse = await fetch(
+                  `https://youtubeanalytics.googleapis.com/v2/reports?` +
+                  `ids=channel==MINE` +
+                  `&startDate=${date}` +
+                  `&endDate=${date}` +
+                  `&dimensions=video` +
+                  `&metrics=views` +
+                  `&sort=-views` +
+                  `&maxResults=1`,
+                  {
+                    headers: {
+                      Authorization: `Bearer ${token}`,
+                    },
+                  }
+                );
+
+                // 成功 (2xx)，跳出重試迴圈
+                if (topVideoResponse.ok) {
+                  break;
+                }
+                
+                // 若為 400 (參數錯誤), 401 (未授權), 403 (配額不足)，重試通常也沒用，直接中斷
+                if ([400, 401, 403].includes(topVideoResponse.status)) {
+                  break;
+                }
+                
+                console.warn(`[Dashboard] ⚠️ 單日熱門影片 API 失敗 (${date}, 狀態: ${topVideoResponse.status})，準備重試 (${retryCount + 1}/${MAX_RETRIES})...`);
+              } catch (fetchErr) {
+                console.warn(`[Dashboard] ⚠️ 單日熱門影片 API 網路錯誤 (${date})，準備重試 (${retryCount + 1}/${MAX_RETRIES})...`);
+              }
+              retryCount++;
+            }
+
+            if (!topVideoResponse || !topVideoResponse.ok) {
+              console.warn('[Dashboard] ❌ 單日熱門影片 API 最終失敗 (已放棄):', date);
               continue;
             }
 
